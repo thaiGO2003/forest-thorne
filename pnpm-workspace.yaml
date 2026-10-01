@@ -1,0 +1,6 @@
+packages:
+  - "."
+# ponytail: offline supply-chain metadata check breaks `pnpm run`; re-enable when registry reachable.
+verifyDepsBeforeRun: false
+allowBuilds:
+  esbuild: true
