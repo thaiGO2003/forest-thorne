@@ -4,6 +4,7 @@ import { getUnit, NORMAL_UNITS } from "../content/catalog";
 import {
   addXp, benchCapacity, deployCap, refreshCost, sellValue, shopTierOdds, xpBuyCost,
 } from "./economy";
+import { canResearch, researchCost, TECH_BY_ID } from "./tech";
 
 export type Phase = "PLANNING" | "AUGMENT" | "COMBAT" | "GAME_OVER";
 
@@ -37,6 +38,11 @@ export interface RunState {
   loseStreak: number;
   rngSeed: number;
   nextUid: number;
+  techLevels: Record<string, number>;
+  /** 0..3, raised only by tech (A7). */
+  craftTableLevel: number;
+  unequipDiscount: number;
+  craftHistory: string[];
 }
 
 export const BOARD_SIZE = 5;
@@ -56,6 +62,7 @@ export function createRun(seed: number): RunState {
     board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), bench: [], itemBag: [],
     shop: [], shopLocked: false, benchUpgradeLevel: 0, benchBonus: 0, deployBonus: 0,
     xpCostDelta: 0, rollCostDelta: 0, winStreak: 0, loseStreak: 0, rngSeed: seed | 0, nextUid: 1,
+    techLevels: {}, craftTableLevel: 0, unequipDiscount: 0, craftHistory: [],
   };
   rollShop(s);
   return s;
@@ -98,6 +105,24 @@ export function refresh(s: RunState): boolean {
 
 export function toggleLock(s: RunState): void {
   s.shopLocked = !s.shopLocked;
+}
+
+/** A8 research: atomic; applies the purchased level's run-state deltas. Combat % effects read techModifiers(). */
+export function research(s: RunState, id: string): boolean {
+  if (!planning(s) || !canResearch(s.techLevels, id, s.gold)) return false;
+  const t = TECH_BY_ID.get(id)!;
+  const lvl = s.techLevels[id] ?? 0;
+  s.gold -= researchCost(t, lvl);
+  s.techLevels[id] = lvl + 1;
+  const e = t.effects[Math.min(lvl, t.effects.length - 1)]!;
+  s.benchBonus += e.bench ?? 0;
+  s.benchUpgradeLevel += e.benchUpgrade ?? 0;
+  s.deployBonus += e.deployCap ?? 0;
+  s.xpCostDelta += e.xpCost ?? 0;
+  s.rollCostDelta += e.rerollCost ?? 0;
+  s.unequipDiscount += e.unequipDiscount ?? 0;
+  s.craftTableLevel = Math.min(3, s.craftTableLevel + (e.craftTable ?? 0));
+  return true;
 }
 
 export function buy(s: RunState, slot: number): boolean {
