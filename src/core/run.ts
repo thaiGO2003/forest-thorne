@@ -43,6 +43,9 @@ export interface RunState {
   craftTableLevel: number;
   unequipDiscount: number;
   craftHistory: string[];
+  augments: string[];
+  /** Summed augment values by effect type (A10). */
+  augmentMods: Record<string, number>;
 }
 
 export const BOARD_SIZE = 5;
@@ -62,7 +65,7 @@ export function createRun(seed: number): RunState {
     board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), bench: [], itemBag: [],
     shop: [], shopLocked: false, benchUpgradeLevel: 0, benchBonus: 0, deployBonus: 0,
     xpCostDelta: 0, rollCostDelta: 0, winStreak: 0, loseStreak: 0, rngSeed: seed | 0, nextUid: 1,
-    techLevels: {}, craftTableLevel: 0, unequipDiscount: 0, craftHistory: [],
+    techLevels: {}, craftTableLevel: 0, unequipDiscount: 0, craftHistory: [], augments: [], augmentMods: {},
   };
   rollShop(s);
   return s;
