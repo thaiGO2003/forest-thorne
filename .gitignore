@@ -1,0 +1,30 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+dist-ssr/
+*.tsbuildinfo
+.vite/
+.vite-temp/
+
+# test / QA artifacts
+coverage/
+playwright-report/
+test-results/
+_tmp/
+*.log
+
+# env / secrets (never commit VITE_EMOJI_API_KEY)
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
