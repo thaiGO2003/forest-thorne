@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forest Throne — Three.js Pure 3D Master Plan & WBS</title>
+  <style>
+    :root {
+      --bg-primary: #0b1329;
+      --bg-card: #131c33;
+      --bg-header: #1a2542;
+      --border-color: #24345d;
+      --text-main: #e2e8f0;
+      --text-dim: #94a3b8;
+      --accent-green: #45f0a0;
+      --accent-gold: #efb844;
+      --accent-blue: #63b3ed;
+      --accent-red: #f56565;
+      --accent-purple: #b794f4;
+      --accent-orange: #ed8936;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-primary); color: var(--text-main); line-height: 1.6; padding: 24px 16px; }
+    .container { max-width: 1240px; margin: 0 auto; }
+    header { background: linear-gradient(135deg, #131c33 0%, #1a284e 100%); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h1 { font-size: 24px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 16px; }
+    .badge-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .badge-truth { background: rgba(69, 240, 160, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .badge-arch { background: rgba(99, 179, 237, 0.15); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+    .badge-unified { background: rgba(239, 184, 68, 0.15); color: var(--accent-gold); border: 1px solid var(--accent-gold); }
+    .badge-alert { background: rgba(245, 101, 101, 0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+
+    .card { background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border-color); padding: 20px; margin-bottom: 20px; }
+    .card-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .arch-box { background: rgba(26, 37, 66, 0.6); padding: 14px; border-radius: 8px; border-left: 3px solid var(--accent-blue); font-size: 13px; }
+    .arch-box strong { color: var(--accent-blue); }
+    .purge-box { background: rgba(245, 101, 101, 0.08); padding: 14px; border-radius: 8px; border-left: 3px solid var(--accent-red); font-size: 13px; }
+    .purge-box strong { color: var(--accent-red); }
+    .warn-box { background: rgba(237, 137, 54, 0.08); padding: 14px; border-radius: 8px; border-left: 3px solid var(--accent-orange); font-size: 13px; }
+    .warn-box strong { color: var(--accent-orange); }
+
+    .progress-container { margin: 16px 0 24px 0; }
+    .progress-info { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+    .progress-bar-bg { height: 10px; background: #1a2542; border-radius: 5px; overflow: hidden; border: 1px solid var(--border-color); }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-green)); width: 55%; border-radius: 5px; transition: width 0.4s ease; }
+
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-btn { background: #1a2542; color: var(--text-dim); border: 1px solid var(--border-color); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .filter-btn.active, .filter-btn:hover { background: var(--border-color); color: #fff; border-color: var(--accent-blue); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th { background: #1a2542; color: var(--text-dim); font-weight: 600; padding: 12px; border-bottom: 2px solid var(--border-color); }
+    td { padding: 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+    tr:hover td { background: rgba(26, 37, 66, 0.4); }
+
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+    .status-completed { background: rgba(69, 240, 160, 0.15); color: var(--accent-green); }
+    .status-in_progress { background: rgba(99, 179, 237, 0.15); color: var(--accent-blue); }
+    .status-pending { background: rgba(148, 163, 184, 0.15); color: var(--text-dim); }
+    .status-caveat { background: rgba(239, 184, 68, 0.15); color: var(--accent-gold); }
+    .status-blocked { background: rgba(245, 101, 101, 0.15); color: var(--accent-red); }
+
+    .phase-header { background: #1a2542; font-weight: 700; color: var(--accent-gold); }
+    .phase-header td { padding: 10px 12px; }
+
+    .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; background: #24345d; color: #cbd5e1; margin-right: 4px; }
+    .code-span { font-family: monospace; background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px; color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🌲 Forest Throne — Three.js Pure 3D Master Plan & WBS</h1>
+      <div class="subtitle">Kiến trúc chuẩn: Renderer-neutral Core/Systems làm Single Source of Truth • Three.js là production renderer/runtime • Unified Match Arena</div>
+      <div class="badge-bar">
+        <span class="badge badge-truth">Canonical Core SSoT</span>
+        <span class="badge badge-unified">Unified Match Scene</span>
+        <span class="badge badge-arch">Zero Hallucinations Contract</span>
+        <span class="badge badge-alert">Runner / Browser Gates Pending</span>
+      </div>
+    </header>
+
+    <!-- Operational & Boot Invariants Panels -->
+    <div class="grid-2">
+      <div class="arch-box">
+        <strong>🏛️ BẢO VỆ ĐƯỜNG BOOT & INVARIANTS (§0.3):</strong><br>
+        • <strong>Production Boot Authority</strong>: <span class="code-span">src/main.ts</span> boot trực tiếp <span class="code-span">ThreeApp</span>; runtime <span class="code-span">?engine=phaser</span>, <span class="code-span">initGame</span> và dynamic <span class="code-span">import("phaser")</span> đã bị gỡ ngày 2026-09-22. <span class="code-span">tests/three/threeBootStaticGraph.test.ts</span> đã được đổi contract sang cấm cả static lẫn dynamic Phaser ở production entrypoint. Legacy Phaser source/package còn lại chỉ là migration debt cho tới khi AST closure được regenerate và xóa an toàn.<br>
+        • <strong>Fatal Boot Error Surface</strong>: Không bao giờ để lỗi khởi động thành màn hình trắng (no silent blank page). Bắt lỗi toàn cục qua <span class="code-span">error</span>, <span class="code-span">unhandledrejection</span> và catch bootstrap để render panel DOM thuần với i18n chuẩn.
+      </div>
+      <div class="warn-box">
+        <strong>🌐 THỰC TẾ TRIỂN KHAI & HẠ TẦNG (§0.3.3):</strong><br>
+        • GitHub <span class="code-span">dev</span> là source authority của pass này; <span class="code-span">old_src/**</span> bất khả xâm phạm.<br>
+        • Connector hiện không có runner/browser đáng tin cậy cho HEAD cuối; vì vậy không được nâng test/browser/build gate thành PASS chỉ từ static source inspection.<br>
+        • Runtime rollback bằng URL đã bị loại bỏ. Rollback lịch sử nằm ở branch <span class="code-span">archived/2D-Phaser</span>.<br>
+        • Hai branch tranche cũ <span class="code-span">refactor/merge-thin-wrappers</span> và <span class="code-span">fix/tech-fit-button-alignment</span> đã được xác minh là ancestor của <span class="code-span">dev</span>; connector không có delete-ref action nên việc xóa remote branch vẫn pending.      </div>
+    </div>
+    <div class="progress-container">
+      <div class="progress-info">
+        <span>Tiến độ tổng thể WBS Master Plan (Phases 0 — 10)</span>
+        <span id="progress-percent">2026-09-22 22:20: Three-only cleanup + canonical equipment owner + 3-level closure audit • fresh runner/runtime gates pending</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width: 72%;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Execution update — 2026-09-22 15:56 +07:00</span>
+        <span class="status-pill status-in_progress">SOURCE PASS / RUNTIME PENDING</span>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div class="arch-box">
+          <strong>Đã land trên dev</strong><br>
+          • Production bootstrap Three-only; bỏ rollback URL + Phaser prebundle/chunk path.<br>
+          • Gộp canonical owners: xóa <span class="code-span">ThreeUiResponsive.ts</span>, <span class="code-span">ThreeCombatQueue.ts</span>, <span class="code-span">ThreeKeyboardBindings.ts</span>; bỏ alias <span class="code-span">createPhaserGameConfig</span> khỏi Three config.<br>
+          • Audio enabled/muted/volume dùng một canonical <span class="code-span">core/uiSettings</span>; không còn <span class="code-span">forest-throne.audio.*</span>.<br>
+          • Equipment mutation/validation dùng canonical <span class="code-span">scenes/shared/sceneEquipmentRuntime.ts</span>; <span class="code-span">ThreeSceneEquipmentRuntime.ts</span> đã xóa, test/build/browser cần rerun.<br>
+          • Planning preview/unit-info/tooltip fan-out đã static-audit 3 tầng không thấy live Phaser edge; AST closure generator vẫn phải rerun trước release.<br>
+          • README/package/docs topology đã cập nhật theo Three-only + pnpm; dangling deploy script bị gỡ.
+        </div>
+        <div class="warn-box">
+          <strong>Gate chưa được phép claim PASS</strong><br>
+          • Targeted Vitest/typecheck trên HEAD cuối: <strong>UNVERIFIED</strong> trong connector session.<br>
+          • Browser/mobile/PWA/computer-use evidence: <strong>UNVERIFIED</strong>.<br>
+          • Phaser package + legacy source chưa xóa: cần regenerate AST closure trên runner sau khi shared dependencies được renderer-neutralize.<br>
+          • Master plan còn 11 checkbox runtime/release/closure mở; các remediation source cases đã chuyển sang <span class="code-span">[~]</span>.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Execution update — 2026-09-22 20:58 +07:00</span>
+        <span class="status-pill status-in_progress">CLEANUP CONTINUES / FRESH RUNNER PENDING</span>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div class="arch-box">
+          <strong>Source evidence mới</strong><br>
+          • Exact readback trên các code-search hit xác nhận không có import/export/dynamic import <span class="code-span">phaser</span> trong live <span class="code-span">src/three/**</span> đã kiểm.<br>
+          • Không tìm thấy reverse path literal <span class="code-span">src/scenes/** → src/three/**</span>.<br>
+          • Three-reachable planning helpers đã repoint khỏi legacy coop runtime sang <span class="code-span">core/planningBoardAccess.ts</span>.<br>
+          • Shared combat/tutorial seams đã bỏ type-only/runtime dependency Phaser không cần thiết; augment power scoring chuyển về <span class="code-span">core/augmentPower.ts</span>.
+        </div>
+        <div class="warn-box">
+          <strong>Fresh verification bắt buộc</strong><br>
+          • Phase 8/9 evidence ngày 2026-09-18 đã bị hạ về RE-RUN REQUIRED vì predates cleanup 2026-09-22.<br>
+          • Runner hiện có Node/tsc nhưng không có pnpm cache và network DNS bị chặn; không thể chạy frozen install/Vitest/build trên HEAD.<br>
+          • Production release/build tests đã được sửa để cấm Phaser chunk thay vì yêu cầu rollback chunk cũ.<br>
+          • Public <span class="code-span">/wbs.html</span> là redirect tới canonical WBS domain; external verifier hiện không truy cập được domain đó.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Execution update — 2026-09-22 21:17 +07:00</span>
+        <span class="status-pill status-in_progress">CLOSURE / I18N SOURCE PASS</span>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div class="arch-box">
+          <strong>Source cleanup landed</strong><br>
+          • Three production no longer consumes the legacy scene-style social/donate module; canonical QR logic moved to <span class="code-span">src/core/donateQr.ts</span>.<br>
+          • Inventory generator no longer treats <span class="code-span">ThreeGamepadController</span> as a fake structural Phaser adapter.<br>
+          • Loading/LazySceneLoader, multiplayer, gamepad, combat action and inventory labels now use symmetric VI/EN keys.<br>
+          • Three-reachable tutorial/combat/board helper seams were narrowed away from Phaser-specific types/owners.
+        </div>
+        <div class="warn-box">
+          <strong>Still not closed</strong><br>
+          • Fresh AST closure/manifest regeneration: <strong>PENDING</strong>.<br>
+          • TypeScript/Vitest/build on current HEAD: <strong>PENDING</strong> (no callable workflow/runner in this connector session).<br>
+          • Browser/mobile/PWA/runtime visual gates: <strong>PENDING</strong>.<br>
+          • <span class="code-span">phaser@4.2.1</span> remains installed until fresh closure proves package removal safe.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Execution update — 2026-09-23</span>
+        <span class="status-pill status-in_progress">ROSTER BATCH 1 SOURCE PASS</span>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div class="arch-box">
+          <strong>Source implementation mới</strong><br>
+          • Hawk / Monkey / Owl: 5 source/static exit rows đã được reconcile thành complete; runtime/device smoke vẫn mở.<br>
+          • Remaining-roster Batch 1 và Batch 2 đều đã SOURCE DONE đủ 12/12; Batch 3 hiện đã unit-owned từ <span class="code-span">mosquito_toxic</span> đến <span class="code-span">horse_charge</span>, tiếp tục cùng policy full-body composition theo từng unit.<br>
+          • Skin thật giữ provenance/controller riêng; Batch 3 hiện có <span class="code-span">venomPulse</span>, <span class="code-span">jadeFang</span> và <span class="code-span">goldSaddle</span> với ornament/material + star evolution riêng thay vì recolor-only.<br>
+          • Targeted regression đã authored đến <span class="code-span">tests/runtime/horseChargeVisual.test.ts</span>, khóa mane/ear/4-hoof/tail anatomy, Attack≠Skill, row-charge + armor-break/lead authority, rear-leg Move, temp-FX reset và skin provenance.
+        </div>
+        <div class="warn-box">
+          <strong>Verification level</strong><br>
+          • Remaining-roster overall: <strong>27/119 SOURCE DONE</strong>.<br>
+          • Batch 1: <strong>12/12 SOURCE DONE</strong>. Batch 2: <strong>12/12 SOURCE DONE</strong>. Batch 3: <strong>3/12 SOURCE DONE</strong>; runtime verification vẫn pending.<br>
+          • Vitest/typecheck/browser/device cho batch mới: <strong>PENDING</strong> trong connector session.<br>
+          • Không nâng final roster/runtime gates thành complete trước fresh runner + browser evidence.
+        </div>
+      </div>
+    </div>
+
+    <!-- 8-Gate Exit Table mirroring docs/reviews/phase-2-review-matrix.md §3.1 -->
+    <div class="card">
+      <div class="card-title">
+        <span>Bảng 8 Tiêu chí Nghiệm thu Cổng Phase 2 (Exit Gate Review Matrix §3.1)</span>
+        <span style="font-size: 12px; color: var(--accent-gold);">Cổng Phase 2: RELEASE trên cổng 1–6 &amp; 8 • Cổng 7: residual 1 <span class="code-span">any</span> tồn tại trước • Case 2.12 OPEN</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 60px;">Cổng</th>
+            <th style="width: 200px;">Tiêu chuẩn nghiệm thu</th>
+            <th style="width: 140px;">Trạng thái</th>
+            <th>Bằng chứng & Hiện trạng kỹ thuật</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Gate 1</strong></td>
+            <td><strong>Canonical Parity</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS</span></td>
+            <td>Mọi đường hành động chứng minh sở hữu bằng <span class="code-span">isRowOwnedByPlayer</span> (Case 2.7 + 2.7b đã ACCEPT <span class="code-span">01a0addb</span>; 71 tests, <span class="code-span">tsc --noEmit</span> exit 0). <span class="code-span">getPlayerSlotForRow</span> chỉ còn trong nhánh resolution/labelling và đã được JSDoc ghi rõ <em>không phải</em> bằng chứng sở hữu. Không có literal row-span cứng trong <span class="code-span">src/three/**</span>.</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 2</strong></td>
+            <td><strong>Profile Matrix Coverage</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS</span></td>
+            <td><span class="code-span">threeMatrixAudit.test.ts</span> bao phủ trọn vẹn SOLO (50 ô), COOP2 (100 ô), COOP4 (200 ô) — <strong>26/26 tests PASS</strong> (VERIFY ACCEPT <span class="code-span">01a0adce</span>; <span class="code-span">tsc --noEmit</span> exit 0; md5 <span class="code-span">165ff799a343b4b94aa273adde257a26</span>).</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 3</strong></td>
+            <td><strong>Mathematical Inverses</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS</span></td>
+            <td><span class="code-span">worldToGrid(gridToWorld())</span> khớp 350 ô cờ với sai số &le; 0.001 world units qua các bộ test viewport/mobile.</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 4</strong></td>
+            <td><strong>River Boundary Invariance</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS</span></td>
+            <td>Sông rộng 2.15, khoảng cách tâm-tâm qua sông 4.30 units (<span class="code-span">threeRiverDivider.test.ts</span>) và từ chối raycast trong dải sông.</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 5</strong></td>
+            <td><strong>Ownership & Placement Integrity</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS</span></td>
+            <td>Bao phủ từ chối trên sông, hàng địch, hàng khác phe và ngoài biên; snapshot board/bench/UID giữ nguyên byte-equality; 0 ghost mesh / highlight; phát đúng 1 sự kiện rejection — <strong>37/37 tests PASS</strong> (VERIFY ACCEPT <span class="code-span">01a0adee</span>; <span class="code-span">tsc --noEmit</span> exit 0).</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 6</strong></td>
+            <td><strong>Idempotent Rebuild & Clean Lifecycle</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS (Phase-2 scope)</span></td>
+            <td>Đo thật 2026-09-17 trên <span class="code-span">ThreeApp</span> / <span class="code-span">ThreeBoard</span> / <span class="code-span">ThreeCameraManager</span> thật (chỉ fake GL renderer): SOLO 50 ô/136 mesh → COOP2 100/186 → COOP4 200/286 → SOLO 50/136. Mỗi lần chuyển đều detach board group cũ (<span class="code-span">parent === null</span>), dispose đủ <strong>68</strong> geometry cũ (0 sót, 0 chưa dispose), 0 mesh cũ, 0 listener phát sinh; gọi lại đúng profile đang bật giữ nguyên identity group và 136→136 mesh / 68→68 geometry. <strong>Caveat (audit tĩnh 2026-09-17):</strong> cổng này <em>không có test nào đo teardown thật</em> — bằng chứng hiện tại là probe; suite liền kề <span class="code-span">threeSceneTransitionLifecycle.test.ts</span> (:8-33, :58-60, :104-105) assert call-count trên <em>chính các <span class="code-span">vi.fn()</span> của mock</em> ⇒ STUB-BACKED. Remediation đã giao DEV (task <span class="code-span">01a0aefc-9005-7713-a3d0-9628f2f2b338</span>).</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 7</strong></td>
+            <td><strong>Deterministic Vitest & Type Safety</strong></td>
+            <td><span class="status-pill status-caveat">⚡ PARTIAL (Scoped PASS)</span></td>
+            <td><span class="code-span">tsc --noEmit</span> exit 0; không có <span class="code-span">any</span> hay suppression trong <span class="code-span">src/three/**</span>. Tiêu chí toàn repo chưa đạt do còn 1 <span class="code-span">as any</span> trong test Phase 5 (<span class="code-span">threeFortressMap.test.ts:25</span>).</td>
+          </tr>
+          <tr>
+            <td><strong>Gate 8</strong></td>
+            <td><strong>Boot Path Purity & Error Surface</strong></td>
+            <td><span class="status-pill status-completed">✓ PASS</span></td>
+            <td><span class="code-span">tests/three/threeBootStaticGraph.test.ts</span> xác nhận 0 đường static Phaser; bẫy lỗi khởi động DOM thuần hoạt động.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="filterTasks('all')">Tất cả WBS</button>
+      <button class="filter-btn" onclick="filterTasks('completed')">Đã hoàn thành</button>
+      <button class="filter-btn" onclick="filterTasks('in_progress')">Đang thực hiện / In Flight</button>
+      <button class="filter-btn" onclick="filterTasks('caveat')">Accept with Caveat</button>
+      <button class="filter-btn" onclick="filterTasks('blocked')">Bị chặn (Blocked)</button>
+      <button class="filter-btn" onclick="filterTasks('pending')">Chờ xử lý (Pending)</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Chi tiết Phân rã WBS Chuẩn (Canonical Master Plan)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 80px;">Mã WBS</th>
+            <th>Hạng mục công việc & Tiêu chuẩn nghiệm thu Canonical</th>
+            <th style="width: 120px;">Phụ trách</th>
+            <th style="width: 150px;">Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Phase 0 & 1 -->
+          <tr class="phase-header"><td colspan="4">PHASE 0 & PHASE 1: DIRECT THREE BOOT & REVERSE DEPENDENCY REMOVAL</td></tr>
+          <tr data-status="completed">
+            <td><strong>0.1–0.2</strong></td>
+            <td><strong>Direct Three.js Boot & Menu Routing</strong>: Boot trực tiếp <span class="code-span">ThreeApp</span> không cần cờ URL, 10 vàng / 3 HP, loại bỏ auto-combat. (Waiver nghiệm thu chuyển Phase 1).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Waiver Phase 0</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>1.1–1.6</strong></td>
+            <td><strong>Remove Reverse Dependencies</strong>: Cắt đứt hoàn toàn import từ <span class="code-span">src/scenes/**</span> sang <span class="code-span">src/three/**</span>. Hệ thống status tick và heal chuyển sang host adapter. (36 tests pass, tsc exit 0).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành (36/36)</span></td>
+          </tr>
+
+          <!-- Phase 2 Canonical -->
+          <tr class="phase-header"><td colspan="4">PHASE 2: CANONICAL BOARD PROFILES & COORDINATE SYSTEM</td></tr>
+          <tr data-status="completed">
+            <td><strong>2.1</strong></td>
+            <td><strong>Canonical dimensions & profile constants</strong>: Khớp hằng số <span class="code-span">ROWS=5</span>, <span class="code-span">COLS=10</span>, <span class="code-span">PLAYER_COLS=5</span>, <span class="code-span">BOARD_GAP_COLS=1</span>.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.2</strong></td>
+            <td><strong>SOLO 5x10 mapping & inverse</strong>: 50 ô cờ logic, visualCols=11, nghịch đảo <span class="code-span">worldToGrid</span> chuẩn xác.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.3</strong></td>
+            <td><strong>COOP2 10x10 row bounds</strong>: 100 ô logic, P1 (0..4), P2 (5..9), độ sâu sông co giãn theo 10 hàng.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.4</strong></td>
+            <td><strong>COOP4 20x10 row bounds</strong>: 200 ô logic, P1..P4 với offset 0, 5, 10, 15, độ sâu sông 20 hàng.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.5</strong></td>
+            <td><strong>Visual col count & 2.15 river gap</strong>: visualCols=11, sông rộng 2.15 world units, khoảng cách tâm 4.30 units.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.6</strong></td>
+            <td><strong>Profile-aware metadata & raycast</strong>: Trả về metadata chuẩn, từ chối dải sông và ô ngoài biên.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.7</strong></td>
+            <td><strong>Row/slot ownership & explicit rejection</strong>: Kiểm tra quyền sở hữu slot tường minh trước khi đặt quân — VERIFIED COMPLETE, Caveat A đã đóng bởi 2.7b (<span class="code-span">01a0addb-587a-7b42-93e0-2ebbbdf13313</span>).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành [x]</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.7b</strong></td>
+            <td><strong>RELEASE SPEC: Slot-authorization & missingSlot</strong>: Phân định resolution vs authorization, bắt buộc slot trên coop/coop4, i18n <span class="code-span">missingSlot</span> — VERIFY ACCEPT: 71 tests pass, <span class="code-span">tsc --noEmit</span> exit 0, JSDoc non-authorization + key i18n en/vi đã có.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành [x]</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.8</strong></td>
+            <td><strong>Invalid river & enemy placement rejection</strong>: Từ chối vị trí không hợp lệ không làm thay đổi trạng thái — 37/37 tests PASS, 0 ghost mesh, phát đúng 1 sự kiện rejection (VERIFY ACCEPT <span class="code-span">01a0adee-eb42-7ce2-8bc5-1acd357c5b71</span>; <span class="code-span">tsc --noEmit</span> exit 0).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành [x]</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.9</strong></td>
+            <td><strong>Profile switching &amp; idempotent layout rebuild</strong>: <span class="code-span">ThreeApp.setBoardProfile</span> chuyển SOLO/COOP2/COOP4 — đo thật: mỗi lần chuyển detach + dispose đủ <strong>68 geometry cũ</strong>, 0 mesh sót, 0 listener phát sinh; 4 file / 24 test PASS (<span class="code-span">--maxWorkers=2</span>). <em>Caveat:</em> framing camera COOP4 đã tách sang Case 2.12 (defect đo được).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành [x] (RATIFY 2026-09-17)</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.10</strong></td>
+            <td><strong>Profile matrix consistency audit</strong>: Bảng kiểm toán matrix SOLO/COOP2/COOP4 — 26/26 tests PASS, 8 caveats đã đóng, mutation proof bắt thay đổi kích thước tại dòng 84. (2.10b: VERIFY ACCEPT <span class="code-span">01a0adce-f5c8-74c2-8c71-a5ed6aa856a5</span>.)</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành [x]</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.11</strong></td>
+            <td><strong>River geometry regression fixture</strong>: <span class="code-span">threeRiverDivider.test.ts</span> 10 test PASS + đo module thật: <span class="code-span">gridToWorld(2,4).x = −2.1500</span> / <span class="code-span">(2,5).x = +2.1500</span> ⇒ tâm-tâm <strong>4.30</strong> cho cả 3 profile; bbox sông rộng 2.15, sâu 10.75/21.5/43; <span class="code-span">worldToGrid({0,0,0})</span> và <span class="code-span">resolveBoardTileMetadata({0,0,0})</span> đều <span class="code-span">null</span>; <span class="code-span">gridToWorld(0,0).z</span> = −4.3 / −9.675 / −20.425 ⇒ <span class="code-span">_profile</span> được tiêu thụ. <strong>Pre-fix reproduction:</strong> cùng assertion trên <span class="code-span">HEAD:src/three/ThreeBoard.ts</span> cho x = ∓1.075, gap 2.15, z = −4.3 cả 3 profile ⇒ fixture thật sự đỏ trước khi sửa (không mock-echo).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ Hoàn thành [x] (RATIFY 2026-09-17)</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>2.12</strong></td>
+            <td><strong>COOP4 framing clamp — FIXED &amp; VERIFIED (chưa commit)</strong>: gốc là <span class="code-span">controls.maxDistance = 50</span> cứng trong khi framing 20 hàng cần <strong>70.073</strong> ⇒ clamp ⇒ cameraDist 50.0000, tràn frustum. Test cũ (phạm vi <span class="code-span">:134-176</span> cũ đã được thay bằng test idempotency <span class="code-span">:133-164</span> + test Case 2.12 thật <span class="code-span">:166-200</span>) từng xanh là <strong>mock echo</strong> (mock <span class="code-span">cameraManager</span> tự cài công thức không clamp + <span class="code-span">update</span> no-op). <strong>Fix:</strong> <span class="code-span">ThreeCameraManager.ts:31,36,79-81,189-193,213-221</span> — <span class="code-span">setDollyCeiling(d) = max(50, d + 5)</span>, <span class="code-span">:220</span> là writer <em>duy nhất</em> của <span class="code-span">controls.maxDistance</span> (grep toàn <span class="code-span">src/</span>). Ceiling: solo 50 · coop 50 · coop4 <strong>75.0725</strong>. <strong>Số đo DEV (60 frame @1/60s/lần switch, manager thật):</strong> pre-fix coop4 dist 50.0000 / <span class="code-span">|ndcY|</span> <strong>1.0809</strong> (RED) → post-fix dist <strong>70.0725</strong> / <span class="code-span">|ndcY|</span> <strong>0.6923</strong> / <span class="code-span">|ndcX|</span> 0.2277; solo 18.0000 / 0.6605 và coop 35.0363 / 0.6893 <em>bit-identical</em> trước-sau. <strong>Verify độc lập của LEAD:</strong> test mới <span class="code-span">:166-200</span> → 3/3 passed exit 0; projection bằng chính <span class="code-span">three.module.js</span> → pre-fix <span class="code-span">|ndcY|</span> 1.0862 &gt; 1, post-fix 0.6954 (khớp DEV). <strong>Nuance:</strong> assert ceiling <span class="code-span">:183-184</span> pass CẢ trước fix (<span class="code-span">50 ≥ 50</span>) — assert bắt lỗi là <strong>cặp NDC</strong> <span class="code-span">:187-190</span>. <strong>Regression sweep:</strong> DEV chạy trọn <span class="code-span">tests/three</span> → <strong>113 file / 672 test passed, 0 failed</strong> (115.9s) + <span class="code-span">tsc --noEmit</span> exit 0.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ FIXED &amp; VERIFIED — chưa commit</span></td>
+          </tr>
+
+          <!-- Phase 3 Canonical -->
+          <tr class="phase-header"><td colspan="4">PHASE 3: PLANNING UNIT MODELS &amp; 15 DRAG/DROP CASES (SPEC FREEZE 2026-09-17)</td></tr>
+          <tr data-status="completed">
+            <td><strong>3.1 · 3.2 · 3.3 · 3.4 · 3.5 · 3.6</strong></td>
+            <td><strong>6/15 case Phase 3 đã HOÀN THÀNH &amp; NGHIỆM THU ĐỘC LẬP (VERIFY ACCEPT)</strong>:
+              <br />• <strong>3.1 (Empty placement)</strong>: deploy limit, bench splice, đặt (0,0) — <span class="code-span">threePlanningDragIntegration.test.ts:126-135,195-213</span>.
+              <br />• <strong>3.2 (Occupied swap)</strong>: fix return <span class="code-span">moveUnit(...).success</span> tại <span class="code-span">ThreePlanningScene.ts:1007-1010</span>; test swap default <span class="code-span">allowSwap</span> — <span class="code-span">threeBoardModel.test.js:121-127</span> &amp; <span class="code-span">threePlanningDragIntegration.test.ts:148-166</span>.
+              <br />• <strong>3.3 (River reject)</strong>: tâm sông + biên corridor — <span class="code-span">threePlacementRejection.test.ts:31-57</span>.
+              <br />• <strong>3.4 (Enemy reject)</strong>: reject cols 5..9 &amp; rows &ge; 5 — <span class="code-span">threePlacementRejection.test.ts:59-142</span> &amp; <span class="code-span">threePlanningDragIntegration.test.ts:168-194</span>.
+              <br />• <strong>3.5 (Outside cancel)</strong>: <span class="code-span">cleanupDragState</span> — <span class="code-span">threePlanningInputRuntime.test.ts:265-299</span> &amp; <span class="code-span">threePlanningDragIntegration.test.ts:221-251</span>.
+              <br />• <strong>3.6 (Bench→board valid)</strong>: <span class="code-span">threeBenchShop.test.js:67-86</span>.
+            </td>
+            <td><span class="tag">OMP-DEV→VERIFY</span></td>
+            <td><span class="status-pill status-completed">✓ 6/15 [x]</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>POLY-3D</strong></td>
+            <td><strong>Tạo hình Poly 3D cho Units (Parity 2D→3D) — HOÀN THÀNH</strong>: <span class="code-span">src/three/ThreeUnitPolyBuilder.ts</span> export 100% đúng màu <span class="code-span">TRIBE_ACCENTS</span> &amp; <span class="code-span">CLASS_THEMES</span> từ Phaser <span class="code-span">src/visuals/unitStarVisualIdentity.ts</span>; thêm <span class="code-span">metalness: 0.15</span>; <span class="code-span">ThreeUnitAvatarRenderer.ts</span> không ép đè màu frame board model. Test: <span class="code-span">tests/three/threeUnitPolyBuilder.test.ts</span> <strong>11/11 tests passed</strong>, triangle count 170–333 (100% trong budget 150–350 tri). Pre-change: 4 test fail trên code cũ, pass trên code mới.</td>
+            <td><span class="tag">OMP-POLY3D</span></td>
+            <td><span class="status-pill status-completed">✓ VERIFIED (11/11 pass)</span></td>
+          </tr>
+          <tr data-status="in_progress">
+            <td><strong>POLY-3D-SKIN-01</strong></td>
+            <td><strong>Chuẩn mật độ cubic/micro-voxel cho bespoke unit &amp; skin mới — PREREQUISITE</strong>:
+              trước khi triển khai action riêng cho <span class="code-span">hawk_hunter</span>, <span class="code-span">monkey_spear</span> và <span class="code-span">owl_nightshot</span>, geometry base + mọi skin liên quan phải được nâng theo chuẩn visual của Cô Gà Ngủ Nướng v7:
+              <br />• mục tiêu mật độ khoảng <strong>4× số cubic authored</strong> so với model bespoke hiện tại;
+              <br />• bắt buộc dùng <strong>visible raised micro-voxel detail</strong> (edge/feather/fur/cloth/weapon/ornament detail thật), không được chỉ subdivide cuboid đồng màu rồi để interior-face culling làm hình ngoài không đổi;
+              <br />• giữ nguyên silhouette, scale gameplay, hitbox/selection footprint và forward axis;
+              <br />• base skin và skin-specific geometry phải có provenance + visual revision riêng;
+              <br />• acceptance phải có regression chứng minh detail count/provenance và các chi tiết nổi tồn tại trên silhouette.
+              <br /><strong>Canonical implementation plan:</strong> <span class="code-span">.omp/plans/pending/hawk-monkey-owl-bespoke-six-actions-plan.md</span>.
+            </td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-in_progress">🔄 Prerequisite trước animation</span></td>
+          </tr>
+          <tr data-status="pending">
+            <td><strong>ANIM-BESPOKE-ROSTER</strong></td>
+            <td><strong>Master bespoke production-spec v5 cho toàn bộ 119 unit còn lại</strong>:
+              sau Gà + Nhện và plan mẫu Hawk/Monkey/Owl, toàn bộ roster còn lại được phân thành <strong>10 batch</strong> trong
+              <span class="code-span">.omp/plans/pending/remaining-roster-bespoke-six-actions-master-plan.md</span>.
+              Mỗi unit có production row riêng (micro-voxel/silhouette focus + 5 trạng thái preview + impact FX nội bộ + skin rule + acceptance), và bắt buộc hoàn tất theo thứ tự <strong>cubic base → cubic skins → articulated rig → Rảnh rỗi → Đánh → Kỹ năng → Chịu đòn → Di chuyển → regression → Library/Combat smoke</strong>. Mỗi vòng animation Library không phải idle kéo dài đúng <strong>5 giây</strong>. Với thú 4 chân, <strong>Move bắt buộc có rear/hind limb participation</strong>: ít nhất một chi sau phải chuyển động nhìn thấy rõ, ưu tiên gait chéo trước–sau. <span class="code-span">combat-idle</span> đã bỏ; <span class="code-span">hit-impact</span> chỉ còn là hook FX nội bộ, không hiện thành nút Library.
+              Skill visual phải bám authority hiện tại trong <span class="code-span">data/shop_units.csv</span>; 5 boss dùng authority trực tiếp từ <span class="code-span">data/units/boss_*.js</span>. Species/anatomy mapping phải theo unit ID cụ thể, không dò substring display name. <strong>Full-body composition bắt buộc nằm trong module riêng của từng unit</strong>; shared helper chỉ được dựng part tái sử dụng như đuôi/chân/cánh/mắt/sừng/FX. Production factory không được dùng whole-animal composer/generator; unit chưa migrate chỉ hiện neutral debug marker.
+              Exit gate: không còn live unit production nào dùng generic <span class="code-span">default:&lt;baseId&gt;</span> controller làm final visual animation.
+            </td>
+            <td><span class="tag">OMP-DEV→VERIFY</span></td>
+            <td><span class="status-pill status-in_progress">🔄 27/119 SOURCE DONE · Horse complete · Kangaroo next</span></td>
+          </tr>
+          <tr data-status="pending">
+            <td><strong>ANIM-BESPOKE-02</strong></td>
+            <td><strong>3 bespoke units × 5 trạng thái preview + impact FX nội bộ</strong>:
+              <span class="code-span">hawk_hunter</span> → hunter/execute language,
+              <span class="code-span">monkey_spear</span> → agile rock/branch-spear language,
+              <span class="code-span">owl_nightshot</span> → silent lunar/sleep-shot language.
+              Mỗi con bắt buộc có <strong>Rảnh rỗi / Đánh / Kỹ năng / Chịu đòn / Di chuyển</strong> khác biệt về pose, part ownership và timing; <span class="code-span">hit-impact</span> chỉ là FX nội bộ. Attack/Skill không được chỉ khác amplitude.
+              Unit-specific rig/animation nằm trong <span class="code-span">src/three/animals/&lt;unit&gt;/</span>; shared runtime chỉ dispatch qua <span class="code-span">ThreeUnitAnimationController</span>.
+              Thứ tự triển khai: <strong>Hawk → Monkey → Owl</strong>, và chỉ bắt đầu action pass sau khi row <span class="code-span">POLY-3D-SKIN-01</span> của unit tương ứng đạt SOURCE DONE.
+            </td>
+            <td><span class="tag">OMP-DEV→VERIFY</span></td>
+            <td><span class="status-pill status-in_progress">🔄 Hawk/Monkey/Owl SOURCE DONE · runtime pending</span></td>
+          </tr>
+          <tr data-status="in_progress">
+            <td><strong>3.7 &middot; 3.8 &middot; 3.9 &middot; 3.10</strong></td>
+            <td><strong>Batch 2 &mdash; PLAN-VERIFY NGHIỆM THU ĐỘC LẬP: 3.7 ACCEPT &middot; 3.8 ACCEPT &middot; 3.9 ACCEPT</strong> (task <span class="code-span">01a0aff8</span>), kèm <strong>2 GAP còn mở</strong> đang được DEV đóng (task <span class="code-span">01a0b016</span>):
+              <br />&bull; <strong>3.7 (bench&rarr;occupied board swap)</strong>: quân cũ dạt về đúng slot bench, không rớt ref &mdash; <span class="code-span">threePlanningDragIntegration.test.ts:252-263</span>.
+              <br />&bull; <strong>3.8 (board&rarr;bench valid/full)</strong>: index 99 bị từ chối KHÔNG mutate board (<span class="code-span">:287</span>, <span class="code-span">:288</span>); recall hợp lệ về slot rỗng (<span class="code-span">:296</span> true, <span class="code-span">:297</span> board cell null, <span class="code-span">:298</span> <span class="code-span">bench[1]</span> = fox_flame) &mdash; <span class="code-span">threePlanningDragIntegration.test.ts:278-298</span> &amp; <span class="code-span">threeBenchShop.test.js:88-153</span>. <strong>ACCEPT.</strong> Assertion bắt lỗi: xoá <span class="code-span">BoardBenchOps.ts:59</span> &rarr; <span class="code-span">:297</span> đỏ (unit nằm cả 2 surface trong khi <span class="code-span">:296</span>/<span class="code-span">:298</span> vẫn xanh); xoá <span class="code-span">:60-61</span> &rarr; <span class="code-span">:298</span> đỏ. <em>Không phủ:</em> <span class="code-span">ThreePlanningScene.ts:1005</span> chỉ trả <span class="code-span">.success</span> nên suite drag không phát hiện được regression move-vs-swap; chỉ <span class="code-span">threeBenchShop.test.js:91</span> ghim <span class="code-span">swapped === false</span>.
+              <br />&bull; <strong>3.9 (bench reorder)</strong>: rebuild bench length 6 làm anchor tuyệt đối &mdash; swap 0&harr;2, swap lại, move vào slot rỗng 0&rarr;4, no-op cùng slot; kèm <span class="code-span">bench.length</span> (<span class="code-span">:313</span>, <span class="code-span">:345</span>) và số unit không đổi (<span class="code-span">:346</span>) &mdash; <span class="code-span">threePlanningDragIntegration.test.ts:300-355</span> + clamp semantics <span class="code-span">threeBenchShop.test.js:155-171</span>. <strong>ACCEPT.</strong> Assertion bắt lỗi: <span class="code-span">:345</span> bắt insert-không-xoá (7) và xoá-không-insert (5); <span class="code-span">:342</span> bắt unit không hạ đúng index đích; <span class="code-span">:354</span> bắt mất guard same-index <span class="code-span">BoardBenchOps.ts:74</span>. <em>Range <span class="code-span">:300-355</span> được PLAN-VERIFY xác nhận tốt hơn <span class="code-span">:298-352</span> cũ vì range cũ cắt giữa call 6c (call đóng ở <span class="code-span">:353</span>).</em>
+              <br />&bull; <strong>3.10 (duplicate base ID)</strong>: kéo tướng trùng baseId &rarr; reject, board/bench không đổi &mdash; <span class="code-span">threePlanningDragIntegration.test.ts:265-276</span>, <span class="code-span">threeBenchShop.test.js:173-210</span>, <span class="code-span">threeBoardModel.test.js:128-146</span>.
+              <br /><strong>Bằng chứng — LEAD tự đo ĐỘC LẬP (không qua report của DEV):</strong> <span class="code-span">vitest run</span> 4 file &rarr; <strong>4 passed / 15 passed, 0 failed</strong>; <span class="code-span">tsc --noEmit</span> &rarr; <strong>exit 0</strong>. <strong>PLAN-VERIFY chạy lại độc lập:</strong> 4 file &rarr; 4 passed / 15 passed (exit 0); sweep <span class="code-span">tests/three</span> &rarr; <strong>113 file / 679 test passed, 0 failed</strong> (exit 0, 108.59s; <span class="code-span">free -h</span> trước run: available 2509 MiB). <strong>Canonical integrity CLEAN:</strong> md5 <span class="code-span">ac9b1518ebd8f2a5e0b5dc5225cd1908</span> = đúng pin; <span class="code-span">git diff</span>/<span class="code-span">git status</span> của <span class="code-span">BoardBenchOps.ts</span> rỗng; HEAD <span class="code-span">ffe348f</span>. <strong>Stub-echo: REAL</strong> &mdash; <span class="code-span">vi.mock</span> duy nhất là <span class="code-span">ThreeSceneManager</span> và nó KHÔNG cấp <span class="code-span">moveUnit</span>/<span class="code-span">placeBenchUnitOnBoard</span>/<span class="code-span">moveBenchUnit</span>/<span class="code-span">moveBoardUnitToBench</span>; suite chạy <span class="code-span">ThreeApp</span> thật + <span class="code-span">ThreePlanningScene</span> thật + drag runtime thật.
+              <br /><strong>Mutation testing (DEV, 4 đột biến áp lên production rồi revert sạch):</strong> <span class="code-span">insertIndex = 0</span> &rarr; 4 failed; <span class="code-span">bench[toIndex] = moving</span> &rarr; 3 failed; xoá <span class="code-span">checkDuplicateUnit</span> &rarr; 1 failed; xoá guard <span class="code-span">isValidBenchIndex</span> &rarr; 3 failed. <span class="code-span">src/systems/BoardBenchOps.ts</span> md5 <span class="code-span">ac9b1518ebd8f2a5e0b5dc5225cd1908</span>, <span class="code-span">git diff</span> rỗng (byte-identical HEAD).
+              <br /><strong>FINDING mới (chưa mở case):</strong> <span class="code-span">BoardBenchOps.ts:84</span> <span class="code-span">Math.max(0, Math.min(toIndex, bench.length))</span> là <strong>redundant cho mọi input KHÔNG-ÂM mà UI chạm tới</strong> &mdash; <span class="code-span">Array.prototype.splice</span> đã tự clamp start index vào <span class="code-span">[0, length]</span> nên <span class="code-span">Math.min</span> không bao giờ chạm; upper-bound clamping là do <span class="code-span">splice</span> tự lo. <strong>KHÔNG gọi nó là &ldquo;no-op&rdquo; tuyệt đối</strong> (bản WBS trước của tôi viết sai): <span class="code-span">Math.max(0, &hellip;)</span> KHÁC <span class="code-span">splice(-1, 0, x)</span> khi <span class="code-span">toIndex</span> ÂM &mdash; chèn ở đầu vs chèn trước phần tử cuối. Nhưng không call site nào sinh số âm (đo: <span class="code-span">(0,3),(0,3),(0,0),(99,0),(0,5)</span> ở <span class="code-span">threeBenchShop</span>; <span class="code-span">(0,1),(0,1),(0,0),(0,1)</span> ở <span class="code-span">tests/scenes/board/boardSystem3.test.js</span>) và <span class="code-span">moveBenchUnit</span> không có guard index âm. Bằng chứng: mutation xoá hẳn <span class="code-span">Math.min</span> vẫn xanh toàn bộ 4 suite. KHÔNG sửa canonical (luật 3 &mdash; Phaser là source of truth).
+              <br /><strong>ĐÍNH CHÍNH 3.8 &mdash; range đúng là <span class="code-span">:280-298</span>, KHÔNG phải <span class="code-span">:278-298</span>:</strong> dòng <span class="code-span">:278</span> là <span class="code-span">bench.splice(2, 1, null)</span> &mdash; dọn dẹp của case <strong>3.10</strong>, không thuộc block 3.8. PLAN tự đo và từ chối nối range theo số của LEAD (đúng luật &ldquo;số của LEAD là định hướng&rdquo;); anchor thật là <span class="code-span">:280</span> (<span class="code-span">// 5. Case 3.8: Board -&gt; Bench recall</span>). Đã áp ở commit <span class="code-span">4e998bb</span>. Cùng commit: row 3.7 (<span class="code-span">:266</span>) đã bỏ 2 mệnh đề SAI và cite đúng <span class="code-span">:252-263</span>; GAP uniqueness được giữ kèm bằng chứng grep.
+              <br /><strong>ĐÍNH CHÍNH 3.10 &mdash; 2 citation trong row <span class="code-span">:269</span> SAI (PLAN-VERIFY đo):</strong> <span class="code-span">threeBoardModel.test.js:122-130</span> &rarr; đúng phải là <span class="code-span">:133-145</span> (<span class="code-span">:122-126</span> là đuôi test swap 3.2, <span class="code-span">:128</span> là <span class="code-span">it</span>-header, <span class="code-span">:130</span> là fixture; hai boolean của 3.10 ở <span class="code-span">:134-137</span> và <span class="code-span">:142-145</span>); <span class="code-span">threeBenchShop.test.js:116-120</span> &rarr; đúng phải là <span class="code-span">:193-209</span> (<span class="code-span">:116-120</span> là block 2c successful-swap của case 3.8). Row còn <strong>thiếu hẳn</strong> bằng chứng drag-path của chính nó. Đã giao PLAN trong task <span class="code-span">01a0b01b</span>.
+              <br /><strong>PENDING &mdash; range 3.9 <span class="code-span">:300-355</span> nay ĐÃ STALE:</strong> DEV đang đóng GAP 3.9 và đã thêm deep-array-equality, file <span class="code-span">threePlanningDragIntegration.test.ts</span> đã phình từ <strong>390 lên hơn 420 dòng</strong> (block 3.9 giờ kết thúc quanh <span class="code-span">:387</span>). Mọi range Batch 2 sẽ được re-point MỘT LẦN sau khi DEV đóng băng file &mdash; không re-point sớm để tránh churn (range 3.9 đã bị đổi 2 lần). <strong>Phân biệt cho đúng &mdash; citation <span class="code-span">threeBenchShop.test.js:155-171</span> KHÔNG bị vô hiệu:</strong> nó là regression catcher <strong>THẬT</strong> (mutation <span class="code-span">bench[toIndex] = moving</span> làm nó đỏ với <span class="code-span">expected 6 to be 2</span>), nó ghim behaviour quan sát được (đích ngoài range &rarr; append ở slot cuối, <span class="code-span">bench.length</span> bảo toàn, không sinh phantom hole). Cái SAI chỉ là <strong>khung miêu tả</strong>: tiêu đề test claim nó chứng minh <span class="code-span">Math.min</span> ở <span class="code-span">:84</span>, mà bỏ <span class="code-span">Math.min</span> không làm nó đỏ. &rArr; <strong>REFRAME, KHÔNG XOÁ</strong>: đổi tiêu đề/comment (thuộc DEV) + cách cite trong plan (thuộc PLAN, task <span class="code-span">01a0b01b</span>). LEAD đã tự đính chính chỉ thị cũ của mình vì bản đầu nghiêng về &ldquo;bỏ&rdquo;.
+              <br /><strong>FINDING LỚN NHẤT CỦA BATCH &mdash; rejection hint parity MISSING BEHAVIOUR (không phải assertion thiếu):</strong> Three <strong>nuốt im lặng mọi lý do từ chối</strong> của board-op; Phaser thì phát một hint đã bản địa hóa cho từng nhánh. Phaser (source of truth) <span class="code-span">src/scenes/shared/planningFormationRuntime.ts:338-352</span>: <span class="code-span">:340-344</span> <span class="code-span">'Deploy limit reached'</span> &rarr; <span class="code-span">planning.formation.deployLimitReached</span> (kèm <span class="code-span">{current}/{max}</span>); <span class="code-span">:345-346</span> <span class="code-span">'Duplicate unit on board'</span> &rarr; <span class="code-span">duplicateOnBoard</span>; <span class="code-span">:347-348</span> <span class="code-span">'Bench is full'</span> &rarr; <span class="code-span">benchFull</span>; cộng guard <span class="code-span">:305-308</span> enemy half &rarr; <span class="code-span">cannotPlaceOnEnemyHalf</span>. Three: <span class="code-span">ThreePlanningScene.ts:992-1014</span> chỉ <span class="code-span">return ...success</span>, và <span class="code-span">ThreePlanningDragRuntime.ts:140-142</span> là pass-through thuần. <span class="code-span">grep</span> <span class="code-span">addLog|addPlanningLog</span> trên <span class="code-span">ThreePlanningScene.ts</span> = <strong>0 match</strong>; <span class="code-span">pushSharedSceneLog</span> (<span class="code-span">src/scenes/shared/sceneLogRuntime.ts:377</span>) bị <span class="code-span">src/three</span> import <strong>0 lần</strong>. Hệ quả: 4 i18n key đã có đủ ở cả <span class="code-span">vi</span> (<span class="code-span">:677,682,688,689</span>) và <span class="code-span">en</span> (<span class="code-span">:677,682,688,689</span>) nhưng <strong>chết</strong> trên đường Three; và ngay cả log bán vật phẩm (<span class="code-span">ThreePlanningDragRuntime.ts:1205-1212</span>) cũng đang no-op vì <span class="code-span">dragCallbacks.addLog</span> không được cấp. Row <span class="code-span">3.10</span> của plan ghi <span class="code-span">Forbidden: ... a silent rejection with no hint</span> &rArr; spec đã freeze yêu cầu việc này. Đã giao DEV (task <span class="code-span">01a0b01d</span>) kèm yêu cầu báo lại chỗ render để user veto.
+              <br /><strong>CAVEAT (đánh dấu [INFERENCE] cho tới khi verify):</strong> suy luận &ldquo;log bán vật phẩm ở <span class="code-span">ThreePlanningDragRuntime.ts:1205-1212</span> hiện no-op&rdquo; dựa trên cơ chế đã đọc (<span class="code-span">addPlanningLog</span> <span class="code-span">:166-168</span> &rarr; <span class="code-span">getDragCallback(scene, \"addLog\")</span>, mà <span class="code-span">ThreePlanningScene.ts:992</span> <span class="code-span">dragCallbacks</span> chỉ cấp <span class="code-span">getBoardUnit</span>/<span class="code-span">moveUnit</span>/<span class="code-span">refreshUi</span>). Cơ chế là chắc, nhưng <strong>đường vào của sell chưa được truy</strong> &mdash; chưa chứng minh sell đi qua chính host này. Không trình bày như sự thật đã đo cho tới khi có người truy.
+            </td>
+            <td><span class="tag">OMP-DEV&rarr;VERIFY</span></td>
+            <td><span class="status-pill status-in_progress">✓ 3 ACCEPT &middot; 2 GAP đang đóng &middot; hint parity MISSING</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>DEDUP-TEST</strong></td>
+            <td><strong>Hợp nhất cặp test trùng <span class="code-span">threePlanningDragIntegration.test.ts</span> + <span class="code-span">.js</span></strong> (LEAD phát hiện khi điều tra suite đỏ Batch 2): đây là cặp <span class="code-span">.ts</span>/<span class="code-span">.js</span> DUY NHẤT trong toàn repo (walk scripted 365 file dưới <span class="code-span">tests/</span>; <span class="code-span">tests/three</span>: 114 file trên đĩa / 76 tracked). PLAN-VERIFY audit tĩnh kết luận <strong>SUPERSET</strong>: mỗi file 74 <span class="code-span">expect()</span> pairwise identical theo đúng thứ tự kể cả matcher chain (54 toBe, 12 toBeNull, 2 toMatchObject, 2 toBeDefined, 1 toBeGreaterThanOrEqual, 1 toHaveBeenCalled, 1 toHaveLength, 1 toThrow); danh sách assertion chỉ-có-ở-<span class="code-span">.js</span> <strong>RỖNG</strong> &rArr; xoá <span class="code-span">.js</span> mất <strong>0 assertion</strong>. Quyết định LEAD: hợp nhất về <span class="code-span">.ts</span>.
+              <br /><strong>Cảnh báo version-control (bắt buộc tuân thủ):</strong> <span class="code-span">.ts</span> đang <strong>untracked</strong>, <span class="code-span">.js</span> đang <strong>tracked</strong> &mdash; <span class="code-span">git rm</span> file <span class="code-span">.js</span> và <span class="code-span">git add</span> file <span class="code-span">.ts</span> PHẢI trong CÙNG MỘT COMMIT, nếu không <span class="code-span">git clean</span>/fresh clone sẽ xoá mất toàn bộ 74 assertion.
+              <br /><strong>Re-point 6 citation &mdash; ĐÃ XONG</strong> (PLAN, commits <span class="code-span">4f04297</span> + đính chính <span class="code-span">2f437c9</span>): plan <span class="code-span">:190</span>, <span class="code-span">:234</span> &times;2, <span class="code-span">:258</span>; matrix <span class="code-span">:90</span>, <span class="code-span">:110</span>, <span class="code-span">:115</span> &mdash; <span class="code-span">grep -n</span> trên cả 3 file canon trả <strong>RỖNG (exit 1)</strong>. Số test lịch sử GIỮ NGUYÊN kèm chú thích pre-dedup, KHÔNG bịa số mới (<span class="code-span">plan:190</span>/<span class="code-span">matrix:90</span> = 3 file/19 test; <span class="code-span">37/37</span>; <span class="code-span">plan:258</span> = 7 file/45 test &rarr; sau dedup còn 6 file phân biệt, <strong>chưa đo lại</strong>). <span class="code-span">master-plan.md:265</span> KHÔNG bị đổi extension (nó trỏ <span class="code-span">.ts:126-134</span>, case 3.6).
+              <br /><strong>Citation defect đã sửa:</strong> 3.6 range <span class="code-span">:126-134</span> &rarr; <span class="code-span">:126-135</span> (đã xác nhận <span class="code-span">:134</span> là comment, assertion splice ở <span class="code-span">:135</span>); 3.1 (<span class="code-span">plan:260</span>) BỎ 2 mệnh đề <em>UID preservation / single commit</em> &mdash; grep chứng minh suite chỉ có <span class="code-span">uid</span> ở fixture <span class="code-span">:45</span>/<span class="code-span">:47</span> và <span class="code-span">toHaveBeenCalled</span> DUY NHẤT tại <span class="code-span">:246</span> (case 3.5). PLAN tự siết thêm 4 over-claim do chính nó viết ở lượt trước (3.2 bỏ &ldquo;equips/unit-count conserved&rdquo; + <span class="code-span">ThreePlanningScene.ts:1007-1010</span> &rarr; <span class="code-span">:1008</span>; 3.4 bỏ &ldquo;zero ghost avatar&rdquo; + trỏ assertion về <span class="code-span">threePlacementRejection.test.ts:204-255</span>; 3.5 <span class="code-span">:265-299</span> &rarr; <span class="code-span">:266-299</span>; 3.9 <span class="code-span">:1011-1012</span> &rarr; <span class="code-span">:1011</span>) &mdash; LEAD đã verify <span class="code-span">:1008</span> = <span class="code-span">moveUnit(...).success</span> và <span class="code-span">:1011</span> = <span class="code-span">moveBenchUnit(...).success</span>: ĐÚNG.
+              <br /><strong>GAP 3.9 VẪN MỞ</strong> &mdash; PLAN-VERIFY tự đính chính claim &ldquo;đã đóng&rdquo; (message <span class="code-span">01a0aff5</span>); PLAN khôi phục bằng commit <span class="code-span">2f437c9</span>. Range re-point sang <span class="code-span">.ts:300-355</span> &mdash; LEAD đã verify: <span class="code-span">:300</span> = <span class="code-span">// 6. Case 3.9</span>, <span class="code-span">:354</span> = <span class="code-span">expect(sameSlotDrag).toBe(false)</span>, <span class="code-span">:355</span> = <span class="code-span">bench[0]</span>; file thật <strong>389</strong> dòng (PLAN ghi 390 &mdash; lệch 1, vô hại). <span class="code-span">:300-355</span> <strong>KHÔNG so sánh mảng</strong> &mdash; chỉ spot-check vài index: 6a (<span class="code-span">:321-323</span>) chỉ assert <span class="code-span">bench[0]</span>/<span class="code-span">bench[2]</span> &rArr; slot 1, 3, 4, 5 không quan sát; 6b (<span class="code-span">:341-346</span>) chỉ assert <span class="code-span">bench[4]</span>/<span class="code-span">bench[0]</span>/<span class="code-span">bench[1]</span> + <span class="code-span">length</span> (<span class="code-span">:345</span>) + <span class="code-span">filter != null</span> count (<span class="code-span">:346</span>) &rArr; slot 2, 3, 5 không quan sát (count chỉ chặn entry non-null bị nhân bản, KHÔNG bắt được đổi vị trí); 6c (<span class="code-span">:354-355</span>) chỉ assert no-op + <span class="code-span">bench[0]</span>, <strong>KHÔNG length, KHÔNG count</strong> &rArr; slot 1-5 không quan sát &mdash; same-slot drag mutate slot khác 0 vẫn PASS. Anchor rebuild <span class="code-span">expect(bench.length).toBe(6)</span> ở <span class="code-span">:313</span>. Assertion đóng GAP: sau MỖI bước 6a/6b/6c, <span class="code-span">expect(bench.map((u) =&gt; u?.baseId ?? null)).toEqual([...literal...])</span> &mdash; sau 6a <span class="code-span">[&quot;fox_flame&quot;, &quot;ram_charge&quot;, &quot;tiger_fang&quot;, null, null, null]</span>; sau 6b <span class="code-span">[&quot;ram_charge&quot;, &quot;tiger_fang&quot;, null, null, &quot;fox_flame&quot;, null]</span>; 6c phải y nguyên như 6b. Map sang <span class="code-span">baseId</span>, đừng so raw unit object.
+              <br /><strong>GAP 3.8 &mdash; viết lại chính xác (KHÔNG xoá):</strong> <span class="code-span">threeBenchShop.test.js:112-115</span> chạm <span class="code-span">BoardBenchOps.ts:53</span> &mdash; guard <span class="code-span">if (target &amp;&amp; !allowSwap)</span> &rarr; <span class="code-span">'Bench position occupied and swap not allowed'</span>; nó KHÔNG chạm guard capacity tại <span class="code-span">:54</span> &mdash; <span class="code-span">if (!target &amp;&amp; bench.length &gt;= benchCap)</span> &rarr; <span class="code-span">'Bench is full'</span>. Vì <span class="code-span">:49</span> giới hạn index qua <span class="code-span">isValidBenchIndex</span> (index &lt; benchCap, <span class="code-span">BoardSystem.ts:195-197</span>), một bench <strong>đầy liền mạch không bao giờ</strong> chạm được <span class="code-span">:54</span> &mdash; mọi index hợp lệ đều occupied nên <span class="code-span">:53</span> bắn trước. Nhánh <span class="code-span">:54</span> chỉ reachable khi bench <strong>thủng lỗ ở một index hợp lệ</strong> trong khi <span class="code-span">length &gt;= cap</span>. Vậy wording GAP phải là &ldquo;nhánh capacity <span class="code-span">'Bench is full'</span> (<span class="code-span">BoardBenchOps.ts:54</span>) chưa bao giờ được chạy&rdquo;, và fixture cần dựng là bench thủng-lỗ-ở-ngưỡng-capacity, KHÔNG phải bench đầy.
+            </td>
+            <td><span class="tag">OMP-PLAN+LEAD</span></td>
+            <td><span class="status-pill status-completed">✓ ĐÃ COMMIT f797aa7</span></td>
+          </tr>
+          <tr data-status="pending">
+            <td><strong>3.11–3.15</strong></td>
+            <td><strong>5 case còn lại</strong> — 3.11 single commit pointer lifecycle; 3.12 ESC/cancel/right-click; 3.13 touch threshold &ge;48px; 3.14 avatar ownership during drag; 3.15 co-op row mapping &amp; single activePointer contract (AUD-04 đã rewrite spec).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-pending">○ Chờ xử lý (5 case)</span></td>
+          </tr>
+
+          <!-- Phase 4 Canonical -->
+          <tr class="phase-header"><td colspan="4">PHASE 4: ITEMS, EQUIPMENT, CRAFTING, UPGRADE, INVENTORY [x] 100% COMPLETE (13/13 CASES VERIFIED)</td></tr>
+          <tr data-status="completed">
+            <td><strong>4.1 – 4.13</strong></td>
+            <td><strong>Tất cả 13 cases Phase 4 ĐÃ NGHIỆM THU ĐỘC LẬP ACCEPT (PLAN-VERIFY &amp; PLAN)</strong>:
+              <br>• <strong>4.1</strong> Items &amp; <strong>4.12</strong> Tech Tree (<span class="code-span">threeItems.test.js</span>, <span class="code-span">threeTechTree.test.js</span>).
+              <br>• <strong>4.2</strong> Inventory 16+ slot capacity &amp; bonus (<span class="code-span">threePlanningInventoryRuntime.test.ts</span>).
+              <br>• <strong>4.3</strong> Equip pipeline 11 bước &amp; live wiring — canonical owner <span class="code-span">sceneEquipmentRuntime.ts</span>; duplicate Three owner removed; targeted rerun pending.
+              <br>• <strong>4.4</strong> Unequip flow &amp; gold cost tiers (<span class="code-span">threeSceneEquipmentRuntime.test.ts</span>).
+              <br>• <strong>4.5</strong> Dynamic equipment slot capacity (<span class="code-span">ThreePlanningDragRuntime.ts</span>).
+              <br>• <strong>4.6</strong> Sliding-offset craft recipe matcher parity (<span class="code-span">ThreePlanningCraftRuntime.ts</span>).
+              <br>• <strong>4.7</strong> Craft locked/reserved slots parity (<span class="code-span">ThreePlanningCraftRuntime.ts</span>, <span class="code-span">ThreePlanningDragRuntime.ts</span>).
+              <br>• <strong>4.8</strong> Craft commit contract, no-match log &amp; scene-owned tail effects (<span class="code-span">ThreePlanningCraftRuntime.ts</span>, <span class="code-span">ThreePlanningScene.ts</span>).
+              <br>• <strong>4.9</strong> Atomic non-destructive craft staging (<span class="code-span">ThreePlanningCraftRuntime.ts</span>).
+              <br>• <strong>4.10</strong> Auto-merge qua <span class="code-span">UpgradeSystem.tryAutoMerge</span> + overflow return (<span class="code-span">ThreePlanningShopActionsRuntime.ts</span>).
+              <br>• <strong>4.11</strong> Max-star 3★ rejection consumes nothing (<span class="code-span">ThreePlanningShopActionsRuntime.ts</span>).
+              <br>• <strong>4.13</strong> Craft workbench wiring &amp; PH4-DEAD closure (<span class="code-span">ThreePlanningScene.ts</span>, <span class="code-span">ThreePlanningItemHelpersRuntime.ts</span>).
+            </td>
+            <td><span class="tag">OMP-TEAM</span></td>
+            <td><span class="status-pill status-completed">✓ 13/13 [x] COMPLETE</span></td>
+          </tr>
+          <!-- Out of Scope Known Issues -->
+          <tr class="phase-header"><td colspan="4">VẤN ĐỀ ĐÃ BIẾT NGOÀI PHẠM VI & NGUY CƠ VẬN HÀNH (TRACKED KNOWN ISSUES)</td></tr>
+          <tr data-status="caveat">
+            <td><strong>DEP-01</strong></td>
+            <td><strong>Độ lệch Contract Phiên bản Phaser trong <span class="code-span">package.json</span> (Lead Ruling)</strong>: <span class="code-span">package.json</span> khai báo <span class="code-span">"^4.2.1"</span> nhưng 2 bộ test chuẩn (<span class="code-span">mainBootstrap.test.js:89</span> & release gate <span class="code-span">threeProductionReleaseGate.test.ts:44</span>) assert chuẩn xác không dấu mũ <span class="code-span">"4.2.1"</span> để bảo vệ route rollback. Test là chuẩn authoritative, <span class="code-span">package.json</span> là lỗi contract drift cần ghim cứng. (Task ghim <span class="code-span">01a0ae05-5e09-7cb0-b812-f9ed4dac5570</span> đã lên lịch sau Phase 2 exit gate).</td>
+            <td><span class="tag">DEV/LEAD</span></td>
+            <td><span class="status-pill status-caveat">📝 Chờ ghim sau Phase 2</span></td>
+          </tr>
+          <tr data-status="caveat">
+            <td><strong>OPS-01</strong></td>
+            <td><strong>Nguy cơ Cache Vite Dev Server &amp; Lỗi 504 Route Rollback (<span class="code-span">phaser.js</span>)</strong>: Phaser chỉ được nạp qua dynamic <span class="code-span">import()</span> nên Vite dev server có thể prune file cache gây 504 khi tiến trình khác re-optimize. <strong>Đã khắc phục gốc:</strong> <span class="code-span">vite.config.js:26-28</span> nay ghim <span class="code-span">optimizeDeps: { include: ["phaser"] }</span> (có trong working tree, <em>chưa commit</em>) ⇒ dep không bị prune khi server chạy dài. Quy trình khôi phục khẩn cấp vẫn giữ: <span class="code-span">pnpm exec vite optimize --force</span> rồi probe HTTP <span class="code-span">200</span> cho <span class="code-span">phaser.js</span>.</td>
+            <td><span class="tag">DEV/LEAD</span></td>
+            <td><span class="status-pill status-caveat">⚠️ Đã hardening, chờ commit</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>AUD-01</strong></td>
+            <td><strong>Suite bằng chứng cổng 6 — ĐÃ REMEDIATE &amp; PHÁT HIỆN LEAK THẬT</strong>: <span class="code-span">tests/three/threeSceneTransitionLifecycle.test.ts</span> đã xoá toàn bộ <span class="code-span">vi.mock(ThreeSceneManager)</span>, chạy trên ThreeSceneManager/ThreeCameraManager/OrbitControls thật, chỉ fake GL renderer. <strong>Phát hiện leak thật:</strong> refactor dở trong working tree của <span class="code-span">ThreeSceneManager.dispose()</span> đã làm rơi <span class="code-span">this.stop()</span> ⇒ loop render tiếp tục ~60fps (9 tick/150ms) vào renderer đã dispose. DEV đã khôi phục <span class="code-span">this.stop()</span> tại <span class="code-span">src/three/ThreeSceneManager.ts:202</span> (khớp <span class="code-span">HEAD:156</span> baseline); test mới fail khi thiếu stop và pass khi có stop (0 render calls / 0 scene updates trong 150ms).</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ FIXED &amp; VERIFIED</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>AUD-02</strong></td>
+            <td><strong>Hình học board trong <span class="code-span">threeBoardRenderer.test.js</span> — ĐÃ REMEDIATE &amp; SỬA BUG PORT</strong>: assert nay ghim cứng vào literal tự tính (<span class="code-span">:61-94</span> bounds/seam, <span class="code-span">:96-119</span> markers) với layout không mặc định <span class="code-span">{x:32,y:24,w:1440,h:810}</span>. <strong>Phát hiện bug port:</strong> <span class="code-span">computeCoopOwnershipMarkers</span> dùng <span class="code-span">bounds.endRow - 1</span> trong khi canonical <span class="code-span">getPlayerRowBounds</span> trả <span class="code-span">endRow</span> <em>inclusive</em> (<span class="code-span">src/core/boardProfiles.ts:154</span>; legacy <span class="code-span">old_src/ui/BoardRenderer.ts:607</span>) ⇒ coop lane box từng hụt 1 hàng (P2 đáy 425 thay vì 475). Đã sửa tại <span class="code-span">ThreeBoardRenderer.ts:314-315</span>; 2 failable breaks đều bắt được.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ FIXED &amp; VERIFIED</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>AUD-03</strong></td>
+            <td><strong>Gate 3 inverse claim — ĐÃ GHIM CỨNG BẰNG ABSOLUTE LITERALS</strong>: <span class="code-span">tests/three/threeBoardViewport.test.js:260-294</span> đã bổ sung test ghim literal toạ độ thế giới tuyệt đối tại biên sông cho cả solo/coop/coop4 (solo col 4: −2.15, col 5: +2.15, row 2: 0, row 3: 2.15; coop row 6: 3.225; coop4 row 12: 5.375, row 17: 16.125), assert cả hai chiều <span class="code-span">worldToGrid</span> và <span class="code-span">resolveWorldPositionToTile</span>. <strong>Chứng minh đột biến:</strong> break lệch đối xứng 2 chiều (gridToWorld y 0.25→0.5 + row-anchor drift) khiến test round-trip cũ pass nhưng test mới fail chuẩn xác (<span class="code-span">difference 0.25</span>). Toàn bộ <span class="code-span">tests/three</span> đạt <strong>113 file / 673 test passed, 0 failed</strong>.</td>
+            <td><span class="tag">OMP-DEV</span></td>
+            <td><span class="status-pill status-completed">✓ FIXED &amp; VERIFIED</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>AUD-04</strong></td>
+            <td><strong>Case 3.15 — ĐÃ REWRITE THEO AUTHORITY THẬT (commit <span class="code-span">55b1b14</span>)</strong>: grep toàn <span class="code-span">src/</span> (trừ <span class="code-span">src/three/</span>) cho <span class="code-span">pointerId|activePointers|pointers[</span> → <strong>0 match</strong> ⇒ Phaser chỉ có một <span class="code-span">scene.input.activePointer</span> (<span class="code-span">planningInputRuntime.ts:225-228</span>). PLAN đã xoá hoàn toàn giả định \"hai pointer ID đồng thời\", viết lại 3.15 theo single activePointer + caveat DPR + quyền sở hữu hàng theo slot (<span class="code-span">isBoardTargetOwnedBySlot</span> / <span class="code-span">planningCoopSessionRuntime.ts:211</span>).</td>
+            <td><span class="tag">OMP-PLAN</span></td>
+            <td><span class="status-pill status-completed">✓ Đã rewrite spec</span></td>
+          </tr>
+          <tr data-status="completed">
+            <td><strong>AUD-05</strong></td>
+            <td><strong>Đếm file test — ĐÃ CHỐT, KHÔNG phải lỗi collect:</strong> đo 3 lần liên tiếp trên cây tĩnh → <strong>113 file <span class="code-span">*.test.*</span></strong> trong <span class="code-span">tests/three</span>, khớp đúng <strong>113 file</strong> vitest collect (DEV chạy trọn thư mục: 672 test passed, 0 failed). Các số <strong>114/115/116</strong> tôi đo trước đó là do <em>file probe tạm</em> của PLAN (<span class="code-span">__tmp</span>) và DEV (<span class="code-span">zz-case212-probe</span>) còn trên đĩa / đang được tạo-xoá tại thời điểm đo ⇒ cây động thì phép đếm không đáng tin. <strong>Luật giữ nguyên:</strong> trước khi trích một file test làm bằng chứng phải chắc file đó <em>được collect</em> — claim trích file không chạy là claim vô hiệu.</td>
+            <td><span class="tag">OMP-LEAD</span></td>
+            <td><span class="status-pill status-completed">✓ Đã chốt 113 = 113</span></td>
+          </tr>
+          <tr data-status="caveat">
+            <td><strong>EVID-01</strong></td>
+            <td><strong>Phân loại bằng chứng của probe 2.9 / 2.11 (PLAN ruling — plan :244, matrix :182):</strong> đó là đo <em>object-graph trong cùng process</em> với GL renderer được fake ⇒ <strong>không</strong> chứng minh GPU/VRAM được giải phóng, <strong>không</strong> chứng minh semantics listener trên browser thật, và <strong>không</strong> phải probe route của dev server. Probe runtime Phaser qua URL đã bị <strong>retire</strong> ngày 2026-09-22; rollback authority hiện là branch <span class="code-span">archived/2D-Phaser</span>. Hai probe 2.9 / 2.11 vẫn chỉ chứng minh object-graph trong process, không chứng minh GPU/VRAM/browser listener semantics; các release/browser gate của HEAD mới vẫn phải chạy lại.</td>
+            <td><span class="tag">LEAD/USER</span></td>
+            <td><span class="status-pill status-caveat">📝 Runtime evidence mới pending</span></td>
+          </tr>
+          <tr data-status="caveat">
+            <td><strong>DOC-01</strong></td>
+            <td><strong>Plan canonical KHÔNG có trang HTML đọc được</strong> — hook <span class="code-span">.omp/hooks/pre/plans-sync.ts</span> chỉ render HTML khi plan được ghi qua đường plan-mode (<span class="code-span">local://&lt;slug&gt;-plan.md</span>); PLAN ghi thẳng file bằng edit/write nên không có bản render. Bằng chứng: sau commit <span class="code-span">df6925e</span>, <span class="code-span">.omp/plans/custom/html/agent-index.html</span> hiển thị <span class="code-span">threejs-pure-3d-master-plan.md — chưa render HTML</span>, và thư mục <span class="code-span">custom/html/</span> chỉ còn <span class="code-span">agent-index.html</span>. Hệ quả: user đọc được WBS nhưng <em>không</em> có bản HTML của plan nguồn-sự-thật. Khắc phục: chạy đường render của hook để sinh <span class="code-span">threejs-pure-3d-master-plan.html</span> rồi để hook tự cập nhật index (KHÔNG sửa tay agent-index.html). Trạng thái: chờ slot — đang giữ luật tối đa 2 teammate hoạt động đồng thời.</td>
+            <td><span class="tag">LEAD</span></td>
+            <td><span class="status-pill status-caveat">📝 Chờ slot</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function filterTasks(status) {
+      const buttons = document.querySelectorAll('.filter-btn');
+      buttons.forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const rows = document.querySelectorAll('tbody tr[data-status]');
+      rows.forEach(r => {
+        if (status === 'all' || r.getAttribute('data-status') === status) {
+          r.style.display = '';
+        } else {
+          r.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

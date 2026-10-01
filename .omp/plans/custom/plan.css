@@ -1,0 +1,494 @@
+/* Update banner (plan v2 pointer) */
+.plan-status {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px clamp(16px, 5vw, 48px) 0;
+}
+
+.plan-status {
+  background: rgba(242, 193, 78, 0.08);
+  border: 1px solid rgba(242, 193, 78, 0.35);
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-top: 16px;
+  padding: 12px 16px;
+}
+
+.plan-status b { color: var(--gold); }
+.plan-status a { color: var(--leaf-bright); }
+.plan-status code { font-size: 12px; }
+
+/* ============================================================
+   Forest Throne — Plan document stylesheet
+   Mobile-first, dark forest theme, no external fonts.
+   ============================================================ */
+
+:root {
+  --bg: #0b150e;
+  --bg-card: #12241a;
+  --bg-row-alt: #0f1c14;
+  --line: #22402e;
+  --leaf: #58c470;
+  --leaf-bright: #7ee694;
+  --gold: #f2c14e;
+  --fire: #ff7a45;
+  --tide: #4ecdc4;
+  --night: #9b8cff;
+  --text: #eaf5ec;
+  --text-dim: #9db8a4;
+  --danger: #ff6b6b;
+  --radius: 14px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 16px;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% -10%, #1a3524 0%, var(--bg) 60%);
+  color: var(--text);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------- Hero ---------------- */
+
+.hero {
+  padding: clamp(32px, 8vw, 72px) clamp(16px, 5vw, 48px) clamp(20px, 5vw, 40px);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hero__kicker {
+  color: var(--leaf);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.hero h1 {
+  font-size: clamp(26px, 5.5vw, 44px);
+  font-weight: 800;
+  line-height: 1.15;
+  background: linear-gradient(90deg, var(--leaf-bright) 30%, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero__sub {
+  margin-top: 14px;
+  color: var(--text-dim);
+  max-width: 62ch;
+  font-size: clamp(14px, 2.5vw, 16px);
+}
+
+.hero__sub strong { color: var(--text); }
+
+.hero__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.hero__nav a {
+  color: var(--leaf-bright);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: rgba(88, 196, 112, 0.06);
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hero__nav a:hover {
+  background: rgba(88, 196, 112, 0.16);
+  border-color: var(--leaf);
+}
+
+/* ---------------- Sections ---------------- */
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 5vw, 48px) 64px;
+}
+
+section {
+  margin-top: clamp(40px, 8vw, 72px);
+}
+
+h2 {
+  font-size: clamp(20px, 4vw, 28px);
+  font-weight: 800;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 20px;
+}
+
+h2::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--leaf);
+  margin-right: 12px;
+  vertical-align: 2px;
+}
+
+h3 {
+  font-size: 15px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 22px 0 10px;
+}
+
+section > h3:first-of-type { margin-top: 0; }
+
+/* ---------------- Stat cards ---------------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat b {
+  font-size: clamp(26px, 5vw, 34px);
+  font-weight: 800;
+  color: var(--leaf-bright);
+  line-height: 1;
+}
+
+.stat span {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stat small {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ---------------- Tables ---------------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  background: #183023;
+  color: var(--leaf-bright);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 12px;
+}
+
+td {
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  color: var(--text-dim);
+}
+
+td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+tbody tr:nth-child(even) { background: var(--bg-row-alt); }
+
+/* Horizontal scroll on narrow screens instead of squeezing */
+.table-scroll { overflow-x: auto; }
+
+@media (max-width: 720px) {
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { white-space: normal; min-width: 130px; }
+  td:first-child { white-space: normal; }
+}
+
+code {
+  font-family: Consolas, 'Cascadia Code', monospace;
+  font-size: 0.88em;
+  background: rgba(88, 196, 112, 0.1);
+  color: var(--leaf-bright);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+/* Priority chips */
+.p0, .p1, .p2 {
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.p0 { color: var(--fire); }
+.p1 { color: var(--gold); }
+.p2 { color: var(--tide); }
+
+/* Status chips */
+.done, .todo, .doing {
+  font-weight: 700;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.done { background: rgba(88, 196, 112, 0.16); color: var(--leaf-bright); }
+.todo { background: rgba(255, 255, 255, 0.06); color: var(--text-dim); }
+.doing { background: rgba(242, 193, 78, 0.14); color: var(--gold); }
+
+/* ---------------- Columns ---------------- */
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 860px) {
+  .cols { grid-template-columns: 1fr 1fr; }
+}
+
+.cols > div {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.cols ul, .cols ol {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.cols li strong { color: var(--text); }
+
+.cols li::marker { color: var(--leaf); }
+
+ul.mono li {
+  font-family: Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--tide);
+}
+
+pre {
+  background: #08110b;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  overflow-x: auto;
+  font-family: Consolas, 'Cascadia Code', monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #c8e6d0;
+  margin-bottom: 18px;
+}
+
+/* ---------------- Plan table ---------------- */
+
+table.plan td:first-child { min-width: 140px; }
+table.plan td:nth-child(2) { min-width: 260px; }
+
+/* ---------------- Footer ---------------- */
+
+footer {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+footer em { color: var(--tide); font-style: normal; }
+
+/* ============================================================
+   Shared additions gộp từ plan-code.css (1 CSS duy nhất cho mọi HTML)
+   ============================================================ */
+
+.hero__sub a { color: var(--leaf-bright); }
+
+.dim { color: var(--text-dim); font-size: 13.5px; }
+
+.ok {
+  color: var(--leaf-bright);
+  font-weight: 700;
+}
+
+/* Architecture stack list */
+ol.stack { counter-reset: tier; }
+
+ol.stack li {
+  list-style: none;
+  position: relative;
+  padding: 8px 12px 8px 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-row-alt);
+}
+
+ol.stack li + li { margin-top: 8px; }
+
+ol.stack li::before {
+  counter-increment: tier;
+  content: counter(tier);
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(78, 205, 196, 0.15);
+  color: var(--tide);
+  font-weight: 800;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+ol.stack li b { color: var(--text); }
+
+/* Lifecycle flow */
+.flow {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  color: var(--tide);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.flow b { color: var(--leaf-bright); }
+
+/* Rules */
+ul.rules {
+  display: grid;
+  gap: 10px;
+  padding-left: 20px;
+  font-size: 14.5px;
+  color: var(--text-dim);
+}
+
+ul.rules li::marker { color: var(--fire); }
+ul.rules b { color: var(--text); }
+
+/* ============================================================
+   Agent plan documents (hook .omp/hooks/pre/plans-sync.ts sinh ra
+   từ markdown plans/pending + plans/done — .doc container)
+   ============================================================ */
+
+.doc {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.doc-head {
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 36px;
+}
+
+.doc-head h1 {
+  font-size: clamp(22px, 4vw, 30px);
+  line-height: 1.25;
+  color: var(--leaf-bright);
+}
+
+.doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.doc-meta a { color: var(--tide); text-decoration: none; }
+.doc-meta a:hover { text-decoration: underline; }
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.badge-pending { background: rgba(242, 193, 78, 0.14); color: var(--gold); }
+.badge-done    { background: rgba(88, 196, 112, 0.16); color: var(--leaf-bright); }
+
+.doc table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Task list (markdown - [ ] / - [x]) */
+.task { list-style: none; margin-left: -20px; }
+.task-box { color: var(--text-dim); margin-right: 6px; }
+.task-done .task-box { color: var(--leaf-bright); }
+.task-done .task-text { color: var(--text-dim); text-decoration: line-through; }
+
+/* Agent index page */
+.plan-list { display: grid; gap: 10px; }
+.plan-list a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.plan-list a:hover { border-color: var(--leaf); }
+.plan-list small { color: var(--text-dim); font-weight: 400; }
+.plan-list .empty { color: var(--text-dim); font-weight: 400; font-style: italic; }
