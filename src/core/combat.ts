@@ -6,6 +6,7 @@ import { getUnit, type Element, type Role } from "../content/catalog";
 import { STAR_SKILL, STAR_STAT } from "./economy";
 import { skillSpec, type BuffStat, type SkillSpec, type Stat } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
+import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 
 export type Side = "L" | "R";
 export const COLS = 10;
@@ -33,6 +34,8 @@ export interface Fighter {
   tauntBy: string | null;
   /** Re-entrancy guard: TANKER auto-cast cannot recurse inside its own skill. */
   casting: boolean;
+  /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
+  env: EnvMods;
 }
 
 /** Flat/percent start-of-combat bonuses from synergy, tech and augments (summed by caller). */
@@ -72,6 +75,8 @@ export interface CombatOptions {
   bonus?: Partial<Record<Side, SideBonus>>;
   /** Basic-hit attacker rage per side; AI difficulty sets R (A74). */
   rageGain?: Partial<Record<Side, number>>;
+  /** A32 active battlefield environment for this round. */
+  environment?: EnvironmentId;
 }
 
 /** A13: 1.0 at ≤10 gold; +1% per 2 gold above 10; capped at 2.0. */
@@ -80,26 +85,29 @@ export function goldMultiplier(gold: number): number {
   return Math.min(2, 1 + (gold - 10) / 2 / 100);
 }
 
-export function makeFighter(p: Placement, side: Side, b: SideBonus = {}): Fighter {
+export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environment?: EnvironmentId): Fighter {
   const u = getUnit(p.baseId);
+  const env = environmentMods(environment, u.element);
   const m = STAR_STAT[p.star] ?? 1;
   const st = u.stats;
   const maxHp = Math.round(st.hp * m * (1 + (b.hpPct ?? 0) / 100));
   // Scaled base-stat evasion: +5pp at 2★, +10pp at 3★, capped 60% (A12).
-  const evade = Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (p.star - 1) * 0.05) + (b.evadePct ?? 0) / 100;
+  const evade = Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (p.star - 1) * 0.05) + (b.evadePct ?? 0) / 100 + env.evade;
   return {
     uid: p.uid, baseId: p.baseId, star: p.star, side, row: p.row, col: p.col, role: u.role, element: u.element,
     maxHp, hp: maxHp,
-    atk: Math.round(st.atk * m * (1 + (b.atkPct ?? 0) / 100)),
-    def: Math.round(st.def * m * (1 + (b.defPct ?? 0) / 100) + (b.def ?? 0)),
-    matk: Math.round(st.matk * m * (1 + (b.matkPct ?? 0) / 100)),
-    mdef: Math.round(st.mdef * m * (1 + (b.mdefPct ?? 0) / 100) + (b.mdef ?? 0)),
+    atk: Math.max(1, Math.round(st.atk * m * (1 + (b.atkPct ?? 0) / 100) * (1 + env.atkPct))),
+    def: Math.round(st.def * m * (1 + (b.defPct ?? 0) / 100) + (b.def ?? 0) + env.def),
+    matk: Math.max(1, Math.round(st.matk * m * (1 + (b.matkPct ?? 0) / 100) * (1 + env.matkPct))),
+    mdef: Math.round(st.mdef * m * (1 + (b.mdefPct ?? 0) / 100) + (b.mdef ?? 0) + env.mdef),
     range: st.range, rageMax: Math.max(1, u.skill.rageCost[p.star - 1] ?? st.rageMax),
-    rage: 0, shield: b.startShield ?? 0, alive: true,
-    crit: ROLE_CRIT[u.role] + (st.crit ?? 0) + (b.critPct ?? 0) / 100,
-    evade, lifesteal: (b.lifestealPct ?? 0) / 100, rageGainPct: (b.rageGainPct ?? 0) / 100,
-    healPct: (b.healPct ?? 0) / 100, onHitBurn: b.burn ?? 0, onHitPoison: b.poison ?? 0,
-    status: {}, mods: [], tauntBy: null, casting: false,
+    rage: 0, shield: (b.startShield ?? 0) + env.startShield, alive: true,
+    crit: ROLE_CRIT[u.role] + (st.crit ?? 0) + (b.critPct ?? 0) / 100 + env.critPct,
+    evade, lifesteal: Math.max(0, (b.lifestealPct ?? 0) / 100 + env.lifesteal),
+    rageGainPct: (b.rageGainPct ?? 0) / 100 + env.rageGainPct,
+    healPct: (b.healPct ?? 0) / 100 + env.healPct,
+    onHitBurn: (b.burn ?? 0) + env.burnOnHit, onHitPoison: (b.poison ?? 0) + env.poisonOnHit,
+    status: {}, mods: [], tauntBy: null, casting: false, env,
   };
 }
 
@@ -162,7 +170,7 @@ function applyStatus(c: Ctx, dst: Fighter, kind: string, turns: number, value = 
 
 function heal(c: Ctx, src: Fighter, dst: Fighter, raw: number) {
   if (!dst.alive) return;
-  const amount = Math.min(dst.maxHp - dst.hp, Math.round(raw * (1 + src.healPct)));
+  const amount = Math.min(dst.maxHp - dst.hp, Math.round(raw * (1 + src.healPct) * (1 + dst.env.healRecvPct)));
   if (amount <= 0) return;
   dst.hp += amount;
   c.events.push({ t: "heal", src: src.uid, dst: dst.uid, amount });
@@ -191,7 +199,7 @@ function applyDamage(c: Ctx, dst: Fighter, dmg: number, killer: Fighter | null, 
 function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical" | "magic" | "true", skill: boolean): number {
   let crit = src.crit;
   let critMult = 1.5;
-  let hit = 0.95 - stat(dst, "evade");
+  let hit = 0.95 + src.env.accuracy - stat(dst, "evade");
   if (src.role === "ARCHER") {
     const d = dist(src, dst);
     hit -= 0.05 * d; crit += 0.05 * d; critMult += 0.05 * d;
@@ -203,6 +211,7 @@ function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical
   }
   let dmg = Math.max(1, raw);
   if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
+  if (src.element === "FIRE") dmg *= dst.env.fireVuln;
   if (CLASS_COUNTER[src.role]?.includes(dst.role)) dmg *= 1 + COUNTER_BONUS;
   const isCrit = type !== "true" && c.rng() < crit;
   if (isCrit) dmg *= critMult;
@@ -312,6 +321,12 @@ function startTurn(c: Ctx, f: Fighter): boolean {
     if (--s.turns <= 0) delete f.status[k];
     if (!f.alive) return false;
   }
+  // A32 SWARM aura: non-matching units take 4 true damage per turn.
+  if (f.env.poisonAura > 0) {
+    const dmg = f.env.poisonAura;
+    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
+    if (!f.alive) return false;
+  }
   f.mods = f.mods.filter((m) => --m.turns > 0);
   let skip: string | null = null;
   for (const [k, s] of Object.entries(f.status)) {
@@ -382,10 +397,10 @@ function mulberry(seed: number) {
  */
 export function simulate(left: Placement[], right: Placement[], o: CombatOptions): CombatResult {
   const all = [
-    ...left.map((p) => makeFighter(p, "L", o.bonus?.L)),
-    ...right.map((p) => makeFighter(p, "R", o.bonus?.R)),
+    ...left.map((p) => makeFighter(p, "L", o.bonus?.L, o.environment)),
+    ...right.map((p) => makeFighter(p, "R", o.bonus?.R, o.environment)),
   ];
-  for (const f of all) f.rage = Math.min(f.rageMax, o.bonus?.[f.side]?.startRage ?? 0);
+  for (const f of all) f.rage = Math.min(f.rageMax, (o.bonus?.[f.side]?.startRage ?? 0) + f.env.startRage);
   const c: Ctx = {
     all, rng: mulberry(o.seed), events: [], globalMult: 1,
     gold: { L: o.gold?.L ?? 0, R: o.gold?.R ?? 0 },
