@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  autoMerge, benchToBoard, boardToBench, buy, createRun, equipItem, refresh, sell, sellItem, startCombat,
+  autoMerge, benchToBench, benchToBoard, boardToBench, buy, createRun, equipItem, refresh, sell, sellItem, startCombat,
   unequipAll, unequipItem,
   type OwnedUnit, type RunState,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
 
 const t1 = NORMAL_UNITS.find((u) => u.tier === 1)!;
+const otherSpecies = NORMAL_UNITS.find((u) => u.species !== t1.species)!;
 const unit = (uid: string, equips: string[] = [], star: 1 | 2 | 3 = 1): OwnedUnit =>
   ({ uid, baseId: t1.id, star, equips });
+const otherUnit = (uid: string): OwnedUnit => ({ ...unit(uid), baseId: otherSpecies.id });
 const snap = (s: RunState) => JSON.stringify(s);
 const normalRun = (seed: number) => { const s = createRun(seed); skipTutorial(s); return s; };
 
@@ -85,6 +87,27 @@ describe("run state", () => {
     expect(s.bench[0]?.uid).toBe("a");
   });
 
+  it("bench -> board rejects duplicate species atomically", () => {
+    const s = normalRun(1);
+    s.board[0] = unit("deployed");
+    s.bench = [unit("candidate")];
+    const before = snap(s);
+    expect(benchToBoard(s, 0, 1)).toBe(false);
+    expect(snap(s)).toBe(before);
+  });
+
+  it("bench -> board respects swap permission and still allows a valid swap", () => {
+    const s = normalRun(1);
+    s.board[0] = otherUnit("board");
+    s.bench = [unit("bench")];
+    const before = snap(s);
+    expect(benchToBoard(s, 0, 0, false)).toBe(false);
+    expect(snap(s)).toBe(before);
+    expect(benchToBoard(s, 0, 0, true)).toBe(true);
+    expect(s.board[0]?.uid).toBe("bench");
+    expect(s.bench[0]?.uid).toBe("board");
+  });
+
   it("board → full bench fails atomically", () => {
     const s = normalRun(1);
     s.bench = Array.from({ length: 8 }, (_, i) => ({ ...unit(`b${i}`), baseId: NORMAL_UNITS[i * 3]!.id }));
@@ -92,6 +115,39 @@ describe("run state", () => {
     const before = snap(s);
     expect(boardToBench(s, 4, 8)).toBe(false);
     expect(snap(s)).toBe(before);
+  });
+
+  it("board -> bench rejects locked destination and forbidden swap atomically", () => {
+    const s = normalRun(1);
+    s.board[0] = otherUnit("board");
+    s.bench = [unit("bench")];
+    const before = snap(s);
+    expect(boardToBench(s, 0, 8)).toBe(false);
+    expect(snap(s)).toBe(before);
+    expect(boardToBench(s, 0, 0, false)).toBe(false);
+    expect(snap(s)).toBe(before);
+  });
+
+  it("board -> bench swap rejects a target species already deployed", () => {
+    const s = normalRun(1);
+    s.board[0] = unit("existing");
+    s.board[1] = otherUnit("moving-out");
+    s.bench = [unit("duplicate")];
+    const before = snap(s);
+    expect(boardToBench(s, 1, 0)).toBe(false);
+    expect(snap(s)).toBe(before);
+  });
+
+  it("bench reorder obeys capacity, swap permission and compact insertion", () => {
+    const s = normalRun(1);
+    s.bench = [unit("a"), otherUnit("b"), unit("c")];
+    const before = snap(s);
+    expect(benchToBench(s, 0, 8)).toBe(false);
+    expect(snap(s)).toBe(before);
+    expect(benchToBench(s, 0, 1, false)).toBe(false);
+    expect(snap(s)).toBe(before);
+    expect(benchToBench(s, 0, 5)).toBe(true);
+    expect(s.bench.map((u) => u.uid)).toEqual(["b", "c", "a"]);
   });
 
   it("sell returns equips to bag; start needs a deployed unit", () => {

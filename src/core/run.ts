@@ -421,12 +421,15 @@ export function autoMerge(s: RunState): number {
 }
 
 /** A2 rules 1–2: bench → board cell (empty or swap). */
-export function benchToBoard(s: RunState, benchIndex: number, cell: number): boolean {
+export function benchToBoard(s: RunState, benchIndex: number, cell: number, allowSwap = true): boolean {
   const u = s.bench[benchIndex];
   if (!planning(s) || !u || cell < 0 || cell >= s.board.length || !tutorialActionAllowed(s, "move_unit", {
     source: { where: "bench", index: benchIndex }, destination: { where: "board", index: cell }, unitUid: u.uid,
   })) return false;
   const occupant = s.board[cell];
+  if (occupant && !allowSwap) return false;
+  const species = getUnit(u.baseId).species;
+  if (s.board.some((unit, index) => index !== cell && unit && getUnit(unit.baseId).species === species)) return false;
   if (!occupant && boardCount(s) >= deployLimit(s)) return false;
   s.board[cell] = u;
   if (occupant) s.bench[benchIndex] = occupant;
@@ -436,20 +439,26 @@ export function benchToBoard(s: RunState, benchIndex: number, cell: number): boo
 }
 
 /** A2 rules 3–4: board → bench position (insert when room, swap when occupied). */
-export function boardToBench(s: RunState, cell: number, benchIndex: number): boolean {
+export function boardToBench(s: RunState, cell: number, benchIndex: number, allowSwap = true): boolean {
   const u = s.board[cell];
-  if (!planning(s) || !u || benchIndex < 0 || !tutorialActionAllowed(s, "move_unit", {
+  const capacity = benchCap(s);
+  if (!planning(s) || !u || benchIndex < 0 || benchIndex >= capacity || !tutorialActionAllowed(s, "move_unit", {
     source: { where: "board", index: cell }, destination: { where: "bench", index: benchIndex }, unitUid: u.uid,
   })) return false;
   const target = s.bench[benchIndex];
   if (target) {
+    if (!allowSwap) return false;
+    const species = getUnit(target.baseId).species;
+    if (s.board.some((unit, index) => index !== cell && unit && getUnit(unit.baseId).species === species)) return false;
     s.board[cell] = target;
     s.bench[benchIndex] = u;
+    recordTutorialEvent(s, "move_unit");
     return true;
   }
   if (s.bench.length >= benchCap(s)) return false;
   s.board[cell] = null;
   s.bench.splice(Math.min(benchIndex, s.bench.length), 0, u);
+  recordTutorialEvent(s, "move_unit");
   return true;
 }
 
@@ -467,18 +476,20 @@ export function boardToBoard(s: RunState, from: number, to: number): boolean {
 }
 
 /** A2 rules 5–6: bench reorder/swap, never creating holes. */
-export function benchToBench(s: RunState, from: number, to: number): boolean {
+export function benchToBench(s: RunState, from: number, to: number, allowSwap = true): boolean {
   const u = s.bench[from];
-  if (!planning(s) || !u || to < 0 || from === to || !tutorialActionAllowed(s, "move_unit", {
+  if (!planning(s) || !u || to < 0 || to >= benchCap(s) || from === to || !tutorialActionAllowed(s, "move_unit", {
     source: { where: "bench", index: from }, destination: { where: "bench", index: to }, unitUid: u.uid,
   })) return false;
   if (s.bench[to]) {
+    if (!allowSwap) return false;
     s.bench[from] = s.bench[to]!;
     s.bench[to] = u;
   } else {
     s.bench.splice(from, 1);
-    s.bench.push(u);
+    s.bench.splice(Math.min(to, s.bench.length), 0, u);
   }
+  recordTutorialEvent(s, "move_unit");
   return true;
 }
 
