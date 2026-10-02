@@ -1,6 +1,7 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange } from "../core/i18n";
 import { boardCount } from "../core/run";
+import { normalizeKey } from "../core/settings";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
@@ -125,9 +126,38 @@ registerScreen("planning", (app) => {
     });
   }
 
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.repeat || combat || app.modals.blocking()) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (
+      target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
+    )) return;
+    const key = normalizeKey(event.key === " " ? "SPACE" : event.key);
+    if (!key) return;
+    const bindings = bridge.settings.get().keys.planning;
+    if (key === bindings.startCombat) {
+      event.preventDefault();
+      runCombat();
+    } else if (key === bindings.reroll) {
+      event.preventDefault();
+      bridge.reroll();
+    } else if (key === bindings.buyXp) {
+      event.preventDefault();
+      bridge.buyXp();
+    } else if (key === bindings.settings) {
+      event.preventDefault();
+      app.openPanel("settings");
+    } else if (key === bindings.toggleAudio) {
+      event.preventDefault();
+      const current = bridge.settings.get();
+      bridge.settings.save({ audioEnabled: true, audioMuted: !current.audioMuted });
+    }
+  };
+  window.addEventListener("keydown", onKeyDown);
+
   const offs = [bridge.onChange(sync), app.modals.onChange(sync), onLocaleChange(() => hud.refreshCopy())];
   sync();
-  return { dispose() { endCombat(); for (const o of offs) o(); hud.dispose(); board.dispose(); } };
+  return { dispose() { window.removeEventListener("keydown", onKeyDown); endCombat(); for (const o of offs) o(); hud.dispose(); board.dispose(); } };
 });
 
 // Language: one control opens the list; selecting refreshes copy immediately (A98).
