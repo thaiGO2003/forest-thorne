@@ -15,6 +15,7 @@ const CYCLE_CAP = 20;
 const ROLE_EVADE: Record<Role, number> = { TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.1, MAGE: 0.05, SUPPORT: 0.07 };
 const ROLE_CRIT: Record<Role, number> = { TANKER: 0.05, FIGHTER: 0.05, ASSASSIN: 0.25, ARCHER: 0.2, MAGE: 0.1, SUPPORT: 0.05 };
 const STAR_DOT = [0, 1, 1.3, 1.6];
+const STAR_EFFECT_CHANCE = [0, 1, 1.4, 2];
 const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
 const CONTROL_STATUS = ["freeze", "stun", "sleep", "silence", "disarm", "taunt"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
@@ -136,6 +137,13 @@ export function goldMultiplier(gold: number): number {
 /** A74 incidental tier stun hook for effects that explicitly opt into tier-based stun. */
 export function tierStunChance(tier: number): number {
   return tier >= 5 ? 0.3 : tier === 4 ? 0.2 : 0;
+}
+
+/** A12/A70 authored effect chance after star scaling, clamped to a valid probability. */
+export function starEffectChance(star: number, authoredChance: number): number {
+  const resolvedStar = Math.max(1, Math.min(3, Math.trunc(Number.isFinite(star) ? star : 1)));
+  const chance = Number.isFinite(authoredChance) ? authoredChance : 1;
+  return Math.min(1, Math.max(0, chance) * (STAR_EFFECT_CHANCE[resolvedStar] ?? 1));
 }
 
 export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environment?: EnvironmentId): Fighter {
@@ -687,9 +695,20 @@ function skillRawDamage(c: Ctx, f: Fighter, damage: NonNullable<SkillSpec["damag
 
 function skillHealRaw(f: Fighter, healSpec: NonNullable<SkillSpec["heal"]>, target: Fighter): number {
   if (healSpec.formula) {
-    return (healSpec.formula.base + statValue(f, healSpec.formula.stat) * healSpec.formula.scale) * (STAR_SKILL[f.star] ?? 1);
+    return Math.floor((healSpec.formula.base + statValue(f, healSpec.formula.stat) * healSpec.formula.scale) * (STAR_SKILL[f.star] ?? 1));
   }
-  return target.maxHp * healSpec.pctMaxHp;
+  return Math.floor(target.maxHp * healSpec.pctMaxHp);
+}
+
+/** Refresh a canonical timed stat modifier without additive duplicate stacking. */
+export function refreshTimedStatMod(f: Fighter, mod: SkillSpec["buffs"][number], source: string): void {
+  const current = f.mods.find((entry) => entry.source === source && entry.stat === mod.stat && entry.pct === mod.pct);
+  if (!current) {
+    f.mods.push({ ...mod, source });
+    return;
+  }
+  current.value = Math.max(current.value, mod.value);
+  current.turns = Math.max(current.turns, mod.turns);
 }
 
 function applyOffenseStatus(c: Ctx, src: Fighter, dst: Fighter, payload: SkillSpec["offenseDebuff"]): void {
@@ -756,6 +775,18 @@ function resolveFullFamilySkill(
     const targets = selectorTargets(c, f, pool, "lowest_rage_ally", Math.max(1, sp.count));
     announce(targets);
     for (const target of targets) addRage(target, sp.rageGrant);
+    return true;
+  }
+  if (family === "team_def_buff" && !getUnit(f.baseId).boss) {
+    const allies = stableTargets(f, friends(c, f));
+    const authoredDefense = sp.buffs.filter((mod) => mod.stat === "def" || mod.stat === "mdef");
+    const defenseBuffs: SkillSpec["buffs"] = authoredDefense.length
+      ? authoredDefense
+      : [{ stat: "def", value: 15, pct: false, turns: 3 }];
+    const injured = allies.filter((ally) => ally.hp < ally.maxHp).sort(byLowHp).slice(0, Math.max(1, sp.count));
+    announce(allies);
+    for (const ally of allies) for (const mod of defenseBuffs) refreshTimedStatMod(ally, mod, family);
+    if (sp.heal) for (const ally of injured) heal(c, f, ally, skillHealRaw(f, sp.heal, ally));
     return true;
   }
   if (family === "row_random_rage_buff" && !getUnit(f.baseId).boss) {
@@ -904,7 +935,7 @@ function resolveFullFamilySkill(
     const stun = sp.controls.find((control) => control.kind === "stun");
     if (stun) {
       const riders = selectorTargets(c, f, foes(c, f), "highest_rage", Math.max(1, sp.count));
-      for (const target of riders) if (c.rng() <= stun.chance) applyStatus(c, target, "stun", stun.turns, 0, { sourceUid: f.uid });
+      for (const target of riders) if (c.rng() <= starEffectChance(f.star, stun.chance)) applyStatus(c, target, "stun", stun.turns, 0, { sourceUid: f.uid });
     }
     if (f.baseId === "lion_general") {
       for (const ally of friends(c, f).filter((x) => x.row === f.row)) for (const mod of sp.buffs) ally.mods.push({ ...mod, source: family });
@@ -937,7 +968,7 @@ function resolveFullFamilySkill(
     for (const target of riders) {
       applyOffenseStatus(c, f, target, sp.offenseDebuff);
       if (sp.accuracyReduction) applyStatus(c, target, "accuracyDebuff", sp.accuracyReduction.turns, sp.accuracyReduction.pct, { sourceUid: f.uid, percent: true });
-      for (const control of sp.controls) if (c.rng() <= control.chance) applyStatus(c, target, control.kind, control.turns, 0, { sourceUid: f.uid });
+      for (const control of sp.controls) if (c.rng() <= starEffectChance(f.star, control.chance)) applyStatus(c, target, control.kind, control.turns, 0, { sourceUid: f.uid });
     }
     if (f.role === "MAGE") addRage(f, hitIds.size);
     return true;
@@ -1149,7 +1180,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
       applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult * conditional), { sourceUid: f.uid });
     }
     for (const k of sp.controls) {
-      if (c.rng() > k.chance) continue;
+      if (c.rng() > starEffectChance(f.star, k.chance)) continue;
       if (applyStatus(c, t, k.kind, k.turns) && k.kind === "taunt") t.tauntBy = f.uid;
     }
     for (const m of sp.debuffs) t.mods.push({ ...m, value: -m.value, source: family });

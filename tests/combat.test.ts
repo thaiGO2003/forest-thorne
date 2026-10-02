@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
-import { goldMultiplier, makeFighter, simulate, tierStunChance, turnOrder, type Placement } from "../src/core/combat";
+import { goldMultiplier, makeFighter, refreshTimedStatMod, simulate, starEffectChance, tierStunChance, turnOrder, type Placement } from "../src/core/combat";
 
 const team = (ids: string[], side: "L" | "R"): Placement[] =>
   ids.map((baseId, i) => ({ uid: `${side}${i}`, baseId, star: 1, row: i % 5, col: side === "L" ? 4 - Math.floor(i / 5) : 5 + Math.floor(i / 5) }));
@@ -14,6 +14,54 @@ describe("combat", () => {
 
   it("tier stun hook is 20% at tier 4 and 30% at tier 5+", () => {
     expect([1, 3, 4, 5, 9].map(tierStunChance)).toEqual([0, 0, 0.2, 0.3, 0.3]);
+  });
+
+  it("scales authored effect chance by star and caps at 100%", () => {
+    expect(starEffectChance(1, 0.55)).toBeCloseTo(0.55);
+    expect(starEffectChance(2, 0.55)).toBeCloseTo(0.77);
+    expect(starEffectChance(3, 0.65)).toBe(1);
+  });
+
+  it("refreshes a same-source timed stat buff without additive duplicate stacking", () => {
+    const fighter = makeFighter({ uid: "buffed", baseId: "titan_earth", star: 1, row: 0, col: 4 }, "L");
+    refreshTimedStatMod(fighter, { stat: "def", value: 15, pct: false, turns: 3 }, "team_def_buff");
+    refreshTimedStatMod(fighter, { stat: "def", value: 10, pct: false, turns: 1 }, "team_def_buff");
+    refreshTimedStatMod(fighter, { stat: "def", value: 20, pct: false, turns: 2 }, "team_def_buff");
+    expect(fighter.mods.filter((mod) => mod.source === "team_def_buff" && mod.stat === "def"))
+      .toEqual([{ stat: "def", value: 20, pct: false, turns: 3, source: "team_def_buff" }]);
+  });
+
+  it("3-star single stun uses the scaled authored chance after damage", () => {
+    const res = simulate(
+      [{ uid: "bison", baseId: "bison_stampede", star: 3, row: 0, col: 4 }],
+      [{ uid: "target", baseId: "titan_earth", star: 3, row: 0, col: 5 }],
+      { seed: 17, bonus: { L: { startRage: 5 } } },
+    );
+    const cast = res.events.findIndex((event) => event.t === "cast" && event.src === "bison");
+    const nextCast = res.events.findIndex((event, index) => index > cast && event.t === "cast" && event.src === "bison");
+    const during = res.events.slice(cast + 1, nextCast >= 0 ? nextCast : res.events.length);
+    expect(during.some((event) => event.t === "skill" && event.src === "bison" && event.dst === "target")).toBe(true);
+    expect(during.some((event) => event.t === "status" && event.dst === "target" && event.kind === "stun")).toBe(true);
+  });
+
+  it("team DEF fallback buffs every living ally for three turns", () => {
+    const res = simulate(
+      [
+        { uid: "elder", baseId: "lizard_elder", star: 1, row: 0, col: 4 },
+        { uid: "trex", baseId: "trex_bite", star: 3, row: 1, col: 4 },
+      ],
+      [{ uid: "enemy", baseId: "salamander_flame", star: 1, row: 0, col: 5 }],
+      { seed: 21, bonus: { L: { startRage: 3 } } },
+    );
+    expect(res.events.some((event) => event.t === "cast" && event.src === "elder")).toBe(true);
+    const left = res.survivors.filter((fighter) => fighter.side === "L");
+    expect(left).toHaveLength(2);
+    for (const fighter of left) {
+      const buffs = fighter.mods.filter((mod) => mod.source === "team_def_buff" && mod.stat === "def");
+      expect(buffs).toHaveLength(1);
+      expect(buffs[0]!.value).toBe(15);
+      expect(buffs[0]!.turns).toBeGreaterThanOrEqual(2);
+    }
   });
 
   it("turn order interleaves sides, LEFT cols 4→0, RIGHT cols 5→9", () => {
