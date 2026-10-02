@@ -12,6 +12,14 @@ describe("skill parser", () => {
     expect(s).toMatchObject({ area: "all", damage: { scale: 1, stat: "matk", type: "magic" }, dots: [{ kind: "burn", turns: 3 }] });
     expect(parseSkill("Mục tiêu đầu chịu (18 + 0.65 x MATK) x Hệ số sao.").damage?.type).toBe("magic");
   });
+  it("materializes canonical denial and auto-by-role offense status payloads", () => {
+    expect(parseSkill("Mục tiêu bị giảm 25% ATK hoặc MATK theo vai trò trong 3 lượt.").offenseDebuff)
+      .toEqual({ value: 25, pct: true, turns: 3 });
+    expect(parseSkill("Mục tiêu bị giảm 35% hồi máu trong 2 lượt.").healReduction)
+      .toEqual({ pct: 35, turns: 2 });
+    expect(parseSkill("Mục tiêu không thể nhận khiên mới trong 2 lượt.").shieldLockTurns).toBe(2);
+    expect(parseSkill("Hồi 30 HP và thanh tẩy tối đa 2 hiệu ứng bất lợi cho 1 đồng minh.").cleanseCount).toBe(2);
+  });
   it("ally % heal targets lowest HP allies; self buff stays self", () => {
     expect(parseSkill("Hồi dần 15% HP tối đa trong 2 lượt cho 2 đồng minh có % máu thấp nhất."))
       .toMatchObject({ side: "ally", count: 2, pickLowestHp: true, heal: { pctMaxHp: 0.15 } });
@@ -20,5 +28,15 @@ describe("skill parser", () => {
   });
   it("bosses always resolve to a battlefield-wide damaging skill", () => {
     for (const b of UNITS.filter((u) => u.boss)) expect(skillSpec(b.id, 1)).toMatchObject({ side: "enemy", area: "all", damage: expect.any(Object) });
+  });
+
+  it("clamps requested star and derives selectors from the current-star authored detail", () => {
+    expect(skillSpec("albatross_wind", 0)).toEqual(skillSpec("albatross_wind", 1));
+    expect(skillSpec("albatross_wind", 99)).toEqual(skillSpec("albatross_wind", 3));
+    expect(skillSpec("albatross_wind", 1).selector).toBe("random_unique");
+    expect(skillSpec("albatross_wind", 2).selector).toBe("highest_atk_backline");
+    expect(skillSpec("cobra_venom", 1).selector).toBe("lowest_mdef_backline");
+    expect(skillSpec("cat_goldbow", 1).selector).toBe("highest_max_hp_front");
+    expect(skillSpec("eagle_marksman", 1).selector).toBe("backline_caster");
   });
 });

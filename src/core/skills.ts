@@ -38,6 +38,11 @@ export interface SkillSpec {
   shield: Formula | null;
   buffs: StatMod[];
   debuffs: StatMod[];
+  /** Canonical auto-by-role offense debuff (ATK for physical roles, MATK for MAGE/SUPPORT). */
+  offenseDebuff: { value: number; pct: boolean; turns: number } | null;
+  healReduction: { pct: number; turns: number } | null;
+  shieldLockTurns: number;
+  cleanseCount: number;
   rageGrant: number;
   revivePct: number;
 }
@@ -52,11 +57,9 @@ const CONTROL_WORD: Record<string, ControlKind> = {
 };
 const BUFF_WORD: Record<string, BuffStat> = { ATK: "atk", MATK: "matk", DEF: "def", MDEF: "mdef", "né tránh": "evade" };
 
-function selectorFromText(text: string, side: SkillSpec["side"], family = ""): SkillSelector {
+function explicitSelectorFromText(text: string, side: SkillSpec["side"]): SkillSelector | null {
   const t = text.toLowerCase();
   if (side === "self") return "self";
-  if (/ngẫu nhiên/.test(t) && /(không trùng|khác nhau|duy nhất)/.test(t)) return "random_unique";
-  if (/ngẫu nhiên/.test(t)) return "random";
   if (/nộ cao nhất/.test(t)) return "highest_rage";
   if (/nộ thấp nhất/.test(t) && side === "ally") return "lowest_rage_ally";
   if (/(% máu|% hp).*thấp nhất|thấp máu nhất/.test(t)) return side === "ally" ? "lowest_hp_pct_ally" : "lowest_hp_pct";
@@ -78,6 +81,14 @@ function selectorFromText(text: string, side: SkillSpec["side"], family = ""): S
   if (/cùng hàng/.test(t)) return "same_row";
   if (/cùng cột/.test(t)) return "same_column";
   if (/hình nón|cone/.test(t)) return "front_cone";
+  if (/ngẫu nhiên/.test(t) && /(không trùng|khác nhau|duy nhất)/.test(t)) return "random_unique";
+  if (/ngẫu nhiên/.test(t)) return "random";
+  return null;
+}
+
+function selectorFromText(text: string, side: SkillSpec["side"], family = ""): SkillSelector {
+  const explicit = explicitSelectorFromText(text, side);
+  if (explicit) return explicit;
   if (family === "chain_shock" || family === "single_sleep") return "highest_rage";
   if (family === "row_carry_rage_buff") return "same_row_carry";
   if (family === "row_random_rage_buff") return "random_unique";
@@ -145,6 +156,23 @@ export function parseSkill(text: string): SkillSpec {
 
   const rage = /(?:Bơm|tăng|hồi) (\d+) nộ/.exec(t);
   const revive = /Hồi sinh[^.]*?(\d+)% HP/.exec(t);
+  const offenseM = /[Gg]iảm (\d+)(%?) ATK hoặc MATK(?: theo vai trò)?/.exec(t);
+  const offenseDebuff = offenseM ? {
+    value: Number(offenseM[1]), pct: offenseM[2] === "%", turns: turnsAfter(t, offenseM.index),
+  } : null;
+  const healReductionM = /[Gg]iảm (\d+)% hồi máu(?: trong (\d+) lượt)?/.exec(t);
+  const healReduction = healReductionM ? {
+    pct: Number(healReductionM[1]), turns: healReductionM[2] ? Number(healReductionM[2]) : turnsAfter(t, healReductionM.index),
+  } : null;
+  const shieldLockM = /không thể nhận khiên mới(?: trong (\d+) lượt)?/.exec(t);
+  const shieldLockTurns = shieldLockM ? (shieldLockM[1] ? Number(shieldLockM[1]) : turnsAfter(t, shieldLockM.index)) : 0;
+  const cleanseM = /thanh tẩy(?: tối đa)? (\d+) hiệu ứng/.exec(t);
+  const cleanseCount = cleanseM ? Number(cleanseM[1]) : /thanh tẩy 1 hiệu ứng|thanh tẩy 1 hiệu ứng xấu/.test(t) ? 1 : 0;
+  const debuffs = statMods(t, "giảm");
+  if (offenseDebuff) {
+    const duplicate = debuffs.findIndex((m) => m.stat === "atk" && m.value === offenseDebuff.value && m.pct === offenseDebuff.pct && m.turns === offenseDebuff.turns);
+    if (duplicate >= 0) debuffs.splice(duplicate, 1);
+  }
 
   const enemyFirst = t.search(/kẻ địch/);
   const allyFirst = t.search(/đồng minh/);
@@ -166,7 +194,8 @@ export function parseSkill(text: string): SkillSpec {
     damage, dots, controls, heal,
     selfHealPctMaxHp: selfHeal && !allyHeal ? Number(selfHeal[1]) / 100 : 0,
     lifestealPct: steal ? Number(steal[1] ?? steal[2]) / 100 : 0,
-    shield, buffs: statMods(t, "tăng"), debuffs: statMods(t, "giảm"),
+    shield, buffs: statMods(t, "tăng"), debuffs,
+    offenseDebuff, healReduction, shieldLockTurns, cleanseCount,
     rageGrant: rage ? Number(rage[1]) : 0,
     revivePct: revive ? Number(revive[1]) / 100 : 0,
   };
@@ -183,8 +212,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   if (!u.boss) {
     const s = parseSkill(detail);
-    const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, detail].filter(Boolean).join(" ");
-    s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
+    const metadata = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi].filter(Boolean).join(" ");
+    s.selector = explicitSelectorFromText(detail, s.side) ?? selectorFromText(metadata, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
   // Boss skill prose has no numbers. ponytail: battlefield-wide 1.5× primary-stat hit plus parsed status words;
