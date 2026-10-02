@@ -260,11 +260,48 @@ export function saveRun(store: KV, payload: RunPayload): Envelope {
   return env;
 }
 
+/** A113.1: public persistence boundary must fail softly on storage errors. */
+export function saveProgress(store: KV, payload: RunPayload): boolean {
+  try {
+    saveRun(store, payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A113.1: load through the same migration/validation path as Continue. */
+export function loadProgress(store: KV): RunPayload | null {
+  try {
+    const inspected = inspectSave(store);
+    return inspected.status === "valid" ? inspected.envelope.payload : null;
+  } catch {
+    return null;
+  }
+}
+
 function readJson(store: KV, key: string): unknown {
   try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; }
 }
 
 export const exportProgress = (env: Envelope) => JSON.stringify(env, null, 2);
+
+/** A113.2: browser export helper. Returns false outside a usable browser surface. */
+export function downloadProgress(env: Envelope, filename = EXPORT_FILENAME): boolean {
+  if (typeof document === "undefined" || typeof URL === "undefined" || typeof Blob === "undefined") return false;
+  try {
+    const blob = new Blob([exportProgress(env)], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(href);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** A57.4: same migration path as Continue; `persist=false` never writes. */
 export function importProgress(store: KV, text: string, persist: boolean): RunPayload | null {
@@ -278,6 +315,15 @@ export function importProgress(store: KV, text: string, persist: boolean): RunPa
     if (isObj(raw) && isObj(raw.collectionProfile)) store.setItem(COLLECTION_KEY, JSON.stringify(m.envelope.collectionProfile));
   }
   return m.envelope.payload;
+}
+
+/** A113.2: File/Blob import uses the canonical text migration path. */
+export async function importProgressBlob(store: KV, blob: Blob, persist: boolean): Promise<RunPayload | null> {
+  try {
+    return importProgress(store, await blob.text(), persist);
+  } catch {
+    return null;
+  }
 }
 
 // A57.5 — three intentionally different scopes.

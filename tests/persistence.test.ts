@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRun } from "../src/core/run";
 import {
-  ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope, importProgress, inspectSave,
-  migrate, PROGRESS_KEY, remapCoopHost, saveCoopSlot, saveRun, selectCoopSlot,
+  ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope, downloadProgress,
+  EXPORT_FILENAME, importProgress, importProgressBlob, inspectSave, loadProgress, migrate, PROGRESS_KEY, remapCoopHost,
+  saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
 
@@ -57,6 +58,50 @@ describe("persistence A57", () => {
     importProgress(s, text, true);
     expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!).stats).toMatchObject({ runs_started: 4, highest_level: 3 });
     expect(JSON.parse(s.m[COLLECTION_KEY]!).unlockedSkinIds).toEqual(["skin_a"]);
+  });
+
+  it("saveProgress/loadProgress fail softly and reuse canonical migration", () => {
+    const s = mem();
+    expect(saveProgress(s, { player: createRun(21) })).toBe(true);
+    expect(loadProgress(s)?.player?.rngSeed).toBe(21);
+
+    s.m[PROGRESS_KEY] = "{bad";
+    expect(loadProgress(s)).toBeNull();
+
+    const throwing = {
+      getItem: () => null,
+      setItem: () => { throw new Error("quota"); },
+      removeItem: () => undefined,
+    };
+    expect(saveProgress(throwing, { player: createRun(22) })).toBe(false);
+    expect(() => loadProgress(throwing)).not.toThrow();
+    expect(loadProgress(throwing)).toBeNull();
+  });
+
+  it("imports Blob/File-compatible payloads through the same validation path", async () => {
+    const s = mem();
+    const env = createEnvelope({ player: createRun(23) });
+    expect((await importProgressBlob(s, new Blob([JSON.stringify(env)]), false))?.player?.rngSeed).toBe(23);
+    expect(s.setItem).not.toHaveBeenCalled();
+    expect(await importProgressBlob(s, new Blob(["[]"]), true)).toBeNull();
+  });
+
+  it("downloads the canonical envelope with the default portable filename", () => {
+    const click = vi.fn();
+    const link = { href: "", download: "", click };
+    const createObjectURL = vi.fn(() => "blob:save");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("document", { createElement: vi.fn(() => link) });
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      expect(downloadProgress(createEnvelope({ player: createRun(24) }))).toBe(true);
+      expect(link.download).toBe(EXPORT_FILENAME);
+      expect(link.href).toBe("blob:save");
+      expect(click).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:save");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("hydrates extended run ranges, shop capacity and uid allocator state without truncation", () => {
