@@ -144,6 +144,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       const selectedMode = normalizeAvailableMode(mode);
       const config = MODE_CONFIG[selectedMode];
       const requestedAi = normalizeAiMode(ai, config.ai.def);
+      clearRunProgress(store);
       state = createModeRun(Date.now() | 0, selectedMode);
       state.aiMode = config.ai.allowed.includes(requestedAi) ? requestedAi : config.ai.def;
       resetHistory();

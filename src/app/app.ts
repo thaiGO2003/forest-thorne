@@ -9,6 +9,7 @@ import { createTooltip, type Tooltip } from "../ui/tooltip";
 import { createLoading } from "../ui/loading";
 import { createMenu, type UtilityId } from "../ui/menu";
 import { createPlaceholderBridge, type Bridge } from "./bridge";
+import { bootTransitionDelay, createRequestGate, waitMs } from "./loadLifecycle";
 
 export type Route = "loading" | "menu" | "planning";
 
@@ -16,6 +17,7 @@ export interface App {
   stage: Stage; modals: ModalHost; tooltip: Tooltip; bridge: Bridge;
   route(): Route;
   go(r: Route): void;
+  dispose(): void;
   /** Open a registered panel (planning action, unit detail…); unknown ids are ignored. */
   openPanel(id: string, arg?: string): void;
   layers: { screen: HTMLElement; hud: HTMLElement; modal: HTMLElement; tooltip: HTMLElement };
@@ -48,12 +50,21 @@ export async function boot(root: HTMLElement): Promise<App> {
   const bridge = createPlaceholderBridge();
   let current: Route = "loading";
   let active: { dispose(): void } | null = null;
+  let destroyed = false;
+  const loadingGate = createRequestGate();
+  let loading: ReturnType<typeof createLoading> | null = null;
 
   const app: App = {
     stage, modals, tooltip, bridge, layers,
     route: () => current,
     openPanel(id, arg) { panels[id]?.(app, arg); },
     go(r) {
+      if (destroyed) return;
+      if (current === "loading" && r !== "loading") {
+        loadingGate.invalidate();
+        loading?.dispose();
+        loading = null;
+      }
       active?.dispose();
       active = null;
       modals.closeActive();
@@ -63,6 +74,19 @@ export async function boot(root: HTMLElement): Promise<App> {
       stage.setPhase(r === "planning" ? "planning" : "menu");
       if (r === "menu") active = mountMenu();
       else active = screens[r]?.(app) ?? null;
+    },
+    dispose() {
+      if (destroyed) return;
+      destroyed = true;
+      loadingGate.dispose();
+      loading?.dispose();
+      loading = null;
+      active?.dispose();
+      active = null;
+      modals.closeActive();
+      tooltip.hide();
+      stage.dispose();
+      ui.remove();
     },
   };
 
@@ -79,23 +103,31 @@ export async function boot(root: HTMLElement): Promise<App> {
 
   // Loading: real progress = kit images (90%) + first stage frame (10%).
   root.dataset.route = "loading";
-  const loading = createLoading(layers.screen, { title: t("loading.title"), hint: t("loading.hint") });
+  const loadingVisibleSince = performance.now();
+  loading = createLoading(layers.screen, { title: t("loading.title"), hint: t("loading.hint") });
   const nextFrames = () => {
     const { promise, resolve } = Promise.withResolvers<void>();
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     return promise;
   };
   const run = async () => {
+    const token = loadingGate.begin();
+    if (token < 0 || !loading) return;
+    const view = loading;
     try {
-      loading.setProgress(0, t("loading.assets"));
-      await loadKit((p) => loading.setProgress(p * 0.9, t("loading.assets")));
-      loading.setProgress(0.95, t("loading.world"));
+      view.setProgress(0, t("loading.assets"));
+      await loadKit((p) => { if (loadingGate.isCurrent(token)) view.setProgress(p * 0.9, t("loading.assets")); });
+      if (!loadingGate.isCurrent(token)) return;
+      view.setProgress(0.95, t("loading.world"));
       await nextFrames();
-      loading.setProgress(1, t("loading.world"));
-      loading.dispose();
+      if (!loadingGate.isCurrent(token)) return;
+      view.setProgress(1, t("loading.world"));
+      await waitMs(bootTransitionDelay(loadingVisibleSince, performance.now()));
+      if (!loadingGate.isCurrent(token)) return;
       app.go("menu");
     } catch {
-      loading.fail(t("loading.failed"), { retryLabel: t("loading.retry"), retry: () => void run() });
+      if (!loadingGate.isCurrent(token)) return;
+      view.fail(t("loading.failed"), { retryLabel: t("loading.retry"), retry: () => void run() });
     }
   };
   await run();

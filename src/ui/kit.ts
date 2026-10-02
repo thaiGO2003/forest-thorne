@@ -29,7 +29,7 @@ let ready: Promise<void> | null = null;
  */
 export function loadKit(onProgress?: (p: number) => void): Promise<void> {
   if (ready) return ready;
-  ready = (async () => {
+  const attempt = (async () => {
     const res = await fetch(`${KIT_DIR}/manifest.json`);
     const names = (await res.json()) as string[];
     let done = 0;
@@ -45,7 +45,13 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
     }));
     for (const fn of repaint) fn();
   })();
-  return ready;
+  let wrapped: Promise<void>;
+  wrapped = attempt.catch((error: unknown) => {
+    if (ready === wrapped) ready = null;
+    throw error;
+  });
+  ready = wrapped;
+  return wrapped;
 }
 
 export const kitImage = (name: string) => images.get(name);
