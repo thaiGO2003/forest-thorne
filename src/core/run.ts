@@ -11,8 +11,11 @@ import {
 import { normalizeVariantTraits, rollVariantTrait, type VariantTraitRef } from "./variants";
 import { applyAugment, AUGMENTS, AUGMENT_ROUNDS } from "./augments";
 import { BASE_MATERIALS, craft as commitCraft, stage as stageCraft } from "./craft";
-import { lossDamage, type Drop } from "./loot";
+import type { Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
+import {
+  previewRoundResult, type RoundResultInput, type RoundResultSummary, type RoundWinner,
+} from "./combatOutcomeState";
 import {
   beastDenOffers, blacksmithForgeTier, completeFortressNode as completeFortressStateNode,
   createFortressState, fortressRng, pharmacyOptions, selectFortressNode as selectFortressStateNode,
@@ -515,29 +518,7 @@ export function startCombat(s: RunState): string | null {
   return null;
 }
 
-export type RoundWinner = "LEFT" | "RIGHT" | "DRAW";
-
-export interface RoundResultInput {
-  combatId: string;
-  winner: RoundWinner;
-  enemySurvivors: number;
-  enemyStars: number[];
-  bounty: number;
-  drops: Drop[];
-}
-
-export interface RoundResultSummary {
-  winner: RoundWinner;
-  goldEarned: number;
-  xpEarned: number;
-  damageTaken: number;
-  hpAfter: number;
-  nextRound: number;
-  gameOver: boolean;
-  incomeEarned: number;
-  acceptedDrops: Drop[];
-  rejectedDrops: Drop[];
-}
+export type { RoundResultInput, RoundResultSummary, RoundWinner } from "./combatOutcomeState";
 
 const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
 
@@ -684,52 +665,47 @@ export function runSynergies(s: RunState): SynergyLine[] {
 export function applyRoundResult(s: RunState, input: RoundResultInput): RoundResultSummary | null {
   if (s.phase !== "COMBAT" || s.appliedCombats.includes(input.combatId)) return null;
   const cfg = modeConfig(s.mode);
+  const tech = techModifiers(s.techLevels);
+  const preview = previewRoundResult({
+    round: s.round,
+    level: s.level,
+    xp: s.xp,
+    gold: s.gold,
+    hp: s.hp,
+    winStreak: s.winStreak,
+    loseStreak: s.loseStreak,
+    lossCondition: s.lossCondition,
+    damageRule: cfg.damageRule,
+    creative: cfg.creative,
+    winGoldBonus: s.winGoldBonus + (tech.winGold ?? 0),
+    nextRoundBaseIncome: cfg.goldIncome(s.round + 1),
+    incomeMods: {
+      interestCapBonus: s.interestCapBonus + (tech.interestCap ?? 0),
+      interestRateBonus: s.interestRateBonus + (tech.interestRate ?? 0) / 100,
+      fixedIncome: s.fixedIncome + (tech.fixedIncome ?? 0),
+    },
+    nextRoundIncomeAlreadyPaid: s.incomeRoundsPaid.includes(s.round + 1),
+    inventoryRoom: Math.max(0, inventoryCapacity(s) - s.itemBag.length),
+    validItem: validBagItem,
+  }, input);
   s.appliedCombats.push(input.combatId);
 
-  let goldEarned = 0;
-  let xpEarned = 0;
-  let damageTaken = 0;
-  let gameOver = false;
-  if (input.winner === "LEFT") {
-    s.winStreak++;
-    s.loseStreak = 0;
-    goldEarned = input.enemyStars.length
-      + input.enemyStars.reduce((sum, star) => sum + Math.max(0, star - 1), 0)
-      + input.bounty + s.winGoldBonus + (techModifiers(s.techLevels).winGold ?? 0);
-    if (!cfg.creative) {
-      s.gold += goldEarned;
-      xpEarned = 2;
-      Object.assign(s, addXp(s.level, s.xp, xpEarned));
-    }
-  } else if (input.winner === "RIGHT") {
-    s.winStreak = 0;
-    s.loseStreak++;
-    goldEarned = input.bounty;
-    if (!cfg.creative) s.gold += goldEarned;
-    if (!cfg.creative && s.lossCondition === "NO_HEARTS") {
-      damageTaken = lossDamage(cfg.damageRule, input.enemySurvivors);
-      s.hp = Math.max(0, s.hp - damageTaken);
-      gameOver = s.hp <= 0;
-    } else if (!cfg.creative) gameOver = true;
-  } else {
-    s.winStreak = 0;
-    s.loseStreak = 0;
-    goldEarned = input.bounty;
-    if (!cfg.creative) s.gold += goldEarned;
+  s.winStreak = preview.winStreakAfter;
+  s.loseStreak = preview.loseStreakAfter;
+  s.hp = preview.hpAfter;
+  if (!cfg.creative) {
+    s.gold = preview.walletAfterRewards;
+    s.level = preview.levelAfter;
+    s.xp = preview.xpAfter;
   }
-
-  const room = Math.max(0, inventoryCapacity(s) - s.itemBag.length);
-  const legalDrops = input.drops.filter((drop) => typeof drop.item === "string" && validBagItem(drop.item));
-  const acceptedDrops = legalDrops.slice(0, room);
-  const rejectedDrops = [...legalDrops.slice(room), ...input.drops.filter((drop) => !legalDrops.includes(drop))];
-  s.itemBag.push(...acceptedDrops.map((drop) => drop.item));
+  s.itemBag.push(...preview.acceptedDrops.map((drop) => drop.item));
 
   let incomeEarned = 0;
-  if (gameOver) {
+  if (preview.gameOver) {
     s.phase = "GAME_OVER";
     s.activeAugmentChoices = [];
   } else {
-    s.round++;
+    s.round = preview.nextRound;
     syncTutorialRound(s);
     finishTutorialIfPastEnd(s);
     prepareTutorialRound(s);
@@ -737,10 +713,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
     if (cfg.shop && !s.shopLocked) rollShop(s);
     offerAugmentsIfDue(s);
   }
-  return {
-    winner: input.winner, goldEarned, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,
-    gameOver, incomeEarned, acceptedDrops, rejectedDrops,
-  };
+  return { ...preview, incomeEarned };
 }
 
 /** A117 route selection; pure graph ownership remains in fortress.ts. */
