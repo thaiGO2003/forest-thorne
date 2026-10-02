@@ -21,8 +21,10 @@ import type { OwnedUnit, RunState } from "./run";
 
 export const PROGRESS_KEY = "forest_throne_progress_v1";
 export const COOP_KEY = "forest_throne_coop_save_slots_v1";
-export const ACHIEVEMENTS_KEY = "forest_throne_achievements_v1";
-export const COLLECTION_KEY = "forest_throne_collection_v1";
+export const ACHIEVEMENTS_KEY = "forest_throne_endless_achievements_v1";
+export const COLLECTION_KEY = "forest_throne_collection_profile_v1";
+const LEGACY_ACHIEVEMENTS_KEY = "forest_throne_achievements_v1";
+const LEGACY_COLLECTION_KEY = "forest_throne_collection_v1";
 export const ENVELOPE_VERSION = 4;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
 
@@ -253,8 +255,8 @@ export function inspectSave(store: KV): ContinueState {
 
 export function saveRun(store: KV, payload: RunPayload): Envelope {
   const env = createEnvelope(structuredClone(payload), {
-    achievementsProfile: normalizeAchievementProfile(readJson(store, ACHIEVEMENTS_KEY)),
-    collectionProfile: normalizeCollectionProfile(readJson(store, COLLECTION_KEY)),
+    achievementsProfile: loadAchievementProfile(store),
+    collectionProfile: loadCollectionProfile(store),
   });
   store.setItem(PROGRESS_KEY, JSON.stringify(env));
   return env;
@@ -280,8 +282,61 @@ export function loadProgress(store: KV): RunPayload | null {
   }
 }
 
-function readJson(store: KV, key: string): unknown {
-  try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; }
+function readProfileJson(store: Pick<KV, "getItem">, key: string, legacyKey: string): { value: unknown; legacy: boolean } {
+  try {
+    const canonical = store.getItem(key);
+    if (canonical !== null) return { value: JSON.parse(canonical), legacy: false };
+    const legacy = store.getItem(legacyKey);
+    return legacy === null ? { value: null, legacy: false } : { value: JSON.parse(legacy), legacy: true };
+  } catch {
+    return { value: null, legacy: false };
+  }
+}
+
+export function loadAchievementProfile(store: KV): AchievementProfile {
+  const source = readProfileJson(store, ACHIEVEMENTS_KEY, LEGACY_ACHIEVEMENTS_KEY);
+  const profile = normalizeAchievementProfile(source.value);
+  if (source.legacy) {
+    try {
+      store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(profile));
+      store.removeItem(LEGACY_ACHIEVEMENTS_KEY);
+    } catch { /* best-effort legacy migration */ }
+  }
+  return profile;
+}
+
+export function saveAchievementProfile(store: KV, value: unknown): AchievementProfile {
+  const profile = normalizeAchievementProfile(value);
+  store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(profile));
+  return profile;
+}
+
+export function clearAchievementProfile(store: Pick<KV, "removeItem">): void {
+  store.removeItem(ACHIEVEMENTS_KEY);
+  store.removeItem(LEGACY_ACHIEVEMENTS_KEY);
+}
+
+export function loadCollectionProfile(store: KV): CollectionProfile {
+  const source = readProfileJson(store, COLLECTION_KEY, LEGACY_COLLECTION_KEY);
+  const profile = normalizeCollectionProfile(source.value);
+  if (source.legacy) {
+    try {
+      store.setItem(COLLECTION_KEY, JSON.stringify(profile));
+      store.removeItem(LEGACY_COLLECTION_KEY);
+    } catch { /* best-effort legacy migration */ }
+  }
+  return profile;
+}
+
+export function saveCollectionProfile(store: KV, value: unknown): CollectionProfile {
+  const profile = normalizeCollectionProfile(value);
+  store.setItem(COLLECTION_KEY, JSON.stringify(profile));
+  return profile;
+}
+
+export function clearCollectionProfile(store: Pick<KV, "removeItem">): void {
+  store.removeItem(COLLECTION_KEY);
+  store.removeItem(LEGACY_COLLECTION_KEY);
 }
 
 export const exportProgress = (env: Envelope) => JSON.stringify(env, null, 2);
@@ -311,8 +366,8 @@ export function importProgress(store: KV, text: string, persist: boolean): RunPa
   if (!m) return null;
   if (persist) {
     store.setItem(PROGRESS_KEY, JSON.stringify(m.envelope));
-    if (isObj(raw) && isObj(raw.achievementsProfile)) store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(m.envelope.achievementsProfile));
-    if (isObj(raw) && isObj(raw.collectionProfile)) store.setItem(COLLECTION_KEY, JSON.stringify(m.envelope.collectionProfile));
+    if (isObj(raw) && isObj(raw.achievementsProfile)) saveAchievementProfile(store, m.envelope.achievementsProfile);
+    if (isObj(raw) && isObj(raw.collectionProfile)) saveCollectionProfile(store, m.envelope.collectionProfile);
   }
   return m.envelope.payload;
 }
@@ -330,8 +385,8 @@ export async function importProgressBlob(store: KV, blob: Blob, persist: boolean
 export const clearRunProgress = (store: KV) => store.removeItem(PROGRESS_KEY);
 export function clearProgress(store: KV) {
   store.removeItem(PROGRESS_KEY);
-  store.removeItem(ACHIEVEMENTS_KEY);
-  store.removeItem(COLLECTION_KEY);
+  clearAchievementProfile(store);
+  clearCollectionProfile(store);
 }
 export const clearAllLocalStorage = (store: Pick<Storage, "clear">) => store.clear();
 

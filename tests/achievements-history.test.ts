@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  ACHIEVEMENT_CATEGORIES, achievementRows, claimSkinReward, createAchievementProfile, createCollectionProfile,
-  equipCollectionSkin, rankAchievementRows, recordEndlessAchievementEvent, unlockedAchievementCount,
-  validateAchievementRewards,
+  ACHIEVEMENT_CATEGORIES, achievementRows, claimAchievementSkin, claimSkinReward, createAchievementProfile,
+  createCollectionProfile, equipCollectionSkin, equipUnitSkin, normalizeCollectionProfile, rankAchievementRows,
+  recordEndlessAchievementEvent, unlockedAchievementCount, validateAchievementRewards,
 } from "../src/core/achievements";
 import {
   COMBAT_HISTORY_CAP, createCombatHistory, createPlanningHistory, filterPlanningHistory, PLANNING_HISTORY_CAP,
@@ -33,6 +33,7 @@ describe("achievement + collection profile", () => {
     expect(claimSkinReward(p, c, mapping)).toBe(false);
     expect(equipCollectionSkin(c, mapping.unitId, "locked_skin")).toBe(false);
     expect(equipCollectionSkin(c, mapping.unitId, "skin_test")).toBe(true);
+    expect(c.equippedSkinByUnitId[mapping.unitId]).toBe("skin_test");
     const ranked = rankAchievementRows(p, createCollectionProfile(), [mapping]);
     expect(ranked[0]?.id).toBe("runs_started_1");
     expect(ranked[0]?.claimable).toBe(true);
@@ -45,6 +46,29 @@ describe("achievement + collection profile", () => {
       [{ id: "s1", unitId, unlockType: "achievement", appearanceStars: [1, 2, 3] }],
     )).toEqual([]);
     expect(validateAchievementRewards([], [{ id: "s1", unitId, unlockType: "achievement", appearanceStars: [1, 2, 3] }])).toContain("missing reward mapping for skin s1");
+  });
+
+  it("normalizes the v2 collection shape and migrates legacy .lofi_ skin ids", () => {
+    const unitId = NORMAL_UNITS[0]!.id;
+    const collection = normalizeCollectionProfile({
+      version: 1,
+      unlockedSkinIds: ["skin.lofi_red", " skin.loli_red ", ""],
+      claimedAchievementIds: [" a1 ", "a1", ""],
+      equippedSkinByUnit: { [unitId]: "skin.lofi_red" },
+    });
+    expect(collection).toEqual({
+      version: 2,
+      unlockedSkinIds: ["skin.loli_red"],
+      claimedAchievementIds: ["a1"],
+      equippedSkinByUnitId: { [unitId]: "skin.loli_red" },
+    });
+    expect(claimAchievementSkin(collection, "a2", "skin.lofi_blue")).toBe(true);
+    expect(claimAchievementSkin(collection, "a2", "skin.loli_blue")).toBe(false);
+    expect(collection.unlockedSkinIds).toContain("skin.loli_blue");
+    expect(equipUnitSkin(collection, unitId, "skin.lofi_blue")).toBe(true);
+    expect(collection.equippedSkinByUnitId[unitId]).toBe("skin.loli_blue");
+    expect(equipUnitSkin(collection, unitId, " ")).toBe(true);
+    expect(collection.equippedSkinByUnitId[unitId]).toBeUndefined();
   });
 });
 

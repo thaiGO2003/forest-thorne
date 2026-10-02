@@ -3,6 +3,9 @@ import { normalizeAiMode, type AiMode } from "./encounter";
 import { GAME_MODES, MODE_CONFIG, type GameMode } from "./modes";
 
 export const SETTINGS_KEY = "forest_throne_ui_settings_v1";
+export const GRAPHICS_QUALITY_KEY = "forest-throne.graphics-quality";
+export const RENDER_SCALE_KEY = "forest-throne.render-scale";
+export const BATTERY_SAVER_KEY = "forest-throne.battery-saver";
 
 export const RESOLUTIONS = [
   "1280x720", "1600x900", "adaptive", "1920x1080", "2436x1125", "2532x1170", "2560x1080", "2560x1440",
@@ -67,6 +70,12 @@ export interface Settings {
   language: "vi" | "en"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
   subtitleEnabled: boolean; keys: KeyBindings;
   quality: (typeof QUALITY)[number]; renderScale: number; batterySaver: boolean;
+}
+
+export interface GraphicsPreferences {
+  quality: Settings["quality"];
+  renderScale: number;
+  batterySaver: boolean;
 }
 
 const pick = <T>(list: readonly T[], v: unknown, def: T): T => (list.includes(v as T) ? (v as T) : def);
@@ -145,10 +154,66 @@ export function normalizeSettings(raw: unknown): Settings {
 
 export type KV = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
+const DEFAULT_GRAPHICS_PREFERENCES: GraphicsPreferences = { quality: "high", renderScale: 1, batterySaver: false };
+
+export function normalizeGraphicsPreferences(raw: unknown, fallback: GraphicsPreferences = DEFAULT_GRAPHICS_PREFERENCES): GraphicsPreferences {
+  const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const scale = Number(value.renderScale);
+  return {
+    quality: pick(QUALITY, value.quality, fallback.quality),
+    renderScale: Number.isFinite(scale) ? Math.min(1, Math.max(0.5, scale)) : fallback.renderScale,
+    batterySaver: typeof value.batterySaver === "boolean" ? value.batterySaver : fallback.batterySaver,
+  };
+}
+
+const storedBoolean = (value: string | null, fallback: boolean): boolean => {
+  if (value === "1" || value === "true") return true;
+  if (value === "0" || value === "false") return false;
+  return fallback;
+};
+
+/** A104.3 graphics-only preferences live outside the shared UI settings document. */
+export function loadGraphicsPreferences(
+  store: Pick<KV, "getItem">,
+  fallback: GraphicsPreferences = DEFAULT_GRAPHICS_PREFERENCES,
+): GraphicsPreferences {
+  try {
+    const quality = store.getItem(GRAPHICS_QUALITY_KEY);
+    const renderScale = store.getItem(RENDER_SCALE_KEY);
+    const batterySaver = store.getItem(BATTERY_SAVER_KEY);
+    return normalizeGraphicsPreferences({
+      quality: quality ?? fallback.quality,
+      renderScale: renderScale ?? fallback.renderScale,
+      batterySaver: storedBoolean(batterySaver, fallback.batterySaver),
+    }, fallback);
+  } catch {
+    return { ...fallback };
+  }
+}
+
+export function saveGraphicsPreferences(store: Pick<KV, "setItem">, value: unknown): boolean {
+  const normalized = normalizeGraphicsPreferences(value);
+  try {
+    store.setItem(GRAPHICS_QUALITY_KEY, normalized.quality);
+    store.setItem(RENDER_SCALE_KEY, String(normalized.renderScale));
+    store.setItem(BATTERY_SAVER_KEY, normalized.batterySaver ? "1" : "0");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Corrupt/missing → defaults; never blocks boot. */
 export function loadSettings(store: KV): Settings {
-  try { return normalizeSettings(JSON.parse(store.getItem(SETTINGS_KEY) ?? "null")); }
-  catch { return normalizeSettings(null); }
+  let raw: unknown = null;
+  try { raw = JSON.parse(store.getItem(SETTINGS_KEY) ?? "null"); } catch { raw = null; }
+  const shared = normalizeSettings(raw);
+  const graphics = loadGraphicsPreferences(store, {
+    quality: shared.quality,
+    renderScale: shared.renderScale,
+    batterySaver: shared.batterySaver,
+  });
+  return { ...shared, ...graphics };
 }
 
 type Listener = (s: Settings) => void;
@@ -207,7 +272,11 @@ export function createSettingsStore(store: KV, onLocale?: (lang: Settings["langu
   const listeners: Listener[] = [];
   // Bumped by every save/preview; a pending debounced write only fires if still latest.
   let version = 0;
-  const write = () => store.setItem(SETTINGS_KEY, JSON.stringify(current));
+  const write = () => {
+    const { quality, renderScale, batterySaver, ...shared } = current;
+    store.setItem(SETTINGS_KEY, JSON.stringify(shared));
+    saveGraphicsPreferences(store, { quality, renderScale, batterySaver });
+  };
   const apply = (patch: Partial<Settings>) => {
     version++;
     current = normalizeSettings({ ...current, ...patch });

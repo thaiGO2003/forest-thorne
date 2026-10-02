@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRun } from "../src/core/run";
 import {
-  ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope, downloadProgress,
-  EXPORT_FILENAME, importProgress, importProgressBlob, inspectSave, loadProgress, migrate, PROGRESS_KEY, remapCoopHost,
-  saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
+  ACHIEVEMENTS_KEY, clearAchievementProfile, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY,
+  COOP_KEY, createEnvelope, downloadProgress, EXPORT_FILENAME, importProgress, importProgressBlob, inspectSave,
+  loadAchievementProfile, loadCollectionProfile, loadProgress, migrate, PROGRESS_KEY, remapCoopHost,
+  saveAchievementProfile, saveCollectionProfile, saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
 } from "../src/core/save";
-import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
+import {
+  BATTERY_SAVER_KEY, createSettingsStore, GRAPHICS_QUALITY_KEY, loadGraphicsPreferences, loadSettings,
+  normalizeSettings, RENDER_SCALE_KEY, saveGraphicsPreferences, SETTINGS_KEY,
+} from "../src/core/settings";
 
 function mem() {
   const m: Record<string, string> = {};
@@ -58,6 +62,42 @@ describe("persistence A57", () => {
     importProgress(s, text, true);
     expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!).stats).toMatchObject({ runs_started: 4, highest_level: 3 });
     expect(JSON.parse(s.m[COLLECTION_KEY]!).unlockedSkinIds).toEqual(["skin_a"]);
+  });
+
+  it("uses canonical A104 profile keys, migrates legacy keys and keeps profile clear scopes independent", () => {
+    expect(ACHIEVEMENTS_KEY).toBe("forest_throne_endless_achievements_v1");
+    expect(COLLECTION_KEY).toBe("forest_throne_collection_profile_v1");
+    const s = mem();
+    s.m.forest_throne_achievements_v1 = JSON.stringify({ version: 1, stats: { runs_started: 7 } });
+    s.m.forest_throne_collection_v1 = JSON.stringify({
+      version: 1,
+      unlockedSkinIds: ["skin.lofi_red"],
+      claimedAchievementIds: ["a1"],
+      equippedSkinByUnit: {},
+    });
+    expect(loadAchievementProfile(s).stats.runs_started).toBe(7);
+    expect(loadCollectionProfile(s)).toMatchObject({ version: 2, unlockedSkinIds: ["skin.loli_red"] });
+    expect(s.m.forest_throne_achievements_v1).toBeUndefined();
+    expect(s.m.forest_throne_collection_v1).toBeUndefined();
+    expect(s.m[ACHIEVEMENTS_KEY]).toBeTruthy();
+    expect(s.m[COLLECTION_KEY]).toBeTruthy();
+
+    saveAchievementProfile(s, { stats: { highest_level: 4 } });
+    saveCollectionProfile(s, { unlockedSkinIds: ["a", "a", ""], claimedAchievementIds: [], equippedSkinByUnitId: {} });
+    expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!).stats.highest_level).toBe(4);
+    expect(JSON.parse(s.m[COLLECTION_KEY]!).unlockedSkinIds).toEqual(["a"]);
+
+    s.m[SETTINGS_KEY] = "{}";
+    clearCollectionProfile(s);
+    expect(s.m[COLLECTION_KEY]).toBeUndefined();
+    expect(s.m[ACHIEVEMENTS_KEY]).toBeTruthy();
+    expect(s.m[SETTINGS_KEY]).toBe("{}");
+    clearAchievementProfile(s);
+    expect(s.m[ACHIEVEMENTS_KEY]).toBeUndefined();
+    expect(s.m[SETTINGS_KEY]).toBe("{}");
+
+    s.m[COLLECTION_KEY] = "{bad";
+    expect(loadCollectionProfile(s)).toMatchObject({ version: 2, unlockedSkinIds: [], claimedAchievementIds: [] });
   });
 
   it("saveProgress/loadProgress fail softly and reuse canonical migration", () => {
@@ -237,11 +277,35 @@ describe("settings A35/A44", () => {
     store.preview({ volumeLevel: 8 });
     expect([seen, s.setItem.mock.calls.length]).toEqual([[7, 8], 0]);
     vi.advanceTimersByTime(200);
-    expect(s.setItem).toHaveBeenCalledTimes(1);
+    expect(s.setItem).toHaveBeenCalledTimes(4);
     expect(JSON.parse(s.m[SETTINGS_KEY]!).volumeLevel).toBe(8);
+    expect(JSON.parse(s.m[SETTINGS_KEY]!)).not.toHaveProperty("quality");
+    expect([s.m[GRAPHICS_QUALITY_KEY], s.m[RENDER_SCALE_KEY], s.m[BATTERY_SAVER_KEY]]).toEqual(["high", "1", "0"]);
     store.save({ keys: { ...store.get().keys, combat: { step: "Z", settings: "ESCAPE", toggleAudio: "M" } } });
     store.resetKeys("combat");
     expect(store.get().keys.combat.step).toBe("SPACE");
     vi.useRealTimers();
+  });
+
+  it("stores graphics-only preferences under the exact A104 device keys with legacy fallback", () => {
+    const s = mem();
+    s.m[SETTINGS_KEY] = JSON.stringify({ quality: "low", renderScale: 0.75, batterySaver: true });
+    expect(loadSettings(s)).toMatchObject({ quality: "low", renderScale: 0.75, batterySaver: true });
+    s.m[GRAPHICS_QUALITY_KEY] = "medium";
+    s.m[RENDER_SCALE_KEY] = "0.67";
+    s.m[BATTERY_SAVER_KEY] = "false";
+    expect(loadGraphicsPreferences(s)).toEqual({ quality: "medium", renderScale: 0.67, batterySaver: false });
+    expect(loadSettings(s)).toMatchObject({ quality: "medium", renderScale: 0.67, batterySaver: false });
+
+    expect(saveGraphicsPreferences(s, { quality: "low", renderScale: 0.1, batterySaver: true })).toBe(true);
+    expect([s.m[GRAPHICS_QUALITY_KEY], s.m[RENDER_SCALE_KEY], s.m[BATTERY_SAVER_KEY]]).toEqual(["low", "0.5", "1"]);
+
+    const store = createSettingsStore(s);
+    store.save({ quality: "high", renderScale: 0.75, batterySaver: false });
+    const shared = JSON.parse(s.m[SETTINGS_KEY]!);
+    expect(shared).not.toHaveProperty("quality");
+    expect(shared).not.toHaveProperty("renderScale");
+    expect(shared).not.toHaveProperty("batterySaver");
+    expect([s.m[GRAPHICS_QUALITY_KEY], s.m[RENDER_SCALE_KEY], s.m[BATTERY_SAVER_KEY]]).toEqual(["high", "0.75", "0"]);
   });
 });
