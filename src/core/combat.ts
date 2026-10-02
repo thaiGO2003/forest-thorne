@@ -21,7 +21,7 @@ const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSE_ORDER = [
   "freeze", "stun", "sleep", "silence", "disarm", "taunt",
   "burn", "poison", "bleed", "disease", "fireVulnerability", "healBlock", "healReduction", "shieldLock",
-  "armorBreak", "offenseDebuff", "evadeDebuff",
+  "armorBreak", "offenseDebuff", "accuracyDebuff", "evadeDebuff",
 ] as const;
 
 interface Mod { stat: BuffStat; value: number; pct: boolean; turns: number; source?: string }
@@ -463,7 +463,7 @@ function onBasicKill(c: Ctx, src: Fighter, chainDepth: number): void {
 function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical" | "magic" | "true", skill: boolean, options: StrikeOptions = {}) {
   let crit = src.crit;
   let critMult = src.critDmg;
-  let hit = src.accuracy + src.env.accuracy - stat(dst, "evade");
+  let hit = src.accuracy + src.env.accuracy - (src.status.accuracyDebuff?.value ?? 0) / 100 - stat(dst, "evade");
   if (src.role === "ARCHER") {
     const d = dist(src, dst);
     hit -= 0.05 * d; crit += 0.05 * d; critMult += 0.05 * d;
@@ -636,12 +636,8 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
       return take(column.length ? column : stable);
     }
     case "front_cone": {
-      const dir = f.side === "L" ? 1 : -1;
-      const cone = stable.filter((x) => {
-        const forward = (x.col - f.col) * dir;
-        return forward > 0 && Math.abs(x.row - f.row) <= forward;
-      });
-      return (cone.length ? cone : stable).slice(0, Math.max(3, max));
+      const p = basicTarget(c, f);
+      return p ? [p] : take(stable);
     }
     case "backline_jump":
       return take(extremeColumn(stable, true));
@@ -665,6 +661,15 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter): F
   if (sp.area === "row") return pool.filter((x) => x.row === p.row);
   if (sp.area === "column") return pool.filter((x) => x.col === p.col);
   if (sp.area === "square") return pool.filter((x) => Math.abs(x.row - p.row) <= 1 && Math.abs(x.col - p.col) <= 1);
+  if (sp.area === "cross") return pool.filter((x) => Math.abs(x.row - p.row) + Math.abs(x.col - p.col) <= 1);
+  if (sp.area === "cone") {
+    const dir = f.side === "L" ? 1 : -1;
+    return pool.filter((x) => {
+      const forward = (x.col - f.col) * dir;
+      return forward > 0 && Math.abs(x.row - f.row) <= forward;
+    }).sort((a, b) => dist(p, a) - dist(p, b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+      || depth(a) - depth(b) || a.uid.localeCompare(b.uid)).slice(0, 5);
+  }
   return ordered;
 }
 
@@ -673,6 +678,23 @@ const byNear = (from: Fighter) => (a: Fighter, b: Fighter) => dist(from, a) - di
 
 function formulaAmount(f: Fighter, formula: NonNullable<SkillSpec["shield"]>, scale: number): number {
   return Math.max(1, Math.round((formula.base + statValue(f, formula.stat) * formula.scale) * scale));
+}
+
+function skillRawDamage(c: Ctx, f: Fighter, damage: NonNullable<SkillSpec["damage"]>, multiplier = 1): number {
+  return Math.max(1, Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]) * multiplier));
+}
+
+function skillHealRaw(f: Fighter, healSpec: NonNullable<SkillSpec["heal"]>, target: Fighter): number {
+  if (healSpec.formula) {
+    return (healSpec.formula.base + statValue(f, healSpec.formula.stat) * healSpec.formula.scale) * (STAR_SKILL[f.star] ?? 1);
+  }
+  return target.maxHp * healSpec.pctMaxHp;
+}
+
+function applyOffenseStatus(c: Ctx, src: Fighter, dst: Fighter, payload: SkillSpec["offenseDebuff"]): void {
+  if (!payload || !dst.alive) return;
+  applyStatus(c, dst, "offenseDebuff", payload.turns, payload.value, { sourceUid: src.uid, percent: payload.pct });
 }
 
 function resolveFullFamilySkill(
@@ -684,6 +706,242 @@ function resolveFullFamilySkill(
   announce: (targets: Fighter[]) => void,
 ): boolean {
   const others = friends(c, f).filter((x) => x.uid !== f.uid);
+  if (family === "revive_or_heal" && !getUnit(f.baseId).boss) {
+    const dead = c.all.filter((x) => !x.alive && x.side === f.side).sort((a, b) => a.uid.localeCompare(b.uid));
+    const reviveCount = f.star >= 3 ? 2 : 1;
+    if (dead.length) {
+      const targets = dead.slice(0, reviveCount);
+      announce(targets);
+      for (const target of targets) {
+        target.alive = true;
+        target.hp = Math.max(1, Math.round(target.maxHp * (sp.revivePct || 0.4)));
+        target.shield = 0;
+        target.rage = 0;
+        target.status = {};
+        target.mods = [];
+        target.tauntBy = null;
+        c.events.push({ t: "revive", src: f.uid, dst: target.uid, hp: target.hp });
+      }
+      return true;
+    }
+    const healCount = f.star === 1 ? 3 : 4;
+    const targets = [...others].sort(byLowHp).slice(0, healCount);
+    announce(targets);
+    if (sp.heal) for (const target of targets) heal(c, f, target, skillHealRaw(f, sp.heal, target));
+    return true;
+  }
+  if (family === "self_regen_team_heal" && !getUnit(f.baseId).boss) {
+    let count = Math.max(1, sp.count);
+    const selfRaw = f.maxHp * sp.selfHealPctMaxHp;
+    const selfPossible = Math.max(0, Math.round(selfRaw * (1 + f.healPct) * (1 + f.env.healRecvPct) * (1 - healReduction(c, f))));
+    const afterSelfRatio = Math.min(f.maxHp, f.hp + selfPossible) / f.maxHp;
+    if (f.star >= 3 && afterSelfRatio >= 0.6) count = Math.max(count, 4);
+    const targets = [...others].sort(byLowHp).slice(0, count);
+    announce([f, ...targets]);
+    if (sp.selfHealPctMaxHp > 0) heal(c, f, f, selfRaw);
+    if (sp.heal) for (const target of targets) heal(c, f, target, skillHealRaw(f, sp.heal, target));
+    return true;
+  }
+  if (family === "team_shield" && !getUnit(f.baseId).boss) {
+    const targets = stableTargets(f, friends(c, f));
+    announce(targets);
+    if (sp.shield) {
+      const amount = formulaAmount(f, sp.shield, STAR_SKILL[f.star] ?? 1);
+      for (const target of targets) grantShield(c, f, target, target.uid === f.uid ? amount * 2 : amount);
+    }
+    return true;
+  }
+  if (family === "team_rage" && !getUnit(f.baseId).boss) {
+    const pool = friends(c, f);
+    const targets = selectorTargets(c, f, pool, "lowest_rage_ally", Math.max(1, sp.count));
+    announce(targets);
+    for (const target of targets) addRage(target, sp.rageGrant);
+    return true;
+  }
+  if (family === "row_random_rage_buff" && !getUnit(f.baseId).boss) {
+    const row = others.filter((x) => x.row === f.row);
+    const dir = f.side === "L" ? 1 : -1;
+    const forward = row.filter((x) => (x.col - f.col) * dir > 0);
+    const pool = f.star === 1 && forward.length ? forward : row;
+    const bag = [...pool];
+    const targets: Fighter[] = [];
+    while (bag.length && targets.length < Math.max(1, sp.count)) targets.push(bag.splice(Math.floor(c.rng() * bag.length), 1)[0]!);
+    announce(targets);
+    for (const target of targets) {
+      addRage(target, sp.rageGrant);
+      for (const mod of sp.buffs) target.mods.push({ ...mod, source: family });
+    }
+    if (f.star >= 3 && targets.length && c.rng() < 0.3) {
+      const lucky = targets[Math.floor(c.rng() * targets.length)]!;
+      addRage(lucky, 1);
+      lucky.mods = lucky.mods.filter((m) => m.source !== family || m.stat !== "atk");
+      lucky.mods.push({ stat: "atk", value: 20, pct: true, turns: 2, source: family });
+    }
+    return true;
+  }
+  if (family === "double_hit") {
+    const primary = skillTargets(c, f, sp, preferred)[0] ?? basicTarget(c, f);
+    announce(primary ? [primary] : []);
+    if (!primary) return true;
+    const firstFormula = sp.damageHits[0] ?? sp.damage;
+    const secondFormula = sp.damageHits[1] ?? firstFormula;
+    if (!firstFormula || !secondFormula) return true;
+    const hitTargets: Fighter[] = [];
+    strike(c, f, primary, skillRawDamage(c, f, firstFormula), firstFormula.type, true);
+    hitTargets.push(primary);
+    let second: Fighter | undefined = primary.alive ? primary : undefined;
+    if (f.baseId === "kangaroo_kick" && f.star >= 2) {
+      second = selectorTargets(c, f, foes(c, f), "highest_rage", 1)[0] ?? second;
+    } else if (!primary.alive && f.baseId === "wraith_shadow") {
+      const back = extremeColumn(stableTargets(f, foes(c, f)), true)
+        .sort((a, b) => b.rage - a.rage || a.uid.localeCompare(b.uid));
+      second = back[0];
+    }
+    if (second?.alive) {
+      strike(c, f, second, skillRawDamage(c, f, secondFormula), secondFormula.type, true);
+      hitTargets.push(second);
+    }
+    if (sp.offenseDebuff) for (const target of [...new Set(hitTargets)]) applyOffenseStatus(c, f, target, sp.offenseDebuff);
+    return true;
+  }
+  if (family === "single_delayed_echo") {
+    const primary = skillTargets(c, f, sp, preferred)[0] ?? basicTarget(c, f);
+    announce(primary ? [primary] : []);
+    if (!primary) return true;
+    const firstFormula = sp.damageHits[0] ?? sp.damage;
+    const echoFormula = sp.damageHits[1];
+    if (!firstFormula) return true;
+    strike(c, f, primary, skillRawDamage(c, f, firstFormula), firstFormula.type, true);
+    let echoTarget: Fighter | undefined = primary.alive ? primary : undefined;
+    if (!echoTarget && f.baseId === "lynx_echo" && f.star >= 3) {
+      echoTarget = selectorTargets(c, f, foes(c, f), "backline_caster", 1)[0];
+    }
+    if (echoTarget?.alive && echoFormula) {
+      const afflicted = CLEANSE_ORDER.some((kind) => hasStatus(echoTarget!, kind)) || echoTarget.mods.some((m) => m.value < 0);
+      const bonus = f.baseId === "lynx_echo" && f.star >= 2 && afflicted ? 1.25 : 1;
+      strike(c, f, echoTarget, skillRawDamage(c, f, echoFormula, bonus), echoFormula.type, true);
+      if (f.baseId === "otter_river" && f.star >= 3) applyStatus(c, echoTarget, "bleed", 2, 12, { sourceUid: f.uid });
+    }
+    for (const m of sp.debuffs) if (primary.alive) primary.mods.push({ ...m, value: -m.value, source: family });
+    return true;
+  }
+  if (family === "plague_spread") {
+    const pool = stableTargets(f, foes(c, f));
+    const clusterSize = (x: Fighter) => pool.filter((y) => Math.abs(y.row - x.row) <= 1 && Math.abs(y.col - x.col) <= 1).length;
+    const center = [...pool].sort((a, b) => clusterSize(b) - clusterSize(a)
+      || rowRank(f.row, a.row) - rowRank(f.row, b.row) || depth(a) - depth(b) || a.uid.localeCompare(b.uid))[0];
+    if (!center) {
+      announce([]);
+      return true;
+    }
+    const localCap = f.star === 1 ? 3 : 4;
+    const local = pool.filter((x) => Math.abs(x.row - center.row) <= 1 && Math.abs(x.col - center.col) <= 1)
+      .sort((a, b) => dist(center, a) - dist(center, b) || a.uid.localeCompare(b.uid)).slice(0, localCap);
+    const outside = f.star >= 3 ? pool.filter((x) => !local.includes(x) && (Math.abs(x.row - center.row) > 1 || Math.abs(x.col - center.col) > 1))
+      .sort((a, b) => dist(center, a) - dist(center, b) || a.uid.localeCompare(b.uid)).slice(0, 2) : [];
+    announce([...local, ...outside]);
+    const disease = sp.dots.find((d) => d.kind === "disease");
+    const hitIds = new Set<string>();
+    if (sp.damage) {
+      const hit = strike(c, f, center, skillRawDamage(c, f, sp.damage), sp.damage.type, true);
+      if (hit.hp > 0 || hit.absorbed > 0) hitIds.add(center.uid);
+    }
+    if (disease) for (const target of local) if (target.alive) applyStatus(c, target, "disease", disease.turns, disease.value, { sourceUid: f.uid });
+    if (f.star >= 2 && clusterSize(center) >= 4 && center.alive) {
+      applyStatus(c, center, "offenseDebuff", 2, 15, { sourceUid: f.uid, percent: true });
+      center.rage = Math.max(0, center.rage - 1);
+    }
+    if (f.star >= 3 && sp.damage) {
+      for (const target of outside) if (target.alive) {
+        const hit = strike(c, f, target, skillRawDamage(c, f, sp.damage, 0.7), sp.damage.type, true);
+        if (hit.hp > 0 || hit.absorbed > 0) hitIds.add(target.uid);
+        if (target.alive) applyStatus(c, target, "disease", 2, 10, { sourceUid: f.uid });
+      }
+    }
+    if (f.role === "MAGE") addRage(f, hitIds.size);
+    return true;
+  }
+  if (family === "chain_shock" && !getUnit(f.baseId).boss) {
+    const pool = foes(c, f);
+    const targets = selectorTargets(c, f, pool, "highest_rage", Math.max(1, sp.count));
+    announce(targets);
+    if (!sp.damage || !targets.length) return true;
+    const hitIds = new Set<string>();
+    const raw = skillRawDamage(c, f, sp.damage);
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i]!;
+      if (!target.alive) continue;
+      const hit = strike(c, f, target, Math.max(1, Math.round(raw * 0.8 ** i)), sp.damage.type, true);
+      if (hit.hp > 0 || hit.absorbed > 0) hitIds.add(target.uid);
+    }
+    if (f.star === 2) for (const target of targets.slice(0, 2)) target.rage = Math.max(0, target.rage - 1);
+    if (f.star >= 3) {
+      for (const target of targets) target.rage = Math.max(0, target.rage - 1);
+      if (targets.length >= 3) {
+        const last = targets.at(-1)!;
+        if (last.alive) applyStatus(c, last, "silence", 1, 0, { sourceUid: f.uid });
+        const first = targets[0]!;
+        if (first.alive) {
+          const bounce = strike(c, f, first, Math.max(1, Math.round(raw * 0.8 ** (targets.length - 1) * 0.6)), sp.damage.type, true);
+          if (bounce.hp > 0 || bounce.absorbed > 0) hitIds.add(first.uid);
+        }
+      }
+    }
+    if (f.role === "MAGE") addRage(f, hitIds.size);
+    return true;
+  }
+  if (family === "global_stun" && !getUnit(f.baseId).boss) {
+    const enemies = stableTargets(f, foes(c, f));
+    announce(enemies);
+    const hitIds = new Set<string>();
+    if (sp.damage) {
+      const raw = skillRawDamage(c, f, sp.damage);
+      for (const enemy of enemies) if (enemy.alive) {
+        const hit = strike(c, f, enemy, raw, sp.damage.type, true);
+        if (hit.hp > 0 || hit.absorbed > 0) hitIds.add(enemy.uid);
+      }
+    }
+    const stun = sp.controls.find((control) => control.kind === "stun");
+    if (stun) {
+      const riders = selectorTargets(c, f, foes(c, f), "highest_rage", Math.max(1, sp.count));
+      for (const target of riders) if (c.rng() <= stun.chance) applyStatus(c, target, "stun", stun.turns, 0, { sourceUid: f.uid });
+    }
+    if (f.baseId === "lion_general") {
+      for (const ally of friends(c, f).filter((x) => x.row === f.row)) for (const mod of sp.buffs) ally.mods.push({ ...mod, source: family });
+    }
+    if (f.role === "MAGE") addRage(f, hitIds.size);
+    return true;
+  }
+  if ((family === "flash_blind" || family === "global_debuff_atk") && !getUnit(f.baseId).boss) {
+    const enemies = stableTargets(f, foes(c, f));
+    announce(enemies);
+    const hitIds = new Set<string>();
+    if (sp.damage) {
+      const raw = skillRawDamage(c, f, sp.damage);
+      for (const enemy of enemies) if (enemy.alive) {
+        const hit = strike(c, f, enemy, raw, sp.damage.type, true);
+        if (hit.hp > 0 || hit.absorbed > 0) hitIds.add(enemy.uid);
+      }
+    }
+    let riders = [...foes(c, f)];
+    const backDepth = riders.length ? Math.max(...riders.map(depth)) : -1;
+    if (family === "flash_blind" && f.star >= 3) {
+      riders.sort((a, b) => Number(!(b.range > 1 && depth(b) === backDepth)) - Number(!(a.range > 1 && depth(a) === backDepth))
+        || stat(b, "atk") - stat(a, "atk") || a.uid.localeCompare(b.uid));
+    } else if (family === "global_debuff_atk" && f.star >= 3) {
+      riders.sort((a, b) => Number(!((b.role === "MAGE" || b.role === "SUPPORT") && depth(b) === backDepth))
+        - Number(!((a.role === "MAGE" || a.role === "SUPPORT") && depth(a) === backDepth))
+        || stat(b, "atk") - stat(a, "atk") || a.uid.localeCompare(b.uid));
+    } else riders.sort((a, b) => stat(b, "atk") - stat(a, "atk") || a.uid.localeCompare(b.uid));
+    riders = riders.slice(0, Math.max(1, sp.count));
+    for (const target of riders) {
+      applyOffenseStatus(c, f, target, sp.offenseDebuff);
+      if (sp.accuracyReduction) applyStatus(c, target, "accuracyDebuff", sp.accuracyReduction.turns, sp.accuracyReduction.pct, { sourceUid: f.uid, percent: true });
+      for (const control of sp.controls) if (c.rng() <= control.chance) applyStatus(c, target, control.kind, control.turns, 0, { sourceUid: f.uid });
+    }
+    if (f.role === "MAGE") addRage(f, hitIds.size);
+    return true;
+  }
   if (family === "ally_row_def_buff") {
     const duration = f.star >= 3 ? 3 : 2;
     const def = [22, 30, 38][f.star - 1] ?? 22;
@@ -868,6 +1126,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
   const enemyHit = new Set<string>();
   const enemies = sp.side === "enemy" ? targets : [];
   const allies = sp.side === "enemy" ? [f] : targets;
+  const preShield = new Map(enemies.map((target) => [target.uid, target.shield]));
 
   if (sp.damage) {
     const d = sp.damage;
@@ -881,14 +1140,31 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
     if (sp.lifestealPct && drained > 0) heal(c, f, f, drained * sp.lifestealPct);
   }
   const dotMult = STAR_DOT[f.star] ?? 1;
-  for (const t of enemies) {
+  for (let enemyIndex = 0; enemyIndex < enemies.length; enemyIndex++) {
+    const t = enemies[enemyIndex]!;
     if (!t.alive) continue;
-    for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult));
-    for (const k of sp.controls) {
-      applyStatus(c, t, k.kind, k.turns);
-      if (k.kind === "taunt") t.tauntBy = f.uid;
+    const crocodileGuarded = family === "single_bleed" && (t.role === "TANKER" || (preShield.get(t.uid) ?? 0) > 0);
+    for (const d of sp.dots) {
+      const conditional = crocodileGuarded && f.star === 2 && d.kind === "bleed" ? 1.35 : 1;
+      applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult * conditional), { sourceUid: f.uid });
     }
-    for (const m of sp.debuffs) t.mods.push({ ...m, value: -m.value });
+    for (const k of sp.controls) {
+      if (c.rng() > k.chance) continue;
+      if (applyStatus(c, t, k.kind, k.turns) && k.kind === "taunt") t.tauntBy = f.uid;
+    }
+    for (const m of sp.debuffs) t.mods.push({ ...m, value: -m.value, source: family });
+    applyOffenseStatus(c, f, t, sp.offenseDebuff);
+    if (sp.accuracyReduction) applyStatus(c, t, "accuracyDebuff", sp.accuracyReduction.turns, sp.accuracyReduction.pct, { sourceUid: f.uid, percent: true });
+    if (sp.healReduction && (family !== "lifesteal_disease" || t.role === "MAGE" || t.role === "SUPPORT")
+      && (family !== "cone_shot" || enemyIndex === 0)) {
+      applyStatus(c, t, "healReduction", sp.healReduction.turns, sp.healReduction.pct, { sourceUid: f.uid, percent: true });
+    }
+    if (sp.shieldLockTurns > 0 && (family !== "single_bleed" || crocodileGuarded)) {
+      applyStatus(c, t, "shieldLock", sp.shieldLockTurns, 0, { sourceUid: f.uid });
+    }
+    if (family === "single_bleed" && f.star >= 3 && hasStatus(t, "bleed")) {
+      t.mods.push({ stat: "def", value: -20, pct: false, turns: 2, source: family });
+    }
   }
   if (sp.revivePct > 0) {
     const dead = c.all.find((x) => !x.alive && x.side === f.side);
@@ -901,9 +1177,15 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
   }
   for (const a of allies) {
     if (!a.alive) continue;
-    if (sp.heal) heal(c, f, a, sp.heal.formula ? (sp.heal.formula.base + statValue(f, sp.heal.formula.stat) * sp.heal.formula.scale) * starSkill : a.maxHp * sp.heal.pctMaxHp);
+    if (sp.heal) {
+      if (sp.healOverTimeTurns > 0 && sp.heal.pctMaxHp > 0) {
+        applyStatus(c, a, "healOverTime", sp.healOverTimeTurns, 0, { sourceUid: f.uid, healPctMaxHp: sp.heal.pctMaxHp });
+      } else heal(c, f, a, skillHealRaw(f, sp.heal, a));
+    }
     if (sp.shield) grantShield(c, f, a, formulaAmount(f, sp.shield, starSkill));
     for (const m of sp.buffs) a.mods.push({ ...m, source: family === "self_bersek" ? "berserk" : family });
+    if (sp.damageReduction) applyStatus(c, a, "damageReduction", sp.damageReduction.turns, sp.damageReduction.pct, { sourceUid: f.uid, percent: true });
+    if (sp.cleanseCount > 0) cleanse(c, a, sp.cleanseCount);
     if (sp.rageGrant && a !== f) addRage(a, sp.rageGrant);
   }
   if (sp.selfHealPctMaxHp) heal(c, f, f, f.maxHp * sp.selfHealPctMaxHp);

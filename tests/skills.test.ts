@@ -20,6 +20,19 @@ describe("skill parser", () => {
     expect(parseSkill("Mục tiêu không thể nhận khiên mới trong 2 lượt.").shieldLockTurns).toBe(2);
     expect(parseSkill("Hồi 30 HP và thanh tẩy tối đa 2 hiệu ứng bất lợi cho 1 đồng minh.").cleanseCount).toBe(2);
   });
+  it("keeps authored control probability instead of turning chance riders into guaranteed control", () => {
+    expect(parseSkill("Gây sát thương và có 35% ru ngủ 1 lượt.").controls)
+      .toEqual([{ kind: "sleep", turns: 1, chance: 0.35 }]);
+    expect(parseSkill("Gây sát thương và làm choáng 2 lượt.").controls)
+      .toEqual([{ kind: "stun", turns: 2, chance: 1 }]);
+  });
+  it("materializes independent shape and ordered multi-hit damage formulas", () => {
+    expect(skillSpec("roc_legend", 1).area).toBe("cross");
+    expect(skillSpec("salamander_flame", 1).area).toBe("cone");
+    expect(skillSpec("lynx_echo", 1).damageHits).toHaveLength(2);
+    expect(skillSpec("wraith_shadow", 1).damageHits).toHaveLength(2);
+    expect(skillSpec("kangaroo_kick", 1).damageHits).toHaveLength(1);
+  });
   it("ally % heal targets lowest HP allies; self buff stays self", () => {
     expect(parseSkill("Hồi dần 15% HP tối đa trong 2 lượt cho 2 đồng minh có % máu thấp nhất."))
       .toMatchObject({ side: "ally", count: 2, pickLowestHp: true, heal: { pctMaxHp: 0.15 } });

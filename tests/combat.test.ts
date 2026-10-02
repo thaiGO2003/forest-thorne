@@ -106,4 +106,74 @@ describe("combat", () => {
     expect(res.events.some((e) => e.t === "dot" && e.dst === "target" && e.kind === "disease")).toBe(true);
     expect(res.events.some((e) => e.t === "status" && e.dst === "neighbor" && e.kind === "disease" && e.turns === 2)).toBe(true);
   });
+
+  it("double-hit resolves two skill hits inside one cast", () => {
+    const res = simulate(
+      [{ uid: "kangaroo", baseId: "kangaroo_kick", star: 1, row: 2, col: 4 }],
+      [{ uid: "target", baseId: "titan_earth", star: 3, row: 2, col: 5 }],
+      { seed: 6, bonus: { L: { startRage: 4 } } },
+    );
+    const cast = res.events.findIndex((e) => e.t === "cast" && e.src === "kangaroo");
+    const nextCast = res.events.findIndex((e, i) => i > cast && e.t === "cast" && e.src === "kangaroo");
+    const end = nextCast >= 0 ? nextCast : res.events.length;
+    const hits = res.events.slice(cast + 1, end).filter((e) => e.t === "skill" && e.src === "kangaroo");
+    expect(hits).toHaveLength(2);
+    expect(hits.every((e) => e.t === "skill" && e.dst === "target")).toBe(true);
+  });
+
+  it("chain shock uses distinct bounce targets then returns to the first target at 3-star", () => {
+    const res = simulate(
+      [{ uid: "jelly", baseId: "jellyfish_shock", star: 3, row: 2, col: 4 }],
+      [
+        { uid: "r0", baseId: "titan_earth", star: 3, row: 0, col: 5 },
+        { uid: "r1", baseId: "pangolin_plate", star: 3, row: 2, col: 5 },
+        { uid: "r2", baseId: "turtle_mire", star: 3, row: 4, col: 5 },
+      ],
+      { seed: 7, bonus: { L: { startRage: 5 }, R: { startRage: 3 } } },
+    );
+    const cast = res.events.findIndex((e) => e.t === "cast" && e.src === "jelly");
+    const nextCast = res.events.findIndex((e, i) => i > cast && e.t === "cast" && e.src === "jelly");
+    const end = nextCast >= 0 ? nextCast : res.events.length;
+    const hits = res.events.slice(cast + 1, end).filter((e) => e.t === "skill" && e.src === "jelly");
+    expect(hits).toHaveLength(4);
+    expect(new Set(hits.slice(0, 3).map((e) => e.t === "skill" ? e.dst : "")).size).toBe(3);
+    expect(hits[3]).toMatchObject({ t: "skill", dst: (hits[0] as { dst: string }).dst });
+  });
+
+  it("cross-5 damages orthogonal cells but excludes a diagonal cell", () => {
+    const res = simulate(
+      [{ uid: "roc", baseId: "roc_legend", star: 1, row: 2, col: 4 }],
+      [
+        { uid: "center", baseId: "titan_earth", star: 3, row: 2, col: 5 },
+        { uid: "up", baseId: "pangolin_plate", star: 3, row: 1, col: 5 },
+        { uid: "right", baseId: "turtle_mire", star: 3, row: 2, col: 6 },
+        { uid: "diag", baseId: "crab_shell", star: 3, row: 1, col: 6 },
+      ],
+      { seed: 8, bonus: { L: { startRage: 3 } } },
+    );
+    const cast = res.events.findIndex((e) => e.t === "cast" && e.src === "roc");
+    const nextCast = res.events.findIndex((e, i) => i > cast && e.t === "cast" && e.src === "roc");
+    const end = nextCast >= 0 ? nextCast : res.events.length;
+    const hitIds = res.events.slice(cast + 1, end).flatMap((e) => e.t === "skill" && e.src === "roc" ? [e.dst] : []);
+    expect(hitIds).toContain("center");
+    expect(hitIds).toContain("up");
+    expect(hitIds).toContain("right");
+    expect(hitIds).not.toContain("diag");
+  });
+
+  it("global stun damages all enemies but caps the stun rider subset", () => {
+    const right: Placement[] = ["titan_earth", "pangolin_plate", "turtle_mire", "crab_shell", "badger_stone"]
+      .map((baseId, i) => ({ uid: `g${i}`, baseId, star: 3, row: i, col: 5 }));
+    const res = simulate(
+      [{ uid: "kirin", baseId: "kirin_thunder", star: 3, row: 2, col: 4 }],
+      right,
+      { seed: 9, bonus: { L: { startRage: 5 }, R: { startRage: 3 } } },
+    );
+    const cast = res.events.findIndex((e) => e.t === "cast" && e.src === "kirin");
+    const nextCast = res.events.findIndex((e, i) => i > cast && e.t === "cast" && e.src === "kirin");
+    const end = nextCast >= 0 ? nextCast : res.events.length;
+    const during = res.events.slice(cast + 1, end);
+    expect(new Set(during.flatMap((e) => e.t === "skill" && e.src === "kirin" ? [e.dst] : []))).toHaveLength(5);
+    expect(during.filter((e) => e.t === "status" && e.kind === "stun")).toHaveLength(3);
+  });
 });
