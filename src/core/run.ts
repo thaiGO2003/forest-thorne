@@ -425,10 +425,9 @@ export function autoMerge(s: RunState): number {
     const boardSrc = picked.find((r) => r.where === "board");
     for (const r of picked) if (r.where === "board") s.board[r.index] = null;
     const benchIdx = picked.filter((r) => r.where === "bench").map((r) => r.index);
-    const firstBench = Math.min(...benchIdx);
     s.bench = s.bench.filter((_, i) => !benchIdx.includes(i));
     if (boardSrc) s.board[boardSrc.index] = result;
-    else s.bench.splice(Math.min(firstBench, s.bench.length), 0, result);
+    else s.bench.push(result);
     merges++;
   }
 }

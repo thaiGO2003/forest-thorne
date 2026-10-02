@@ -48,16 +48,19 @@ describe("run state", () => {
     expect(snap(s)).toBe(before);
   });
 
-  it("3 copies merge to 2★ at first bench slot; overflow equips go to bag", () => {
+  it("3 bench copies merge to 2★ at compact bench tail; overflow equips go to bag", () => {
     const s = normalRun(1);
+    const other = NORMAL_UNITS.find((u) => u.species !== t1.species)!;
     s.bench = [
       unit("a", ["eq_blue_buff", "eq_warmog_armor"]),
+      { ...unit("other"), baseId: other.id },
       unit("b", ["eq_blue_buff"]),
       unit("c", ["eq_warmog_armor", "eq_blue_buff", "eq_warmog_armor"]),
     ];
     expect(autoMerge(s)).toBe(1);
-    expect(s.bench).toHaveLength(1);
-    const m = s.bench[0]!;
+    expect(s.bench).toHaveLength(2);
+    expect(s.bench[0]?.uid).toBe("other");
+    const m = s.bench[1]!;
     expect(m.star).toBe(2);
     expect(new Set(m.equips).size).toBe(m.equips.length);
     // every source item is either kept or returned exactly once
