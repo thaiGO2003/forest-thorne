@@ -32,6 +32,26 @@ export const DEFAULT_KEYS = {
 } as const satisfies Record<KeyContext, Record<string, string>>;
 export type KeyBindings = { [C in KeyContext]: Record<keyof (typeof DEFAULT_KEYS)[C], string> };
 
+/** A110 canonical product action ids. Storage keeps legacy short ids for backward compatibility. */
+export const CANONICAL_DEFAULT_KEYS = {
+  planning: { startCombat: "SPACE", rerollShop: "D", buyXp: "F", sellUnit: "E", newRun: "R", settings: "ESCAPE", toggleAudio: "M" },
+  combat: { stepCombat: "SPACE", settings: "ESCAPE", toggleAudio: "M" },
+  menu: { close: "ESCAPE" },
+} as const satisfies Record<KeyContext, Record<string, string>>;
+
+const SHORTCUT_ACTION_ALIASES: Record<KeyContext, Record<string, string>> = {
+  planning: { rerollShop: "reroll", sellUnit: "sell" },
+  combat: { stepCombat: "step" },
+  menu: { close: "back" },
+};
+
+export function resolveShortcutAction(ctx: KeyContext, action: string): string | null {
+  const stored = DEFAULT_KEYS[ctx] as Record<string, string>;
+  if (action in stored) return action;
+  const alias = SHORTCUT_ACTION_ALIASES[ctx][action];
+  return alias && alias in stored ? alias : null;
+}
+
 const NAMED_KEYS = ["SPACE", "DELETE", "BACKSPACE", "ENTER", "TAB", "ESCAPE"];
 /** Single letter/digit or a named key; anything else → null. */
 export function normalizeKey(v: unknown): string | null {
@@ -52,6 +72,25 @@ export function normalizeKeys(raw: unknown): KeyBindings {
     }
   }
   return out as KeyBindings;
+}
+
+export function keyboardBinding(settings: Pick<Settings, "keys">, ctx: KeyContext, action: string): string | null {
+  const storedAction = resolveShortcutAction(ctx, action);
+  return storedAction ? (settings.keys[ctx] as Record<string, string>)[storedAction] ?? null : null;
+}
+
+export interface ShortcutHelpEntry {
+  action: string;
+  binding: string;
+  token: string;
+}
+
+/** A110 help rows always derive from the live binding owner rather than hard-coded key copy. */
+export function shortcutHelp(settings: Pick<Settings, "keys">, ctx: KeyContext): ShortcutHelpEntry[] {
+  return Object.keys(CANONICAL_DEFAULT_KEYS[ctx]).flatMap((action) => {
+    const binding = keyboardBinding(settings, ctx, action);
+    return binding ? [{ action, binding, token: `[${binding}]` }] : [];
+  });
 }
 
 /** Mode → allowed AI modes + default (A35 / A19). */
@@ -223,7 +262,14 @@ export interface SettingsStore {
   subscribe(fn: Listener): () => void;
   save(patch: Partial<Settings>): void;
   preview(patch: Partial<Settings>): void;
+  setKeyboardBinding(ctx: KeyContext, action: string, rawKey: unknown): KeyboardBindingResult;
   resetKeys(ctx?: KeyContext): void;
+}
+
+export interface KeyboardBindingResult {
+  ok: boolean;
+  reason?: "unknown_action" | "invalid_key" | "reserved_key";
+  key?: string;
 }
 
 export interface ResolutionApplyResult {
@@ -290,6 +336,20 @@ export function createSettingsStore(store: KV, onLocale?: (lang: Settings["langu
       apply(patch); for (const l of listeners) l(current);
       const v = version;
       setTimeout(() => { if (v === version) write(); }, 200);
+    },
+    setKeyboardBinding(ctx, action, rawKey) {
+      const storedAction = resolveShortcutAction(ctx, action);
+      if (!storedAction) return { ok: false, reason: "unknown_action" };
+      const key = normalizeKey(rawKey);
+      if (!key) return { ok: false, reason: "invalid_key" };
+      if (key === "ESCAPE") return { ok: false, reason: "reserved_key" };
+      s.save({
+        keys: {
+          ...current.keys,
+          [ctx]: { ...current.keys[ctx], [storedAction]: key },
+        },
+      });
+      return { ok: true, key };
     },
     resetKeys(ctx) {
       s.save({ keys: ctx ? { ...current.keys, [ctx]: { ...DEFAULT_KEYS[ctx] } } : normalizeKeys(null) });

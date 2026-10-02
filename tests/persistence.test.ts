@@ -7,8 +7,8 @@ import {
   normalizeCoopRunPayload, saveAchievementProfile, saveCollectionProfile, saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import {
-  BATTERY_SAVER_KEY, createSettingsStore, GRAPHICS_QUALITY_KEY, loadGraphicsPreferences, loadSettings,
-  normalizeSettings, RENDER_SCALE_KEY, saveGraphicsPreferences, SETTINGS_KEY,
+  BATTERY_SAVER_KEY, CANONICAL_DEFAULT_KEYS, createSettingsStore, GRAPHICS_QUALITY_KEY, loadGraphicsPreferences,
+  loadSettings, normalizeSettings, RENDER_SCALE_KEY, saveGraphicsPreferences, SETTINGS_KEY, shortcutHelp,
 } from "../src/core/settings";
 
 function mem() {
@@ -320,6 +320,32 @@ describe("settings A35/A44", () => {
   it("keys: invalid → default, ESCAPE reserved, lower-case normalized", () => {
     const k = normalizeSettings({ keys: { planning: { reroll: "q", buyXp: "ESCAPE", sell: "F1" } } }).keys.planning;
     expect([k.reroll, k.buyXp, k.sell, k.startCombat]).toEqual(["Q", "F", "E", "SPACE"]);
+  });
+
+  it("uses canonical A110 shortcut ids through one persisted binding API and live help map", () => {
+    expect(CANONICAL_DEFAULT_KEYS).toEqual({
+      planning: { startCombat: "SPACE", rerollShop: "D", buyXp: "F", sellUnit: "E", newRun: "R", settings: "ESCAPE", toggleAudio: "M" },
+      combat: { stepCombat: "SPACE", settings: "ESCAPE", toggleAudio: "M" },
+      menu: { close: "ESCAPE" },
+    });
+    const s = mem();
+    const store = createSettingsStore(s);
+    expect(store.setKeyboardBinding("planning", "rerollShop", "q")).toEqual({ ok: true, key: "Q" });
+    expect(store.setKeyboardBinding("planning", "sellUnit", "delete")).toEqual({ ok: true, key: "DELETE" });
+    expect(store.setKeyboardBinding("combat", "stepCombat", "enter")).toEqual({ ok: true, key: "ENTER" });
+    expect(store.setKeyboardBinding("menu", "close", "x")).toEqual({ ok: true, key: "X" });
+    expect(store.setKeyboardBinding("planning", "buyXp", "ESCAPE")).toEqual({ ok: false, reason: "reserved_key" });
+    expect(store.setKeyboardBinding("planning", "buyXp", "F1")).toEqual({ ok: false, reason: "invalid_key" });
+    expect(store.setKeyboardBinding("planning", "missing", "A")).toEqual({ ok: false, reason: "unknown_action" });
+    expect(store.get().keys.planning).toMatchObject({ reroll: "Q", sell: "DELETE", buyXp: "F" });
+    expect(shortcutHelp(store.get(), "planning")).toEqual(expect.arrayContaining([
+      { action: "rerollShop", binding: "Q", token: "[Q]" },
+      { action: "sellUnit", binding: "DELETE", token: "[DELETE]" },
+      { action: "buyXp", binding: "F", token: "[F]" },
+    ]));
+    store.resetKeys("planning");
+    expect(store.get().keys.planning).toMatchObject({ reroll: "D", sell: "E", buyXp: "F" });
+    expect(store.get().keys.combat.step).toBe("ENTER");
   });
 
   it("corrupt storage boots with defaults; preview notifies now, writes after 200 ms; resetKeys per context", () => {
