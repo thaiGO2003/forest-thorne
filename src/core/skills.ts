@@ -10,6 +10,13 @@ export type DotKind = "bleed" | "burn" | "poison" | "disease";
 export type ControlKind = "stun" | "freeze" | "sleep" | "silence" | "disarm" | "taunt";
 export type BuffStat = "atk" | "matk" | "def" | "mdef" | "evade";
 export type Area = "single" | "all" | "row" | "column" | "square";
+export type SkillSelector =
+  | "lowest_hp_pct" | "lowest_hp_pct_ally" | "highest_rage" | "lowest_rage_ally"
+  | "highest_matk" | "highest_atk" | "highest_max_hp_front" | "lowest_def_front"
+  | "lowest_mdef_backline" | "highest_atk_backline" | "isolated_backline" | "backline_caster"
+  | "most_clustered_row" | "most_clustered_col" | "highest_total_atk_row" | "highest_total_atk_col"
+  | "random" | "random_unique" | "same_row" | "same_row_carry" | "same_column" | "front_cone"
+  | "self" | "frontline_default" | "backline_jump" | "primary_target";
 
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
@@ -19,6 +26,7 @@ export interface SkillSpec {
   side: "enemy" | "ally" | "self";
   count: number;
   area: Area;
+  selector: SkillSelector;
   pickLowestHp: boolean;
   damage: (Formula & { type: DamageType }) | null;
   dots: { kind: DotKind; value: number; turns: number }[];
@@ -43,6 +51,43 @@ const CONTROL_WORD: Record<string, ControlKind> = {
   "choáng": "stun", "đóng băng": "freeze", "ngủ": "sleep", "câm lặng": "silence", "tước vũ khí": "disarm", "khiêu khích": "taunt",
 };
 const BUFF_WORD: Record<string, BuffStat> = { ATK: "atk", MATK: "matk", DEF: "def", MDEF: "mdef", "né tránh": "evade" };
+
+function selectorFromText(text: string, side: SkillSpec["side"], family = ""): SkillSelector {
+  const t = text.toLowerCase();
+  if (side === "self") return "self";
+  if (/ngẫu nhiên/.test(t) && /(không trùng|khác nhau|duy nhất)/.test(t)) return "random_unique";
+  if (/ngẫu nhiên/.test(t)) return "random";
+  if (/nộ cao nhất/.test(t)) return "highest_rage";
+  if (/nộ thấp nhất/.test(t) && side === "ally") return "lowest_rage_ally";
+  if (/(% máu|% hp).*thấp nhất|thấp máu nhất/.test(t)) return side === "ally" ? "lowest_hp_pct_ally" : "lowest_hp_pct";
+  if (/(cột cuối|hậu tuyến).*(mdef thấp nhất|kháng phép thấp nhất)/.test(t)) return "lowest_mdef_backline";
+  if (/(cột cuối|hậu tuyến).*atk cao nhất/.test(t)) return "highest_atk_backline";
+  if (/(cột cuối|hậu tuyến).*(tách|cô lập)/.test(t)) return "isolated_backline";
+  if (/(cột cuối|hậu tuyến).*(pháp sư|hỗ trợ)/.test(t)) return "backline_caster";
+  if (/(cột đầu|tuyến trước|hàng trước).*(hp tối đa cao nhất|máu tối đa cao nhất)/.test(t)
+    || /(hp tối đa cao nhất|máu tối đa cao nhất).*(cột đầu|tuyến trước|hàng trước)/.test(t)) return "highest_max_hp_front";
+  if (/(cột đầu|tuyến trước|hàng trước).*(def thấp nhất|giáp thấp nhất)/.test(t)
+    || /(def thấp nhất|giáp thấp nhất).*(cột đầu|tuyến trước|hàng trước)/.test(t)) return "lowest_def_front";
+  if (/hàng.*tổng atk.*cao nhất|tổng atk.*hàng.*cao nhất/.test(t)) return "highest_total_atk_row";
+  if (/cột.*tổng atk.*cao nhất|tổng atk.*cột.*cao nhất/.test(t)) return "highest_total_atk_col";
+  if (/hàng.*đông nhất|cụm.*hàng/.test(t)) return "most_clustered_row";
+  if (/cột.*đông nhất|cụm.*cột/.test(t)) return "most_clustered_col";
+  if (/matk cao nhất/.test(t)) return "highest_matk";
+  if (/atk cao nhất/.test(t)) return "highest_atk";
+  if (/cùng hàng.*chủ lực|chủ lực.*cùng hàng/.test(t)) return "same_row_carry";
+  if (/cùng hàng/.test(t)) return "same_row";
+  if (/cùng cột/.test(t)) return "same_column";
+  if (/hình nón|cone/.test(t)) return "front_cone";
+  if (family === "chain_shock" || family === "single_sleep") return "highest_rage";
+  if (family === "row_carry_rage_buff") return "same_row_carry";
+  if (family === "row_random_rage_buff") return "random_unique";
+  if (family === "row_charge") return "same_row";
+  if (family === "frost_storm" || family === "ink_blast_debuff") return "same_column";
+  if (family === "cone_shot" || family === "fire_breath_cone" || family === "cone_smash") return "front_cone";
+  if (family === "revive_or_heal" || family === "heal_over_time" || family === "team_evade_buff"
+    || family === "mass_cleanse" || family === "team_rage_self_heal" || family === "mimic_rage_buff") return "lowest_hp_pct_ally";
+  return "frontline_default";
+}
 
 function formulaAt(m: RegExpMatchArray | null): Formula | null {
   if (!m) return null;
@@ -116,6 +161,7 @@ export function parseSkill(text: string): SkillSpec {
 
   return {
     side, area, count: Math.max(1, countM ? Number(countM[1]) : 1),
+    selector: selectorFromText(t, side),
     pickLowestHp: /% máu thấp nhất|thấp máu nhất/.test(t),
     damage, dots, controls, heal,
     selfHealPctMaxHp: selfHeal && !allyHeal ? Number(selfHeal[1]) / 100 : 0,
@@ -129,17 +175,25 @@ export function parseSkill(text: string): SkillSpec {
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
 export function skillSpec(baseId: string, star: number): SkillSpec {
-  const key = `${baseId}:${star}`;
+  const resolvedStar = Math.max(1, Math.min(3, Math.trunc(Number.isFinite(star) ? star : 1)));
+  const key = `${baseId}:${resolvedStar}`;
   const cached = CACHE[key];
   if (cached) return cached;
   const u = getUnit(baseId);
-  if (!u.boss) return (CACHE[key] = parseSkill(u.skill.starDetailVi[star - 1] ?? u.skill.starDetailVi[0] ?? ""));
+  const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
+  if (!u.boss) {
+    const s = parseSkill(detail);
+    const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, detail].filter(Boolean).join(" ");
+    s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
+    return (CACHE[key] = s);
+  }
   // Boss skill prose has no numbers. ponytail: battlefield-wide 1.5× primary-stat hit plus parsed status words;
   // replace with authored boss numbers when the data ships them.
   const s = parseSkill(u.skill.detailVi ?? "");
   const magic = u.stats.matk > u.stats.atk;
   s.side = "enemy";
   s.area = "all";
+  s.selector = "frontline_default";
   s.damage ??= { base: 0, scale: 1.5, stat: magic ? "matk" : "atk", type: magic ? "magic" : "physical" };
   return (CACHE[key] = s);
 }

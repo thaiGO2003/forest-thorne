@@ -4,7 +4,7 @@
 // add them as SkillSpec grows per-family handlers.
 import { getUnit, type Element, type Role } from "../content/catalog";
 import { STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type SkillSpec, type Stat } from "./skills";
+import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -17,8 +17,8 @@ const CYCLE_CAP = 20;
 const ROLE_EVADE: Record<Role, number> = { TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.1, MAGE: 0.05, SUPPORT: 0.07 };
 const ROLE_CRIT: Record<Role, number> = { TANKER: 0.05, FIGHTER: 0.05, ASSASSIN: 0.25, ARCHER: 0.2, MAGE: 0.1, SUPPORT: 0.05 };
 const STAR_DOT = [0, 1, 1.3, 1.6];
-const CONTROL_SKIP: Record<string, true> = { stun: true, freeze: true, sleep: true };
-const DOTS = ["bleed", "burn", "poison", "disease"] as const;
+const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
+const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 
 interface Mod { stat: BuffStat; value: number; pct: boolean; turns: number }
 
@@ -27,7 +27,7 @@ export interface Fighter {
   role: Role; element: Element;
   maxHp: number; hp: number; atk: number; def: number; matk: number; mdef: number;
   range: number; rageMax: number; rage: number; shield: number; alive: boolean;
-  crit: number; evade: number; lifesteal: number; rageGainPct: number; healPct: number;
+  crit: number; critDmg: number; accuracy: number; evade: number; lifesteal: number; rageGainPct: number; healPct: number;
   onHitBurn: number; onHitPoison: number;
   /** Timed statuses: control kinds + DoT kinds; DoTs carry per-tick value. */
   status: Record<string, { turns: number; value: number }>;
@@ -69,6 +69,7 @@ export interface CombatResult {
   total: Record<Side, number>;
   /** Assassin last-hit bounty, paid even on loss (A14/A18). */
   bounty: Record<Side, number>;
+  bountyKills: Record<Side, number>;
   actions: number;
   events: CombatEvent[];
   survivors: Fighter[];
@@ -119,6 +120,8 @@ export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environ
     rage: Math.min(rageMax, equipmentRage + pendingRage),
     shield: (b.startShield ?? 0) + (equipment.startingShield ?? 0) + (traits.startingShield ?? 0) + env.startShield, alive: true,
     crit: ROLE_CRIT[u.role] + (st.crit ?? 0) + ((b.critPct ?? 0) + (equipment.critPct ?? 0) + (traits.critPct ?? 0)) / 100 + env.critPct,
+    critDmg: st.critDmg ?? 1.5,
+    accuracy: st.accuracy ?? 0.95,
     evade, lifesteal: Math.max(0, ((b.lifestealPct ?? 0) + (equipment.lifestealPct ?? 0) + (traits.lifestealPct ?? 0)) / 100 + env.lifesteal),
     rageGainPct: (b.rageGainPct ?? 0) / 100 + env.rageGainPct,
     healPct: ((b.healPct ?? 0) + (equipment.healPct ?? 0) + (traits.healPct ?? 0)) / 100 + env.healPct,
@@ -144,7 +147,10 @@ function stat(f: Fighter, s: BuffStat): number {
   for (const m of f.mods) if (m.stat === s) m.pct ? (pct += m.value) : (flat += m.value);
   let v = base * (1 + pct / 100) + (s === "evade" ? flat / 100 : flat);
   // FIGHTER: +1% ATK per 1% missing HP (A14).
-  if (s === "atk" && f.role === "FIGHTER") v *= 1 + (1 - f.hp / f.maxHp);
+  if (s === "atk" && f.role === "FIGHTER") {
+    const missingPct = Math.min(1, Math.max(0, (f.maxHp - f.hp) / f.maxHp));
+    v = Math.round(v * (1 + missingPct));
+  }
   if (s === "evade") return Math.min(0.75, Math.max(0, v));
   return s === "atk" || s === "matk" ? Math.max(1, v) : Math.max(0, v);
 }
@@ -157,6 +163,7 @@ interface Ctx {
   gold: Record<Side, number>;
   rageGain: Record<Side, number>;
   bounty: Record<Side, number>;
+  bountyKills: Record<Side, number>;
 }
 
 const foes = (c: Ctx, f: Fighter) => c.all.filter((x) => x.alive && x.side !== f.side);
@@ -198,7 +205,10 @@ function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
   f.shield = 0;
   f.hp = 0;
   c.events.push({ t: "death", dst: f.uid });
-  if (killer?.role === "ASSASSIN") c.bounty[killer.side] += killer.star;
+  if (killer?.role === "ASSASSIN" && killer.alive && killer.side !== f.side) {
+    c.bounty[killer.side] += killer.star;
+    c.bountyKills[killer.side] += 1;
+  }
 }
 
 /** Shield first, then HP. Emits the hit event before any resulting death so replay order is cause → effect. */
@@ -208,23 +218,24 @@ function applyDamage(c: Ctx, dst: Fighter, dmg: number, killer: Fighter | null, 
   const toHp = Math.min(dst.hp, dmg - absorbed);
   dst.hp -= toHp;
   c.events.push(event(absorbed));
-  if (dst.hp <= 0 && dst.alive) kill(c, dst, killer);
-  return toHp;
+  const killed = dst.hp <= 0 && dst.alive;
+  if (killed) kill(c, dst, killer);
+  return { hp: toHp, absorbed, killed };
 }
 
 /** A12/A13 pipeline + A74 aftermath. Returns HP damage dealt (0 on miss). */
-function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical" | "magic" | "true", skill: boolean): number {
+function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical" | "magic" | "true", skill: boolean) {
   let crit = src.crit;
-  let critMult = 1.5;
-  let hit = 0.95 + src.env.accuracy - stat(dst, "evade");
+  let critMult = src.critDmg;
+  let hit = src.accuracy + src.env.accuracy - stat(dst, "evade");
   if (src.role === "ARCHER") {
     const d = dist(src, dst);
     hit -= 0.05 * d; crit += 0.05 * d; critMult += 0.05 * d;
   }
   if (!skill && type === "physical" && c.rng() >= Math.min(1, Math.max(0.1, hit))) {
     c.events.push({ t: "miss", src: src.uid, dst: dst.uid });
-    afterDefender(c, dst);
-    return 0;
+    afterDefender(c, dst, src);
+    return { hp: 0, absorbed: 0, killed: false, landed: false };
   }
   let dmg = Math.max(1, raw);
   if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
@@ -235,51 +246,168 @@ function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical
   else if (type === "physical") dmg = (dmg * 100) / (100 + stat(dst, "def"));
   else if (type === "magic") dmg = (dmg * 100) / (100 + stat(dst, "mdef"));
   dmg = Math.max(1, Math.round(dmg * c.globalMult));
-  const toHp = applyDamage(c, dst, dmg, src,
+  const resolved = applyDamage(c, dst, dmg, src,
     (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }));
-  if (toHp > 0) {
+  if (resolved.hp > 0) {
     if (!skill) addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
-    if (src.lifesteal > 0) heal(c, src, src, toHp * src.lifesteal);
+    if (src.lifesteal > 0) heal(c, src, src, resolved.hp * src.lifesteal);
     if (dst.alive && src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn);
     if (dst.alive && src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison);
   }
-  afterDefender(c, dst);
-  return toHp;
+  afterDefender(c, dst, src);
+  return { ...resolved, landed: true };
 }
 
 /** Defender +1 rage; TANKER full rage when attacked auto-casts (A14/A74). */
-function afterDefender(c: Ctx, dst: Fighter) {
+function afterDefender(c: Ctx, dst: Fighter, attacker: Fighter) {
   if (!dst.alive) return;
   addRage(dst, 1);
-  if (dst.role === "TANKER" && dst.rage >= dst.rageMax && !dst.status.silence?.turns && !dst.casting) castSkill(c, dst);
+  if (dst.role === "TANKER" && dst.rage >= dst.rageMax && !dst.status.silence?.turns && !dst.casting) castSkill(c, dst, attacker);
 }
 
 function statValue(f: Fighter, s: Stat): number {
   return s === "hp" ? f.maxHp : stat(f, s);
 }
 
-/** Resolve skill target set from the parsed spec (A11 deterministic selectors). */
-function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec): Fighter[] {
+function stableTargets(f: Fighter, pool: Fighter[]): Fighter[] {
+  return [...pool].sort((a, b) => rowRank(f.row, a.row) - rowRank(f.row, b.row)
+    || depth(a) - depth(b) || a.uid.localeCompare(b.uid));
+}
+
+function extremeColumn(pool: Fighter[], backline: boolean): Fighter[] {
+  if (!pool.length) return [];
+  const targetDepth = backline ? Math.max(...pool.map(depth)) : Math.min(...pool.map(depth));
+  return pool.filter((x) => depth(x) === targetDepth);
+}
+
+function clustered(pool: Fighter[], axis: "row" | "col", score: (xs: Fighter[]) => number): Fighter[] {
+  const groups = new Map<number, Fighter[]>();
+  for (const x of pool) {
+    const key = axis === "row" ? x.row : x.col;
+    const g = groups.get(key) ?? [];
+    g.push(x);
+    groups.set(key, g);
+  }
+  let best: Fighter[] = [];
+  let bestScore = -Infinity;
+  for (const g of groups.values()) {
+    const s = score(g);
+    if (s > bestScore) {
+      best = g;
+      bestScore = s;
+    }
+  }
+  return best;
+}
+
+function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSelector, count: number, preferred?: Fighter): Fighter[] {
+  if (!pool.length) return [];
+  const stable = stableTargets(f, pool);
+  const max = Math.max(1, count);
+  const take = (xs: Fighter[]) => xs.slice(0, max);
+  if (preferred?.alive && pool.includes(preferred) && (selector === "frontline_default" || selector === "primary_target")) {
+    return [preferred, ...stable.filter((x) => x !== preferred)].slice(0, max);
+  }
+  const stableIndex = (x: Fighter) => stable.indexOf(x);
+  switch (selector) {
+    case "self": return [f];
+    case "lowest_hp_pct":
+    case "lowest_hp_pct_ally":
+      return take([...stable].sort((a, b) => hpRatio(a) - hpRatio(b) || stableIndex(a) - stableIndex(b)));
+    case "highest_rage":
+      return take([...stable].sort((a, b) => b.rage - a.rage || stableIndex(a) - stableIndex(b)));
+    case "lowest_rage_ally":
+      return take([...stable].sort((a, b) => a.rage - b.rage || stableIndex(a) - stableIndex(b)));
+    case "highest_matk":
+      return take([...stable].sort((a, b) => stat(b, "matk") - stat(a, "matk") || stableIndex(a) - stableIndex(b)));
+    case "highest_atk":
+      return take([...stable].sort((a, b) => stat(b, "atk") - stat(a, "atk") || stableIndex(a) - stableIndex(b)));
+    case "highest_max_hp_front":
+      return take(extremeColumn(stable, false).sort((a, b) => b.maxHp - a.maxHp || stableIndex(a) - stableIndex(b)));
+    case "lowest_def_front":
+      return take(extremeColumn(stable, false).sort((a, b) => stat(a, "def") - stat(b, "def") || stableIndex(a) - stableIndex(b)));
+    case "lowest_mdef_backline":
+      return take(extremeColumn(stable, true).sort((a, b) => stat(a, "mdef") - stat(b, "mdef") || stableIndex(a) - stableIndex(b)));
+    case "highest_atk_backline":
+      return take(extremeColumn(stable, true).sort((a, b) => stat(b, "atk") - stat(a, "atk") || stableIndex(a) - stableIndex(b)));
+    case "isolated_backline": {
+      const back = extremeColumn(stable, true);
+      const nearby = (x: Fighter) => pool.filter((y) => y !== x && Math.abs(y.row - x.row) <= 1 && Math.abs(y.col - x.col) <= 1).length;
+      return take([...back].sort((a, b) => nearby(a) - nearby(b) || stableIndex(a) - stableIndex(b)));
+    }
+    case "backline_caster": {
+      const back = extremeColumn(stable, true);
+      const casters = back.filter((x) => x.role === "MAGE" || x.role === "SUPPORT");
+      return take(casters.length ? casters : back);
+    }
+    case "most_clustered_row":
+      return take(clustered(stable, "row", (xs) => xs.length));
+    case "most_clustered_col":
+      return take(clustered(stable, "col", (xs) => xs.length));
+    case "highest_total_atk_row":
+      return take(clustered(stable, "row", (xs) => xs.reduce((n, x) => n + stat(x, "atk"), 0)));
+    case "highest_total_atk_col":
+      return take(clustered(stable, "col", (xs) => xs.reduce((n, x) => n + stat(x, "atk"), 0)));
+    case "random_unique": {
+      const bag = [...pool];
+      const out: Fighter[] = [];
+      while (bag.length && out.length < max) out.push(bag.splice(Math.floor(c.rng() * bag.length), 1)[0]!);
+      return out;
+    }
+    case "random":
+      return Array.from({ length: max }, () => pool[Math.floor(c.rng() * pool.length)]!);
+    case "same_row":
+    case "same_row_carry": {
+      const row = stable.filter((x) => x.row === f.row);
+      if (selector === "same_row_carry") {
+        row.sort((a, b) => Math.max(stat(b, "atk"), stat(b, "matk")) - Math.max(stat(a, "atk"), stat(a, "matk"))
+          || stableIndex(a) - stableIndex(b));
+      }
+      return take(row.length ? row : stable);
+    }
+    case "same_column": {
+      const p = basicTarget(c, f) ?? stable[0]!;
+      const column = stable.filter((x) => x.col === p.col);
+      return take(column.length ? column : stable);
+    }
+    case "front_cone": {
+      const dir = f.side === "L" ? 1 : -1;
+      const cone = stable.filter((x) => {
+        const forward = (x.col - f.col) * dir;
+        return forward > 0 && Math.abs(x.row - f.row) <= forward;
+      });
+      return (cone.length ? cone : stable).slice(0, Math.max(3, max));
+    }
+    case "backline_jump":
+      return take(extremeColumn(stable, true));
+    case "primary_target":
+    case "frontline_default":
+    default: {
+      const p = basicTarget(c, f);
+      return p ? [p, ...stable.filter((x) => x !== p)].slice(0, max) : take(stable);
+    }
+  }
+}
+
+/** Resolve skill target set from the star-materialized spec (A76 deterministic selectors). */
+function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter): Fighter[] {
   if (sp.side === "self") return [f];
   const pool = sp.side === "ally" ? friends(c, f) : foes(c, f);
   if (sp.area === "all") return pool;
-  const primary = sp.side === "enemy" && !sp.pickLowestHp ? basicTarget(c, f) : null;
-  const ordered = [...pool].sort((a, b) => (sp.pickLowestHp ? hpRatio(a) - hpRatio(b) : 0)
-    || (primary ? dist(primary, a) - dist(primary, b) : 0) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
-    || a.uid.localeCompare(b.uid));
-  const p = primary ?? ordered[0];
+  const ordered = selectorTargets(c, f, pool, sp.selector, sp.count, preferred);
+  const p = ordered[0];
   if (!p) return [];
   if (sp.area === "row") return pool.filter((x) => x.row === p.row);
   if (sp.area === "column") return pool.filter((x) => x.col === p.col);
   if (sp.area === "square") return pool.filter((x) => Math.abs(x.row - p.row) <= 1 && Math.abs(x.col - p.col) <= 1);
-  return ordered.slice(0, Math.max(1, sp.count));
+  return ordered;
 }
 
-function castSkill(c: Ctx, f: Fighter) {
+function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
   const sp = skillSpec(f.baseId, f.star);
   f.casting = true;
   f.rage = 0;
-  const targets = skillTargets(c, f, sp);
+  const targets = skillTargets(c, f, sp, preferred);
   c.events.push({ t: "cast", src: f.uid, targets: targets.map((x) => x.uid) });
   const starSkill = STAR_SKILL[f.star] ?? 1;
   const enemyHit = new Set<string>();
@@ -290,7 +418,11 @@ function castSkill(c: Ctx, f: Fighter) {
     const d = sp.damage;
     const raw = Math.round((d.base + statValue(f, d.stat) * d.scale) * starSkill * goldMultiplier(c.gold[f.side]));
     let drained = 0;
-    for (const t of enemies) if (t.alive) { drained += strike(c, f, t, raw, d.type, true); enemyHit.add(t.uid); }
+    for (const t of enemies) if (t.alive) {
+      const hit = strike(c, f, t, raw, d.type, true);
+      drained += hit.hp;
+      if (hit.hp > 0 || hit.absorbed > 0) enemyHit.add(t.uid);
+    }
     if (sp.lifestealPct && drained > 0) heal(c, f, f, drained * sp.lifestealPct);
   }
   const dotMult = STAR_DOT[f.star] ?? 1;
@@ -328,60 +460,68 @@ function castSkill(c: Ctx, f: Fighter) {
   f.casting = false;
 }
 
-/** Start-of-turn: DoT ticks (true damage, no rage), mod expiry, control check. Returns false when the turn is lost. */
-function startTurn(c: Ctx, f: Fighter): boolean {
+interface TurnGate {
+  canAct: boolean;
+  silenced: boolean;
+  disarmed: boolean;
+}
+
+/** A79: capture control state first, then resolve timed triggers and one canonical duration tick. */
+function startTurn(c: Ctx, f: Fighter): TurnGate {
+  const skip = CONTROL_PRIORITY.find((k) => (f.status[k]?.turns ?? 0) > 0) ?? null;
+  const silenced = (f.status.silence?.turns ?? 0) > 0;
+  const disarmed = (f.status.disarm?.turns ?? 0) > 0;
   for (const k of DOTS) {
     const s = f.status[k];
     if (!s?.turns) continue;
-    const dmg = Math.max(1, Math.round(s.value * c.globalMult));
+    const fireVulnerability = k === "burn"
+      ? f.env.fireVuln * ((f.status.fireVulnerability?.turns ?? 0) > 0 ? Math.max(1, f.status.fireVulnerability!.value) : 1)
+      : 1;
+    const dmg = Math.max(1, Math.round(s.value * fireVulnerability * c.globalMult));
     applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: k, dmg }));
+    if (k === "disease" && dmg > 0) {
+      for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+        const neighbor = c.all.find((x) => x.alive && x.side === f.side && x.row === f.row + dr && x.col === f.col + dc);
+        if (neighbor && !((neighbor.status.disease?.turns ?? 0) > 0)) applyStatus(c, neighbor, "disease", 2, dmg);
+      }
+    }
     if (--s.turns <= 0) delete f.status[k];
-    if (!f.alive) return false;
+    if (!f.alive) return { canAct: false, silenced, disarmed };
   }
   // A32 SWARM aura: non-matching units take 4 true damage per turn.
   if (f.env.poisonAura > 0) {
     const dmg = f.env.poisonAura;
     applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
-    if (!f.alive) return false;
+    if (!f.alive) return { canAct: false, silenced, disarmed };
   }
   f.mods = f.mods.filter((m) => --m.turns > 0);
-  let skip: string | null = null;
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
-    if (CONTROL_SKIP[k] && s.turns > 0) skip ??= k;
-  }
-  if (skip) {
-    c.events.push({ t: "skip", src: f.uid, reason: skip });
-    tickControls(f);
-  }
-  return !skip;
-}
-
-function tickControls(f: Fighter) {
-  for (const [k, s] of Object.entries(f.status)) {
-    if (DOTS.includes(k as (typeof DOTS)[number])) continue;
+    if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
       delete f.status[k];
       if (k === "taunt") f.tauntBy = null;
     }
   }
+  if (skip) c.events.push({ t: "skip", src: f.uid, reason: skip });
+  return { canAct: !skip, silenced, disarmed };
 }
 
 function act(c: Ctx, f: Fighter) {
   if (!f.alive) return;
-  if (!startTurn(c, f)) return;
-  if (f.rage >= f.rageMax && !f.status.silence) castSkill(c, f);
-  else if (!f.status.disarm) {
+  const gate = startTurn(c, f);
+  if (!gate.canAct) return;
+  if (f.rage >= f.rageMax && !gate.silenced) castSkill(c, f);
+  else if (!gate.disarmed) {
     const t = basicTarget(c, f);
     if (t) {
       const u = getUnit(f.baseId);
       const magic = f.role === "MAGE" || f.role === "SUPPORT" || u.basic.damageType === "magic";
       strike(c, f, t, stat(f, magic ? "matk" : "atk"), magic ? "magic" : "physical", false);
       // SUPPORT: basic attack that fills rage auto-casts (A14).
-      if (f.alive && f.role === "SUPPORT" && f.rage >= f.rageMax && !f.status.silence) castSkill(c, f);
+      if (f.alive && f.role === "SUPPORT" && f.rage >= f.rageMax && !gate.silenced) castSkill(c, f);
     }
   }
-  tickControls(f);
 }
 
 /** A11 queue: per side scan order, then interleave L0,R0,L1,R1… (empty cells only affect presentation timing). */
@@ -422,6 +562,7 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
     gold: { L: o.gold?.L ?? 0, R: o.gold?.R ?? 0 },
     rageGain: { L: o.rageGain?.L ?? 1, R: o.rageGain?.R ?? 1 },
     bounty: { L: 0, R: 0 },
+    bountyKills: { L: 0, R: 0 },
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
@@ -438,7 +579,7 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
   const alive = { L: count("L"), R: count("R") };
   return {
     winner: alive.L && !alive.R ? "L" : alive.R && !alive.L ? "R" : null,
-    alive, total: { L: left.length, R: right.length }, bounty: c.bounty, actions, events: c.events,
+    alive, total: { L: left.length, R: right.length }, bounty: c.bounty, bountyKills: c.bountyKills, actions, events: c.events,
     survivors: all.filter((f) => f.alive),
   };
 }
