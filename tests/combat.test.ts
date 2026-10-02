@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { NORMAL_UNITS } from "../src/content/catalog";
-import { goldMultiplier, makeFighter, refreshTimedStatMod, simulate, starEffectChance, tierStunChance, turnOrder, type Placement } from "../src/core/combat";
+import { getUnit, NORMAL_UNITS } from "../src/content/catalog";
+import {
+  goldMultiplier, makeFighter, materializeCombatFormation, refreshTimedStatMod, simulate, simulateMaterialized,
+  starEffectChance, tierStunChance, turnOrder, type Placement,
+} from "../src/core/combat";
 
 const team = (ids: string[], side: "L" | "R"): Placement[] =>
   ids.map((baseId, i) => ({ uid: `${side}${i}`, baseId, star: 1, row: i % 5, col: side === "L" ? 4 - Math.floor(i / 5) : 5 + Math.floor(i / 5) }));
@@ -20,6 +23,72 @@ describe("combat", () => {
     expect(starEffectChance(1, 0.55)).toBeCloseTo(0.55);
     expect(starEffectChance(2, 0.55)).toBeCloseTo(0.77);
     expect(starEffectChance(3, 0.65)).toBe(1);
+  });
+
+  it("materializes one fresh A77 combat record with clamped star and battle-local state", () => {
+    const placement: Placement = { uid: "fresh", baseId: "titan_earth", star: 99, row: 2, col: 4 };
+    const first = materializeCombatFormation([placement], [], { environment: "FIRE" })[0]!;
+    const second = materializeCombatFormation([placement], [], { environment: "FIRE" })[0]!;
+    const unit = getUnit(placement.baseId);
+
+    expect(first.star).toBe(3);
+    expect(first.rageMax).toBe(unit.skill.rageCost[2]);
+    expect(first.homeRow).toBe(2);
+    expect(first.homeCol).toBe(4);
+    expect(first.environment).toBe("FIRE");
+    expect(first.status).toEqual({});
+    expect(first.mods).toEqual([]);
+    expect(first.hp).toBe(first.maxHp);
+    expect(first.alive).toBe(true);
+    expect(first.status).not.toBe(second.status);
+    first.hp = 1;
+    first.status.stun = { turns: 1, value: 0 };
+    expect(second.hp).toBe(second.maxHp);
+    expect(second.status).toEqual({});
+  });
+
+  it("applies enemy difficulty, round scaling, then tutorial HP halving in A77 order", () => {
+    const unit = getUnit("titan_earth");
+    const fighter = materializeCombatFormation([], [{ uid: "enemy", baseId: unit.id, star: 1, row: 2, col: 5 }], {
+      scale: { R: { hp: 0.65, atk: 0.6, matk: 0.6, roundScale: 1.2, tutorialHpHalf: true } },
+    })[0]!;
+    const afterDifficulty = Math.max(1, Math.round(unit.stats.hp * 0.65));
+    const afterRound = Math.max(1, Math.round(afterDifficulty * 1.2));
+    expect(fighter.maxHp).toBe(Math.max(1, Math.round(afterRound * 0.5)));
+    expect(fighter.hp).toBe(fighter.maxHp);
+  });
+
+  it("applies final-formation synergy only to matching identity after variant traits", () => {
+    const tanker = NORMAL_UNITS.find((unit) => unit.role === "TANKER")!;
+    const mage = NORMAL_UNITS.find((unit) => unit.role === "MAGE")!;
+    const fighters = materializeCombatFormation([
+      { uid: "tank", baseId: tanker.id, star: 1, row: 0, col: 4, traits: [{ id: "tanker_thick_armor", seed: 1 }] },
+      { uid: "mage", baseId: mage.id, star: 1, row: 1, col: 4 },
+    ], [], {
+      synergy: { L: [{ kind: "class", key: "TANKER", count: 2, active: 2, next: 4, bonus: { hpPct: 8 } }] },
+    });
+    const tank = fighters.find((fighter) => fighter.uid === "tank")!;
+    const wizard = fighters.find((fighter) => fighter.uid === "mage")!;
+    const afterTrait = Math.max(1, Math.round(tanker.stats.hp * 1.04));
+    expect(tank.maxHp).toBe(Math.max(1, Math.round(afterTrait * 1.08)));
+    expect(wizard.maxHp).toBe(mage.stats.hp);
+  });
+
+  it("simulates the authoritative materialized formation without rematerializing it", () => {
+    const formation = materializeCombatFormation(
+      [{ uid: "left", baseId: "titan_earth", star: 2, row: 0, col: 4 }],
+      [{ uid: "right", baseId: "ram_charge", star: 1, row: 0, col: 5 }],
+      { bonus: { L: { hpPct: 12, startShield: 9 } }, environment: "STONE" },
+    );
+    const left = formation[0]!;
+    const initialMaxHp = left.maxHp;
+    const initialShield = left.shield;
+    const result = simulateMaterialized(formation, { seed: 99 });
+
+    expect(left.maxHp).toBe(initialMaxHp);
+    expect(initialShield).toBeGreaterThanOrEqual(9);
+    expect(result.survivors.every((fighter) => formation.includes(fighter))).toBe(true);
+    expect(formation.some((fighter) => !fighter.alive || fighter.hp < fighter.maxHp)).toBe(true);
   });
 
   it("refreshes a same-source timed stat buff without additive duplicate stacking", () => {

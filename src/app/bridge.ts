@@ -12,7 +12,8 @@ import { inspectSave, clearRunProgress, saveRun } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor } from "../core/environment";
-import { makeFighter, simulate, type CombatEvent, type Placement, type SideBonus } from "../core/combat";
+import { materializeCombatFormation, simulateMaterialized, type CombatEvent, type Placement } from "../core/combat";
+import { computeSynergies } from "../core/synergy";
 import { rollLoot } from "../core/loot";
 import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type PlanningHistoryState } from "../core/history";
 import { setLocale } from "../core/i18n";
@@ -90,19 +91,6 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     emit();
   };
 
-  const addBonus = (...parts: SideBonus[]): SideBonus => {
-    const out: SideBonus = {};
-    for (const part of parts) {
-      for (const [rawKey, rawValue] of Object.entries(part)) {
-        if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) continue;
-        const key = rawKey as keyof SideBonus;
-        out[key] = (out[key] ?? 0) + rawValue;
-      }
-    }
-    return out;
-  };
-  const synergyBonus = (s: RunState): SideBonus =>
-    addBonus(...runSynergies(s).map((line) => line.bonus));
   const boardPlacements = (s: RunState): Placement[] => s.board.flatMap((unit, index) => unit ? [{
     uid: unit.uid,
     baseId: unit.baseId,
@@ -214,21 +202,30 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       const combatSeed = (baseSeed ^ Math.imul(round, 0x45d9f3b)) | 0;
       const combatId = `solo:${round}:${combatSeed >>> 0}`;
       const environment = environmentFor(round);
-      const playerBonus = addBonus(playerCombatBonus(s), synergyBonus(s));
+      const playerBonus = playerCombatBonus(s);
       const ai = AI_PROFILE[s.aiMode];
       const configuredScale = preview.source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(round);
       const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
-      const enemyBonus: SideBonus = {
-        hpPct: (ai.hp * scale - 1) * 100,
-        atkPct: (ai.atk * scale - 1) * 100,
-        matkPct: (ai.matk * scale - 1) * 100,
-      };
 
       if (beginCombat(s) !== null) return null;
-      const roster: RosterEntry[] = [
-        ...left.map((placement) => makeFighter(placement, "L", playerBonus, environment)),
-        ...right.map((placement) => makeFighter(placement, "R", enemyBonus, environment)),
-      ].map((fighter) => ({
+      const formation = materializeCombatFormation(left, right, {
+        bonus: { L: playerBonus },
+        synergy: {
+          L: runSynergies(s),
+          R: computeSynergies(right.map((placement) => placement.baseId)),
+        },
+        scale: {
+          R: {
+            hp: ai.hp,
+            atk: ai.atk,
+            matk: ai.matk,
+            roundScale: scale,
+            tutorialHpHalf: s.aiMode === "TUTORIAL" && round >= 1 && round <= 8,
+          },
+        },
+        environment,
+      });
+      const roster: RosterEntry[] = formation.map((fighter) => ({
         uid: fighter.uid,
         baseId: fighter.baseId,
         star: fighter.star,
@@ -239,12 +236,10 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
         rageMax: fighter.rageMax,
         shield: fighter.shield,
       }));
-      const result = simulate(left, right, {
+      const result = simulateMaterialized(formation, {
         seed: combatSeed,
         gold: { L: s.gold },
-        bonus: { L: playerBonus, R: enemyBonus },
         rageGain: { R: ai.rageGain },
-        environment,
       });
       const survivors = new Set(result.survivors.filter((fighter) => fighter.side === "R").map((fighter) => fighter.uid));
       const lootRng = seededRng(combatSeed ^ 0x51ed270b);
