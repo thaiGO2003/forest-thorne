@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { activeIndices, craft, matchRecipe, type Recipe } from "../src/core/craft";
+import {
+  activeIndices, availableItemStacks, craft, matchRecipe, prepopulateRecipe, recipeSuggestions, type Recipe,
+} from "../src/core/craft";
 import { createRun, expandBench, research } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
 import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "../src/core/tech";
@@ -93,5 +95,40 @@ describe("craft A7", () => {
     expect(s.itemBag).toEqual(["claw", "eq_blue_buff"]);
     expect(s.craftHistory).toEqual(["blue_buff"]);
     expect(craft(s, g)).toBeNull();
+  });
+
+  it("A86 subtracts staged reservations from available bag counts", () => {
+    expect(availableItemStacks(
+      ["tear", "claw", "tear", "bark", "tear", "claw"],
+      ["tear", null, "claw", null, null, null, null, null, null],
+    )).toEqual([
+      { id: "tear", count: 2 },
+      { id: "bark", count: 1 },
+      { id: "claw", count: 1 },
+    ]);
+  });
+
+  it("A86 ranks craftable, tier, ratio, have-count and name deterministically", () => {
+    const recipes: Recipe[] = [
+      { id: "partial-high", name: "Zulu", tier: 5, size: 2, pattern: ["tear", "tear", "tear", "tear"] },
+      { id: "full-low", name: "Alpha", tier: 1, size: 1, pattern: ["claw"] },
+      { id: "full-high-b", name: "Beta", tier: 4, size: 1, pattern: ["tear"] },
+      { id: "full-high-a", name: "Alpha", tier: 4, size: 1, pattern: ["tear"] },
+      { id: "missing", name: "Missing", tier: 9, size: 1, pattern: ["crystal"] },
+    ];
+    expect(recipeSuggestions(["tear", "tear", "claw"], recipes).map((x) => x.recipe.id)).toEqual([
+      "full-high-a", "full-high-b", "full-low", "partial-high",
+    ]);
+    expect(recipeSuggestions(["tear", "tear", "claw"], recipes).find((x) => x.recipe.id === "partial-high"))
+      .toMatchObject({ haveCount: 2, totalRequiredCopies: 4, ratio: 0.5, craftable: false });
+  });
+
+  it("A86 pre-populates through active-slot staging and full-bag requirements", () => {
+    const one: Recipe = { id: "one", size: 1, pattern: ["tear"] };
+    expect(prepopulateRecipe(["tear"], one, 1)).toEqual([null, null, null, null, "tear", null, null, null, null]);
+    expect(prepopulateRecipe([], one, 1)).toBeNull();
+    expect(prepopulateRecipe(["claw", "claw"], two, 1)).toBeNull();
+    const staged = prepopulateRecipe(["claw", "claw"], two, 2)!;
+    expect(matchRecipe(staged, 2, [two])).toBe(two);
   });
 });
