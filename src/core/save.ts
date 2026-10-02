@@ -6,7 +6,7 @@ import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
 import { isGameMode, modeConfig } from "./modes";
 import { normalizeFortressState } from "./fortress";
 import { normalizeCreativeSandboxUnits } from "./creative";
-import { normalizeAiMode } from "./encounter";
+import { normalizeAiMode, type AiMode } from "./encounter";
 import { normalizeTutorialState, TUTORIAL_END_ROUND } from "./tutorial";
 import { normalizeEnemyPreview } from "./preview";
 import { BASE_MATERIALS } from "./craft";
@@ -17,7 +17,7 @@ import {
   type AchievementProfile, type CollectionProfile,
 } from "./achievements";
 import type { KV } from "./settings";
-import type { OwnedUnit, RunState } from "./run";
+import { createModeRun, type OwnedUnit, type Phase, type RunState } from "./run";
 
 export const PROGRESS_KEY = "forest_throne_progress_v1";
 export const COOP_KEY = "forest_throne_coop_save_slots_v1";
@@ -29,11 +29,21 @@ export const ENVELOPE_VERSION = 4;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
 
 /** Solo runs store `player`; multiplayer stores `players` keyed by slot. */
+export interface CoopSharedState {
+  round: number;
+  phase: Phase;
+  enemyPreview: RunState["enemyPreview"];
+  enemyPreviewRound: number;
+  enemyBudget: number;
+  [key: string]: unknown;
+}
 export interface RunPayload {
   player?: RunState;
   players?: Record<string, RunState>;
   localSlot?: string; hostSlot?: string; roomCode?: string; playerCapacity?: number;
   aiMode?: string; selectedMode?: string;
+  audioEnabled?: boolean;
+  shared?: CoopSharedState;
 }
 export interface Envelope {
   version: number; savedAt: number; payload: RunPayload;
@@ -49,6 +59,21 @@ const finiteNumber = (v: unknown, def = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
+const COOP_AI_MODES = ["COOP_EASY", "COOP_MEDIUM", "COOP_HARD", "COOP4_EASY", "COOP4_MEDIUM", "COOP4_HARD"] as const;
+const COOP_PLAYER_SLOTS = ["P1", "P2", "P3", "P4"] as const;
+type CoopPlayerSlot = (typeof COOP_PLAYER_SLOTS)[number];
+
+export function normalizeCoopAiMode(value: unknown): (typeof COOP_AI_MODES)[number] {
+  const normalized = normalizeAiMode(value, "COOP_MEDIUM");
+  return (COOP_AI_MODES as readonly AiMode[]).includes(normalized)
+    ? normalized as (typeof COOP_AI_MODES)[number]
+    : "COOP_MEDIUM";
+}
+
+const coopCapacity = (aiMode: unknown): 2 | 4 => normalizeCoopAiMode(aiMode).startsWith("COOP4_") ? 4 : 2;
+const coopSlots = (aiMode: unknown): CoopPlayerSlot[] => COOP_PLAYER_SLOTS.slice(0, coopCapacity(aiMode));
+const validSharedPhase = (value: unknown, fallback: Phase): Phase =>
+  value === "PLANNING" || value === "AUGMENT" || value === "COMBAT" || value === "GAME_OVER" ? value : fallback;
 
 export function createEnvelope(payload: RunPayload, extra: Partial<Envelope> = {}): Envelope {
   return {
@@ -202,6 +227,91 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   return p;
 }
 
+/** A103/A114: co-op owns shared round/phase/preview while each legal slot keeps its own player state. */
+export function normalizeCoopRunPayload(payload: RunPayload, log: string[] = []): RunPayload {
+  const aiMode = normalizeCoopAiMode(payload.aiMode);
+  const selectedMode = isGameMode(payload.selectedMode) ? payload.selectedMode : "EndlessPvEClassic";
+  const slots = coopSlots(aiMode);
+  const capacity = slots.length as 2 | 4;
+  const rawPlayers = isObj(payload.players) ? payload.players : {};
+  const legalLocal = typeof payload.localSlot === "string" && slots.includes(payload.localSlot as CoopPlayerSlot)
+    ? payload.localSlot as CoopPlayerSlot
+    : slots[0]!;
+  const legalHost = typeof payload.hostSlot === "string" && slots.includes(payload.hostSlot as CoopPlayerSlot)
+    ? payload.hostSlot as CoopPlayerSlot
+    : slots[0]!;
+  const seedBase = Object.values(rawPlayers).find((value) => isObj(value) && Number.isFinite(Number(value.rngSeed)));
+  const baseSeed = isObj(seedBase) ? Number(seedBase.rngSeed) | 0 : 1;
+  const players: Record<string, RunState> = {};
+  slots.forEach((slot, index) => {
+    const rawPlayer = rawPlayers[slot];
+    const player = isObj(rawPlayer)
+      ? rawPlayer as unknown as RunState
+      : createModeRun((baseSeed + index) | 0, selectedMode);
+    players[slot] = sanitizePlayer(player, log);
+  });
+
+  const local = players[legalLocal]!;
+  const rawShared: Record<string, unknown> = isObj(payload.shared) ? structuredClone(payload.shared) : {};
+  const sharedRound = clampInt(rawShared.round, 1, Number.MAX_SAFE_INTEGER, local.round);
+  const sharedPhase = validSharedPhase(rawShared.phase, local.phase);
+  const sharedPreview = normalizeEnemyPreview(rawShared.enemyPreview ?? local.enemyPreview);
+  const sharedPreviewRound = clampInt(rawShared.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, local.enemyPreviewRound);
+  const sharedEnemyBudget = clampInt(rawShared.enemyBudget, 0, Number.MAX_SAFE_INTEGER, local.enemyBudget);
+  const shared: CoopSharedState = {
+    ...rawShared,
+    round: sharedRound,
+    phase: sharedPhase,
+    enemyPreview: sharedPreview,
+    enemyPreviewRound: sharedPreviewRound,
+    enemyBudget: sharedEnemyBudget,
+  };
+  for (const player of Object.values(players)) {
+    player.round = sharedRound;
+    player.phase = sharedPhase;
+    player.enemyPreview = structuredClone(sharedPreview);
+    player.enemyPreviewRound = sharedPreviewRound;
+    player.enemyBudget = sharedEnemyBudget;
+  }
+
+  delete payload.player;
+  payload.players = players;
+  payload.localSlot = legalLocal;
+  payload.hostSlot = legalHost;
+  payload.roomCode = typeof payload.roomCode === "string" ? payload.roomCode : "";
+  payload.playerCapacity = capacity;
+  payload.aiMode = aiMode;
+  payload.selectedMode = selectedMode;
+  payload.audioEnabled = typeof payload.audioEnabled === "boolean" ? payload.audioEnabled : true;
+  payload.shared = shared;
+  return payload;
+}
+
+/** Fresh co-op payload with one independent default player state per legal slot. */
+export function createCoopRunPayload(
+  seed = 1,
+  aiMode: unknown = "COOP_MEDIUM",
+  selectedMode: unknown = "EndlessPvEClassic",
+): RunPayload {
+  const normalizedAi = normalizeCoopAiMode(aiMode);
+  const mode = isGameMode(selectedMode) ? selectedMode : "EndlessPvEClassic";
+  const players = Object.fromEntries(coopSlots(normalizedAi).map((slot, index) => [
+    slot,
+    createModeRun((seed + index) | 0, mode),
+  ])) as Record<string, RunState>;
+  return normalizeCoopRunPayload({
+    players,
+    localSlot: "P1",
+    hostSlot: "P1",
+    roomCode: "",
+    playerCapacity: coopCapacity(normalizedAi),
+    aiMode: normalizedAi,
+    selectedMode: mode,
+    audioEnabled: true,
+    shared: { round: 1, phase: "PLANNING", enemyPreview: [], enemyPreviewRound: 0, enemyBudget: 0 },
+  });
+}
+
 const playersOf = (pl: RunPayload): RunState[] =>
   [pl.player, ...Object.values(pl.players ?? {})].filter((p): p is RunState => isObj(p));
 
@@ -213,7 +323,7 @@ export function migrate(raw: unknown): MigrateResult | null {
     if (!isObj(raw) || !isObj(raw.payload)) return null;
     const payload = structuredClone(raw.payload) as RunPayload;
     const hasPlayer = isObj(payload.player);
-    const hasPlayers = isObj(payload.players) && Object.values(payload.players).every(isObj) && Object.keys(payload.players).length > 0;
+    const hasPlayers = isObj(payload.players) && Object.keys(payload.players).length > 0;
     if (!hasPlayer && !hasPlayers) return null;
     const from = typeof raw.version === "number" ? raw.version : 1;
     const log: string[] = [];
@@ -221,7 +331,8 @@ export function migrate(raw: unknown): MigrateResult | null {
     // v3→v4: archived ids kept when present in the live catalog — handled by sanitizeUnit below.
     if (from < 2) for (const p of playersOf(payload)) p.level = clampInt(p.level, 1, 25, 1);
     const before = JSON.stringify(payload);
-    for (const p of playersOf(payload)) sanitizePlayer(p, log);
+    if (hasPlayers) normalizeCoopRunPayload(payload, log);
+    else if (payload.player) sanitizePlayer(payload.player, log);
     const changed = from < ENVELOPE_VERSION || JSON.stringify(payload) !== before;
     const envelope = createEnvelope(payload, {
       version: Math.max(from, ENVELOPE_VERSION),
@@ -402,9 +513,6 @@ export interface CoopSummary {
 }
 interface CoopStore { version: number; slots: Partial<Record<CoopSlot, CoopEntry>> }
 
-/** Co-op AI mode → player capacity. ponytail: COOP4_* = 4 seats, every other co-op mode = 2. */
-const coopCapacity = (aiMode: string) => (aiMode.startsWith("COOP4_") ? 4 : 2);
-
 function normEntry(slotId: CoopSlot, v: unknown): CoopEntry | null {
   if (!isObj(v)) return null;
   const m = migrate(v.envelope);
@@ -423,12 +531,12 @@ export function readCoopStore(store: KV): Partial<Record<CoopSlot, CoopEntry>> {
 
 export function coopSummary(e: CoopEntry): CoopSummary {
   const p = e.envelope.payload;
-  const aiMode = p.aiMode ?? "COOP_MEDIUM";
+  const aiMode = normalizeCoopAiMode(p.aiMode);
   const localSlot = p.localSlot ?? Object.keys(p.players ?? {})[0] ?? "P1";
   const local = p.players?.[localSlot];
   return {
     slotId: e.slotId, savedAt: e.savedAt,
-    round: Math.max(1, Math.round(Number(local?.round) || 1)),
+    round: Math.max(1, Math.round(Number(p.shared?.round ?? local?.round) || 1)),
     hearts: Math.max(0, Math.floor(Number(local?.hp) || 0)),
     aiMode, selectedMode: p.selectedMode ?? "EndlessPvEClassic",
     playerCapacity: coopCapacity(aiMode), localSlot,
@@ -438,7 +546,8 @@ export function coopSummary(e: CoopEntry): CoopSummary {
 export function saveCoopSlot(store: KV, slotId: CoopSlot, payload: RunPayload): CoopEntry {
   if (!isObj(payload.players) || !Object.keys(payload.players).length) throw new Error("co-op save requires players state");
   const slots = readCoopStore(store);
-  const entry: CoopEntry = { slotId, savedAt: Date.now(), envelope: createEnvelope(structuredClone(payload)) };
+  const normalized = normalizeCoopRunPayload(structuredClone(payload));
+  const entry: CoopEntry = { slotId, savedAt: Date.now(), envelope: createEnvelope(normalized) };
   slots[slotId] = entry;
   const doc: CoopStore = { version: COOP_STORE_VERSION, slots };
   store.setItem(COOP_KEY, JSON.stringify(doc));
@@ -457,15 +566,15 @@ export function selectCoopSlot(store: KV, id: CoopSelectId): CoopSelection {
 
 /** Host remap: when the desired local slot differs, swap player payloads so local state follows the host. */
 export function remapCoopHost(payload: RunPayload, desiredLocal: string, roomCode?: string): RunPayload {
-  const p = structuredClone(payload);
+  const p = normalizeCoopRunPayload(structuredClone(payload));
   const players = p.players ?? {};
   const slots = Object.keys(players);
   const target = slots.includes(desiredLocal) ? desiredLocal : (p.localSlot ?? slots[0]!);
   const from = p.localSlot ?? slots[0]!;
-  if (slots.length === 2 && target !== from) [players[from], players[target]] = [players[target]!, players[from]!];
+  if (target !== from) [players[from], players[target]] = [players[target]!, players[from]!];
   p.localSlot = target;
   p.hostSlot = target;
   if (roomCode) p.roomCode = roomCode;
-  p.playerCapacity = coopCapacity(p.aiMode ?? "COOP_MEDIUM");
+  p.playerCapacity = coopCapacity(p.aiMode);
   return p;
 }

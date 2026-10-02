@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createRun } from "../src/core/run";
 import {
   ACHIEVEMENTS_KEY, clearAchievementProfile, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY,
-  COOP_KEY, createEnvelope, downloadProgress, EXPORT_FILENAME, importProgress, importProgressBlob, inspectSave,
+  COOP_KEY, createCoopRunPayload, createEnvelope, downloadProgress, EXPORT_FILENAME, importProgress, importProgressBlob, inspectSave,
   loadAchievementProfile, loadCollectionProfile, loadProgress, migrate, PROGRESS_KEY, remapCoopHost,
-  saveAchievementProfile, saveCollectionProfile, saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
+  normalizeCoopRunPayload, saveAchievementProfile, saveCollectionProfile, saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import {
   BATTERY_SAVER_KEY, createSettingsStore, GRAPHICS_QUALITY_KEY, loadGraphicsPreferences, loadSettings,
@@ -239,6 +239,63 @@ describe("persistence A57", () => {
     const sel = selectCoopSlot(s, "SAVE_1");
     expect(sel.mode === "resume" && sel.summary).toMatchObject({ round: 1, hearts: 3, playerCapacity: 2, localSlot: "P1" });
     expect(selectCoopSlot(s, "SAVE_3").mode).toBe("new");
+  });
+
+  it("creates canonical 2P/4P co-op payloads with shared state and independent player states", () => {
+    const two = createCoopRunPayload(30);
+    expect(two).toMatchObject({
+      aiMode: "COOP_MEDIUM", audioEnabled: true, roomCode: "", localSlot: "P1", hostSlot: "P1", playerCapacity: 2,
+      shared: { round: 1, phase: "PLANNING", enemyPreview: [], enemyPreviewRound: 0, enemyBudget: 0 },
+    });
+    expect(Object.keys(two.players!)).toEqual(["P1", "P2"]);
+    expect(two.players!.P1).not.toBe(two.players!.P2);
+    expect([two.players!.P1!.gold, two.players!.P2!.gold]).toEqual([10, 10]);
+
+    const four = createCoopRunPayload(40, "COOP4_HARD");
+    expect(four.playerCapacity).toBe(4);
+    expect(four.aiMode).toBe("COOP4_HARD");
+    expect(Object.keys(four.players!)).toEqual(["P1", "P2", "P3", "P4"]);
+  });
+
+  it("normalizes co-op legal slots/capacity and makes shared round/phase/preview authoritative", () => {
+    const p1 = createRun(51);
+    p1.gold = 77;
+    p1.round = 3;
+    const out = normalizeCoopRunPayload({
+      players: { P1: p1, P3: createRun(53) },
+      localSlot: "P9", hostSlot: "P3", playerCapacity: 99,
+      aiMode: "COOP_MEDIUM", selectedMode: "EndlessPvEClassic",
+      shared: {
+        round: 9,
+        phase: "COMBAT",
+        enemyPreview: [{ uid: "e1", baseId: "ant_guard", star: 1, row: 2, col: 7 }],
+        enemyPreviewRound: 9,
+        enemyBudget: 42,
+        weatherSeed: 123,
+      },
+    });
+    expect(out.playerCapacity).toBe(2);
+    expect([out.localSlot, out.hostSlot]).toEqual(["P1", "P1"]);
+    expect(Object.keys(out.players!)).toEqual(["P1", "P2"]);
+    expect(out.players!.P1!.gold).toBe(77);
+    expect(out.players!.P2!.gold).toBe(10);
+    expect(out.shared).toMatchObject({ round: 9, phase: "COMBAT", enemyPreviewRound: 9, enemyBudget: 42, weatherSeed: 123 });
+    for (const player of Object.values(out.players!)) {
+      expect(player).toMatchObject({ round: 9, phase: "COMBAT", enemyPreviewRound: 9, enemyBudget: 42 });
+      expect(player.enemyPreview).toEqual(out.shared!.enemyPreview);
+    }
+  });
+
+  it("co-op save normalizes stale difficulty metadata before persistence", () => {
+    const s = mem();
+    saveCoopSlot(s, "SAVE_2", {
+      players: { P1: createRun(61), P2: createRun(62), P3: createRun(63) },
+      localSlot: "P3", hostSlot: "P3", playerCapacity: 4, aiMode: "HARD",
+    });
+    const selected = selectCoopSlot(s, "SAVE_2");
+    if (selected.mode !== "resume") throw new Error("expected resume");
+    expect(selected.payload).toMatchObject({ aiMode: "COOP_MEDIUM", playerCapacity: 2, localSlot: "P1", hostSlot: "P1" });
+    expect(Object.keys(selected.payload.players!)).toEqual(["P1", "P2"]);
   });
 
   it("two-player host swap keeps player-owned board/bench under the new local slot", () => {
