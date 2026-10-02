@@ -14,6 +14,7 @@
     "shot": "node scripts/shot.mjs"
   },
   "dependencies": {
+    "icodec": "^0.6.0",
     "three": "0.186.1"
   },
   "devDependencies": {

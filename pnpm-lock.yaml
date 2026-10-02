@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      icodec:
+        specifier: ^0.6.0
+        version: 0.6.0
       three:
         specifier: 0.186.1
         version: 0.186.1
@@ -432,6 +435,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  icodec@0.6.0:
+    resolution: {integrity: sha512-m9ptjNaqBTmnTOc7CkNgTXFrAY6QBjiyri6Ba66AGfGN1+OWPBej8cKgeZ+LwKH53zwDu36zukX2PaO8NTUMbw==}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -874,6 +880,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  icodec@0.6.0: {}
 
   magic-string@0.30.21:
     dependencies:
