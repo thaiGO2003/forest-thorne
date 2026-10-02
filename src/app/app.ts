@@ -16,8 +16,15 @@ export interface App {
   stage: Stage; modals: ModalHost; tooltip: Tooltip; bridge: Bridge;
   route(): Route;
   go(r: Route): void;
+  /** Open a registered panel (planning action, unit detail…); unknown ids are ignored. */
+  openPanel(id: string, arg?: string): void;
   layers: { screen: HTMLElement; hud: HTMLElement; modal: HTMLElement; tooltip: HTMLElement };
 }
+
+/** Panels: modal surfaces opened by id from any screen (Library, Tech, History, unit detail…). */
+export type PanelOpener = (app: App, arg?: string) => void;
+const panels: Partial<Record<string, PanelOpener>> = {};
+export function registerPanel(id: string, open: PanelOpener) { panels[id] = open; }
 
 /** Hook for screens that live in other modules (planning/library) to register without cycles. */
 export type ScreenFactory = (app: App) => { dispose(): void };
@@ -45,6 +52,7 @@ export async function boot(root: HTMLElement): Promise<App> {
   const app: App = {
     stage, modals, tooltip, bridge, layers,
     route: () => current,
+    openPanel(id, arg) { panels[id]?.(app, arg); },
     go(r) {
       active?.dispose();
       active = null;
@@ -63,7 +71,7 @@ export async function boot(root: HTMLElement): Promise<App> {
       continueRun: () => { if (bridge.continueRun()) app.go("planning"); },
       newRun: (mode, ai) => { bridge.newRun(mode, ai); app.go("planning"); },
       clearBrokenRun: () => { bridge.clearBrokenRun(); menu.update({ save: bridge.saveSummary(), version: __APP_VERSION__ }); },
-      openUtility: (id) => utilities[id]?.(app),
+      openUtility: (id) => (utilities[id] ? utilities[id](app) : app.openPanel(id)),
     }, { save: bridge.saveSummary(), version: __APP_VERSION__ });
     const off = onLocaleChange(() => menu.refreshCopy());
     return { dispose() { off(); menu.dispose(); } };

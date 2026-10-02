@@ -81,3 +81,52 @@
 .field { display: grid; grid-template-columns: minmax(110px, 40%) 1fr; gap: 8px; align-items: center; min-height: 44px; }
 .field input[type="range"] { width: 100%; min-height: 32px; }
 .slot { position: relative; padding: 8px 10px; }
+
+/* ---------- unit card ---------- */
+.unit-card { position: relative; width: 100%; aspect-ratio: 5 / 7; }
+.unit-card-art { position: absolute; inset: 0; }
+
+/* ---------- planning HUD ---------- */
+.planning { position: absolute; inset: 0; pointer-events: none; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+.planning > * { position: absolute; pointer-events: auto; }
+.pl-stats { top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 16px)); height: 52px; }
+.pl-battle { top: calc(max(8px, env(safe-area-inset-top)) + 58px); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 8px 10px; }
+.pl-battle .kit-btn { width: 84px; height: 44px; }
+.pl-battle .pl-start { width: 140px; height: 52px; }
+.pl-battle .pl-lock { width: 44px; height: 44px; }
+.pl-actions { right: max(8px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; padding: 10px 8px; }
+.pl-actions .kit-btn { width: 48px; height: 48px; }
+.pl-synergy { left: max(8px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 58px); width: 168px; height: min(320px, calc(100% - 420px)); min-height: 80px; pointer-events: auto; }
+.pl-joystick { left: max(14px, env(safe-area-inset-left)); bottom: calc(max(8px, env(safe-area-inset-bottom)) + 286px); width: 116px; height: 116px; touch-action: none; }
+.pl-shop { left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(820px, calc(100% - 16px)); display: flex; flex-direction: column; padding: 8px 12px 12px; }
+.pl-shop-head { position: relative; display: flex; justify-content: flex-end; gap: 6px; height: 34px; margin-bottom: 4px; }
+.pl-shop-head .pl-page { width: 40px; height: 32px; min-height: 32px; }
+.pl-shop-head .pl-cortisol { width: 40px; height: 32px; min-height: 32px; }
+.pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.pl-offer { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pl-offer[hidden] { display: none; }
+.pl-offer-card { aspect-ratio: 5 / 6; }
+.pl-offer-actions { display: flex; gap: 4px; }
+.pl-offer-actions .kit-btn:first-child { flex: 1 1 auto; height: 36px; min-width: 0; }
+.pl-offer-actions .kit-btn:last-child { width: 36px; min-width: 36px; height: 36px; }
+@media (max-width: 760px) {
+  /* Portrait: stats → battle → (synergy left | actions right) → joystick → shop dock. */
+  .pl-battle { padding: 6px 8px; gap: 6px; }
+  .pl-battle .kit-btn { width: 64px; height: 42px; }
+  .pl-battle .pl-start { width: 110px; height: 48px; }
+  .pl-synergy { top: calc(max(8px, env(safe-area-inset-top)) + 124px); width: 132px; height: 150px; }
+  .pl-actions { top: calc(max(8px, env(safe-area-inset-top)) + 124px); transform: none; flex-direction: column; padding: 6px; gap: 4px; }
+  .pl-actions .kit-btn { width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+  .pl-shop { padding: 6px 8px 8px; }
+  .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .pl-offer-card { aspect-ratio: 5 / 6.4; }
+  .pl-offer-actions .kit-btn:first-child, .pl-offer-actions .kit-btn:last-child { height: 34px; min-height: 34px; }
+  .pl-offer-actions .kit-btn:last-child { width: 30px; min-width: 30px; }
+  .pl-joystick { bottom: auto; top: calc(max(8px, env(safe-area-inset-top)) + 290px); width: 104px; height: 104px; }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  .pl-shop-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .pl-offer-card { aspect-ratio: 5 / 4; }
+  .pl-synergy { height: calc(100% - 330px); }
+  .pl-joystick { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 190px); width: 96px; height: 96px; }
+}

@@ -1,7 +1,43 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
-import { LOCALES, t, getLocale } from "../core/i18n";
+import { LOCALES, t, getLocale, onLocaleChange } from "../core/i18n";
+import { boardCount } from "../core/run";
 import { h, kitButton } from "../ui/kit";
-import { applyLocale, registerUtility } from "./app";
+import { createPlanningHud } from "../ui/planning";
+import type { PortraitProvider } from "../ui/card";
+import { applyLocale, registerScreen, registerUtility } from "./app";
+import { runView } from "./bridge";
+
+/** Replaced by the 3D portrait renderer once unit rigs are mounted (src/units/portraits.ts). */
+let portraits: PortraitProvider = { get: () => null, onReady: () => () => {} };
+export function setPortraitProvider(p: PortraitProvider) { portraits = p; }
+
+registerScreen("planning", (app) => {
+  const { bridge, stage } = app;
+  const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
+    buy: (slot) => bridge.buy(slot),
+    details: (id) => app.openPanel("unit-detail", id),
+    reroll: () => bridge.reroll(),
+    buyXp: () => bridge.buyXp(),
+    toggleLock: () => bridge.toggleLock(),
+    start: () => bridge.startCombat(),
+    action: (id) => app.openPanel(id),
+    // LOGIC: A39 cortisol dance timer/state; visual hook only.
+    cortisol: () => {},
+    pan: (x, y) => stage.setPan(x, y),
+  });
+  const sync = () => {
+    const run = bridge.run();
+    if (!run) return;
+    hud.update({
+      run, synergies: runView.synergies(run), benchCap: runView.benchCap(run),
+      deployLimit: runView.deployLimit(run), deployed: boardCount(run),
+      locked: app.modals.blocking() || run.phase !== "PLANNING",
+    });
+  };
+  const offs = [bridge.onChange(sync), app.modals.onChange(sync), onLocaleChange(() => hud.refreshCopy())];
+  sync();
+  return { dispose() { for (const o of offs) o(); hud.dispose(); } };
+});
 
 // Language: one control opens the list; selecting refreshes copy immediately (A98).
 registerUtility("language", (app) => {

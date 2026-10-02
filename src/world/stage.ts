@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Profile } from "../board/geometry";
 import { createArena, type Arena, type LightPhase } from "./arena";
-import { FAR, FOV, framingDistance, MAX_POLAR, maxDistance, MIN_DISTANCE, NEAR, smoothstep } from "./camera";
+import { FAR, FOV, framingDistance, MAX_POLAR, maxDistance, MIN_DISTANCE, NEAR, panStep, smoothstep } from "./camera";
 
 export interface Stage {
   scene: THREE.Scene;
@@ -11,10 +11,17 @@ export interface Stage {
   arena: Arena;
   setProfile(p: Profile): void;
   setPhase(phase: LightPhase): void;
+  /** Joystick/gamepad pan vector in [-1,1]² (A91.1); keyboard WASD/arrows add to it. */
+  setPan(x: number, y: number): void;
+  renderer: THREE.WebGLRenderer;
   dispose(): void;
 }
 
 const REFRAME_S = 0.5;
+const PAN_KEYS: Record<string, [number, number]> = {
+  KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
+  KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
+};
 /** Tactical view direction: behind the allied side, looking across the board. */
 const VIEW_DIR = new THREE.Vector3(0, 0.82, 0.57).normalize();
 
@@ -58,9 +65,33 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   resize();
   frame(true);
 
+  // Camera pan: joystick vector + held keys; camera and target move by the same displacement.
+  const stick = { x: 0, y: 0 };
+  const held = new Set<string>();
+  const editable = (t: EventTarget | null) =>
+    t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName));
+  const keyDown = (e: KeyboardEvent) => { if (e.code in PAN_KEYS && !editable(e.target)) held.add(e.code); };
+  const keyUp = (e: KeyboardEvent) => held.delete(e.code);
+  const blur = () => held.clear();
+  addEventListener("keydown", keyDown);
+  addEventListener("keyup", keyUp);
+  addEventListener("blur", blur);
+  const panOffset = new THREE.Vector3(), fwd = new THREE.Vector3();
+
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     const dt = Math.max(0, clock.getDelta());
+    let px = stick.x, py = stick.y;
+    for (const k of held) { px += PAN_KEYS[k]![0]; py += PAN_KEYS[k]![1]; }
+    if (px || py) {
+      // Screen-relative input → world axes via camera yaw; panStep owns deadzone/dt cap/clamp.
+      fwd.subVectors(controls.target, camera.position).setY(0).normalize();
+      const wx = -fwd.z * px - fwd.x * py, wz = fwd.x * px - fwd.z * py;
+      const next = panStep(controls.target.x, controls.target.z, wx, wz, dt);
+      panOffset.set(next.x - controls.target.x, 0, next.z - controls.target.z);
+      controls.target.add(panOffset);
+      camera.position.add(panOffset);
+    }
     if (reframe) {
       reframe.t = Math.min(1, reframe.t + dt / REFRAME_S);
       const d = reframe.from + (reframe.to - reframe.from) * smoothstep(reframe.t);
@@ -76,6 +107,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   return {
     scene,
     camera,
+    renderer,
     get arena() { return arena; },
     setProfile(p) {
       if (p === current) return;
@@ -86,8 +118,12 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       frame(false);
     },
     setPhase: (phase) => arena.setPhase(phase),
+    setPan(x, y) { stick.x = x; stick.y = y; },
     dispose() {
       renderer.setAnimationLoop(null);
+      removeEventListener("keydown", keyDown);
+      removeEventListener("keyup", keyUp);
+      removeEventListener("blur", blur);
       ro.disconnect();
       controls.dispose();
       arena.dispose();
