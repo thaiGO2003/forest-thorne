@@ -3,14 +3,22 @@ import { LOCALES, t, getLocale, onLocaleChange } from "../core/i18n";
 import { boardCount } from "../core/run";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
-import type { PortraitProvider } from "../ui/card";
-import { applyLocale, registerScreen, registerUtility } from "./app";
+import { mountLibrary } from "../ui/library";
+import { applyLocale, registerPanel, registerScreen, registerUtility, type App } from "./app";
 import { runView } from "./bridge";
 import { createBoardView } from "../units/boardView";
+import { createPortraits } from "../units/portraits";
 
-/** Replaced by the 3D portrait renderer once unit rigs are mounted (src/units/portraits.ts). */
-let portraits: PortraitProvider = { get: () => null, onReady: () => () => {} };
-export function setPortraitProvider(p: PortraitProvider) { portraits = p; }
+/** One shared portrait renderer: card snapshots + live Library viewer use the real unit rigs. */
+const portraits = createPortraits();
+
+const openLibrary = (app: App, id?: string) => {
+  const m = app.modals.open({ id: "library", title: t("menu.library"), size: "full", closeLabel: t("ui.close") });
+  const lib = mountLibrary(m, portraits, app.tooltip, id);
+  const off = app.modals.onChange((active) => { if (active !== "library") { off(); lib.dispose(); } });
+};
+registerPanel("library", (app) => openLibrary(app));
+registerPanel("unit-detail", (app, id) => openLibrary(app, id));
 
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
