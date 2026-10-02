@@ -109,7 +109,14 @@ export function techModifiers(levels: Record<string, number>): Effect {
   for (const [id, lvl] of Object.entries(levels)) {
     const t = TECH_BY_ID.get(id);
     if (!t) continue;
-    for (let i = 0; i < lvl; i++) {
+    const count = Math.max(0, Math.floor(Number(lvl) || 0));
+    if (t.infinite && t.effects.length === 1 && count > 0) {
+      for (const [k, v] of Object.entries(t.effects[0]!)) {
+        out[k as TechStat] = (out[k as TechStat] ?? 0) + v * count;
+      }
+      continue;
+    }
+    for (let i = 0; i < Math.min(count, maxLevel(t)); i++) {
       for (const [k, v] of Object.entries(t.effects[Math.min(i, t.effects.length - 1)]!)) {
         out[k as TechStat] = (out[k as TechStat] ?? 0) + v;
       }

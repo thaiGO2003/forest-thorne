@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeIndices, craft, matchRecipe, type Recipe } from "../src/core/craft";
 import { createRun, research } from "../src/core/run";
+import { skipTutorial } from "../src/core/tutorial";
 import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "../src/core/tech";
 
 describe("tech A8", () => {
@@ -20,6 +21,7 @@ describe("tech A8", () => {
   });
   it("research on run is atomic and raises craft table", () => {
     const s = createRun(1);
+    skipTutorial(s);
     s.gold = 4;
     expect(research(s, "craft_t")).toBe(false);
     expect(s.gold).toBe(4);

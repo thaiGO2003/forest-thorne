@@ -1,6 +1,21 @@
 // Persistence (A37, A57): versioned envelope, ordered migration, Continue inspection,
 // import/export, three distinct clear scopes, Co-op slot store.
-import { UNIT_BY_ID } from "../content/catalog";
+import { getUnit, UNIT_BY_ID } from "../content/catalog";
+import { getEquipment, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
+import { isGameMode, modeConfig } from "./modes";
+import { normalizeFortressState } from "./fortress";
+import { normalizeCreativeSandboxUnits } from "./creative";
+import { normalizeAiMode } from "./encounter";
+import { normalizeTutorialState, TUTORIAL_END_ROUND } from "./tutorial";
+import { normalizeEnemyPreview } from "./preview";
+import { BASE_MATERIALS } from "./craft";
+import { AUGMENT_BY_ID } from "./augments";
+import { TECH_BY_ID, maxLevel } from "./tech";
+import {
+  normalizeAchievementProfile, normalizeCollectionProfile,
+  type AchievementProfile, type CollectionProfile,
+} from "./achievements";
 import type { KV } from "./settings";
 import type { OwnedUnit, RunState } from "./run";
 
@@ -20,15 +35,17 @@ export interface RunPayload {
 }
 export interface Envelope {
   version: number; savedAt: number; payload: RunPayload;
-  achievementsProfile: Record<string, unknown>; collectionProfile: Record<string, unknown>;
+  achievementsProfile: AchievementProfile; collectionProfile: CollectionProfile;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-// ponytail: profiles are opaque objects until the achievement/collection owners define their schemas.
-const normProfile = (v: unknown) => (isObj(v) ? v : {});
 const clampInt = (v: unknown, lo: number, hi: number, def: number) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
+};
+const finiteNumber = (v: unknown, def = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
 };
 
 export function createEnvelope(payload: RunPayload, extra: Partial<Envelope> = {}): Envelope {
@@ -36,8 +53,8 @@ export function createEnvelope(payload: RunPayload, extra: Partial<Envelope> = {
     version: extra.version ?? ENVELOPE_VERSION,
     savedAt: extra.savedAt ?? Date.now(),
     payload,
-    achievementsProfile: normProfile(extra.achievementsProfile),
-    collectionProfile: normProfile(extra.collectionProfile),
+    achievementsProfile: normalizeAchievementProfile(extra.achievementsProfile),
+    collectionProfile: normalizeCollectionProfile(extra.collectionProfile),
   };
 }
 
@@ -49,20 +66,137 @@ function sanitizeUnit(u: unknown, log: string[]): OwnedUnit | null {
   const id = UNIT_BY_ID.has(u.baseId) ? u.baseId : UNIT_REPLACEMENTS[u.baseId];
   if (!id || !UNIT_BY_ID.has(id)) { log.push(`drop unknown unit ${u.baseId}`); return null; }
   if (id !== u.baseId) log.push(`replace ${u.baseId} → ${id}`);
+  const def = getUnit(id);
+  const star = clampInt(u.star, 1, 3, 1) as 1 | 2 | 3;
+  const rawEquips = Array.isArray(u.equips) ? u.equips.filter((e): e is string => typeof e === "string") : [];
+  const equipment = normalizeEquipment(rawEquips, star, slotCapForUnit(def, star));
+  if (equipment.rejected.length) log.push(`normalize equipment ${u.uid}: dropped ${equipment.rejected.length}`);
+  const rawTraits: VariantTraitRef[] = Array.isArray(u.traits)
+    ? u.traits.flatMap((v) => isObj(v) && typeof v.id === "string" ? [{ id: v.id, seed: Number(v.seed) }] : [])
+    : [];
+  const traits = normalizeVariantTraits(def.role, rawTraits);
+  if (traits.length !== rawTraits.length) log.push(`normalize traits ${u.uid}: dropped ${rawTraits.length - traits.length}`);
   return {
     uid: u.uid, baseId: id, star: clampInt(u.star, 1, 3, 1) as 1 | 2 | 3,
-    equips: Array.isArray(u.equips) ? u.equips.filter((e): e is string => typeof e === "string") : [],
+    equips: equipment.kept, traits,
   };
 }
 
 /** Clamp numeric ranges without truncating legal progression (A37). Mutates and returns p. */
 function sanitizePlayer(p: RunState, log: string[]): RunState {
+  const legacy = p as RunState & { deployBonus?: unknown };
+  p.phase = p.phase === "AUGMENT" || p.phase === "COMBAT" || p.phase === "GAME_OVER" ? p.phase : "PLANNING";
+  p.mode = isGameMode(p.mode) ? p.mode : "EndlessPvEClassic";
+  const cfg = modeConfig(p.mode);
+  const normalizedAi = normalizeAiMode(p.aiMode, cfg.ai.def);
+  p.aiMode = cfg.ai.allowed.includes(normalizedAi) ? normalizedAi : cfg.ai.def;
+  p.lossCondition = cfg.lossCondition;
+  p.round = clampInt(p.round, 1, 999999, 1);
+  p.tutorialSkipped = p.tutorialSkipped === true;
+  p.tutorial = normalizeTutorialState(p.tutorial, p.round);
+  if (p.tutorial.completed || p.tutorialSkipped || p.round > TUTORIAL_END_ROUND) {
+    if (p.round > TUTORIAL_END_ROUND && !p.tutorialSkipped) p.tutorial.completed = true;
+    if (p.aiMode === "TUTORIAL" && cfg.ai.allowed.includes("EASY")) p.aiMode = "EASY";
+  }
   p.level = clampInt(p.level, 1, 25, 1);
+  p.xp = clampInt(p.xp, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.gold = clampInt(p.gold, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.hp = clampInt(p.hp, 0, Number.MAX_SAFE_INTEGER, cfg.startHp);
+  p.shopLocked = p.shopLocked === true;
   p.benchUpgradeLevel = clampInt(p.benchUpgradeLevel, 0, 4, 0);
   p.craftTableLevel = clampInt(p.craftTableLevel, 0, 3, 0);
+  p.inventoryUpgradeLevel = clampInt(p.inventoryUpgradeLevel, 0, 999, 0);
+  p.speedLevel = clampInt(p.speedLevel, 0, 10, 0);
+  p.unequipDiscount = clampInt(p.unequipDiscount, 0, Number.MAX_SAFE_INTEGER, 0);
+  const rawTech = isObj(p.techLevels) ? p.techLevels : {};
+  const techLevels: Record<string, number> = {};
+  for (const [id, value] of Object.entries(rawTech)) {
+    const node = TECH_BY_ID.get(id);
+    if (!node) continue;
+    const max = maxLevel(node);
+    const level = clampInt(value, 0, Number.isFinite(max) ? max : Number.MAX_SAFE_INTEGER, 0);
+    if (level > 0) techLevels[id] = level;
+  }
+  p.techLevels = techLevels;
+  p.craftHistory = Array.isArray(p.craftHistory)
+    ? p.craftHistory.filter((id): id is string => typeof id === "string") : [];
+  p.augments = Array.isArray(p.augments)
+    ? [...new Set(p.augments.filter((id): id is string => typeof id === "string" && AUGMENT_BY_ID.has(id)))] : [];
+  p.augmentMods = isObj(p.augmentMods)
+    ? Object.fromEntries(Object.entries(p.augmentMods).flatMap(([key, value]) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? [[key, n]] : [];
+    }))
+    : {};
+  const augment = (key: string, scale = 1) => finiteNumber(p.augmentMods[key], 0) * scale;
+  p.benchBonus = clampInt(p.benchBonus, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.deployCapBonus = finiteNumber(p.deployCapBonus, finiteNumber(legacy.deployBonus, 0));
+  if (p.deployCapBonus < 0 || p.deployCapBonus > 100) {
+    log.push(`reset invalid deployCapBonus ${p.deployCapBonus}`);
+    p.deployCapBonus = 0;
+  }
+  p.deployCapBonus = Math.round(p.deployCapBonus);
+  p.xpCostDelta = finiteNumber(p.xpCostDelta, 0);
+  p.rollCostDelta = finiteNumber(p.rollCostDelta, 0);
+  p.interestCapBonus = finiteNumber(p.interestCapBonus, augment("interest_cap"));
+  p.interestRateBonus = finiteNumber(p.interestRateBonus, augment("interest_rate_bonus"));
+  p.startingRage = finiteNumber(p.startingRage, augment("starting_rage"));
+  p.startingShield = finiteNumber(p.startingShield, augment("starting_shield"));
+  p.teamAtkPct = finiteNumber(p.teamAtkPct, augment("team_atk_pct", 100));
+  p.teamMatkPct = finiteNumber(p.teamMatkPct, augment("team_matk_pct", 100));
+  p.teamDefPct = finiteNumber(p.teamDefPct, augment("team_def_pct", 100));
+  p.teamMdefPct = finiteNumber(p.teamMdefPct, augment("team_mdef_pct", 100));
+  p.teamHpPct = finiteNumber(p.teamHpPct, augment("team_hp_pct", 100));
+  p.teamCritPct = finiteNumber(p.teamCritPct, augment("team_crit_pct", 100));
+  p.lifestealPct = finiteNumber(p.lifestealPct, augment("lifesteal_pct", 100));
+  p.hpLossReductionPct = finiteNumber(p.hpLossReductionPct, augment("hp_loss_reduction_pct", 100));
+  p.rageGainPct = finiteNumber(p.rageGainPct, augment("rage_gain_pct", 100));
+  p.extraClassCount = clampInt(p.extraClassCount, 0, Number.MAX_SAFE_INTEGER, Math.round(augment("extra_class_count")));
+  p.extraTribeCount = clampInt(p.extraTribeCount, 0, Number.MAX_SAFE_INTEGER, Math.round(augment("extra_tribe_count")));
+  p.inventoryBonus = clampInt(p.inventoryBonus, 0, Number.MAX_SAFE_INTEGER, Math.round(augment("inventory_bonus")));
+  p.fixedIncome = finiteNumber(p.fixedIncome, augment("fixed_income"));
+  p.winGoldBonus = finiteNumber(p.winGoldBonus, augment("win_gold_bonus"));
+  delete legacy.deployBonus;
+  p.winStreak = clampInt(p.winStreak, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.loseStreak = clampInt(p.loseStreak, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.rngSeed = Number.isFinite(Number(p.rngSeed)) ? Number(p.rngSeed) | 0 : 1;
+  const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
+  p.itemBag = Array.isArray(p.itemBag)
+    ? p.itemBag.filter((id): id is string => typeof id === "string" && validBagItem(id)) : [];
   p.board = Array.isArray(p.board) ? p.board.map((u) => (u ? sanitizeUnit(u, log) : null)) : [];
+  p.board = p.board.slice(0, 25);
+  while (p.board.length < 25) p.board.push(null);
   p.bench = Array.isArray(p.bench) ? p.bench.map((u) => sanitizeUnit(u, log)).filter((u): u is OwnedUnit => !!u) : [];
   p.shop = Array.isArray(p.shop) ? p.shop.map((id) => (typeof id === "string" && UNIT_BY_ID.has(id) ? id : null)) : [];
+  const savedShopLength = Math.min(20, Math.max(5, p.shop.length));
+  p.shopSlotCount = clampInt(p.shopSlotCount, savedShopLength, 20, savedShopLength);
+  p.shop = p.shop.slice(0, p.shopSlotCount);
+  while (p.shop.length < p.shopSlotCount) p.shop.push(null);
+  p.enemyPreview = normalizeEnemyPreview(p.enemyPreview);
+  p.enemyPreviewRound = clampInt(p.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.enemyBudget = clampInt(p.enemyBudget, 0, Number.MAX_SAFE_INTEGER, 0);
+  p.augmentRoundsTaken = Array.isArray(p.augmentRoundsTaken)
+    ? [...new Set(p.augmentRoundsTaken.map((v) => clampInt(v, 1, 9999, 1)))] : [];
+  p.activeAugmentChoices = Array.isArray(p.activeAugmentChoices)
+    ? [...new Set(p.activeAugmentChoices.filter((v): v is string =>
+      typeof v === "string" && AUGMENT_BY_ID.has(v) && !p.augments.includes(v)))] : [];
+  if (p.phase === "AUGMENT" && p.activeAugmentChoices.length === 0) p.phase = "PLANNING";
+  p.appliedCombats = Array.isArray(p.appliedCombats)
+    ? [...new Set(p.appliedCombats.filter((v): v is string => typeof v === "string"))] : [];
+  p.incomeRoundsPaid = Array.isArray(p.incomeRoundsPaid)
+    ? [...new Set(p.incomeRoundsPaid.map((v) => clampInt(v, 1, 9999, 1)))] : [1];
+  p.fortress = normalizeFortressState(p.fortress, p.rngSeed);
+  p.creativeSandboxUnits = normalizeCreativeSandboxUnits(p.creativeSandboxUnits);
+  const allUids = [
+    ...p.bench.map((unit) => unit.uid),
+    ...p.board.flatMap((unit) => unit ? [unit.uid] : []),
+    ...p.creativeSandboxUnits.map((unit) => unit.uid),
+  ];
+  const highestGeneratedUid = allUids.reduce((max, uid) => {
+    const match = /^u(\d+)$/.exec(uid);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  p.nextUid = Math.max(highestGeneratedUid + 1, clampInt(p.nextUid, 1, Number.MAX_SAFE_INTEGER, 1));
   return p;
 }
 
@@ -90,8 +224,8 @@ export function migrate(raw: unknown): MigrateResult | null {
     const envelope = createEnvelope(payload, {
       version: Math.max(from, ENVELOPE_VERSION),
       savedAt: typeof raw.savedAt === "number" ? raw.savedAt : Date.now(),
-      achievementsProfile: raw.achievementsProfile as Record<string, unknown>,
-      collectionProfile: raw.collectionProfile as Record<string, unknown>,
+      achievementsProfile: normalizeAchievementProfile(raw.achievementsProfile),
+      collectionProfile: normalizeCollectionProfile(raw.collectionProfile),
     });
     return { envelope, changed, log };
   } catch {
@@ -119,14 +253,15 @@ export function inspectSave(store: KV): ContinueState {
 
 export function saveRun(store: KV, payload: RunPayload): Envelope {
   const env = createEnvelope(structuredClone(payload), {
-    achievementsProfile: readJson(store, ACHIEVEMENTS_KEY), collectionProfile: readJson(store, COLLECTION_KEY),
+    achievementsProfile: normalizeAchievementProfile(readJson(store, ACHIEVEMENTS_KEY)),
+    collectionProfile: normalizeCollectionProfile(readJson(store, COLLECTION_KEY)),
   });
   store.setItem(PROGRESS_KEY, JSON.stringify(env));
   return env;
 }
 
-function readJson(store: KV, key: string): Record<string, unknown> {
-  try { return normProfile(JSON.parse(store.getItem(key) ?? "null")); } catch { return {}; }
+function readJson(store: KV, key: string): unknown {
+  try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; }
 }
 
 export const exportProgress = (env: Envelope) => JSON.stringify(env, null, 2);

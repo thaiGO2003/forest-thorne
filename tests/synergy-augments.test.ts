@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import { applyAugment, augmentBand, augmentScore, AUGMENT_BY_ID, AUGMENTS } from "../src/core/augments";
-import { createRun } from "../src/core/run";
+import { createRun, playerCombatBonus } from "../src/core/run";
 import { computeSynergies, counterMultiplier } from "../src/core/synergy";
 
 const tankers = NORMAL_UNITS.filter((u) => u.role === "TANKER").map((u) => u.id);
@@ -14,6 +14,13 @@ describe("synergy A9", () => {
     expect([line(6).active, line(6).next]).toEqual([6, null]);
     expect(line(3, 1).count).toBe(4);
     expect(line(3, 1).active).toBe(4);
+  });
+  it("virtual class count applies only to the stable most-numerous identity", () => {
+    const first = NORMAL_UNITS[0]!;
+    const second = NORMAL_UNITS.find((u) => u.role !== first.role)!;
+    const lines = computeSynergies([first.id, second.id], 1);
+    expect(lines.find((line) => line.kind === "class" && line.key === first.role)?.count).toBe(2);
+    expect(lines.find((line) => line.kind === "class" && line.key === second.role)?.count).toBe(1);
   });
   it("counters: element and class edges stack at 0.5 each", () => {
     const find = (p: (u: (typeof NORMAL_UNITS)[number]) => boolean) => NORMAL_UNITS.find(p)!.id;
@@ -44,5 +51,17 @@ describe("augments A10", () => {
     applyAugment(s, "reroll_bargain_5");
     expect([s.rollCostDelta, s.augmentMods.roll_cost_delta]).toEqual([-3, -3]);
     expect(applyAugment(s, "nope")).toBe(false);
+  });
+  it("materializes persistent augment values into canonical run/combat fields", () => {
+    const s = createRun(4);
+    applyAugment(s, "team_atk_1");
+    applyAugment(s, "lifesteal_1");
+    applyAugment(s, "interest_flow_1");
+    applyAugment(s, "deploy_cap_1");
+    applyAugment(s, "class_echo_1");
+    expect(s).toMatchObject({
+      teamAtkPct: 5, lifestealPct: 4, interestRateBonus: 0.01, deployCapBonus: 1, extraClassCount: 1,
+    });
+    expect(playerCombatBonus(s)).toMatchObject({ atkPct: 5, lifestealPct: 4 });
   });
 });

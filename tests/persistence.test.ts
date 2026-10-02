@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRun } from "../src/core/run";
 import {
-  ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, importProgress, inspectSave,
-  PROGRESS_KEY, remapCoopHost, saveCoopSlot, saveRun, selectCoopSlot,
+  ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope, importProgress, inspectSave,
+  migrate, PROGRESS_KEY, remapCoopHost, saveCoopSlot, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
 
@@ -45,12 +45,92 @@ describe("persistence A57", () => {
 
   it("import persist=false never writes; persist=true restores profiles", () => {
     const s = mem();
-    const text = JSON.stringify({ version: 4, payload: { player: createRun(3) }, achievementsProfile: { a: 1 }, collectionProfile: { c: 2 } });
+    const text = JSON.stringify({
+      version: 4,
+      payload: { player: createRun(3) },
+      achievementsProfile: { version: 1, stats: { runs_started: 4, highest_level: 3 } },
+      collectionProfile: { version: 1, unlockedSkinIds: ["skin_a"], claimedAchievementIds: [], equippedSkinByUnit: {} },
+    });
     expect(importProgress(s, text, false)?.player?.round).toBe(1);
     expect(s.setItem).not.toHaveBeenCalled();
     expect(importProgress(s, "[]", true)).toBeNull();
     importProgress(s, text, true);
-    expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!)).toEqual({ a: 1 });
+    expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!).stats).toMatchObject({ runs_started: 4, highest_level: 3 });
+    expect(JSON.parse(s.m[COLLECTION_KEY]!).unlockedSkinIds).toEqual(["skin_a"]);
+  });
+
+  it("hydrates extended run ranges, shop capacity and uid allocator state without truncation", () => {
+    const r = createRun(9);
+    r.speedLevel = 10;
+    r.benchUpgradeLevel = 4;
+    r.shopSlotCount = 12;
+    r.shop = [...r.shop, ...Array(7).fill(null)];
+    r.bench = [{ uid: "u77", baseId: "ant_guard", star: 1, equips: [] }];
+    r.nextUid = 2;
+    const migrated = migrate(createEnvelope({ player: r }))!;
+    expect(migrated.envelope.payload.player).toMatchObject({
+      speedLevel: 10, benchUpgradeLevel: 4, shopSlotCount: 12, nextUid: 78, aiMode: "TUTORIAL",
+    });
+    expect(migrated.envelope.payload.player?.shop).toHaveLength(12);
+  });
+
+  it("hydrates additive run bonuses and migrates legacy deployBonus safely", () => {
+    const r = createRun(10) as ReturnType<typeof createRun> & { deployBonus?: number };
+    r.deployBonus = 3;
+    r.deployCapBonus = Number.NaN;
+    r.teamAtkPct = 7;
+    r.interestRateBonus = 0.02;
+    const migrated = migrate(createEnvelope({ player: r }))!;
+    expect(migrated.envelope.payload.player).toMatchObject({
+      deployCapBonus: 3, teamAtkPct: 7, interestRateBonus: 0.02,
+    });
+    expect("deployBonus" in migrated.envelope.payload.player!).toBe(false);
+  });
+
+  it("backfills newly materialized bonus fields from legacy augmentMods", () => {
+    const r = createRun(11) as ReturnType<typeof createRun> & Record<string, unknown>;
+    r.augmentMods = {
+      team_atk_pct: 0.09,
+      lifesteal_pct: 0.06,
+      interest_rate_bonus: 0.02,
+      extra_class_count: 1,
+      inventory_bonus: 2,
+      win_gold_bonus: 3,
+    };
+    for (const key of ["teamAtkPct", "lifestealPct", "interestRateBonus", "extraClassCount", "inventoryBonus", "winGoldBonus"]) {
+      delete r[key];
+    }
+    const migrated = migrate(createEnvelope({ player: r as ReturnType<typeof createRun> }))!;
+    expect(migrated.envelope.payload.player).toMatchObject({
+      teamAtkPct: 9,
+      lifestealPct: 6,
+      interestRateBonus: 0.02,
+      extraClassCount: 1,
+      inventoryBonus: 2,
+      winGoldBonus: 3,
+    });
+  });
+
+  it("defensively hydrates phase, bag, tech, augments and active augment choices", () => {
+    const r = createRun(12) as ReturnType<typeof createRun> & Record<string, unknown>;
+    const raw = r as unknown as Record<string, unknown>;
+    raw.phase = "BROKEN";
+    raw.shopLocked = "yes";
+    raw.itemBag = ["tear", "eq_blue_buff", "missing_item", 7];
+    r.techLevels = { vet: 9, survive: 123456, ghost_tech: 4 };
+    r.augments = ["gold_cache_1", "gold_cache_1", "missing_augment"];
+    r.activeAugmentChoices = ["gold_cache_1", "team_atk_1", "missing_augment", "team_atk_1"];
+    r.unequipDiscount = -99;
+    const migrated = migrate(createEnvelope({ player: r as ReturnType<typeof createRun> }))!;
+    expect(migrated.envelope.payload.player).toMatchObject({
+      phase: "PLANNING",
+      shopLocked: false,
+      itemBag: ["tear", "eq_blue_buff"],
+      techLevels: { vet: 1, survive: 123456 },
+      augments: ["gold_cache_1"],
+      activeAugmentChoices: ["team_atk_1"],
+      unequipDiscount: 0,
+    });
   });
 
   it("Clear Run keeps profiles + settings; full clear removes profiles", () => {
@@ -72,7 +152,7 @@ describe("persistence A57", () => {
     doc.slots.SAVE_3 = { envelope: 42 };
     s.m[COOP_KEY] = JSON.stringify(doc);
     const sel = selectCoopSlot(s, "SAVE_1");
-    expect(sel.mode === "resume" && sel.summary).toMatchObject({ round: 1, hearts: 100, playerCapacity: 2, localSlot: "P1" });
+    expect(sel.mode === "resume" && sel.summary).toMatchObject({ round: 1, hearts: 3, playerCapacity: 2, localSlot: "P1" });
     expect(selectCoopSlot(s, "SAVE_3").mode).toBe("new");
   });
 
@@ -88,7 +168,9 @@ describe("settings A35/A44", () => {
   it("defaults, clamps and per-mode AI legality", () => {
     const d = normalizeSettings({ volumeLevel: 99, resolutionKey: "800x600", renderScale: 0.2, tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" } });
     expect([d.volumeLevel, d.resolutionKey, d.renderScale, d.expandedTooltip, d.language, d.guiScale]).toEqual([10, "1600x900", 0.5, true, "vi", 2]);
-    expect(d.aiModeByGameMode).toEqual({ EndlessPvEClassic: "TUTORIAL", EndlessCreative: "TUTORIAL", FortressPvP4: "COOP4_MEDIUM" });
+    expect(d.aiModeByGameMode).toEqual({
+      EndlessPvEClassic: "TUTORIAL", EndlessPvEFortress: "MEDIUM", EndlessCreative: "TUTORIAL", FortressPvP4: "COOP4_MEDIUM",
+    });
   });
 
   it("keys: invalid → default, ESCAPE reserved, lower-case normalized", () => {

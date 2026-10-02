@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  autoMerge, benchToBoard, boardToBench, buy, createRun, refresh, sell, startCombat,
+  autoMerge, benchToBoard, boardToBench, buy, createRun, equipItem, refresh, sell, sellItem, startCombat,
+  unequipAll, unequipItem,
   type OwnedUnit, type RunState,
 } from "../src/core/run";
+import { skipTutorial } from "../src/core/tutorial";
 
 const t1 = NORMAL_UNITS.find((u) => u.tier === 1)!;
 const unit = (uid: string, equips: string[] = [], star: 1 | 2 | 3 = 1): OwnedUnit =>
   ({ uid, baseId: t1.id, star, equips });
 const snap = (s: RunState) => JSON.stringify(s);
+const normalRun = (seed: number) => { const s = createRun(seed); skipTutorial(s); return s; };
 
 describe("run state", () => {
   it("same seed gives same shop (deterministic)", () => {
@@ -16,7 +19,7 @@ describe("run state", () => {
   });
 
   it("buy spends tier gold, nulls slot, appends 1★ to bench", () => {
-    const s = createRun(1);
+    const s = normalRun(1);
     const id = s.shop[0]!;
     const gold = s.gold;
     expect(buy(s, 0)).toBe(true);
@@ -26,7 +29,7 @@ describe("run state", () => {
   });
 
   it("failed buy (no gold / null slot) changes nothing", () => {
-    const s = createRun(1);
+    const s = normalRun(1);
     s.gold = 0;
     const before = snap(s);
     expect(buy(s, 0)).toBe(false);
@@ -36,7 +39,7 @@ describe("run state", () => {
   });
 
   it("refresh rejected while locked", () => {
-    const s = createRun(3);
+    const s = normalRun(3);
     s.shopLocked = true;
     const before = snap(s);
     expect(refresh(s)).toBe(false);
@@ -44,19 +47,26 @@ describe("run state", () => {
   });
 
   it("3 copies merge to 2★ at first bench slot; overflow equips go to bag", () => {
-    const s = createRun(1);
-    s.bench = [unit("a", ["x", "y"]), unit("b", ["x"]), unit("c", ["z", "w", "v", "q", "r"])];
+    const s = normalRun(1);
+    s.bench = [
+      unit("a", ["eq_blue_buff", "eq_warmog_armor"]),
+      unit("b", ["eq_blue_buff"]),
+      unit("c", ["eq_warmog_armor", "eq_blue_buff", "eq_warmog_armor"]),
+    ];
     expect(autoMerge(s)).toBe(1);
     expect(s.bench).toHaveLength(1);
     const m = s.bench[0]!;
     expect(m.star).toBe(2);
     expect(new Set(m.equips).size).toBe(m.equips.length);
     // every source item is either kept or returned exactly once
-    expect([...m.equips, ...s.itemBag].sort()).toEqual(["q", "r", "v", "w", "x", "x", "y", "z"]);
+    expect([...m.equips, ...s.itemBag].sort()).toEqual([
+      "eq_blue_buff", "eq_blue_buff", "eq_blue_buff", "eq_warmog_armor", "eq_warmog_armor", "eq_warmog_armor",
+    ].sort());
+    expect(m.uid).not.toBe("a");
   });
 
   it("merge prefers first board location and chains 9 copies into 3★", () => {
-    const s = createRun(1);
+    const s = normalRun(1);
     s.bench = Array.from({ length: 8 }, (_, i) => unit(`b${i}`));
     s.board[7] = unit("board");
     autoMerge(s);
@@ -65,7 +75,7 @@ describe("run state", () => {
   });
 
   it("deploy cap blocks placement onto empty cell without mutation", () => {
-    const s = createRun(1);
+    const s = normalRun(1);
     s.board[0] = unit("a"); s.board[1] = unit("b"); s.board[2] = unit("c");
     s.bench = [{ ...unit("d"), baseId: NORMAL_UNITS.find((u) => u.species !== t1.species)!.id }];
     const before = snap(s);
@@ -76,7 +86,7 @@ describe("run state", () => {
   });
 
   it("board → full bench fails atomically", () => {
-    const s = createRun(1);
+    const s = normalRun(1);
     s.bench = Array.from({ length: 8 }, (_, i) => ({ ...unit(`b${i}`), baseId: NORMAL_UNITS[i * 3]!.id }));
     s.board[4] = unit("z");
     const before = snap(s);
@@ -85,7 +95,7 @@ describe("run state", () => {
   });
 
   it("sell returns equips to bag; start needs a deployed unit", () => {
-    const s = createRun(1);
+    const s = normalRun(1);
     expect(startCombat(s)).toBe("no_units");
     s.board[0] = unit("a", ["sword"]);
     const gold = s.gold;
@@ -96,5 +106,26 @@ describe("run state", () => {
     expect(startCombat(s)).toBeNull();
     expect(s.phase).toBe("COMBAT");
     expect(buy(s, 0)).toBe(false);
+  });
+
+  it("equipment mutations are atomic and use canonical tier/cost rules", () => {
+    const s = normalRun(1);
+    s.bench = [unit("a")];
+    s.itemBag = ["eq_blue_buff", "eq_warmog_armor"];
+    const before = snap(s);
+    expect(equipItem(s, "eq_warmog_armor", "bench", 0)).toBe(false); // T2 cannot equip on 1★
+    expect(snap(s)).toBe(before);
+    expect(equipItem(s, "eq_blue_buff", "bench", 0)).toBe(true);
+    expect(s.itemBag).toEqual(["eq_warmog_armor"]);
+    const gold = s.gold;
+    expect(unequipItem(s, "bench", 0, 0)).toBe(true);
+    expect(s.gold).toBe(gold - 2);
+    expect(s.itemBag).toContain("eq_blue_buff");
+    expect(equipItem(s, "eq_blue_buff", "bench", 0)).toBe(true);
+    expect(unequipAll(s, "bench", 0)).toBe(true);
+    expect(s.gold).toBe(gold - 4);
+    const bagGold = s.gold;
+    expect(sellItem(s, s.itemBag.indexOf("eq_warmog_armor"))).toBe(true);
+    expect(s.gold).toBe(bagGold + 4);
   });
 });

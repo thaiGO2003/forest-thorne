@@ -1,5 +1,6 @@
 // UI settings (A35) + keyboard bindings (A44). Separate persisted owner from run state.
 import { normalizeAiMode, type AiMode } from "./encounter";
+import { GAME_MODES, MODE_CONFIG, type GameMode } from "./modes";
 
 export const SETTINGS_KEY = "forest_throne_ui_settings_v1";
 
@@ -10,8 +11,7 @@ export const RESOLUTIONS = [
 export const TOOLTIP_MODES = ["off", "compact", "summary", "expanded"] as const;
 export const QUALITY = ["low", "medium", "high"] as const;
 export const RENDER_SCALES = [0.5, 0.67, 0.75, 1] as const;
-export const GAME_MODES = ["EndlessPvEClassic", "EndlessCreative", "FortressPvP4"] as const;
-export type GameMode = (typeof GAME_MODES)[number];
+export { GAME_MODES, type GameMode } from "./modes";
 
 export type KeyContext = "planning" | "combat" | "menu";
 export const DEFAULT_KEYS = {
@@ -45,15 +45,16 @@ export function normalizeKeys(raw: unknown): KeyBindings {
 
 /** Mode → allowed AI modes + default (A35 / A19). */
 export const MODE_AI: Record<GameMode, { allowed: readonly AiMode[]; def: AiMode }> = {
-  EndlessPvEClassic: { allowed: ["TUTORIAL", "EASY", "MEDIUM", "HARD"], def: "TUTORIAL" },
-  EndlessCreative: { allowed: ["CREATIVE", "TUTORIAL"], def: "TUTORIAL" },
-  FortressPvP4: { allowed: ["COOP4_EASY", "COOP4_MEDIUM", "COOP4_HARD"], def: "COOP4_MEDIUM" },
+  EndlessPvEClassic: MODE_CONFIG.EndlessPvEClassic.ai,
+  EndlessPvEFortress: MODE_CONFIG.EndlessPvEFortress.ai,
+  EndlessCreative: MODE_CONFIG.EndlessCreative.ai,
+  FortressPvP4: MODE_CONFIG.FortressPvP4.ai,
 };
 
 export interface Settings {
   audioEnabled: boolean; audioMuted: boolean; volumeLevel: number;
   aiMode: AiMode; aiModeByGameMode: Record<GameMode, AiMode>;
-  loseCondition: "NO_HEARTS" | "SINGLE_LOSS";
+  loseCondition: "NO_HEARTS" | "NO_UNITS";
   resolutionKey: (typeof RESOLUTIONS)[number]; guiScale: 2;
   language: "vi" | "en"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
   subtitleEnabled: boolean; keys: KeyBindings;
@@ -78,7 +79,9 @@ export function normalizeSettings(raw: unknown): Settings {
       const v = normalizeAiMode(byMode[m], MODE_AI[m].def);
       return [m, MODE_AI[m].allowed.includes(v) ? v : MODE_AI[m].def];
     })) as Record<GameMode, AiMode>,
-    loseCondition: pick(["NO_HEARTS", "SINGLE_LOSS"] as const, r.loseCondition, "NO_HEARTS"),
+    loseCondition: r.loseCondition === "SINGLE_LOSS"
+      ? "NO_UNITS"
+      : pick(["NO_HEARTS", "NO_UNITS"] as const, r.loseCondition, "NO_HEARTS"),
     resolutionKey: pick(RESOLUTIONS, r.resolutionKey, "1600x900"),
     guiScale: 2,
     language: pick(["vi", "en"] as const, r.language, "vi"),

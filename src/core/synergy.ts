@@ -63,10 +63,7 @@ export interface SynergyLine {
   bonus: Tier;
 }
 
-/**
- * Count deployed units per identity, add virtual echo counts, resolve thresholds.
- * ponytail: echoes add to every class/faction already present (spec doesn't name a target); switch to a chosen key if authored.
- */
+/** Count deployed units and apply each virtual echo to the stable most-numerous identity only (A82). */
 export function computeSynergies(baseIds: string[], extraClass = 0, extraTribe = 0): SynergyLine[] {
   const counts: Record<string, Record<string, number>> = { class: {}, element: {}, faction: {} };
   for (const id of baseIds) {
@@ -75,13 +72,21 @@ export function computeSynergies(baseIds: string[], extraClass = 0, extraTribe =
     counts.element![u.element] = (counts.element![u.element] ?? 0) + 1;
     counts.faction![u.faction] = (counts.faction![u.faction] ?? 0) + 1;
   }
+  const addVirtualToLeader = (kind: "class" | "faction", amount: number) => {
+    const entries = Object.entries(counts[kind]!);
+    if (!entries.length || !(amount > 0)) return;
+    let leader = entries[0]!;
+    for (const entry of entries.slice(1)) if (entry[1] > leader[1]) leader = entry;
+    counts[kind]![leader[0]] = leader[1] + amount;
+  };
+  addVirtualToLeader("class", Math.max(0, extraClass));
+  addVirtualToLeader("faction", Math.max(0, extraTribe));
   const tables = { class: CLASS_SYN, element: ELEMENT_SYN, faction: FACTION_SYN } as Record<string, Record<string, Tier[]>>;
-  const extra: Record<string, number> = { class: extraClass, element: 0, faction: extraTribe };
   return (["class", "element", "faction"] as const).flatMap((kind) =>
     Object.entries(counts[kind]!).flatMap(([key, raw]) => {
       const tiers = tables[kind]![key];
       if (!tiers) return [];
-      const count = raw + extra[kind]!;
+      const count = raw;
       const idx = THRESHOLDS.filter((t) => count >= t).length;
       return [{ kind, key, count, active: idx ? THRESHOLDS[idx - 1]! : 0, next: THRESHOLDS[idx] ?? null, bonus: idx ? tiers[idx - 1]! : {} }];
     }));

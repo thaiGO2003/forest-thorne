@@ -1,6 +1,7 @@
 // Augments (spec A10). Generated families × 5 authored values; apply once per id; score is presentation-only.
 import { addXp } from "./economy";
 import type { RunState } from "./run";
+import { modeConfig } from "./modes";
 
 export type AugGroup = "ECONOMY" | "FORMATION" | "COMBAT" | "SYNERGY";
 export interface Augment {
@@ -11,6 +12,13 @@ export interface Augment {
 }
 
 export const AUGMENT_ROUNDS = [3, 5, 7] as const;
+
+/** Authored tutorial ids are stable compatibility ids, separate from the five-level generated families (A94.1). */
+const TUTORIAL_AUGMENTS: readonly Augment[] = [
+  { id: "gold_cache", effect: "gold_flat", value: 4, group: "ECONOMY" },
+  { id: "wild_command", effect: "deploy_cap_bonus", value: 1, group: "FORMATION" },
+  { id: "opening_fury", effect: "starting_rage", value: 1, group: "COMBAT" },
+];
 
 const FAMILIES: [string, string, AugGroup, number[]][] = [
   ["gold_cache", "gold_flat", "ECONOMY", [4, 6, 8, 10, 12]],
@@ -32,8 +40,11 @@ const FAMILIES: [string, string, AugGroup, number[]][] = [
   ["tribe_echo", "extra_tribe_count", "SYNERGY", [1, 1, 1, 1, 1]],
 ];
 
-export const AUGMENTS: Augment[] = FAMILIES.flatMap(([fam, effect, group, vals]) =>
-  vals.map((value, i) => ({ id: `${fam}_${i + 1}`, effect, value, group })));
+export const AUGMENTS: Augment[] = [
+  ...TUTORIAL_AUGMENTS,
+  ...FAMILIES.flatMap(([fam, effect, group, vals]) =>
+    vals.map((value, i) => ({ id: `${fam}_${i + 1}`, effect, value, group }))),
+];
 export const AUGMENT_BY_ID: ReadonlyMap<string, Augment> = new Map(AUGMENTS.map((a) => [a.id, a]));
 
 const GROUP_BONUS: Record<AugGroup, number> = { ECONOMY: 2, FORMATION: 5, COMBAT: 4, SYNERGY: 8 };
@@ -59,9 +70,27 @@ export function augmentScore(a: Augment): number {
 export const augmentBand = (score: number) => (score >= 82 ? "Rare" : score >= 62 ? "Strong" : "Tactical");
 
 /** Fields on RunState that an augment effect directly owns. */
-const RUN_FIELD: Partial<Record<string, "rollCostDelta" | "xpCostDelta" | "deployBonus" | "benchBonus">> = {
-  roll_cost_delta: "rollCostDelta", xp_cost_delta: "xpCostDelta", deploy_cap_bonus: "deployBonus", bench_bonus: "benchBonus",
+const RUN_FIELD: Partial<Record<string, "rollCostDelta" | "xpCostDelta" | "deployCapBonus" | "benchBonus" | "interestCapBonus"
+  | "startingRage" | "startingShield" | "extraClassCount" | "extraTribeCount" | "inventoryBonus" | "fixedIncome" | "winGoldBonus">> = {
+  roll_cost_delta: "rollCostDelta", xp_cost_delta: "xpCostDelta", deploy_cap_bonus: "deployCapBonus", bench_bonus: "benchBonus",
+  interest_cap: "interestCapBonus", starting_rage: "startingRage", starting_shield: "startingShield",
+  extra_class_count: "extraClassCount", extra_tribe_count: "extraTribeCount", inventory_bonus: "inventoryBonus",
+  fixed_income: "fixedIncome", win_gold_bonus: "winGoldBonus",
 };
+
+/** Augment tables encode fractional percentages; RunState stores combat percentages in percentage points. */
+function applyPercentField(s: RunState, effect: string, value: number): void {
+  const fields: Partial<Record<string, keyof Pick<RunState,
+    "teamAtkPct" | "teamMatkPct" | "teamDefPct" | "teamMdefPct" | "teamHpPct" | "teamCritPct"
+    | "lifestealPct" | "hpLossReductionPct" | "rageGainPct">>> = {
+    team_atk_pct: "teamAtkPct", team_matk_pct: "teamMatkPct", team_def_pct: "teamDefPct",
+    team_mdef_pct: "teamMdefPct", team_hp_pct: "teamHpPct", team_crit_pct: "teamCritPct",
+    lifesteal_pct: "lifestealPct", hp_loss_reduction_pct: "hpLossReductionPct", rage_gain_pct: "rageGainPct",
+  };
+  const field = fields[effect];
+  if (field) s[field] += value * 100;
+  if (effect === "interest_rate_bonus") s.interestRateBonus += value;
+}
 
 /** Apply once per id: immediate gold/XP + persistent modifier accumulation. Returns false (no change) on repeat/unknown. */
 export function applyAugment(s: RunState, id: string): boolean {
@@ -69,9 +98,10 @@ export function applyAugment(s: RunState, id: string): boolean {
   if (!a || s.augments.includes(id)) return false;
   s.augments.push(id);
   s.augmentMods[a.effect] = (s.augmentMods[a.effect] ?? 0) + a.value;
-  if (a.effect === "gold_flat") s.gold += a.value;
+  if (a.effect === "gold_flat" && !modeConfig(s.mode).creative) s.gold += a.value;
   if (a.effect === "xp_flat") Object.assign(s, addXp(s.level, s.xp, a.value));
   const f = RUN_FIELD[a.effect];
   if (f) s[f] += a.value;
+  applyPercentField(s, a.effect, a.value);
   return true;
 }
