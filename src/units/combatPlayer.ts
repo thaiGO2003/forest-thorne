@@ -149,6 +149,9 @@ export function playCombat(o: {
         say(`💀 ${name(e.dst)}`);
         return 0.55;
       }
+      default:
+        // Canonical logic can emit event kinds that have no dedicated presentation yet.
+        return BASE_STEP;
     }
   };
 
