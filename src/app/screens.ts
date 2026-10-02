@@ -4,6 +4,10 @@ import { boardCount } from "../core/run";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
+import { mountSettings } from "../ui/settings";
+import { mountTechTree } from "../ui/techTree";
+import { mountHistory } from "../ui/history";
+import type { ModalHandle, ModalOptions } from "../ui/modal";
 import { applyLocale, registerPanel, registerScreen, registerUtility, type App } from "./app";
 import { runView } from "./bridge";
 import { createBoardView } from "../units/boardView";
@@ -19,13 +23,31 @@ import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combat
 /** One shared portrait renderer: card snapshots + live Library viewer use the real unit rigs. */
 const portraits = createPortraits();
 
-const openLibrary = (app: App, id?: string) => {
-  const m = app.modals.open({ id: "library", title: t("menu.library"), size: "full", closeLabel: t("ui.close") });
-  const lib = mountLibrary(m, portraits, app.tooltip, id);
-  const off = app.modals.onChange((active) => { if (active !== "library") { off(); lib.dispose(); } });
-};
+/** Open a modal panel whose view lives exactly as long as the modal (closed or replaced → disposed). */
+function openPanelModal(app: App, o: ModalOptions, mount: (m: ModalHandle) => { dispose(): void }) {
+  const m = app.modals.open({ closeLabel: t("ui.close"), ...o });
+  const view = mount(m);
+  const off = app.modals.onChange((active) => { if (active !== o.id) { off(); view.dispose(); } });
+}
+
+const openLibrary = (app: App, id?: string) =>
+  openPanelModal(app, { id: "library", title: t("menu.library"), size: "full" }, (m) => mountLibrary(m, portraits, app.tooltip, id));
 registerPanel("library", (app) => openLibrary(app));
 registerPanel("unit-detail", (app, id) => openLibrary(app, id));
+registerPanel("settings", (app) =>
+  openPanelModal(app, { id: "settings", title: t("menu.settings"), size: "lg" }, (m) =>
+    mountSettings(m, app.bridge.settings, { hasRun: app.bridge.saveSummary().kind !== "none", clearRun: () => app.bridge.clearRun() })));
+registerPanel("history", (app) =>
+  openPanelModal(app, { id: "history", title: t("planning.history"), size: "lg" }, (m) => mountHistory(m, app.bridge.history())));
+registerPanel("tech", (app) => {
+  const run = app.bridge.run();
+  if (!run) return;
+  openPanelModal(app, { id: "tech", title: t("planning.tech"), size: "full" }, (m) => {
+    const view = mountTechTree(m, { levels: run.techLevels, gold: run.gold }, (id) => app.bridge.research(id));
+    const off = app.bridge.onChange(() => { const r = app.bridge.run(); if (r) view.update({ levels: r.techLevels, gold: r.gold }); });
+    return { dispose() { off(); view.dispose(); } };
+  });
+});
 
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
@@ -115,8 +137,8 @@ registerUtility("language", (app) => {
   const names: Record<string, string> = { vi: "Tiếng Việt", en: "English" };
   for (const l of LOCALES) {
     const b = kitButton({ skin: "blue", label: names[l] ?? l, onClick: () => {
-      // LOGIC: persist via SettingsStore.save({ language }) once settings wiring lands.
-      applyLocale(l);
+      app.bridge.settings.save({ language: l }); // canonical owner persists + switches locale
+      applyLocale(l); // also syncs <html lang>
       m.close();
     } });
     b.setSelected(l === getLocale());

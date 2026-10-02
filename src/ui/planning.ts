@@ -85,14 +85,14 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const reroll = kitButton({ skin: "blue", icon: ICONS.reroll, onClick: () => it.reroll() });
   const start = kitButton({ skin: "green", icon: ICONS.start, cls: "pl-start", onClick: () => it.start() });
   const xp = kitButton({ skin: "plum", icon: ICONS.xp, onClick: () => it.buyXp() });
-  const lock = kitButton({ skin: "icon", icon: ICONS.unlock, cls: "pl-lock", onClick: () => it.toggleLock() });
+  const lock = kitButton({ skin: "icon", icon: ICONS.unlock, aria: t("planning.lock"), cls: "pl-lock", onClick: () => it.toggleLock() });
   battle.append(reroll.el, start.el, xp.el, lock.el);
   tip.bind(lock.el, () => ({ title: t("planning.lock") }));
 
   // ---- right action stack ----
   const rail = panelEl("panel_wood", "pl-actions");
   const actionBtns = ACTIONS.map((a) => {
-    const b = kitButton({ skin: "icon", icon: a.icon, onClick: () => it.action(a.id) });
+    const b = kitButton({ skin: "icon", icon: a.icon, aria: t(a.key), onClick: () => it.action(a.id) });
     tip.bind(b.el, () => ({ title: t(a.key) }));
     rail.append(b.el);
     return { a, b };
@@ -203,7 +203,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   host.append(root);
 
   function refreshCopy() {
-    for (const { a, b } of actionBtns) b.el.setAttribute("aria-label", t(a.key));
+    for (const { a, b } of actionBtns) b.setAria(t(a.key));
+    lock.setAria(t("planning.lock"));
     if (m) update(m);
   }
 
@@ -213,8 +214,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     reroll.setLabel(`${refreshCost(r.level, r.rollCostDelta)}`);
     xp.setLabel(`${xpBuyCost(r.xpCostDelta)}`);
     start.setLabel(t("planning.start"));
-    reroll.el.setAttribute("aria-label", t("planning.reroll", { cost: refreshCost(r.level, r.rollCostDelta) }));
-    xp.el.setAttribute("aria-label", t("planning.buyXp", { cost: xpBuyCost(r.xpCostDelta) }));
+    reroll.setAria(t("planning.reroll", { cost: refreshCost(r.level, r.rollCostDelta) }));
+    xp.setAria(t("planning.buyXp", { cost: xpBuyCost(r.xpCostDelta) }));
     lock.setIcon(r.shopLocked ? ICONS.lock : ICONS.unlock);
     lock.setSelected(r.shopLocked);
     for (const b of [reroll, xp, start, lock]) b.setDisabled(nm.locked);

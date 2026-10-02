@@ -88,8 +88,8 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
     update(nm) {
       m = nm;
       speed.setLabel(`×${nm.speed}`);
-      speed.el.setAttribute("aria-label", t("combat.speed", { speed: nm.speed }));
-      hist.el.setAttribute("aria-label", t("planning.history"));
+      speed.setAria(t("combat.speed", { speed: nm.speed }));
+      hist.setAria(t("planning.history"));
       topS.paint(); infoS.paint();
     },
     dispose() { root.remove(); },

@@ -193,3 +193,37 @@
   .cb-side { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: 50%; right: auto; transform: translateX(-50%); width: min(360px, calc(100% - 16px)); }
   .cb-info { min-height: 200px; }
 }
+
+/* ---------- settings ---------- */
+.settings { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.settings-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-right: 4px; }
+.stepper { display: grid; grid-template-columns: 56px minmax(120px, 180px) 56px; gap: 6px; align-items: center; }
+.step-btn { height: 40px; min-width: 56px; }
+.step-val { height: 40px; display: grid; place-items: center; padding: 0 8px; }
+.step-text { position: relative; z-index: 1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.toggle-btn { width: 120px; height: 40px; }
+.key-btn { width: 140px; height: 40px; }
+.wide-btn { height: 46px; width: 100%; max-width: 360px; }
+.field-label { font-weight: 700; }
+.settings-note { font-size: 14px; }
+
+/* ---------- tech tree ---------- */
+.tech { display: grid; grid-template-columns: 1fr minmax(240px, 300px); gap: 10px; height: 100%; min-height: 0; }
+.tech-map { position: relative; min-height: 300px; }
+.tech-canvas { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); touch-action: none; cursor: grab; z-index: 1; }
+.tech-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; }
+.tech-fit { height: 40px; width: 100%; flex: none; }
+.tech-info { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------- history ---------- */
+.history { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.history-list { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
+.history-row { padding: 8px 12px; }
+.history-head { position: relative; z-index: 1; display: flex; gap: 8px; align-items: baseline; }
+.history-msg { flex: 1 1 auto; font-weight: 700; }
+.history-round { font-size: 12px; }
+@media (max-width: 760px) {
+  .tech { grid-template-columns: 1fr; grid-template-rows: minmax(280px, 1fr) auto; }
+  .field { grid-template-columns: 1fr; }
+  .stepper { grid-template-columns: 48px 1fr 48px; }
+}

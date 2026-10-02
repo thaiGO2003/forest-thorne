@@ -6,6 +6,9 @@ import { benchCap, createModeRun, deployLimit, runSynergies, type RoundResultSum
 import { inspectSave, clearRunProgress } from "../core/save";
 import { MODE_CONFIG, type GameMode } from "../core/modes";
 import type { CombatEvent } from "../core/combat";
+import { createPlanningHistory, type PlanningHistoryState } from "../core/history";
+import { setLocale } from "../core/i18n";
+import { createSettingsStore, type SettingsStore } from "../core/settings";
 import type { SaveSummary } from "../ui/menu";
 import type { RosterEntry } from "../units/combatPlayer";
 
@@ -37,6 +40,14 @@ export interface Bridge {
   move(from: { kind: "bench" | "board"; index: number }, to: { kind: "bench" | "board"; index: number }): boolean;
   /** Resolve a battle from the current formation; null when illegal (phase/tutorial/empty board). */
   startCombat(): CombatSession | null;
+  /** Research a tech node through the canonical transaction (A8, A111.5); false = no change. */
+  research(id: string): boolean;
+  /** Planning history (A38); views filter/read only. */
+  history(): PlanningHistoryState;
+  /** Canonical persisted UI settings owner (A35, A110.2). */
+  settings: SettingsStore;
+  /** Run-only clear (A57/A60.5); never touches settings, collection or achievements. */
+  clearRun(): void;
   /** Fires after any state change so HUDs repaint. */
   onChange(fn: () => void): () => void;
 }
@@ -45,6 +56,9 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
   let state: RunState | null = null;
   const listeners = new Set<() => void>();
   const emit = () => { for (const fn of listeners) fn(); };
+  const settings = createSettingsStore(store, (lang) => setLocale(lang));
+  setLocale(settings.get().language);
+  const history = createPlanningHistory();
 
   return {
     run: () => state,
@@ -81,6 +95,12 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     move: () => false,
     // LOGIC: materialize formation (A77) → simulate → build roster/events → finish() = applyRoundResult.
     startCombat: () => null,
+    // LOGIC: call core research(s,id), then push a history/log entry and persist.
+    research: () => false,
+    // LOGIC: return the run's live PlanningHistoryState once actions record entries.
+    history: () => history,
+    settings,
+    clearRun() { clearRunProgress(store); state = null; emit(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 }

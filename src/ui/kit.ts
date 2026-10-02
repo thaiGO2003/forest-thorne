@@ -158,6 +158,8 @@ export interface KitButton {
   el: HTMLButtonElement;
   setLabel(text: string): void;
   setIcon(glyph: string | null): void;
+  /** Accessible name for icon-only buttons; wins over label/icon when set. */
+  setAria(name: string): void;
   setDisabled(v: boolean): void;
   setSelected(v: boolean): void;
 }
@@ -167,13 +169,13 @@ export interface KitButton {
  * text goes to aria-label so assistive tech reads the control.
  */
 export function kitButton(o: {
-  skin?: ButtonSkin | "icon"; label?: string; icon?: string; size?: number; cls?: string;
+  skin?: ButtonSkin | "icon"; label?: string; icon?: string; aria?: string; size?: number; cls?: string;
   onClick?: (e: MouseEvent) => void;
 }): KitButton {
   const el = document.createElement("button");
   el.type = "button";
   el.className = `kit-btn ${o.cls ?? ""}`.trim();
-  let text = o.label ?? "", icon = o.icon ?? null, disabled = false, selected = false, hover = false, pressed = false;
+  let text = o.label ?? "", icon = o.icon ?? null, aria = o.aria ?? "", disabled = false, selected = false, hover = false, pressed = false;
   const skin = o.skin ?? "wood";
   const s = surface(el, (g, w, hh) => {
     const st: ButtonState = disabled ? "disabled" : pressed ? "pressed" : selected ? "selected" : hover ? "hover" : "normal";
@@ -188,7 +190,7 @@ export function kitButton(o: {
     } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, stroke: null });
     else label(g, text, w / 2, hh / 2 + dy, { size, fill, maxW: w - 12 });
   });
-  const sync = () => { el.setAttribute("aria-label", text || el.title || icon || ""); s.paint(); };
+  const sync = () => { el.setAttribute("aria-label", aria || text || icon || ""); s.paint(); };
   const flag = (k: "hover" | "pressed", v: boolean) => () => {
     if (k === "hover") { hover = v; if (!v) pressed = false; } else pressed = v;
     s.paint();
@@ -205,6 +207,7 @@ export function kitButton(o: {
     el,
     setLabel(t) { text = t; sync(); },
     setIcon(gl) { icon = gl; sync(); },
+    setAria(n) { aria = n; sync(); },
     setDisabled(v) { disabled = v; el.disabled = v; el.setAttribute("aria-disabled", String(v)); s.paint(); },
     setSelected(v) { selected = v; el.setAttribute("aria-pressed", String(v)); s.paint(); },
   };

@@ -40,8 +40,7 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
   const chipRow = <T>(values: T[], icon: (v: T) => string, name: (v: T) => string, get: () => T | null, set: (v: T | null) => void) => {
     const row = h("div", "lib-chips");
     const btns: [T, KitButton][] = values.map((v) => {
-      const b = kitButton({ skin: "icon", icon: icon(v), cls: "lib-chip", onClick: () => { set(get() === v ? null : v); page = 0; renderGrid(); } });
-      b.el.setAttribute("aria-label", name(v));
+      const b = kitButton({ skin: "icon", icon: icon(v), aria: name(v), cls: "lib-chip", onClick: () => { set(get() === v ? null : v); page = 0; renderGrid(); } });
       tip.bind(b.el, () => ({ title: name(v) }));
       row.append(b.el);
       return [v, b];

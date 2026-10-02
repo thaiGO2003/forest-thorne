@@ -122,7 +122,7 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
     cont.setLabel(t("menu.continue"));
     fresh.setLabel(t("menu.newGame"));
     broken.setLabel(t("menu.clearBroken"));
-    for (const { b, u } of utilButtons) b.el.setAttribute("aria-label", t(u.key));
+    for (const { b, u } of utilButtons) b.setAria(t(u.key));
     title.paint(); save.paint(); ver.paint();
   }
 
