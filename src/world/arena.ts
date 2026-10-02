@@ -2,6 +2,7 @@
 // Owns every GPU resource it creates; dispose() releases all of them.
 import * as THREE from "three";
 import { benchPerimeter, brownRing, riverCells, toLogical, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
+import { createScenery } from "./scenery";
 
 export const BLOCK = 1;
 const TILE_H = 0.12;
@@ -108,7 +109,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   // River: water strip, 7 flow markers, 3 lily pads. Not raycastable.
   const riverLen = riverCells(p).length * BLOCK;
-  const water = new THREE.Mesh(own(new THREE.BoxGeometry(BLOCK, 0.5, riverLen)), mat(0x3aa0d8, { roughness: 0.25, metalness: 0.1 }));
+  const waterMat = mat(0x3aa0d8, { roughness: 0.25, metalness: 0.1 });
+  const water = new THREE.Mesh(own(new THREE.BoxGeometry(BLOCK, 0.5, riverLen)), waterMat);
   water.position.set(0, -0.3, 0);
   water.raycast = () => {};
   root.add(water);
@@ -129,6 +131,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     pad.raycast = () => {};
     root.add(pad);
   });
+  const scenery = createScenery(root, p, own, (c) => cellToWorld(c, p), waterMat);
 
   // One owned lighting rig, retuned per phase (A91.5).
   const hemi = new THREE.HemisphereLight(0xeaf6ff, 0x5b4a2e, 1);
@@ -178,6 +181,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     },
     update(dt) {
       flowT += Math.max(0, dt) * FLOW_SPEED;
+      scenery.update(Math.max(0, dt));
       markers.forEach((m, i) => {
         m.position.z = (((-riverLen / 2 + ((i + 0.5) * riverLen) / 7 + flowT) % riverLen) + riverLen) % riverLen - riverLen / 2;
       });
