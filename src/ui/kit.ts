@@ -50,6 +50,12 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
 
 export const kitImage = (name: string) => images.get(name);
 
+/** Redraw hook for non-DOM canvases (3D billboards/bubbles) when kit art finishes loading (A92). */
+export function onKitReady(fn: () => void): () => void {
+  repaint.add(fn);
+  return () => repaint.delete(fn);
+}
+
 /** 9-slice draw; corners keep `slice*scale` px, edges/centre stretch. Never distorts borders. */
 export function nineSlice(
   g: CanvasRenderingContext2D, name: string, slice: number,
