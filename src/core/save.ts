@@ -554,6 +554,52 @@ export function saveCoopSlot(store: KV, slotId: CoopSlot, payload: RunPayload): 
   return entry;
 }
 
+export type PlanningPersistenceRequest =
+  | {
+      authority: "pvp";
+      payload: RunPayload;
+      syncPvp: (payload: RunPayload) => boolean | void;
+    }
+  | {
+      authority: "coop";
+      store: KV;
+      payload: RunPayload;
+      activeSlot: CoopSlot;
+      syncCoop: (payload: RunPayload) => boolean | void;
+    }
+  | {
+      authority: "solo";
+      store: KV;
+      payload: RunPayload;
+      persistenceEnabled?: boolean;
+    };
+
+export type PlanningPersistenceResult = "pvp_synced" | "coop_saved" | "solo_saved" | "disabled" | "failed";
+
+/**
+ * A114.4 authority boundary. PvP never writes an independent solo save; co-op mirrors the normalized
+ * session before saving its active co-op slot; solo persists only when the caller enables persistence.
+ */
+export function persistPlanningProgress(request: PlanningPersistenceRequest): PlanningPersistenceResult {
+  try {
+    if (request.authority === "pvp") {
+      const result = request.syncPvp(structuredClone(request.payload));
+      return result === false ? "failed" : "pvp_synced";
+    }
+    if (request.authority === "coop") {
+      const payload = normalizeCoopRunPayload(structuredClone(request.payload));
+      const synced = request.syncCoop(structuredClone(payload));
+      if (synced === false) return "failed";
+      saveCoopSlot(request.store, request.activeSlot, payload);
+      return "coop_saved";
+    }
+    if (request.persistenceEnabled === false) return "disabled";
+    return saveProgress(request.store, request.payload) ? "solo_saved" : "failed";
+  } catch {
+    return "failed";
+  }
+}
+
 export type CoopSelection =
   | { mode: "new"; activeSlot: CoopSlot }
   | { mode: "resume"; activeSlot: CoopSlot; payload: RunPayload; summary: CoopSummary };

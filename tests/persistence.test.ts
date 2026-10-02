@@ -4,7 +4,8 @@ import {
   ACHIEVEMENTS_KEY, clearAchievementProfile, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY,
   COOP_KEY, createCoopRunPayload, createEnvelope, downloadProgress, EXPORT_FILENAME, importProgress, importProgressBlob, inspectSave,
   loadAchievementProfile, loadCollectionProfile, loadProgress, migrate, PROGRESS_KEY, remapCoopHost,
-  normalizeCoopRunPayload, saveAchievementProfile, saveCollectionProfile, saveCoopSlot, saveProgress, saveRun, selectCoopSlot,
+  normalizeCoopRunPayload, persistPlanningProgress, saveAchievementProfile, saveCollectionProfile, saveCoopSlot, saveProgress,
+  saveRun, selectCoopSlot,
 } from "../src/core/save";
 import {
   BATTERY_SAVER_KEY, CANONICAL_DEFAULT_KEYS, createSettingsStore, GRAPHICS_QUALITY_KEY, loadGraphicsPreferences,
@@ -296,6 +297,56 @@ describe("persistence A57", () => {
     if (selected.mode !== "resume") throw new Error("expected resume");
     expect(selected.payload).toMatchObject({ aiMode: "COOP_MEDIUM", playerCapacity: 2, localSlot: "P1", hostSlot: "P1" });
     expect(Object.keys(selected.payload.players!)).toEqual(["P1", "P2"]);
+  });
+
+  it("routes Planning persistence by authority without leaking writes across save owners", () => {
+    const soloStore = mem();
+    expect(persistPlanningProgress({
+      authority: "solo",
+      store: soloStore,
+      payload: { player: createRun(70) },
+      persistenceEnabled: false,
+    })).toBe("disabled");
+    expect(soloStore.m[PROGRESS_KEY]).toBeUndefined();
+    expect(persistPlanningProgress({
+      authority: "solo",
+      store: soloStore,
+      payload: { player: createRun(71) },
+    })).toBe("solo_saved");
+    expect(soloStore.m[PROGRESS_KEY]).toBeTruthy();
+    expect(soloStore.m[COOP_KEY]).toBeUndefined();
+
+    const coopStore = mem();
+    const syncCoop = vi.fn(() => true);
+    const coopPayload = createCoopRunPayload(80, "COOP_MEDIUM");
+    expect(persistPlanningProgress({
+      authority: "coop",
+      store: coopStore,
+      payload: coopPayload,
+      activeSlot: "AUTO",
+      syncCoop,
+    })).toBe("coop_saved");
+    expect(syncCoop).toHaveBeenCalledOnce();
+    expect(coopStore.m[COOP_KEY]).toBeTruthy();
+    expect(coopStore.m[PROGRESS_KEY]).toBeUndefined();
+
+    const pvpStore = mem();
+    const syncPvp = vi.fn(() => true);
+    expect(persistPlanningProgress({
+      authority: "pvp",
+      payload: { players: { P1: createRun(90), P2: createRun(91) } },
+      syncPvp,
+    })).toBe("pvp_synced");
+    expect(syncPvp).toHaveBeenCalledOnce();
+    expect(pvpStore.m).toEqual({});
+
+    expect(persistPlanningProgress({
+      authority: "coop",
+      store: mem(),
+      payload: coopPayload,
+      activeSlot: "SAVE_1",
+      syncCoop: () => false,
+    })).toBe("failed");
   });
 
   it("two-player host swap keeps player-owned board/bench under the new local slot", () => {
