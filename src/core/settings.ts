@@ -81,7 +81,7 @@ export function normalizeSettings(raw: unknown): Settings {
     })) as Record<GameMode, AiMode>,
     loseCondition: r.loseCondition === "SINGLE_LOSS"
       ? "NO_UNITS"
-      : pick(["NO_HEARTS", "NO_UNITS"] as const, r.loseCondition, "NO_HEARTS"),
+      : pick(["NO_HEARTS", "NO_UNITS"] as const, r.loseCondition, "NO_UNITS"),
     resolutionKey: pick(RESOLUTIONS, r.resolutionKey, "1600x900"),
     guiScale: 2,
     language: pick(["vi", "en"] as const, r.language, "vi"),

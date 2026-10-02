@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activeIndices, craft, matchRecipe, type Recipe } from "../src/core/craft";
-import { createRun, research } from "../src/core/run";
+import { createRun, expandBench, research } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
 import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "../src/core/tech";
 
@@ -33,6 +33,35 @@ describe("tech A8", () => {
     research(s, "explore");
     research(s, "bench_up");
     expect([s.benchBonus, s.benchUpgradeLevel]).toEqual([2, 1]);
+  });
+
+  it("dedicated bench expansion finishes explore, bench upgrades, then barracks", () => {
+    const s = createRun(2);
+    skipTutorial(s);
+    s.gold = 1_000;
+    const purchased: Array<[number, number, number]> = [];
+    for (let i = 0; i < 10; i++) {
+      expect(expandBench(s)).toBe(true);
+      purchased.push([
+        s.techLevels.explore ?? 0,
+        s.techLevels.bench_up ?? 0,
+        s.techLevels.barracks ?? 0,
+      ]);
+    }
+    expect(purchased[0]).toEqual([1, 0, 0]);
+    expect(purchased[4]).toEqual([1, 4, 0]);
+    expect(purchased[9]).toEqual([1, 4, 5]);
+    expect([s.benchUpgradeLevel, s.benchBonus]).toEqual([4, 12]);
+    expect(expandBench(s)).toBe(false);
+  });
+
+  it("bench expansion is atomic when the next stage cannot be afforded", () => {
+    const s = createRun(3);
+    skipTutorial(s);
+    s.gold = 3;
+    const before = structuredClone(s);
+    expect(expandBench(s)).toBe(false);
+    expect(s).toEqual(before);
   });
 });
 

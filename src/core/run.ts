@@ -4,7 +4,7 @@ import { getUnit, NORMAL_UNITS } from "../content/catalog";
 import {
   addXp, benchCapacity, deployCap, refreshCost, roundIncome, sellValue, shopTierOdds, xpBuyCost,
 } from "./economy";
-import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "./tech";
+import { canResearch, maxLevel, researchCost, TECH_BY_ID, techModifiers } from "./tech";
 import {
   equipmentSaleValue, getEquipment, itemUnequipCost, normalizeEquipment, slotCapForUnit,
 } from "./equipment";
@@ -262,6 +262,19 @@ export function research(s: RunState, id: string): boolean {
   s.craftTableLevel = Math.min(3, s.craftTableLevel + (e.craftTable ?? 0));
   s.speedLevel = Math.min(10, s.speedLevel + (e.speed ?? 0));
   return true;
+}
+
+/**
+ * A63 dedicated bench expansion action. The shortcut must finish the authored
+ * progression in order instead of jumping ahead to a later unlocked node.
+ */
+export function expandBench(s: RunState): boolean {
+  for (const id of ["explore", "bench_up", "barracks"] as const) {
+    const node = TECH_BY_ID.get(id)!;
+    const level = Math.max(0, Math.floor(s.techLevels[id] ?? 0));
+    if (level < maxLevel(node)) return research(s, id);
+  }
+  return false;
 }
 
 export function buy(s: RunState, slot: number): boolean {
