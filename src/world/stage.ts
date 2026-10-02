@@ -14,6 +14,8 @@ export interface Stage {
   /** Joystick/gamepad pan vector in [-1,1]² (A91.1); keyboard WASD/arrows add to it. */
   setPan(x: number, y: number): void;
   renderer: THREE.WebGLRenderer;
+  /** Per-frame callback (dt seconds) for presentation layers such as unit rigs; returns unsubscribe. */
+  onFrame(fn: (dt: number) => void): () => void;
   dispose(): void;
 }
 
@@ -77,6 +79,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   addEventListener("keyup", keyUp);
   addEventListener("blur", blur);
   const panOffset = new THREE.Vector3(), fwd = new THREE.Vector3();
+  const frameFns = new Set<(dt: number) => void>();
 
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
@@ -100,6 +103,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       if (reframe.t >= 1) reframe = null;
     }
     arena.update(dt);
+    for (const fn of frameFns) fn(dt);
     controls.update();
     renderer.render(scene, camera);
   });
@@ -119,8 +123,10 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
     },
     setPhase: (phase) => arena.setPhase(phase),
     setPan(x, y) { stick.x = x; stick.y = y; },
+    onFrame(fn) { frameFns.add(fn); return () => frameFns.delete(fn); },
     dispose() {
       renderer.setAnimationLoop(null);
+      frameFns.clear();
       removeEventListener("keydown", keyDown);
       removeEventListener("keyup", keyUp);
       removeEventListener("blur", blur);

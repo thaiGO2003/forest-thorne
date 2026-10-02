@@ -6,6 +6,7 @@ import { createPlanningHud } from "../ui/planning";
 import type { PortraitProvider } from "../ui/card";
 import { applyLocale, registerScreen, registerUtility } from "./app";
 import { runView } from "./bridge";
+import { createBoardView } from "../units/boardView";
 
 /** Replaced by the 3D portrait renderer once unit rigs are mounted (src/units/portraits.ts). */
 let portraits: PortraitProvider = { get: () => null, onReady: () => () => {} };
@@ -13,6 +14,7 @@ export function setPortraitProvider(p: PortraitProvider) { portraits = p; }
 
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
+  const board = createBoardView(stage);
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
     buy: (slot) => bridge.buy(slot),
     details: (id) => app.openPanel("unit-detail", id),
@@ -28,6 +30,7 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
+    board.sync(run);
     hud.update({
       run, synergies: runView.synergies(run), benchCap: runView.benchCap(run),
       deployLimit: runView.deployLimit(run), deployed: boardCount(run),
@@ -36,7 +39,7 @@ registerScreen("planning", (app) => {
   };
   const offs = [bridge.onChange(sync), app.modals.onChange(sync), onLocaleChange(() => hud.refreshCopy())];
   sync();
-  return { dispose() { for (const o of offs) o(); hud.dispose(); } };
+  return { dispose() { for (const o of offs) o(); hud.dispose(); board.dispose(); } };
 });
 
 // Language: one control opens the list; selecting refreshes copy immediately (A98).
