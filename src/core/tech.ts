@@ -1,5 +1,7 @@
 // Technology tree (spec A8). Data + atomic research; effects are summed from levels.
 export type Branch = "ROOT" | "VET" | "EXPLORE" | "ECON" | "MIL" | "CRAFT";
+export const TECH_ROOT_ID = "root" as const;
+export const TECH_BRANCH_ORDER = ["VET", "EXPLORE", "ECON", "MIL", "CRAFT"] as const satisfies readonly Exclude<Branch, "ROOT">[];
 export type TechStat =
   | "hpPct" | "atkPct" | "defPct" | "matkPct" | "mdefPct" | "critPct" | "lifestealPct" | "rageGainPct"
   | "startShield" | "startRage" | "deployCap" | "bench" | "benchUpgrade" | "interestCap" | "interestRate"
@@ -95,12 +97,109 @@ export function researchCost(t: TechNode, level: number): number {
   return t.infinite ? t.infinite.base + t.infinite.perLevel * level : t.costs![level]!;
 }
 
+/** Root is an always-satisfied virtual prerequisite for branch heads. */
+export function techRequirements(t: TechNode): readonly string[] {
+  return t.requires.length ? t.requires : [TECH_ROOT_ID];
+}
+
+export function techPrerequisiteMet(levels: Readonly<Record<string, number>>, id: string): boolean {
+  return id === TECH_ROOT_ID || Math.max(0, Math.floor(Number(levels[id]) || 0)) >= 1;
+}
+
 /** A8 gate: node exists, every prerequisite ≥1 (root implicit), below max, affordable. */
 export function canResearch(levels: Record<string, number>, id: string, gold: number): boolean {
   const t = TECH_BY_ID.get(id);
   if (!t) return false;
   const lvl = levels[id] ?? 0;
-  return t.requires.every((r) => (levels[r] ?? 0) >= 1) && lvl < maxLevel(t) && gold >= researchCost(t, lvl);
+  return techRequirements(t).every((r) => techPrerequisiteMet(levels, r))
+    && lvl < maxLevel(t)
+    && gold >= researchCost(t, lvl);
+}
+
+export type TechAvailability = "root" | "maxed" | "affordable" | "unaffordable" | "locked";
+
+export interface TechPrerequisiteState {
+  id: string;
+  met: boolean;
+}
+
+export interface TechEffectEntry {
+  stat: TechStat;
+  value: number;
+}
+
+export interface TechNodeState {
+  id: string;
+  branch: Branch;
+  level: number;
+  maxLevel: number;
+  purchased: boolean;
+  maxed: boolean;
+  unlocked: boolean;
+  affordable: boolean;
+  researchable: boolean;
+  availability: TechAvailability;
+  nextCost: number | null;
+  prerequisites: TechPrerequisiteState[];
+  nextEffects: TechEffectEntry[];
+}
+
+export function techEffectEntries(effect: Effect | undefined): TechEffectEntry[] {
+  if (!effect) return [];
+  return Object.entries(effect).flatMap(([stat, raw]) => {
+    const value = Number(raw);
+    return Number.isFinite(value) ? [{ stat: stat as TechStat, value }] : [];
+  });
+}
+
+/** A111 non-visual node-state source of truth for info panels, graph state and research affordance. */
+export function techNodeState(
+  levels: Readonly<Record<string, number>>,
+  id: string,
+  gold: number,
+): TechNodeState | null {
+  if (id === TECH_ROOT_ID) {
+    return {
+      id, branch: "ROOT", level: 1, maxLevel: 1, purchased: true, maxed: true,
+      unlocked: true, affordable: false, researchable: false, availability: "root",
+      nextCost: null, prerequisites: [], nextEffects: [],
+    };
+  }
+  const node = TECH_BY_ID.get(id);
+  if (!node) return null;
+  const max = maxLevel(node);
+  const level = Math.min(max, Math.max(0, Math.floor(Number(levels[id]) || 0)));
+  const prerequisites = techRequirements(node).map((requirement) => ({
+    id: requirement,
+    met: techPrerequisiteMet(levels, requirement),
+  }));
+  const unlocked = prerequisites.every((requirement) => requirement.met);
+  const maxed = level >= max;
+  const nextCost = maxed ? null : researchCost(node, level);
+  const affordable = !maxed && Number.isFinite(gold) && gold >= (nextCost ?? Infinity);
+  const researchable = unlocked && affordable && !maxed;
+  const availability: TechAvailability = maxed
+    ? "maxed"
+    : !unlocked
+      ? "locked"
+      : affordable
+        ? "affordable"
+        : "unaffordable";
+  return {
+    id: node.id,
+    branch: node.branch,
+    level,
+    maxLevel: max,
+    purchased: level > 0,
+    maxed,
+    unlocked,
+    affordable,
+    researchable,
+    availability,
+    nextCost,
+    prerequisites,
+    nextEffects: maxed ? [] : techEffectEntries(node.effects[Math.min(level, node.effects.length - 1)]),
+  };
 }
 
 /** Sum of every purchased level's effects. */

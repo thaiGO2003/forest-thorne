@@ -4,9 +4,48 @@ import {
 } from "../src/core/craft";
 import { createRun, expandBench, research } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
-import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "../src/core/tech";
+import {
+  canResearch, researchCost, TECH_BRANCH_ORDER, TECH_BY_ID, TECH_ROOT_ID, techEffectEntries, techModifiers,
+  techNodeState, techRequirements,
+} from "../src/core/tech";
 
 describe("tech A8", () => {
+  it("exposes one canonical root/branch order and root-backed branch prerequisites", () => {
+    expect(TECH_ROOT_ID).toBe("root");
+    expect(TECH_BRANCH_ORDER).toEqual(["VET", "EXPLORE", "ECON", "MIL", "CRAFT"]);
+    for (const id of ["vet", "explore", "econ", "mil", "craft_t", "speed"]) {
+      expect(techRequirements(TECH_BY_ID.get(id)!)).toEqual(["root"]);
+      expect(canResearch({}, id, 999)).toBe(true);
+    }
+    expect(canResearch({}, "root", 999)).toBe(false);
+  });
+
+  it("derives canonical node state, prerequisite status, cost and next effects", () => {
+    expect(techNodeState({}, "root", 0)).toMatchObject({
+      id: "root", branch: "ROOT", level: 1, maxLevel: 1, purchased: true, maxed: true,
+      unlocked: true, affordable: false, researchable: false, availability: "root", nextCost: null,
+    });
+    expect(techNodeState({}, "breed", 99)).toMatchObject({
+      level: 0, purchased: false, unlocked: false, affordable: true, researchable: false,
+      availability: "locked", nextCost: 8, prerequisites: [{ id: "vet", met: false }],
+      nextEffects: [{ stat: "deployCap", value: 1 }],
+    });
+    expect(techNodeState({ vet: 1 }, "breed", 7)).toMatchObject({
+      unlocked: true, affordable: false, researchable: false, availability: "unaffordable", nextCost: 8,
+      prerequisites: [{ id: "vet", met: true }],
+    });
+    expect(techNodeState({ vet: 1 }, "breed", 8)).toMatchObject({
+      unlocked: true, affordable: true, researchable: true, availability: "affordable",
+    });
+    expect(techNodeState({ vet: 1, breed: 1 }, "breed", 999)).toMatchObject({
+      level: 1, maxed: true, researchable: false, availability: "maxed", nextCost: null, nextEffects: [],
+    });
+    expect(techNodeState({}, "missing", 999)).toBeNull();
+    expect(techEffectEntries({ atkPct: 5, rerollCost: -1 })).toEqual([
+      { stat: "atkPct", value: 5 }, { stat: "rerollCost", value: -1 },
+    ]);
+  });
+
   it("prereqs mandatory, max respected, infinite cost formula", () => {
     expect(canResearch({}, "breed", 99)).toBe(false);
     expect(canResearch({ vet: 1 }, "breed", 99)).toBe(true);
