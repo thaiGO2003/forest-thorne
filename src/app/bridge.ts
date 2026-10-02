@@ -2,10 +2,24 @@
 // interface. `createPlaceholderBridge` wires what already exists in src/core and marks every
 // unimplemented intent with `LOGIC:` so the logic owner can fill it in without touching visuals.
 import { getUnit } from "../content/catalog";
-import { benchCap, createModeRun, deployLimit, runSynergies, type RunState } from "../core/run";
+import { benchCap, createModeRun, deployLimit, runSynergies, type RoundResultSummary, type RunState } from "../core/run";
 import { inspectSave, clearRunProgress } from "../core/save";
 import { MODE_CONFIG, type GameMode } from "../core/modes";
+import type { CombatEvent } from "../core/combat";
 import type { SaveSummary } from "../ui/menu";
+import type { RosterEntry } from "../units/combatPlayer";
+
+/**
+ * One resolved battle handed to presentation (A16, A121). Logic resolves canonically up front;
+ * presentation replays `events` in order, then calls `finish()` exactly once to apply the result.
+ */
+export interface CombatSession {
+  /** Every combatant at battle start (both sides), with starting HP/rage/shield. */
+  roster: RosterEntry[];
+  events: CombatEvent[];
+  /** Applies the result once (idempotent by combat id) and returns the normalized summary. */
+  finish(): RoundResultSummary | null;
+}
 
 export interface Bridge {
   /** Current canonical run, or null on menu. Views read; never mutate. */
@@ -21,7 +35,8 @@ export interface Bridge {
   toggleLock(): void;
   sell(from: "bench" | "board", index: number): boolean;
   move(from: { kind: "bench" | "board"; index: number }, to: { kind: "bench" | "board"; index: number }): boolean;
-  startCombat(): boolean;
+  /** Resolve a battle from the current formation; null when illegal (phase/tutorial/empty board). */
+  startCombat(): CombatSession | null;
   /** Fires after any state change so HUDs repaint. */
   onChange(fn: () => void): () => void;
 }
@@ -64,7 +79,8 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     toggleLock: () => {},
     sell: () => false,
     move: () => false,
-    startCombat: () => false,
+    // LOGIC: materialize formation (A77) → simulate → build roster/events → finish() = applyRoundResult.
+    startCombat: () => null,
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 }

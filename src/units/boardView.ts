@@ -102,7 +102,17 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       s.bb.set(s.base);
       s.v.setHpRatio(s.base.hp / Math.max(1, s.base.maxHp));
     },
-    setCombat(v) { combat = v; for (const s of slots.values()) s.v.setCombat(v); },
+    setCombat(v) {
+      const leaving = combat && !v;
+      combat = v;
+      if (leaving) {
+        // A77: temporary combat state (HP, deaths, staging offsets) is discarded; next sync rebuilds fresh rigs.
+        for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
+        slots.clear();
+        return;
+      }
+      for (const s of slots.values()) s.v.setCombat(v);
+    },
     dispose() {
       off();
       for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }

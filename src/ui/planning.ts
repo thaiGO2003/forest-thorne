@@ -48,6 +48,9 @@ export interface PlanningModel {
 export interface PlanningView { el: HTMLElement; update(m: PlanningModel): void; refreshCopy(): void; dispose(): void }
 
 const SHOP_PAGE = 8;
+const SYN_PREFIX: Record<SynergyLine["kind"], string> = { class: "role", faction: "faction", element: "element" };
+/** Localized synergy name (shared by rail + tooltip so both read identically). */
+const synName = (l: SynergyLine) => t(`${SYN_PREFIX[l.kind]}.${l.key}` as MsgKey);
 
 export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: PortraitProvider, it: PlanningIntents): PlanningView {
   let m: PlanningModel | null = null, page = 0;
@@ -111,10 +114,10 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       label(g, ic, 24, y + rowH / 2 - 2, { size: 15, stroke: null });
       const tier = l.next ? `${l.count}/${l.next}` : `${l.count} ★`;
       label(g, tier, w - 14, y + rowH / 2 - 2, { size: 13, align: "right", fill: l.active ? "#ffe08a" : "#3b2414", stroke: l.active ? undefined : null });
-      label(g, l.key, 40, y + rowH / 2 - 2, { size: 11, align: "left", fill: l.active ? "#fff8ec" : "#3b2414", stroke: l.active ? undefined : null, maxW: w - 90 });
+      label(g, synName(l), 40, y + rowH / 2 - 2, { size: 11, align: "left", fill: l.active ? "#fff8ec" : "#3b2414", stroke: l.active ? undefined : null, maxW: w - 90 });
     }
   });
-  tip.bind(syn, () => ({ title: t("planning.synergy"), lines: (m?.synergies ?? []).filter((l) => l.count).map((l) => ({ icon: ICONS[l.key as keyof typeof ICONS], text: `${l.key} ${l.count}${l.next ? `/${l.next}` : ""}`, tone: l.active ? "good" : "muted" })) }));
+  tip.bind(syn, () => ({ title: t("planning.synergy"), lines: (m?.synergies ?? []).filter((l) => l.count).map((l) => ({ icon: ICONS[l.key as keyof typeof ICONS], text: `${synName(l)} ${l.count}${l.next ? `/${l.next}` : ""}`, tone: l.active ? "good" : "muted" })) }));
 
   // ---- camera joystick (A91.1: 44 px radius, left side, below synergy) ----
   const joy = h("div", "pl-joystick");

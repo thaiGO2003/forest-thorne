@@ -172,3 +172,24 @@
   .lib-info { overflow: visible; }
   .lib-grid { grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 6px; }
 }
+
+/* ---------- combat HUD + result ---------- */
+.combat { position: absolute; inset: 0; pointer-events: none; }
+.combat > * { position: absolute; pointer-events: auto; }
+.cb-top { top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 16px)); height: 86px; }
+.cb-side { right: max(8px, env(safe-area-inset-right)); top: calc(max(8px, env(safe-area-inset-top)) + 96px); width: 220px; max-height: calc(100% - 120px); display: flex; flex-direction: column; gap: 6px; padding: 10px; }
+.cb-side-head { position: relative; display: flex; gap: 6px; justify-content: flex-end; flex: none; }
+.cb-speed { width: 72px; height: 40px; }
+.cb-hist { width: 40px; height: 40px; }
+.cb-info { position: relative; flex: 1 1 auto; min-height: 330px; }
+.cb-result { align-items: stretch; }
+.cb-banner { position: relative; height: 48px; }
+.cb-row { display: flex; justify-content: space-between; align-items: center; min-height: 40px; padding: 6px 12px; font-size: 15px; }
+.cb-k, .cb-v { position: relative; z-index: 1; }
+.cb-v { font-weight: 800; }
+.cb-next { height: 52px; }
+@media (max-width: 760px) {
+  .cb-top { height: 80px; }
+  .cb-side { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: 50%; right: auto; transform: translateX(-50%); width: min(360px, calc(100% - 16px)); }
+  .cb-info { min-height: 200px; }
+}
