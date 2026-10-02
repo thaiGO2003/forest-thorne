@@ -28,7 +28,8 @@ async function run(headless) {
         if (m.type() === "error" && !where.endsWith("/favicon.ico")) errors.push(`${name}: ${m.text()} ${where}`);
       });
       await page.goto(url, { waitUntil: "networkidle" });
-      await page.waitForSelector("#app[data-boot=ready]", { timeout: 10_000 });
+      // ponytail: SwiftShader x2 parallel boots slowly; 30s ceiling, lower when GPU available.
+      await page.waitForSelector("#app[data-boot=ready]", { timeout: 30_000 });
       await page.waitForTimeout(1500);
       const path = `${out}/${headless ? "headless" : "headed"}-${name}.png`;
       await page.screenshot({ path });
