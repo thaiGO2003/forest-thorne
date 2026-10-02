@@ -8,6 +8,14 @@ export const RESOLUTIONS = [
   "1280x720", "1600x900", "adaptive", "1920x1080", "2436x1125", "2532x1170", "2560x1080", "2560x1440",
   "3200x1800", "3440x1440", "3840x2160", "2796x1290",
 ] as const;
+export type ResolutionKey = (typeof RESOLUTIONS)[number];
+export interface ResolutionSize { width: number; height: number }
+export interface ResolutionSource {
+  visualViewport?: { width: number; height: number } | null;
+  innerWidth?: number;
+  innerHeight?: number;
+  screen?: { width: number; height: number } | null;
+}
 export const TOOLTIP_MODES = ["off", "compact", "summary", "expanded"] as const;
 export const QUALITY = ["low", "medium", "high"] as const;
 export const RENDER_SCALES = [0.5, 0.67, 0.75, 1] as const;
@@ -55,7 +63,7 @@ export interface Settings {
   audioEnabled: boolean; audioMuted: boolean; volumeLevel: number;
   aiMode: AiMode; aiModeByGameMode: Record<GameMode, AiMode>;
   loseCondition: "NO_HEARTS" | "NO_UNITS";
-  resolutionKey: (typeof RESOLUTIONS)[number]; guiScale: 2;
+  resolutionKey: ResolutionKey; guiScale: 2;
   language: "vi" | "en"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
   subtitleEnabled: boolean; keys: KeyBindings;
   quality: (typeof QUALITY)[number]; renderScale: number; batterySaver: boolean;
@@ -64,12 +72,52 @@ export interface Settings {
 const pick = <T>(list: readonly T[], v: unknown, def: T): T => (list.includes(v as T) ? (v as T) : def);
 const bool = (v: unknown, def: boolean) => (typeof v === "boolean" ? v : def);
 
+/** A66: missing settings use the authored 1600x900 default; stale/unknown saved keys recover to Adaptive. */
+export function normalizeResolutionKey(value: unknown, missingDefault: ResolutionKey = "1600x900"): ResolutionKey {
+  if (value == null || value === "") return missingDefault;
+  return RESOLUTIONS.includes(value as ResolutionKey) ? value as ResolutionKey : "adaptive";
+}
+
+const positiveDimension = (value: unknown): number | null => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n)) : null;
+};
+
+/** A66 Adaptive: visual viewport -> normal viewport -> screen -> 1600x900. */
+export function resolveResolution(key: ResolutionKey, source: ResolutionSource = {}): ResolutionSize {
+  if (key !== "adaptive") {
+    const [rawWidth, rawHeight] = key.split("x");
+    return { width: Number(rawWidth), height: Number(rawHeight) };
+  }
+  const candidates: readonly [unknown, unknown][] = [
+    [source.visualViewport?.width, source.visualViewport?.height],
+    [source.innerWidth, source.innerHeight],
+    [source.screen?.width, source.screen?.height],
+  ];
+  for (const [rawWidth, rawHeight] of candidates) {
+    const width = positiveDimension(rawWidth);
+    const height = positiveDimension(rawHeight);
+    if (width && height) return { width, height };
+  }
+  return { width: 1600, height: 900 };
+}
+
+/** A66 preset cycling wraps in either direction and recovers stale current values through Adaptive. */
+export function cycleResolution(current: unknown, direction: 1 | -1): ResolutionKey {
+  const normalized = normalizeResolutionKey(current, "adaptive");
+  const index = RESOLUTIONS.indexOf(normalized);
+  const next = (index + direction + RESOLUTIONS.length) % RESOLUTIONS.length;
+  return RESOLUTIONS[next]!;
+}
+
 export function normalizeSettings(raw: unknown): Settings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const byMode = (r.aiModeByGameMode ?? {}) as Record<string, unknown>;
   const vol = Math.round(Number(r.volumeLevel));
   const scale = Number(r.renderScale);
-  const tooltipMode = pick(TOOLTIP_MODES, r.tooltipMode, "summary");
+  const tooltipMode = TOOLTIP_MODES.includes(r.tooltipMode as (typeof TOOLTIP_MODES)[number])
+    ? r.tooltipMode as (typeof TOOLTIP_MODES)[number]
+    : r.expandedTooltip === true ? "expanded" : "summary";
   return {
     audioEnabled: bool(r.audioEnabled, true),
     audioMuted: bool(r.audioMuted, false),
@@ -82,7 +130,7 @@ export function normalizeSettings(raw: unknown): Settings {
     loseCondition: r.loseCondition === "SINGLE_LOSS"
       ? "NO_UNITS"
       : pick(["NO_HEARTS", "NO_UNITS"] as const, r.loseCondition, "NO_UNITS"),
-    resolutionKey: pick(RESOLUTIONS, r.resolutionKey, "1600x900"),
+    resolutionKey: normalizeResolutionKey(r.resolutionKey),
     guiScale: 2,
     language: pick(["vi", "en"] as const, r.language, "vi"),
     tooltipMode,
@@ -111,6 +159,46 @@ export interface SettingsStore {
   save(patch: Partial<Settings>): void;
   preview(patch: Partial<Settings>): void;
   resetKeys(ctx?: KeyContext): void;
+}
+
+export interface ResolutionApplyResult {
+  ok: boolean;
+  active: ResolutionKey;
+  recovered: boolean;
+  message?: string;
+}
+
+export type ResolutionApplier = (key: ResolutionKey) => boolean | Promise<boolean>;
+
+/**
+ * A66 transactional boundary: persist only after successful application. On failure, re-apply the
+ * previous mode and keep the previous setting, returning explicit recovery copy to the caller.
+ */
+export async function applyResolutionChange(
+  settings: Pick<SettingsStore, "get" | "save">,
+  requested: unknown,
+  apply: ResolutionApplier,
+): Promise<ResolutionApplyResult> {
+  const previous = settings.get().resolutionKey;
+  const next = normalizeResolutionKey(requested, "adaptive");
+  try {
+    if (await apply(next)) {
+      settings.save({ resolutionKey: next });
+      return { ok: true, active: next, recovered: false };
+    }
+  } catch {
+    // Rollback below owns recovery for both false returns and thrown platform failures.
+  }
+  let recovered = false;
+  try { recovered = await apply(previous); } catch { recovered = false; }
+  return {
+    ok: false,
+    active: previous,
+    recovered,
+    message: recovered
+      ? `Không thể áp dụng độ phân giải ${next}; đã khôi phục ${previous}.`
+      : `Không thể áp dụng độ phân giải ${next}; hãy khởi động lại phần hiển thị.`,
+  };
 }
 
 /** Owner: normalize → write once → notify. `preview` notifies immediately and writes after 200 ms. */
