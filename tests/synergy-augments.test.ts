@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import { applyAugment, augmentBand, augmentScore, AUGMENT_BY_ID, AUGMENTS } from "../src/core/augments";
 import { createRun, playerCombatBonus } from "../src/core/run";
-import { computeSynergies, counterMultiplier } from "../src/core/synergy";
+import { aggregateVirtualSynergyCounts, computeCoopSynergies, computeSynergies, counterMultiplier } from "../src/core/synergy";
 
 const tankers = NORMAL_UNITS.filter((u) => u.role === "TANKER").map((u) => u.id);
 
@@ -21,6 +21,21 @@ describe("synergy A9", () => {
     const lines = computeSynergies([first.id, second.id], 1);
     expect(lines.find((line) => line.kind === "class" && line.key === first.role)?.count).toBe(2);
     expect(lines.find((line) => line.kind === "class" && line.key === second.role)?.count).toBe(1);
+  });
+  it("co-op pools every player's virtual class/tribe count before stable leader selection", () => {
+    const first = NORMAL_UNITS[0]!;
+    const second = NORMAL_UNITS.find((u) => u.role !== first.role && u.faction !== first.faction)!;
+    const players = [
+      { extraClassCount: 1, extraTribeCount: 1 },
+      { extraClassCount: 1, extraTribeCount: 0 },
+      { extraClassCount: -9, extraTribeCount: Number.NaN },
+    ];
+    expect(aggregateVirtualSynergyCounts(players)).toEqual({ extraClassCount: 2, extraTribeCount: 1 });
+    const lines = computeCoopSynergies([first.id, second.id], players);
+    expect(lines.find((line) => line.kind === "class" && line.key === first.role)).toMatchObject({ count: 3, active: 2 });
+    expect(lines.find((line) => line.kind === "class" && line.key === second.role)?.count).toBe(1);
+    expect(lines.find((line) => line.kind === "faction" && line.key === first.faction)).toMatchObject({ count: 2, active: 2 });
+    expect(lines.find((line) => line.kind === "faction" && line.key === second.faction)?.count).toBe(1);
   });
   it("counters: element and class edges stack at 0.5 each", () => {
     const find = (p: (u: (typeof NORMAL_UNITS)[number]) => boolean) => NORMAL_UNITS.find(p)!.id;

@@ -63,6 +63,34 @@ export interface SynergyLine {
   bonus: Tier;
 }
 
+export interface VirtualSynergyCounts {
+  extraClassCount?: number;
+  extraTribeCount?: number;
+}
+
+export interface AggregatedVirtualSynergyCounts {
+  extraClassCount: number;
+  extraTribeCount: number;
+}
+
+const normalizedVirtualCount = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+};
+
+/** A82 co-op: virtual counts are pooled across every allied player before leader selection. */
+export function aggregateVirtualSynergyCounts(
+  players: Iterable<VirtualSynergyCounts>,
+): AggregatedVirtualSynergyCounts {
+  let extraClassCount = 0;
+  let extraTribeCount = 0;
+  for (const player of players) {
+    extraClassCount += normalizedVirtualCount(player.extraClassCount);
+    extraTribeCount += normalizedVirtualCount(player.extraTribeCount);
+  }
+  return { extraClassCount, extraTribeCount };
+}
+
 /** Count deployed units and apply each virtual echo to the stable most-numerous identity only (A82). */
 export function computeSynergies(baseIds: string[], extraClass = 0, extraTribe = 0): SynergyLine[] {
   const counts: Record<string, Record<string, number>> = { class: {}, element: {}, faction: {} };
@@ -90,4 +118,13 @@ export function computeSynergies(baseIds: string[], extraClass = 0, extraTribe =
       const idx = THRESHOLDS.filter((t) => count >= t).length;
       return [{ kind, key, count, active: idx ? THRESHOLDS[idx - 1]! : 0, next: THRESHOLDS[idx] ?? null, bonus: idx ? tiers[idx - 1]! : {} }];
     }));
+}
+
+/** Shared allied formation + pooled player echoes. Bench composition never enters this helper. */
+export function computeCoopSynergies(
+  deployedBaseIds: string[],
+  players: Iterable<VirtualSynergyCounts>,
+): SynergyLine[] {
+  const totals = aggregateVirtualSynergyCounts(players);
+  return computeSynergies(deployedBaseIds, totals.extraClassCount, totals.extraTribeCount);
 }
