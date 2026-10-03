@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { BOSSES, NORMAL_UNITS } from "../src/content/catalog";
 import { creativeRightEnemyOverride, mergeCreativeSandboxUnits, normalizeCreativeSandboxUnits } from "../src/core/creative";
+import { createEnvelope, migrate } from "../src/core/save";
 import {
   addCreativeGold, addCreativeHp, benchCap, creativeEnemyOverride, createModeRun, moveCreativeSandboxUnit, placeCreativeClone,
   removeCreativeSandboxUnit, sellCreativeSandboxUnit, summonCreativeUnit,
   type OwnedUnit,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
+import { rollVariantTrait } from "../src/core/variants";
 
 const source = (uid: string, baseId = NORMAL_UNITS[0]!.id): OwnedUnit => ({ uid, baseId, star: 1, equips: [], traits: [] });
 
@@ -114,5 +116,16 @@ describe("Creative sandbox A46", () => {
     expect(normalized).toHaveLength(1);
     expect(normalized[0]).toMatchObject({ uid: "r", side: "RIGHT", row: 4, col: 5 });
     expect(creativeRightEnemyOverride(normalized)?.[0]).toMatchObject({ uid: "r", row: 4, col: 5 });
+  });
+
+  it("round-trips sandbox position, equipment, variant and source identity through save migration", () => {
+    const def = NORMAL_UNITS[0]!;
+    const s = createModeRun(7, "EndlessCreative");
+    const trait = rollVariantTrait(def.role, 12345);
+    s.bench = [{ uid: "source-save", baseId: def.id, star: 2, equips: ["eq_blue_buff"], traits: [trait] }];
+    const uid = placeCreativeClone(s, "bench", 0, 3, 8)!;
+    const before = structuredClone(s.creativeSandboxUnits.find((unit) => unit.uid === uid)!);
+    const restored = migrate(createEnvelope({ player: s }))!.envelope.payload.player!;
+    expect(restored.creativeSandboxUnits).toEqual([before]);
   });
 });
