@@ -31,6 +31,21 @@ describe("combat", () => {
     expect(a.winner).toBe(b.winner);
   });
 
+  it("keeps participant identity and exact HP damage in the canonical event log", () => {
+    const left = team([ids[0]!], "L");
+    const right = team([ids[1]!], "R");
+    const result = simulate(left, right, { seed: 17 });
+    expect(result.participants).toEqual([
+      { uid: "L0", baseId: ids[0], star: 1, side: "L" },
+      { uid: "R0", baseId: ids[1], star: 1, side: "R" },
+    ]);
+    const hit = result.events.find((event) => event.t === "basic" || event.t === "skill");
+    expect(hit).toBeDefined();
+    if (!hit || (hit.t !== "basic" && hit.t !== "skill")) return;
+    expect(hit.hpDamage).toBeGreaterThanOrEqual(0);
+    expect(hit.hpDamage).toBeLessThanOrEqual(hit.dmg - hit.absorbed);
+  });
+
   it("every unit fights to a valid resolution without throwing; HP never out of bounds", () => {
     for (let i = 0; i < ids.length; i += 5) {
       const res = simulate(team(ids.slice(i, i + 5), "L"), team(ids.slice((i + 60) % 120, (i + 60) % 120 + 5), "R"), { seed: i });

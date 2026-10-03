@@ -29,8 +29,8 @@ export interface Fighter {
   range: number; rageMax: number; rage: number; shield: number; alive: boolean;
   crit: number; critDmg: number; accuracy: number; evade: number; lifesteal: number; rageGainPct: number; healPct: number;
   onHitBurn: number; onHitPoison: number;
-  /** Timed statuses: control kinds + DoT kinds; DoTs carry per-tick value. */
-  status: Record<string, { turns: number; value: number }>;
+  /** Timed statuses: control kinds + DoT kinds; DoTs carry per-tick value and source provenance when known. */
+  status: Record<string, { turns: number; value: number; sourceUid?: string }>;
   mods: Mod[];
   /** Uid of the unit that taunted this fighter while `status.taunt` is active. */
   tauntBy: string | null;
@@ -52,16 +52,23 @@ export interface Placement {
 }
 
 export type CombatEvent =
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; hpDamage: number; crit: boolean }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[] }
-  | { t: "dot"; dst: string; kind: string; dmg: number }
+  | { t: "dot"; src?: string; dst: string; kind: string; dmg: number; absorbed: number; hpDamage: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
   | { t: "status"; dst: string; kind: string; turns: number }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string };
+
+export interface CombatParticipant {
+  uid: string;
+  baseId: string;
+  star: number;
+  side: Side;
+}
 
 export interface CombatResult {
   winner: Side | null;
@@ -72,6 +79,7 @@ export interface CombatResult {
   bountyKills: Record<Side, number>;
   actions: number;
   events: CombatEvent[];
+  participants: CombatParticipant[];
   survivors: Fighter[];
 }
 
@@ -225,11 +233,17 @@ function basicTarget(c: Ctx, f: Fighter): Fighter | null {
   return list[0] ?? null;
 }
 
-function applyStatus(c: Ctx, dst: Fighter, kind: string, turns: number, value = 0) {
+function applyStatus(c: Ctx, dst: Fighter, kind: string, turns: number, value = 0, sourceUid?: string) {
   if (!dst.alive || turns <= 0) return;
   const cur = dst.status[kind];
   // Never shorten; keep the stronger payload (A73).
-  dst.status[kind] = { turns: Math.max(turns, cur?.turns ?? 0), value: Math.max(value, cur?.value ?? 0) };
+  const nextValue = Math.max(value, cur?.value ?? 0);
+  const nextSourceUid = value > (cur?.value ?? -Infinity) ? sourceUid : cur?.sourceUid ?? sourceUid;
+  dst.status[kind] = {
+    turns: Math.max(turns, cur?.turns ?? 0),
+    value: nextValue,
+    ...(nextSourceUid ? { sourceUid: nextSourceUid } : {}),
+  };
   c.events.push({ t: "status", dst: dst.uid, kind, turns: dst.status[kind]!.turns });
 }
 
@@ -253,12 +267,18 @@ function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
 }
 
 /** Shield first, then HP. Emits the hit event before any resulting death so replay order is cause → effect. */
-function applyDamage(c: Ctx, dst: Fighter, dmg: number, killer: Fighter | null, event: (absorbed: number) => CombatEvent) {
+function applyDamage(
+  c: Ctx,
+  dst: Fighter,
+  dmg: number,
+  killer: Fighter | null,
+  event: (absorbed: number, hpDamage: number) => CombatEvent,
+) {
   const absorbed = Math.min(dst.shield, dmg);
   dst.shield -= absorbed;
   const toHp = Math.min(dst.hp, dmg - absorbed);
   dst.hp -= toHp;
-  c.events.push(event(absorbed));
+  c.events.push(event(absorbed, toHp));
   const killed = dst.hp <= 0 && dst.alive;
   if (killed) kill(c, dst, killer);
   return { hp: toHp, absorbed, killed };
@@ -288,12 +308,12 @@ function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: DamageTyp
     fireVuln: dst.env.fireVuln, globalMult: c.globalMult,
   });
   const resolved = applyDamage(c, dst, dmg, src,
-    (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }));
+    (absorbed, hpDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, hpDamage, crit: isCrit }));
   if (resolved.hp > 0) {
     if (!skill) addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
     if (src.lifesteal > 0) heal(c, src, src, resolved.hp * src.lifesteal);
-    if (dst.alive && src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn);
-    if (dst.alive && src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison);
+    if (dst.alive && src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn, src.uid);
+    if (dst.alive && src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison, src.uid);
   }
   afterDefender(c, dst, src);
   return { ...resolved, landed: true };
@@ -469,7 +489,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
   const dotMult = STAR_DOT[f.star] ?? 1;
   for (const t of enemies) {
     if (!t.alive) continue;
-    for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult));
+    for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult), f.uid);
     for (const k of sp.controls) {
       applyStatus(c, t, k.kind, k.turns);
       if (k.kind === "taunt") t.tauntBy = f.uid;
@@ -519,11 +539,19 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
       ? f.env.fireVuln * ((f.status.fireVulnerability?.turns ?? 0) > 0 ? Math.max(1, f.status.fireVulnerability!.value) : 1)
       : 1;
     const dmg = Math.max(1, Math.round(s.value * fireVulnerability * c.globalMult));
-    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: k, dmg }));
+    applyDamage(c, f, dmg, null, (absorbed, hpDamage) => ({
+      t: "dot",
+      ...(s.sourceUid ? { src: s.sourceUid } : {}),
+      dst: f.uid,
+      kind: k,
+      dmg,
+      absorbed,
+      hpDamage,
+    }));
     if (k === "disease" && dmg > 0) {
       for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
         const neighbor = c.all.find((x) => x.alive && x.side === f.side && x.row === f.row + dr && x.col === f.col + dc);
-        if (neighbor && !((neighbor.status.disease?.turns ?? 0) > 0)) applyStatus(c, neighbor, "disease", 2, dmg);
+        if (neighbor && !((neighbor.status.disease?.turns ?? 0) > 0)) applyStatus(c, neighbor, "disease", 2, dmg, s.sourceUid);
       }
     }
     if (--s.turns <= 0) delete f.status[k];
@@ -532,7 +560,9 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   // A32 SWARM aura: non-matching units take 4 true damage per turn.
   if (f.env.poisonAura > 0) {
     const dmg = f.env.poisonAura;
-    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
+    applyDamage(c, f, dmg, null, (absorbed, hpDamage) => ({
+      t: "dot", dst: f.uid, kind: "poisonAura", dmg, absorbed, hpDamage,
+    }));
     if (!f.alive) return { canAct: false, silenced, disarmed };
   }
   f.mods = f.mods.filter((m) => --m.turns > 0);
@@ -621,6 +651,7 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
   return {
     winner: alive.L && !alive.R ? "L" : alive.R && !alive.L ? "R" : null,
     alive, total: { L: left.length, R: right.length }, bounty: c.bounty, bountyKills: c.bountyKills, actions, events: c.events,
+    participants: all.map(({ uid, baseId, star, side }) => ({ uid, baseId, star, side })),
     survivors: all.filter((f) => f.alive),
   };
 }
