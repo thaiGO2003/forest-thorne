@@ -8,7 +8,7 @@ import {
   runSynergies, sell as sellUnit, startCombat as beginCombat, toggleLock as toggleShopLock,
   type RoundResultSummary, type RunState,
 } from "../core/run";
-import { inspectSave, clearRunProgress, saveRun } from "../core/save";
+import { inspectSave, clearRunProgress, persistPlanningProgress } from "../core/save";
 import { MODE_CONFIG, type GameMode } from "../core/modes";
 import { resolveContinueRoute, resolveNewRunRoute } from "../core/menuRouting";
 import { AI_PROFILE } from "../core/encounter";
@@ -75,7 +75,9 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     history.entries = [];
   };
   const persist = () => {
-    if (state) saveRun(store, { player: state, audioEnabled: settings.get().audioEnabled });
+    if (state) persistPlanningProgress({
+      authority: "solo", store, payload: { player: state, audioEnabled: settings.get().audioEnabled },
+    });
   };
   const record = (category: HistoryCategory, message: string, details?: string[]) => {
     pushPlanningHistory(history, {
