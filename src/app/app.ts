@@ -10,6 +10,7 @@ import { createLoading } from "../ui/loading";
 import { createMenu, type UtilityId } from "../ui/menu";
 import { createPlaceholderBridge, type Bridge } from "./bridge";
 import { bootTransitionDelay, createRequestGate, waitMs } from "./loadLifecycle";
+import { handleGameShortcut } from "./shortcuts";
 
 export type Route = "loading" | "menu" | "planning";
 
@@ -98,7 +99,21 @@ export async function boot(root: HTMLElement): Promise<App> {
       openUtility: (id) => (utilities[id] ? utilities[id](app) : app.openPanel(id)),
     }, { save: bridge.saveSummary(), version: __APP_VERSION__ });
     const off = onLocaleChange(() => menu.refreshCopy());
-    return { dispose() { off(); menu.dispose(); } };
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      const editing = target instanceof HTMLElement && (
+        target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
+      );
+      handleGameShortcut({
+        key: event.key, repeat: event.repeat, defaultPrevented: event.defaultPrevented,
+        ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, editing,
+        preventDefault: () => event.preventDefault(),
+      }, bridge.settings.get(), "menu", { phase: bridge.run()?.phase ?? "PLANNING" }, {
+        close: () => modals.closeActive(),
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return { dispose() { window.removeEventListener("keydown", onKey); off(); menu.dispose(); } };
   }
 
   // Loading: real progress = kit images (90%) + first stage frame (10%).

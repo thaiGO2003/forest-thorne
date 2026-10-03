@@ -21,6 +21,11 @@ import { rollLoot } from "../core/loot";
 import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type PlanningHistoryState } from "../core/history";
 import { setLocale } from "../core/i18n";
 import { createSettingsStore, type SettingsStore } from "../core/settings";
+import {
+  executePlanningContextAction, inspectPlanningSelection, resolvePlanningSelection,
+  selectBenchUnit, selectBoardUnit, selectShopOffer,
+  type PlanningContextAction, type PlanningContextResult, type PlanningSelection, type PlanningUnitInspection,
+} from "../core/planningInspection";
 import type { SaveSummary } from "../ui/menu";
 import type { RosterEntry } from "../units/combatPlayer";
 
@@ -65,6 +70,10 @@ export interface Bridge {
   unequipAll(where: "bench" | "board", index: number): boolean;
   sellItem(bagIndex: number): boolean;
   chooseAugment(id: string): boolean;
+  selectUnit(source: "bench" | "board" | "shop", index: number): boolean;
+  selection(): PlanningSelection | null;
+  selectedUnit(): PlanningUnitInspection | null;
+  contextAction(action: PlanningContextAction): PlanningContextResult;
   /** Planning history (A38); views filter/read only. */
   history(): PlanningHistoryState;
   /** Canonical persisted UI settings owner (A35, A110.2). */
@@ -83,6 +92,13 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
   setLocale(settings.get().language);
   const history = createPlanningHistory();
   let craftStaging: (string | null)[] = Array(9).fill(null);
+  let selection: PlanningSelection | null = null;
+  const resolveSelection = () => {
+    if (!state) return null;
+    const resolved = resolvePlanningSelection(state, selection);
+    selection = resolved?.selection ?? null;
+    return resolved;
+  };
 
   const resetCraftStaging = () => { craftStaging = Array(9).fill(null); };
   const reconcileCraftStaging = () => {
@@ -117,6 +133,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
   };
   const commit = (category: HistoryCategory, message: string, details?: string[]) => {
     reconcileCraftStaging();
+    resolveSelection();
     record(category, message, details);
     persist();
     emit();
@@ -157,6 +174,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       const route = resolveContinueRoute(s.envelope.payload.player);
       if (route.kind === "blocked" || route.destination !== "planning") return false;
       state = s.envelope.payload.player;
+      selection = null;
       resetCraftStaging();
       if (typeof s.envelope.payload.audioEnabled === "boolean") {
         settings.save({ audioEnabled: s.envelope.payload.audioEnabled });
@@ -175,6 +193,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       clearRunProgress(store);
       state = createModeRun(Date.now() | 0, route.mode);
       state.aiMode = route.aiMode;
+      selection = null;
       resetCraftStaging();
       resetHistory();
       persist();
@@ -371,9 +390,35 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       commit("EVENT", `Chọn nâng cấp ${id}`);
       return true;
     },
+    selectUnit(source, index) {
+      if (!state || !Number.isInteger(index) || index < 0) return false;
+      const selected = source === "bench" ? selectBenchUnit(state, index)
+        : source === "board" ? selectBoardUnit(state, Math.floor(index / 5), index % 5)
+          : selectShopOffer(state, index);
+      if (!selected) return false;
+      selection = selected;
+      emit();
+      return true;
+    },
+    selection: () => {
+      const selected = resolveSelection()?.selection;
+      return selected ? { ...selected } : null;
+    },
+    selectedUnit() {
+      const resolved = resolveSelection();
+      return state && resolved ? inspectPlanningSelection(state, resolved) : null;
+    },
+    contextAction(action) {
+      const resolved = resolveSelection();
+      if (!state || !resolved) return { ok: false, mutated: false, selection: null, feedback: "action_unavailable" };
+      const result = executePlanningContextAction(state, resolved, action);
+      selection = result.selection;
+      if (result.mutated) commit("EVENT", action === "SELL" ? "Bán đơn vị đã chọn" : "Thu hồi đơn vị đã chọn");
+      return result;
+    },
     history: () => history,
     settings,
-    clearRun() { clearRunProgress(store); state = null; resetCraftStaging(); emit(); },
+    clearRun() { clearRunProgress(store); state = null; selection = null; resetCraftStaging(); emit(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 }

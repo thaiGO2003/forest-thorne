@@ -1,7 +1,7 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange } from "../core/i18n";
 import { boardCount } from "../core/run";
-import { normalizeKey } from "../core/settings";
+import { handleGameShortcut } from "./shortcuts";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
@@ -127,31 +127,35 @@ registerScreen("planning", (app) => {
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.repeat || combat || app.modals.blocking()) return;
     const target = event.target;
-    if (target instanceof HTMLElement && (
+    const editing = target instanceof HTMLElement && (
       target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
-    )) return;
-    const key = normalizeKey(event.key === " " ? "SPACE" : event.key);
-    if (!key) return;
-    const bindings = bridge.settings.get().keys.planning;
-    if (key === bindings.startCombat) {
-      event.preventDefault();
-      runCombat();
-    } else if (key === bindings.reroll) {
-      event.preventDefault();
-      bridge.reroll();
-    } else if (key === bindings.buyXp) {
-      event.preventDefault();
-      bridge.buyXp();
-    } else if (key === bindings.settings) {
-      event.preventDefault();
-      app.openPanel("settings");
-    } else if (key === bindings.toggleAudio) {
-      event.preventDefault();
-      const current = bridge.settings.get();
-      bridge.settings.save({ audioEnabled: true, audioMuted: !current.audioMuted });
-    }
+    );
+    const run = bridge.run();
+    if (!run) return;
+    const modal = app.modals.active();
+    handleGameShortcut({
+      key: event.key, repeat: event.repeat, defaultPrevented: event.defaultPrevented,
+      ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, editing,
+      preventDefault: () => event.preventDefault(),
+    }, bridge.settings.get(), combat ? "combat" : "planning", {
+      phase: run.phase, settingsOpen: modal === "settings", historyOpen: modal === "history",
+      libraryOpen: modal === "library", blockingOverlay: app.modals.blocking(),
+    }, {
+      startCombat: runCombat,
+      rerollShop: () => { bridge.reroll(); },
+      buyXp: () => { bridge.buyXp(); },
+      sellUnit: () => { bridge.contextAction("SELL"); },
+      newRun: () => { if (bridge.newRun(run.mode, run.aiMode)) sync(); },
+      "open-settings": () => app.openPanel("settings"),
+      "close-settings": () => app.modals.closeActive(),
+      "close-library": () => app.modals.closeActive(),
+      "close-history": () => app.modals.closeActive(),
+      toggleAudio: () => {
+        const current = bridge.settings.get();
+        bridge.settings.save({ audioEnabled: true, audioMuted: !current.audioMuted });
+      },
+    });
   };
   window.addEventListener("keydown", onKeyDown);
 

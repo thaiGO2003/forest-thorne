@@ -96,4 +96,34 @@ describe("bridge planning transaction ownership", () => {
     expect(store.getItem(PROGRESS_KEY)).toBe(saved);
     expect(bridge.history().entries).toHaveLength(1);
   });
+
+  it("keeps selection by uid across moves and resolves context actions against current ownership", () => {
+    const { bridge, store } = setup();
+    expect(bridge.selectUnit("bench", 0)).toBe(true);
+    expect(bridge.selectedUnit()?.uid).toBe("u1");
+    expect(bridge.move({ kind: "bench", index: 0 }, { kind: "board", index: 6 })).toBe(true);
+    expect(bridge.selection()).toMatchObject({ source: "BOARD", uid: "u1", row: 1, col: 1 });
+    const beforeDetails = store.getItem(PROGRESS_KEY);
+    expect(bridge.contextAction("DETAILS")).toMatchObject({ ok: true, mutated: false });
+    expect(store.getItem(PROGRESS_KEY)).toBe(beforeDetails);
+    expect(bridge.contextAction("RECALL")).toMatchObject({ ok: true, mutated: true });
+    expect(bridge.selection()).toMatchObject({ source: "BENCH", uid: "u1", index: 0 });
+    expect(bridge.contextAction("SELL")).toMatchObject({ ok: true, mutated: true });
+    expect(bridge.run()!.bench).toEqual([]);
+    expect(bridge.run()!.board.every((unit) => unit === null)).toBe(true);
+    const after = store.getItem(PROGRESS_KEY);
+    expect(bridge.contextAction("SELL").ok).toBe(false); // remaining fallback is a shop offer
+    expect(store.getItem(PROGRESS_KEY)).toBe(after);
+  });
+
+  it("refreshes selected shop identity and resets selection on run clear", () => {
+    const { bridge } = setup({ shop: ["ant_guard", "deer_song", null, null, null] });
+    expect(bridge.selectUnit("shop", 1)).toBe(true);
+    expect(bridge.selection()).toMatchObject({ source: "SHOP", baseId: "deer_song", index: 1 });
+    bridge.buy(1);
+    expect(bridge.selection()?.source).toBe("BENCH");
+    bridge.clearRun();
+    expect(bridge.selection()).toBeNull();
+    expect(bridge.selectedUnit()).toBeNull();
+  });
 });
