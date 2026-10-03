@@ -9,8 +9,9 @@ import {
   type RoundResultSummary, type RunState,
 } from "../core/run";
 import { inspectSave, clearRunProgress, saveRun } from "../core/save";
-import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
-import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
+import { MODE_CONFIG, type GameMode } from "../core/modes";
+import { resolveContinueRoute, resolveNewRunRoute } from "../core/menuRouting";
+import { AI_PROFILE } from "../core/encounter";
 import { environmentFor } from "../core/environment";
 import { materializeCombatFormation, simulateMaterialized, type CombatEvent, type Placement } from "../core/combat";
 import { computeSynergies } from "../core/synergy";
@@ -38,7 +39,7 @@ export interface Bridge {
   run(): RunState | null;
   saveSummary(): SaveSummary;
   continueRun(): boolean;
-  newRun(mode: GameMode, ai: string): RunState;
+  newRun(mode: GameMode, ai: string): RunState | null;
   clearBrokenRun(): void;
   /** Planning intents; return false (and leave state untouched) when illegal. */
   buy(slot: number): boolean;
@@ -74,7 +75,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     history.entries = [];
   };
   const persist = () => {
-    if (state) saveRun(store, { player: state });
+    if (state) saveRun(store, { player: state, audioEnabled: settings.get().audioEnabled });
   };
   const record = (category: HistoryCategory, message: string, details?: string[]) => {
     pushPlanningHistory(history, {
@@ -123,18 +124,26 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     continueRun() {
       const s = inspectSave(store);
       if (s.status !== "valid" || !s.envelope.payload.player) return false;
+      const route = resolveContinueRoute(s.envelope.payload.player);
+      if (route.kind === "blocked" || route.destination !== "planning") return false;
       state = s.envelope.payload.player;
+      if (typeof s.envelope.payload.audioEnabled === "boolean") {
+        settings.save({ audioEnabled: s.envelope.payload.audioEnabled });
+      }
       resetHistory();
       emit();
       return true;
     },
     newRun(mode, ai) {
-      const selectedMode = normalizeAvailableMode(mode);
-      const config = MODE_CONFIG[selectedMode];
-      const requestedAi = normalizeAiMode(ai, config.ai.def);
+      const route = resolveNewRunRoute(mode, ai);
+      if (route.kind === "blocked" || route.destination !== "planning") return null;
+      settings.save({
+        aiMode: route.aiMode,
+        aiModeByGameMode: { ...settings.get().aiModeByGameMode, [route.mode]: route.aiMode },
+      });
       clearRunProgress(store);
-      state = createModeRun(Date.now() | 0, selectedMode);
-      state.aiMode = config.ai.allowed.includes(requestedAi) ? requestedAi : config.ai.def;
+      state = createModeRun(Date.now() | 0, route.mode);
+      state.aiMode = route.aiMode;
       resetHistory();
       persist();
       emit();
