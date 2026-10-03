@@ -86,6 +86,47 @@ export interface CombatOptions {
   environment?: EnvironmentId;
 }
 
+export type DamageType = "physical" | "magic" | "true";
+
+export interface DamageMathInput {
+  raw: number;
+  type: DamageType;
+  attackerElement: Element;
+  defenderElement: Element;
+  attackerRole: Role;
+  defenderRole: Role;
+  def: number;
+  mdef: number;
+  crit: boolean;
+  critDmg?: number;
+  fireVuln?: number;
+  globalMult?: number;
+}
+
+/** A12 effective hit chance: clamp(accuracy + mods - evasion, 10%, 100%). */
+export function effectiveHitChance(accuracy: number, evasion: number, accuracyMod = 0, archerDistance = 0): number {
+  const evade = Math.min(0.75, Math.max(0, evasion));
+  const distancePenalty = Math.max(0, archerDistance) * 0.05;
+  return Math.min(1, Math.max(0.1, accuracy + accuracyMod - evade - distancePenalty));
+}
+
+/** A13 canonical resolved damage math after hit/miss has already been decided. */
+export function resolveDamageMath(input: DamageMathInput): number {
+  let dmg = Math.max(1, input.raw);
+  if (ELEMENT_COUNTER[input.attackerElement] === input.defenderElement) {
+    dmg *= input.defenderRole === "TANKER" ? 0.5 : input.attackerRole === "TANKER" ? 1 : 1 + COUNTER_BONUS;
+  }
+  if (input.attackerElement === "FIRE") dmg *= input.fireVuln ?? 1;
+  if (CLASS_COUNTER[input.attackerRole]?.includes(input.defenderRole)) dmg *= 1 + COUNTER_BONUS;
+
+  const isCrit = input.type !== "true" && input.crit;
+  if (isCrit) dmg *= input.critDmg ?? 1.5;
+  else if (input.type === "physical") dmg = (dmg * 100) / (100 + Math.max(0, input.def));
+  else if (input.type === "magic") dmg = (dmg * 100) / (100 + Math.max(0, input.mdef));
+
+  return Math.max(1, Math.round(dmg * (input.globalMult ?? 1)));
+}
+
 /** A13: 1.0 at ≤10 gold; +1% per 2 gold above 10; capped at 2.0. */
 export function goldMultiplier(gold: number): number {
   if (!(gold > 10)) return 1;
@@ -224,28 +265,28 @@ function applyDamage(c: Ctx, dst: Fighter, dmg: number, killer: Fighter | null, 
 }
 
 /** A12/A13 pipeline + A74 aftermath. Returns HP damage dealt (0 on miss). */
-function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical" | "magic" | "true", skill: boolean) {
+function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: DamageType, skill: boolean) {
   let crit = src.crit;
   let critMult = src.critDmg;
-  let hit = src.accuracy + src.env.accuracy - stat(dst, "evade");
+  let archerDistance = 0;
   if (src.role === "ARCHER") {
     const d = dist(src, dst);
-    hit -= 0.05 * d; crit += 0.05 * d; critMult += 0.05 * d;
+    archerDistance = d;
+    crit += 0.05 * d; critMult += 0.05 * d;
   }
-  if (!skill && type === "physical" && c.rng() >= Math.min(1, Math.max(0.1, hit))) {
+  const hit = effectiveHitChance(src.accuracy, stat(dst, "evade"), src.env.accuracy, archerDistance);
+  if (!skill && c.rng() >= hit) {
     c.events.push({ t: "miss", src: src.uid, dst: dst.uid });
     afterDefender(c, dst, src);
     return { hp: 0, absorbed: 0, killed: false, landed: false };
   }
-  let dmg = Math.max(1, raw);
-  if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
-  if (src.element === "FIRE") dmg *= dst.env.fireVuln;
-  if (CLASS_COUNTER[src.role]?.includes(dst.role)) dmg *= 1 + COUNTER_BONUS;
   const isCrit = type !== "true" && c.rng() < crit;
-  if (isCrit) dmg *= critMult;
-  else if (type === "physical") dmg = (dmg * 100) / (100 + stat(dst, "def"));
-  else if (type === "magic") dmg = (dmg * 100) / (100 + stat(dst, "mdef"));
-  dmg = Math.max(1, Math.round(dmg * c.globalMult));
+  const dmg = resolveDamageMath({
+    raw, type, attackerElement: src.element, defenderElement: dst.element,
+    attackerRole: src.role, defenderRole: dst.role,
+    def: stat(dst, "def"), mdef: stat(dst, "mdef"), crit: isCrit, critDmg: critMult,
+    fireVuln: dst.env.fireVuln, globalMult: c.globalMult,
+  });
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }));
   if (resolved.hp > 0) {

@@ -23,8 +23,12 @@ export function toLogical(x: number, z: number, p: Profile = "solo"): { col: num
   return { col: x < RIVER_X ? x : x - 1, row: z };
 }
 
-/** Rows owned by player slot `slot` (0-based). */
-export const ownsRow = (slot: number, row: number) => Math.floor(row / ROWS_PER_PLAYER) === slot;
+/** Rows owned by player slot `slot` (0-based), constrained to the selected board profile. */
+export function ownsRow(slot: number, row: number, p: Profile = "coop4"): boolean {
+  if (!Number.isInteger(slot) || !Number.isInteger(row)) return false;
+  if (slot < 0 || slot >= PROFILE_PLAYERS[p] || row < 0 || row >= totalRows(p)) return false;
+  return Math.floor(row / ROWS_PER_PLAYER) === slot;
+}
 
 /**
  * Cells on the rectangle ring `inset` blocks outside the battlefield, clockwise from the
