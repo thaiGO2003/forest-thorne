@@ -1,8 +1,9 @@
 // PvP Fortress pairing, combat payloads and authoritative round resolution (mega prompt A48).
 import { RIGHT_COL_START } from "../core/creative";
-import { BOARD_SIZE, type RunState } from "../core/run";
+import { BOARD_SIZE, playerCombatBonus, runSynergies, type RunState } from "../core/run";
 import type { AiMode } from "../core/encounter";
-import type { Placement } from "../core/combat";
+import type { Placement, SideBonus } from "../core/combat";
+import type { SynergyLine } from "../core/synergy";
 
 export const PVP_FORTRESS_SESSION_TYPE = "pvp_fortress" as const;
 export const PVP_FORTRESS_MESSAGE_TYPES = [
@@ -89,8 +90,16 @@ export interface PvpCombatMetadata {
 
 export interface PvpCombatPayload {
   run: RunState;
+  opponentSnapshot: PvpOpponentSnapshot;
   audioEnabled: boolean;
   metadata: PvpCombatMetadata;
+}
+
+export interface PvpOpponentSnapshot {
+  placements: Placement[];
+  bonus: SideBonus;
+  synergies: SynergyLine[];
+  gold: number;
 }
 
 export interface PvpPlayerRoundResult extends PvpCombatResult {
@@ -315,13 +324,36 @@ export function pvpEnemyPreview(player: Pick<RunState, "board">): Placement[] {
   return preview;
 }
 
+function mergePvpSideBonuses(...bonuses: readonly SideBonus[]): SideBonus {
+  const merged: Record<string, number> = {};
+  for (const bonus of bonuses) {
+    for (const [key, value] of Object.entries(bonus)) {
+      if (!Number.isFinite(value)) continue;
+      merged[key] = (merged[key] ?? 0) + value;
+    }
+  }
+  return merged as SideBonus;
+}
+
+/** Freeze every opponent input that can affect combat at pairing time. */
+export function pvpOpponentSnapshot(player: RunState): PvpOpponentSnapshot {
+  const synergies = structuredClone(runSynergies(player));
+  return {
+    placements: pvpEnemyPreview(player),
+    bonus: mergePvpSideBonuses(playerCombatBonus(player), ...synergies.map((line) => line.bonus)),
+    synergies,
+    gold: Math.max(0, Number.isFinite(player.gold) ? player.gold : 0),
+  };
+}
+
 export function buildPvpCombatRun(
   player: RunState,
   opponent: RunState,
   aiMode: AiMode = "MEDIUM",
+  opponentSnapshot = pvpOpponentSnapshot(opponent),
 ): RunState {
   const run = structuredClone(player);
-  run.enemyPreview = pvpEnemyPreview(opponent);
+  run.enemyPreview = structuredClone(opponentSnapshot.placements);
   run.enemyPreviewRound = Math.max(1, Math.floor(player.round || 1));
   run.enemyBudget = run.enemyPreview.length;
   run.aiMode = aiMode;
@@ -351,8 +383,11 @@ export function startPvpFortressCombat(
     if (matchup.type === "real") {
       const playerA = players[matchup.slotA]!;
       const playerB = players[matchup.slotB]!;
+      const snapshotA = pvpOpponentSnapshot(playerA);
+      const snapshotB = pvpOpponentSnapshot(playerB);
       payloadBySlot[matchup.slotA] = {
-        run: buildPvpCombatRun(playerA, playerB, aiMode),
+        run: buildPvpCombatRun(playerA, playerB, aiMode, snapshotB),
+        opponentSnapshot: snapshotB,
         audioEnabled,
         metadata: {
           pairId: matchup.pairId,
@@ -365,7 +400,8 @@ export function startPvpFortressCombat(
         },
       };
       payloadBySlot[matchup.slotB] = {
-        run: buildPvpCombatRun(playerB, playerA, aiMode),
+        run: buildPvpCombatRun(playerB, playerA, aiMode, snapshotA),
+        opponentSnapshot: snapshotA,
         audioEnabled,
         metadata: {
           pairId: matchup.pairId,
@@ -380,8 +416,10 @@ export function startPvpFortressCombat(
     } else {
       const fighter = players[matchup.fighterSlot]!;
       const owner = players[matchup.ghostOwnerSlot]!;
+      const ownerSnapshot = pvpOpponentSnapshot(owner);
       payloadBySlot[matchup.fighterSlot] = {
-        run: buildPvpCombatRun(fighter, owner, aiMode),
+        run: buildPvpCombatRun(fighter, owner, aiMode, ownerSnapshot),
+        opponentSnapshot: ownerSnapshot,
         audioEnabled,
         metadata: {
           pairId: matchup.pairId,
