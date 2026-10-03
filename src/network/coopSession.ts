@@ -20,6 +20,7 @@ export interface CoopPlayerState {
 export interface CoopSessionState {
   client: unknown;
   roomCode: string;
+  sharedSeed: number | null;
   playerId: string;
   playerCapacity: number;
   localSlot: CoopSlot;
@@ -42,7 +43,7 @@ export interface CoopSessionState {
   combatSnapshotsBySlot: Record<string, unknown>;
 }
 
-export type CoopSessionPatch = Partial<CoopSessionState> & {
+export type CoopSessionPatch = Omit<Partial<CoopSessionState>, "readyBySlot" | "players"> & {
   readyBySlot?: Record<string, boolean>;
   players?: Record<string, Partial<CoopPlayerState>>;
 };
@@ -119,6 +120,9 @@ export function createCoopSession(patch: CoopSessionPatch = {}): CoopSessionStat
   return {
     client: patch.client ?? null,
     roomCode: typeof patch.roomCode === "string" ? patch.roomCode : "",
+    sharedSeed: typeof patch.sharedSeed === "number" && Number.isFinite(patch.sharedSeed)
+      ? Math.trunc(patch.sharedSeed)
+      : null,
     playerId: typeof patch.playerId === "string" ? patch.playerId : "",
     playerCapacity: capacity,
     localSlot,
