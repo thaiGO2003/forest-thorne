@@ -21,4 +21,9 @@ describe("i18n", () => {
     setLocale("vi");
     expect(fn).toHaveBeenCalledTimes(1);
   });
+
+  it("localizes the Library combat-idle preview label", () => {
+    expect(t("unit.combatIdle", {}, "vi")).toBe("Thủ thế");
+    expect(t("unit.combatIdle", {}, "en")).toBe("Combat Idle");
+  });
 });

@@ -1,5 +1,5 @@
 // Library / collection browser (§25, §50.4, A109): filters + paged card grid → detail with the live
-// 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
+// 3D rig, action-preview buttons (including combat idle), star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
@@ -17,6 +17,11 @@ const ROLES: Role[] = ["TANKER", "FIGHTER", "ASSASSIN", "ARCHER", "MAGE", "SUPPO
 const FACTIONS: Faction[] = ["BEAST", "AVIAN", "INSECT", "REPTILE", "AQUATIC", "MYTHICAL"];
 const TIERS = [1, 2, 3, 4, 5, 6];
 const STATE_KEY: Record<ActionState, MsgKey> = { idle: "unit.idle", attack: "unit.attack", skill: "unit.skill", hit: "unit.hit", move: "unit.move" };
+const PREVIEW_STATES: readonly { state: ActionState; key: MsgKey; combat: boolean }[] = [
+  { state: "idle", key: STATE_KEY.idle, combat: false },
+  { state: "idle", key: "unit.combatIdle", combat: true },
+  ...ACTION_STATES.filter((state) => state !== "idle").map((state) => ({ state, key: STATE_KEY[state], combat: false })),
+];
 
 interface Filter { q: string; role: Role | null; faction: Faction | null; tier: number | null }
 
@@ -139,11 +144,16 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
     if (!hasRig(u.id)) stagePanel.append(h("div", "lib-pending", t("library.artPending")));
 
     const actions = h("div", "lib-actions");
-    const stateBtns = ACTION_STATES.map((s) => {
-      const b = kitButton({ skin: s === "idle" ? "green" : "wood", label: t(STATE_KEY[s]), onClick: () => { viewer?.play(s); for (const x of stateBtns) x.setSelected(x === b); } });
+    const stateBtns = PREVIEW_STATES.map((preview, index) => {
+      const b = kitButton({ skin: index === 0 ? "green" : "wood", label: t(preview.key), onClick: () => {
+        viewer?.setCombat(preview.combat);
+        viewer?.play(preview.state);
+        for (const x of stateBtns) x.setSelected(x === b);
+      } });
       actions.append(b.el);
       return b;
     });
+    stateBtns[0]?.setSelected(true);
     const stars = h("div", "lib-stars");
     const starBtns = ([1, 2, 3] as const).map((n) => {
       const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
