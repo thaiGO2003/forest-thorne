@@ -332,10 +332,10 @@
   - **Mô tả:** Các dịch vụ tương tác đặc thù tại các điểm dừng Pháo đài: Dược quán (hồi máu, tăng nộ khởi đầu, mua thuốc kích thích), Hang dã thú (thu phục thú hoang miễn phí), Lò rèn (nâng cấp tier trang bị, rèn đồ hiếm).
   - **Tiêu chí nghiệm thu:** Mỗi dịch vụ chỉ được tương tác 1 lần duy nhất trước khi chuyển sang tầng kế tiếp.
   - **Audit Note:** ✓ Verify-content audit: Phụ thuộc vào Bản đồ Pháo Đài WBS-076.
-- [ ] **WBS-078: Co-op Multiplayer WebRTC Host-Relay** `§29, A21, A47, A114, A118` *(Deps: WBS-011, WBS-050)*
+- [x] **WBS-078: Co-op Multiplayer WebRTC Host-Relay** `§29, A21, A47, A114, A118` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
   - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+  - **Audit Note:** ✓ Hoàn thành headless WebRTC host-relay bằng `src/network/coopWebRtcTransport.ts`: offer/answer thủ công, `RTCDataChannel` host-relay P1→P2/P3/P4, mã phòng 6 ký tự, chia sẻ seed, đồng bộ ready/combat result và fallback khi mất host/peer. Có peer factory injectable để kiểm thử xác định mà không cần browser/UI. Kiểm chứng: WebRTC targeted 3/3, network targeted 9/9, full Vitest 167/167, `pnpm run typecheck` pass, `git diff --check` pass.
 - [ ] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A100.3` *(Deps: WBS-078)*
   - **Mô tả:** Đấu trường đối kháng 1v1 hoặc 4 người: chụp ảnh snapshot đội hình người chơi làm bóng ma (ghost opponent) để thi đấu chéo cánh, đồng bộ máu người chơi và bảng xếp hạng sinh tồn vòng tròn.
   - **Tiêu chí nghiệm thu:** Bóng ma mô phỏng chính xác 100% trang bị và chỉ số của người chơi tại vòng đấu đó.
