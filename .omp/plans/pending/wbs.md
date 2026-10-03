@@ -3,9 +3,9 @@
 > Chuẩn hóa từ MEGA PROMPT V3 (9731 dòng) • Bao phủ 57 Điều Khoản Kỹ Thuật (§1 - §57) & Phụ Lục A (A1 - A125).
 
 - **Tổng số hạng mục:** 93 tasks
-- **Đã hoàn thành:** 34 tasks (37%)
+- **Đã hoàn thành:** 35 tasks (38%)
 - **Đang triển khai:** 1 tasks
-- **Chờ thực hiện:** 58 tasks
+- **Chờ thực hiện:** 57 tasks
 
 ## Danh Sách Phân Rã Công Việc Chi Tiết
 
@@ -383,10 +383,10 @@
   - **Mô tả:** Bộ giám sát hiệu năng thích ứng: tự động đo FPS trung bình, tự động giảm mật độ hạt VFX, hạ độ phân giải bóng đổ, chuyển sang chế độ tiết kiệm pin 30 FPS khi phát hiện thiết bị yếu hoặc nóng máy.
   - **Tiêu chí nghiệm thu:** Duy trì khung hình mượt mà ổn định tối thiểu 30 FPS trên các máy cấu hình khiêm tốn.
   - **Audit Note:** ✓ Verify-content audit: Đã kiểm tra tham chiếu A52.
-- [ ] **WBS-090: Authoritative Deterministic Test Suite (A31/A53 Contracts)** `§54, §56, A31, A53` *(Deps: WBS-004, WBS-019, WBS-033)*
+- [x] **WBS-090: Authoritative Deterministic Test Suite (A31/A53 Contracts)** `§54, §56, A31, A53` *(Deps: WBS-004, WBS-019, WBS-033)*
   - **Mô tả:** Bộ kiểm thử tự động toàn diện: đảm bảo 100% các hợp đồng nghiệm thu toán học của A31 (hình học bàn cờ) và A53 (tính toán chiến trận) luôn luôn pass trong CI/CD trước khi xuất bản.
   - **Tiêu chí nghiệm thu:** Suite kiểm thử chạy độc lập, tái lập xác định trên mọi môi trường Node/Vitest.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo tiêu chí nghiệm thu tối cao §56.
+  - **Audit Note:** ✓ Hoàn thành WBS-090 trên `tests/authoritative-deterministic.test.ts`: khóa exhaustive mapping 10 logical/11 visual columns cho solo/coop2/coop4, river rejection, perimeter uniqueness/disjointness, bench prefix/cap và ownership bounds; khóa combat math A12/A13 + A31.19 gồm hit/evasion clamp, Archer distance penalty, gold multiplier, DEF/MDEF, true damage, crit-ignore mitigation, tanker counter resistance, elemental/class advantage, FIRE vulnerability, global multiplier và minimum damage. Đồng thời sửa `ownsRow()` để chặn slot/row ngoài profile và sửa basic attack phép để tuân hit/evasion thay vì luôn trúng. Kiểm chứng: targeted 26/26 tests, full Vitest 150/150 tests, `pnpm run typecheck` pass, `git diff --check` pass. Lưu ý contract gốc có hai lệch tham chiếu đã được ghi nhận thay vì che giấu: A31 prose nói brown ring 40 ô nhưng footprint 11×5 + inset-1 và WBS-033 cho 36 ô; heading A53 thực tế là expanded gate A46–A52, còn combat math canonical nằm ở A12/A13 và A31.19.
 - [ ] **WBS-091: Headless Browser Playtest & Visual Screenshot Verification** `§54, §56` *(Deps: WBS-036, WBS-052, WBS-056, WBS-066)*
   - **Mô tả:** Quy trình nghiệm thu thực tế bằng Chromium Headless Playwright: khởi động game, chụp ảnh màn hình canvas 3D, đo đạc FPS thực tế, kiểm tra console log sạch 0 error, và chơi thử 1 vòng đấu thật.
   - **Tiêu chí nghiệm thu:** Chứng minh bằng hình ảnh và log thực nghiệm trước khi công bố hoàn thành dự án.
