@@ -8,9 +8,11 @@ import { FAR, FOV, framingDistance, MAX_POLAR, maxDistance, MIN_DISTANCE, NEAR, 
 export interface Stage {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
   arena: Arena;
   setProfile(p: Profile): void;
   setPhase(phase: LightPhase): void;
+  addUpdateHook(fn: (dt: number) => void): () => void;
   dispose(): void;
 }
 
@@ -59,6 +61,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   frame(true);
 
   const clock = new THREE.Clock();
+  const updateHooks: ((dt: number) => void)[] = [];
   renderer.setAnimationLoop(() => {
     const dt = Math.max(0, clock.getDelta());
     if (reframe) {
@@ -69,6 +72,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       if (reframe.t >= 1) reframe = null;
     }
     arena.update(dt);
+    for (const hook of updateHooks) hook(dt);
     controls.update();
     renderer.render(scene, camera);
   });
@@ -76,6 +80,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   return {
     scene,
     camera,
+    renderer,
     get arena() { return arena; },
     setProfile(p) {
       if (p === current) return;
@@ -86,6 +91,13 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       frame(false);
     },
     setPhase: (phase) => arena.setPhase(phase),
+    addUpdateHook(fn) {
+      updateHooks.push(fn);
+      return () => {
+        const idx = updateHooks.indexOf(fn);
+        if (idx >= 0) updateHooks.splice(idx, 1);
+      };
+    },
     dispose() {
       renderer.setAnimationLoop(null);
       ro.disconnect();
