@@ -1,0 +1,401 @@
+# Forest Throne — Rebuild Master Work Breakdown Structure (WBS)
+
+> Chuẩn hóa từ MEGA PROMPT V3 (9731 dòng) • Bao phủ 57 Điều Khoản Kỹ Thuật (§1 - §57) & Phụ Lục A (A1 - A125).
+
+- **Tổng số hạng mục:** 93 tasks
+- **Đã hoàn thành:** 34 tasks (37%)
+- **Đang triển khai:** 1 tasks
+- **Chờ thực hiện:** 58 tasks
+
+## Danh Sách Phân Rã Công Việc Chi Tiết
+
+
+### Phase: FOUNDATION (18/18 hoàn thành)
+
+- [x] **WBS-001: Project Scaffold, Toolchain & Supply-Chain Integrity** `§1, §2, §2.1, §56, A51.1` *(Không phụ thuộc)*
+  - **Mô tả:** Khởi tạo repository với pnpm, Vite, strict TypeScript, vitest, offline supply-chain fix, .gitignore, custom LICENSE, và README song ngữ Anh-Việt.
+  - **Tiêu chí nghiệm thu:** Build và tsc --noEmit pass, test runner sẵn sàng, verifyDepsBeforeRun cấu hình chuẩn.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Thư mục và toolchain đã verified trên commit ca6a034.
+- [x] **WBS-002: Unit & Boss Catalog Data Integrity (120 Units + 5 Bosses)** `§20, §21, A41, A42, A83, A84, A90` *(Deps: WBS-001)*
+  - **Mô tả:** Trích xuất tự động từ manifest A83/A84: 120 normal units + 5 bosses. Gồm đầy đủ stats 1★, skill prose tiếng Việt, rage costs, roles, factions, elements và cosmetic metadata.
+  - **Tiêu chí nghiệm thu:** units.json (245KB) + catalog.ts type-safe lookup. UNIT_BY_ID chứa đủ 125 entries duy nhất.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Đã đối chiếu 120 unit + 5 boss khớp danh sách A42.
+- [x] **WBS-003: Core Economy & Shop Odds Mathematical Engine** `§14.2, §14.4, §14.5, §14.7, A2, A3, A4, A5, A69` *(Deps: WBS-001)*
+  - **Mô tả:** Thuật toán kinh tế chuẩn: XP mua 4 gold = 4 XP với carry-over level up (1..25), gold interest + streaks, deploy cap clamp(level+2,3,25), bench capacity, tỷ lệ shop odds 5 bậc chính xác 100%, sell value (1/3/5 x tier).
+  - **Tiêu chí nghiệm thu:** 11 tests pass; tổng odds mọi level luôn đúng bằng 1.0; deploy cap đúng công thức.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. 11/11 tests pass, commit a584197.
+- [x] **WBS-004: Canonical Run State & Phase State Machine** `§3, §8, §9, A1, A19, A62, A103, A114` *(Deps: WBS-001, WBS-002, WBS-003)*
+  - **Mô tả:** State máy chủ thuần dữ liệu serializable (RunState) với vòng đời 4 pha: PLANNING → AUGMENT → COMBAT → GAME_OVER. Các hàm mutation nguyên tử (mua, bán, reroll, lock, addXp).
+  - **Tiêu chí nghiệm thu:** Trạng thái không chứa UI/ThreeJS; mutate rollback khi không đủ tiền hoặc vi phạm điều kiện.
+  - **Audit Note:** ✓ Verify-foundation audit: Dependency WBS-002/003 đã được cập nhật chính xác.
+- [x] **WBS-005: Board & Bench Formation Mutation & 3-to-1 Star Merge** `§11, §14.2, §14.4, §14.8, A2, A4, A43, A75, A81` *(Deps: WBS-004)*
+  - **Mô tả:** Quản lý 25 ô bàn đồng minh (5x5) và hàng chờ bench compact. Kiểm tra trùng species, hoán đổi swap ô, gộp sao 3-to-1 tự động giữ lại equipment không trùng và trả overflow về bag.
+  - **Tiêu chí nghiệm thu:** Merge scan deterministic, trang bị thừa trả về túi đồ, bench không bị lỗ trống phân mảnh.
+  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua 9 tests trong tests/run.test.ts.
+- [x] **WBS-006: Equipment & Inventory Capacity Model** `§14.9, §14.10, A6, A40, A80, A85` *(Deps: WBS-004)*
+  - **Mô tả:** Túi đồ (item bag) sức chứa cơ bản = boardUnitCount + benchUnitCount + bonus. Giới hạn slot trang bị theo rage/skill cost (A14.10). Chi phí gỡ trang bị theo tier (T1=2, T2=7, T3=15) trừ unequipDiscount.
+  - **Tiêu chí nghiệm thu:** Gỡ đồ atomic, trả đồ về bag, deduplicate key trang bị theo rule.
+  - **Audit Note:** ✓ Verify-foundation audit: Được bổ sung từ phản hồi audit.
+- [x] **WBS-007: Atomic Crafting 3x3 Table & Recipe Pattern Matcher** `§14.11, §14.12, A7, A40, A86, A106` *(Deps: WBS-006)*
+  - **Mô tả:** Bàn ghép đồ 3x3 với non-destructive staging. Kích hoạt ô theo craftTableLevel (0..3). Thuật toán trượt pattern (1x1, 2x2, 3x3) so khớp nguyên liệu chính xác, tiêu hao từ túi và sinh item.
+  - **Tiêu chí nghiệm thu:** Staging không mất đồ thật trong bag; craft() atomic commit; lưu craftHistory.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Test suite tests/tech-craft.test.ts pass.
+- [x] **WBS-008: Technology Tree Progression System (5 Branches + 6 Tracks)** `§14.13, A8, A111` *(Deps: WBS-004)*
+  - **Mô tả:** 25 node cốt lõi thuộc 5 chuỗi (VET, EXPLORE, ECON, MIL, CRAFT) + 6 tracks mở rộng 4 stage + capstones điều kiện kép. Kiểm tra tiền đề prerequisite, tính giá infinite node, cộng delta vào run state.
+  - **Tiêu chí nghiệm thu:** canResearch(), research() atomic, techModifiers() trả % buff chuẩn xác cho combat.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Đầy đủ dữ liệu node costs và requirements theo A8.
+- [x] **WBS-009: Synergy Thresholds, Trait Counters & Counter Matrices** `§14.14, §21, A9, A82` *(Deps: WBS-002, WBS-004)*
+  - **Mô tả:** Tính toán mốc kích hoạt Hệ (Class), Tộc (Faction), Nguyên tố (Element) ở các mốc 2/4/6 trên các quân cờ deploy hợp lệ. Hỗ trợ virtual echo counts từ augments/tech. Tính toán bảng khắc chế nguyên tố và class (+50%).
+  - **Tiêu chí nghiệm thu:** Trả về active threshold, next threshold, và bảng bonus stats chuẩn A9.
+  - **Audit Note:** ✓ Verify-foundation audit: Tách biệt rõ ràng với augment engine.
+- [x] **WBS-010: Augment Deck, Scoring & Selection Engine** `§14.15, A10` *(Deps: WBS-004)*
+  - **Mô tả:** Kho lõi nâng cấp với công thức tính điểm (base + valueUnit*weight), phân hạng Tier (Tactical/Strong/Rare/Epic). Rút 3 lõi ngẫu nhiên ở vòng 3, 5, 7. Áp dụng hiệu ứng tức thời (vàng/XP) và tích lũy modifier.
+  - **Tiêu chí nghiệm thu:** Không trùng augment đã chọn; score bands chuẩn xác 100% theo bảng trọng số A10.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Đã kiểm chứng qua tests/synergy-augments.test.ts.
+- [x] **WBS-011: Save Persistence, Schema Migration & Co-op Slots (Envelope v4)** `§10, A27, A37, A57, A104, A113` *(Deps: WBS-004)*
+  - **Mô tả:** Format lưu trữ Envelope v4 với trình di chuyển schema (migration), kiểm định tính toàn vẹn (sanitize unit ids, clamp values), import/export chuỗi an toàn, xóa theo phạm vi và quản lý 4 slot lưu Co-op.
+  - **Tiêu chí nghiệm thu:** Dữ liệu bẩn không làm crash game; swap slot máy chủ Co-op giữ nguyên quân cờ; unit rác bị loại bỏ.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. 9/9 tests pass tests/persistence.test.ts.
+- [x] **WBS-012: UI Settings Store & Shortcut Keybindings** `§6, §34, A35, A44, A45, A66, A110` *(Deps: WBS-001)*
+  - **Mô tả:** Lưu trữ cài đặt độc lập với run state (audio, display, gameplay, keyboard bindings). Hỗ trợ xem trước (preview debounce 200ms), đổi phím nóng theo ngữ cảnh (planning, combat, modal) không trùng lặp.
+  - **Tiêu chí nghiệm thu:** Tách biệt hoàn toàn khỏi run state; reset phím theo context; không drift phím tắt.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Đã kiểm chứng write-version counter tránh leak timer.
+- [x] **WBS-013: Bilingual Localization Engine (Vietnamese/English)** `§7, A55, A72` *(Deps: WBS-001)*
+  - **Mô tả:** Hệ thống từ điển song ngữ tiếng Việt & tiếng Anh với helper t(key, params). Bảo tồn chính xác các placeholder token ({val}, {star}, {gold},...). Đồng bộ key parity 100% giữa 2 ngôn ngữ.
+  - **Tiêu chí nghiệm thu:** Chuyển đổi ngôn ngữ live không làm mất placeholder; kiểm tra tự động parity key.
+  - **Audit Note:** ✓ Verify-foundation audit: Passed. Test tests/i18n.test.ts chứng minh khớp key 100%.
+- [x] **WBS-014: Headless Game Modes Registry & Gating Logic** `§8, §55, A19, A46, A47, A60` *(Deps: WBS-004)*
+  - **Mô tả:** Định nghĩa cấu hình headless cho 4 chế độ: Endless PvE Classic, Endless PvE Fortress, PvP 4 Fortress, Creative Sandbox. Khởi tạo tài nguyên ban đầu, hệ thống bật/tắt (availability), và điều kiện thắng/thua (NO_HEARTS vs NO_UNITS).
+  - **Tiêu chí nghiệm thu:** Mode config điều khiển trực tiếp logic round mà không hardcode rải rác; chuẩn hóa ID an toàn.
+  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/modes-lifecycle.test.ts.
+- [x] **WBS-015: Centralized Emoji & Icon Authority Pipeline** `§36, AGENTS.md` *(Deps: WBS-001)*
+  - **Mô tả:** Pipeline quản lý semantic icon và emoji thống nhất theo quy định AGENTS.md, tích hợp fallback emoji-api.com với API key bảo mật qua biến môi trường VITE_EMOJI_API_KEY.
+  - **Tiêu chí nghiệm thu:** Không hardcode emoji rải rác trong code; tuyệt đối không commit API key; fallback Unicode chuẩn.
+  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/emojiIcon.test.ts.
+- [x] **WBS-016: Structured Skill Schema & Data-Driven Authoring Model** `§46, A41, A83` *(Deps: WBS-002)*
+  - **Mô tả:** Mô hình dữ liệu kỹ năng có cấu trúc: phân định rõ mô tả ngắn (pitch) và chi tiết kỹ thuật (target, shape, AoE, duration, damage type physical/magic/true, metrics, cost).
+  - **Tiêu chí nghiệm thu:** Đầy đủ các trường định nghĩa kỹ năng phục vụ cả UI thẻ bài và bộ giải quyết combat.
+  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/skills.test.ts.
+- [x] **WBS-017: Unit Variant Traits & Seed Determinism** `§47, A79, A101` *(Deps: WBS-002, WBS-004)*
+  - **Mô tả:** Hệ thống biến thể chỉ số ngẫu nhiên có hạt giống cho từng unit sở hữu (Swift, Sturdy, Fierce, Mystical,...), bảo toàn qua save/load, đồng nhất giữa Planning, Combat và Thư viện.
+  - **Tiêu chí nghiệm thu:** Variant seed không bị biến đổi sau chu kỳ combat hoặc đóng mở game.
+  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/variants-equipment.test.ts.
+- [x] **WBS-018: Unified Unit Stat Formatting & Range Text Engine** `§48, A78` *(Deps: WBS-002)*
+  - **Mô tả:** Bộ tiện ích định dạng chỉ số, khoảng cách đánh, phạm vi chọn mục tiêu thống nhất cho toàn bộ game. Ngăn chặn sự sai lệch cách viết giữa các modal thẻ bài, tooltip và nhật ký.
+  - **Tiêu chí nghiệm thu:** Định dạng số thập phân, % tỷ lệ, hiển thị diff (+/-) đồng bộ trên mọi màn hình UI.
+  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/inspection-recommendations.test.ts.
+
+### Phase: COMBAT (10/14 hoàn thành)
+
+- [x] **WBS-019: Combat Queue & Deterministic Interleaving Engine** `§16.1, §16.14, A11` *(Deps: WBS-004, WBS-005)*
+  - **Mô tả:** Hàng đợi lượt đánh xác định: giới hạn cứng 20 chu kỳ. Quét phe TRÁI (cột 4→0, hàng 0→cuối) và phe PHẢI (cột 5→9, hàng 0→cuối). Chia chunk gồm ô trống và unit kế tiếp để đan xen L/R chuẩn xác.
+  - **Tiêu chí nghiệm thu:** Ô trống tham gia định thời presentation nhưng không làm trôi thứ tự hành động thật.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng qua tests/combat.test.ts.
+- [x] **WBS-020: Damage Calculation Pipeline, Mitigations & Critical Strikes** `§16.7, §16.10, A12, A13, A14, A74` *(Deps: WBS-019)*
+  - **Mô tả:** Đường ống tính toán sát thương: độ chính xác cơ bản 95%, né tránh clamp 0..0.75, chí mạng bỏ qua giáp/kháng phép, công thức dự trữ vàng (+1% mỗi 2 gold trên 10, cap 2.0x ở 210 gold), khắc chế hệ & nguyên tố (+50%).
+  - **Tiêu chí nghiệm thu:** Gold multiplier không bị làm tròn sai số floor; chí mạng bỏ qua DEF/MDEF đúng luật A13.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Test toán học goldMultiplier khớp 100% spec.
+- [x] **WBS-021: Status Effects, Crowd Control Hierarchy & Shield Mechanics** `§16.8, §16.9, §16.11, A14, A15, A73` *(Deps: WBS-019)*
+  - **Mô tả:** Các hiệu ứng trạng thái thời gian thực: DoT (chảy máu, thiêu đốt, nhiễm độc), khống chế theo độ ưu tiên (đóng băng → choáng → ngủ), câm lặng chặn skill, khiêu khích taunt, và trừ giáp/kháng phép.
+  - **Tiêu chí nghiệm thu:** Trừ khiên trước rồi mới trừ HP; unit hết máu emit hit trước rồi mới emit death.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã fix lỗi thứ tự replay sự kiện gây chết quân.
+- [x] **WBS-022: Data-Driven Skill Parser & Execution Pipeline** `§16.6, §46, A41, A83` *(Deps: WBS-002, WBS-019)*
+  - **Mô tả:** Trình phân tích cú pháp biểu thức tiếng Việt trong starDetailVi thành cấu trúc SkillSpec (damage formula, type, heal, shield, buff, debuff, DoT, control). Độ phủ đạt 119/125 skills.
+  - **Tiêu chí nghiệm thu:** Không làm méo mó văn bản gốc; parse chính xác các công thức thập phân và dấu ngoặc phức tạp.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng qua tests/skills.test.ts.
+- [x] **WBS-023: Battlefield Environments & Active Combat Modifiers** `§12, A32` *(Deps: WBS-019)*
+  - **Mô tả:** 8 môi trường chiến trường với hiệu ứng gameplay thật: điểm yếu Lửa, buff chính xác, điều chỉnh hồi máu nhận vào, aura độc gây sát thương mỗi lượt, rage khởi đầu.
+  - **Tiêu chí nghiệm thu:** Môi trường là luật ảnh hưởng trực tiếp đến combat resolver, không phải hiệu ứng trang trí.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng qua tests/encounter-env.test.ts.
+- [x] **WBS-024: AI Encounters & Endless Boss Schedule** `§18, §19, A33, A34` *(Deps: WBS-019)*
+  - **Mô tả:** Bộ sinh đội hình AI đối thủ theo ngân sách và cấp độ round, giới hạn số lượng ô theo mode. Lịch trình triệu hồi Boss cố định ở các vòng 10, 20, 30, 40, 50 theo vòng tròn quay tua A34.
+  - **Tiêu chí nghiệm thu:** Sinh đội hình ngẫu nhiên nhưng tái lập xác định qua RNG seed; 5 boss rotation cố định.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng 5 boss rotation và solo cap <= 15 ô.
+- [x] **WBS-025: Loot Drop Generation & Idempotent Rewards** `§17, A18, A40` *(Deps: WBS-019)*
+  - **Mô tả:** Quy tắc rơi nguyên liệu theo loài (loài chim → lông, bò sát → vỏ,...) và trang bị theo sao địch. Tính toán vàng thắng trận, tiền thưởng sát thủ, và trả thưởng nguyên tử chống trùng lặp.
+  - **Tiêu chí nghiệm thu:** Túi đầy thì không nhận thêm; phát thưởng nhiều lần không bị nhân đôi quà.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng qua tests/loot.test.ts.
+- [x] **WBS-026: Anti-Stall Escalation & Overtime Ramp Mechanics** `§16.14, A17` *(Deps: WBS-019)*
+  - **Mô tả:** Cơ chế chống câu giờ: sau 100 hành động, mỗi 5 hành động tiếp theo tăng +0.2 hệ số sát thương toàn sân. Kết thúc trận đấu trả về số lượng sống sót, kiểm tra kết quả Hòa khi chạm trần 20 chu kỳ.
+  - **Tiêu chí nghiệm thu:** Tăng sát thương lũy tiến, bẻ gãy thế trận cù nhầy; hòa cờ sau 20 chu kỳ.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Tích hợp trực tiếp trong simulate() combat.ts.
+- [ ] **WBS-027: Combat Action Staging & Visual Sync Timing** `§16.13, A16, A112, A119` *(Deps: WBS-019)*
+  - **Mô tả:** Định thời diễn hoạt đòn đánh: tiếp cận cận chiến (140ms lướt, 35ms impact chém, 45ms dư chấn, 140ms lùi về), sát thủ nhảy ra sau lưng, đồng bộ chính xác thời điểm trừ máu ở khoảnh khắc va chạm.
+  - **Tiêu chí nghiệm thu:** Không trừ máu trước khi hoạt ảnh chạm đích; giữ tính nhất quán giữa simulation và presentation.
+  - **Audit Note:** ⚠ Verify-world audit: Bổ sung task này để đảm bảo tuân thủ nghiêm ngặt A16 & A119.
+- [ ] **WBS-028: Multi-Phase Boss AI & Telegraph Systems** `§16.15, §19, A34` *(Deps: WBS-019, WBS-024)*
+  - **Mô tả:** Cơ chế chiến đấu của 5 Trùm Cuối (Cổ Thụ Rừng Rậm, Ma Sói Bóng Đêm, Bão Ưng Sấm Sét, Thạch Quái Khổng Lồ, Nhện Chúa Hang Sâu) với thanh nộ độc lập, đổi phase khi dưới 50% HP và hiển thị vùng cảnh báo telegraph đỏ trước khi tung chiêu nộ.
+  - **Tiêu chí nghiệm thu:** Boss chuyển giai đoạn mượt mà; telegraph hiển thị đúng ô chịu đòn trước 1 lượt đánh.
+  - **Audit Note:** ⚠ Verify-combat audit: Cần thiết để đáp ứng yêu cầu boss fight kịch tính của mega prompt.
+- [x] **WBS-029: AI Archetype & Difficulty Progression Engine (5 Tiers)** `§18, A33` *(Deps: WBS-019, WBS-024)*
+  - **Mô tả:** Bộ phân loại 5 cấp độ trí tuệ nhân tạo: EASY, MEDIUM, HARD, NIGHTMARE, TUTORIAL. Điều khiển thuật toán xếp cờ (hàng trước tank, hàng sau dame), tốc độ roll/leveling và tỷ lệ roll tướng theo round.
+  - **Tiêu chí nghiệm thu:** AI Nightmare biết xếp cờ khắc chế tộc/hệ người chơi; Tutorial tuân thủ kịch bản 8 vòng.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng trong tests/encounter-env.test.ts.
+- [x] **WBS-030: Canonical Game Speed Controller (1x, 1.5x, 2x)** `§45, A56` *(Deps: WBS-012, WBS-019)*
+  - **Mô tả:** Bộ điều tốc trò chơi chính thống: đồng bộ tốc độ diễn hoạt Three.js, bước nhảy thời gian combat simulator và thời lượng hạt VFX theo 1 nguồn duy nhất (1x, 1.5x, 2x).
+  - **Tiêu chí nghiệm thu:** Tăng tốc game không làm sai lệch kết quả sát thương hoặc làm đứt gãy sự kiện âm thanh.
+  - **Audit Note:** ✓ Verify-combat audit: Passed. Tích hợp trong settings store.
+- [ ] **WBS-031: 3D Loot Drop, Chest Opening & Gold Scatter Physics** `§17, A18` *(Deps: WBS-025, WBS-027)*
+  - **Mô tả:** Hiệu ứng 3D rơi hòm đồ thưởng: hòm gỗ/bạc/vàng rơi từ trên trời xuống ô địch chết, mở nắp văng nguyên liệu và đồng vàng bay lượn về phía kho tài nguyên người chơi.
+  - **Tiêu chí nghiệm thu:** Hiệu ứng diễn ra trong 0.8s, không cản trở luồng bấm nút Vòng tiếp theo.
+  - **Audit Note:** ⚠ Verify-world audit: Tách biệt khỏi logic phát thưởng toán học WBS-025.
+- [ ] **WBS-032: Combat Result Tally & Damage Distribution Breakdown** `§16.17, A18, A87, A121` *(Deps: WBS-019, WBS-025)*
+  - **Mô tả:** Bảng thống kê kết quả trận đấu: tổng sát thương gây ra của từng quân cờ, lượng sát thương gánh chịu, lượng máu hồi phục, chi tiết vàng thưởng nhận được (thắng/chuỗi/bounty).
+  - **Tiêu chí nghiệm thu:** Số liệu khớp 100% với event log combat simulation; phân định rõ MVP của trận.
+  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ màn hình tổng kết trận đánh.
+
+### Phase: WORLD (4/16 hoàn thành)
+
+- [x] **WBS-033: Logical & Visual Board Geometry (10 Logic + 1 River = 11 Cols)** `§11.1, §11.2, §11.3, §11.4, A31` *(Deps: WBS-001)*
+  - **Mô tả:** Mô hình hình học bàn cờ 3D: 10 cột logic + 1 cột sông phân cách = 11 cột hiển thị, 5 hàng, 50 ô chiến trường, 36 ô vành đai gỗ nâu bao quanh, và 44 ô hàng chờ bench ngoài cùng. Hàm toLogical/toVisual/cellToWorld.
+  - **Tiêu chí nghiệm thu:** Hàng sông nằm ở giữa (x=5) không làm lệch index logic; ánh xạ tọa độ 2 chiều hoàn hảo.
+  - **Audit Note:** ✓ Verify-world audit: Passed. Đã kiểm chứng qua tests/geometry.test.ts và tests/arena-mapping.test.ts.
+- [x] **WBS-034: 3D Voxel Arena & Terrain Meshes (InstancedMesh)** `§11.5, §11.6, §11.7, A25, A91.2, A91.3` *(Deps: WBS-033)*
+  - **Mô tả:** Dựng sân đấu Three.js hoàn chỉnh bằng InstancedMesh tối ưu: gạch cỏ/đất, dòng sông hoạt họa uốn lượn, vòng gỗ nâu, thềm bench, hệ thống chiếu sáng 3 pha (menu, planning, combat) và bầu trời mây procedural.
+  - **Tiêu chí nghiệm thu:** Hiển thị đầy đủ 50 ô cờ + sông + vành đai; hiệu năng cao nhờ gom draw call qua instancing.
+  - **Audit Note:** ✓ Verify-world audit: Passed. Đã kiểm chứng render pixel thật qua tests/three/.
+- [x] **WBS-035: Tactical Camera System, Viewport & Framing Math** `§13, A91.1` *(Deps: WBS-033)*
+  - **Mô tả:** Hệ thống Camera góc nhìn chiến thuật 45 độ với công thức tính khoảng cách bao quát (framing distance) tự động thích ứng tỉ lệ màn hình ngang/dọc, giới hạn trần dolly zoom (+5 unit) và điều khiển OrbitControls.
+  - **Tiêu chí nghiệm thu:** Không để bàn cờ bị lọt thỏm hoặc tràn viền màn hình trên thiết bị di động.
+  - **Audit Note:** ✓ Verify-world audit: Passed. Đã kiểm tra qua 3 tests trong tests/camera.test.ts.
+- [x] **WBS-036: Stage Host, WebGLRenderer & Render Loop** `§37, §43, A91.5, A105.3` *(Deps: WBS-034, WBS-035)*
+  - **Mô tả:** Khung quản lý vòng lặp render Three.js, cấu hình WebGLRenderer với antialias, đổ bóng shadowMap, kẹp DPR <= 2, tự động lắng nghe co giãn khung nhìn resize và giải phóng tài nguyên an toàn.
+  - **Tiêu chí nghiệm thu:** Render mượt mà, không rò rỉ bộ nhớ WebGL context khi khởi động lại scene.
+  - **Audit Note:** ✓ Verify-world audit: Passed. Đã tích hợp tại src/world/stage.ts.
+- [ ] **WBS-037: 3D Board Picking & Raycasting Controller** `§13, §14.3, A26, A75` *(Deps: WBS-034, WBS-035, WBS-036)*
+  - **Mô tả:** Trình bắt sự kiện con trỏ/cảm ứng chuột raycasting lên các ô bàn cờ 3D, ánh xạ tọa độ world sang ô logic, hiển thị khung highlight tương tác (ô hợp lệ màu xanh, ô cấm màu đỏ, vùng đánh skill).
+  - **Tiêu chí nghiệm thu:** Bắt chính xác ô cờ ngay cả khi camera xoay nghiêng; không bắt nhầm ô sông giữa sân.
+  - **Audit Note:** ⚠ Verify-world audit: Task cần thiết để làm cầu nối giữa tương tác chuột/touch và bàn cờ 3D.
+- [-] **WBS-038: Procedural Unit Rig Archetypes (7 Body Archetypes)** `§2.4, §22.1, §22.6, A24, A90` *(Deps: WBS-034, WBS-036)*
+  - **Mô tả:** Thư viện dựng hình procedual unit 3D với 7 bộ khung sinh học archetype (4 chân quadruped, chim cánh avian, côn trùng arthropod, bò sát serpent, nhân hình biped, thủy sinh aquatic, người đá golem/thần thoại).
+  - **Tiêu chí nghiệm thu:** Mỗi loài có silhouette nhận diện riêng biệt; tuyệt đối không dùng 1 khối lập phương đơn điệu.
+  - **Audit Note:** 🔄 Đang triển khai tại src/world/units/factory.ts.
+- [ ] **WBS-039: Five Player-Facing Animation Loops** `§22.2, A24, A112` *(Deps: WBS-038)*
+  - **Mô tả:** Bộ 5 trạng thái diễn hoạt chuẩn: 1. Idle (thở nhịp nhàng), 2. Attack (vung đòn/bắn tia), 3. Skill (tụ năng lượng/tung chiêu), 4. Take Hit (giật lùi/lóe sáng), 5. Move (chạy/lướt theo địa hình).
+  - **Tiêu chí nghiệm thu:** Chuyển đổi mượt mà giữa các animation clips; không bị giật khung hình khi reset loop.
+  - **Audit Note:** ⚠ Verify-world audit: Bắt buộc theo đúng danh mục 5 trạng thái quy định tại §22.2.
+- [ ] **WBS-040: Species Motion Profiles & Locomotion Signatures** `§22.3, A24` *(Deps: WBS-038, WBS-039)*
+  - **Mô tả:** Bộ hồ sơ vận động riêng cho từng nhóm loài: quái bay lượn ở cao độ hover cố định, quái bò sát trườn uốn lượn sát đất, quái dưới nước bơi sóng, nhịp thở idle dạng sóng sin đặc thù từng loài.
+  - **Tiêu chí nghiệm thu:** Không dùng chung 1 nhịp nhấp nhô đứng thẳng (vertical bob) cho tất cả các sinh vật.
+  - **Audit Note:** ⚠ Verify-world audit: Đảm bảo tính đa dạng sinh học theo yêu cầu §22.3.
+- [ ] **WBS-041: Geometry Quality & Solid Surface Voxel Integrity** `§22.4, A24, A90` *(Deps: WBS-038)*
+  - **Mô tả:** Kiểm tra tính liền mạch giải phẫu của mô hình: không có đầu cổ đứt rời, không có tay chân trôi nổi lơ lửng, loại bỏ các mặt khuất bên trong (internal face culling), vật liệu đặc solid không bị nhìn xuyên thấu.
+  - **Tiêu chí nghiệm thu:** Mô hình liền khối, bề mặt kín, nhìn rõ góc cạnh và đặc điểm nhận dạng ở khoảng cách bàn cờ.
+  - **Audit Note:** ⚠ Verify-world audit: Bổ sung từ quy chuẩn nghiêm ngặt §22.4.
+- [ ] **WBS-042: Bespoke Character Personality & Action Systems** `§22.5, A24` *(Deps: WBS-038, WBS-039)*
+  - **Mô tả:** Các diễn hoạt cá tính đặc trưng: Gà Rapper (cầm mic hát, ném mic boomerang), Bé Gà Ngái Ngủ (nằm nệm ngủ, ném gối tấn công, ngáp nộ), Nhện Chúa (chăng tơ giăng bẫy), Phượng Hoàng (hồi sinh từ tro tàn).
+  - **Tiêu chí nghiệm thu:** Tái hiện nguyên vẹn cá tính hài hước và độc đáo của các nhân vật biểu tượng Forest Throne.
+  - **Audit Note:** ⚠ Verify-world audit: Đã đối chiếu danh sách các unit cá tính tại §22.5.
+- [ ] **WBS-043: Star Evolution Visual Shaders & Glow Auras** `§23, A112.5, A112.6` *(Deps: WBS-038)*
+  - **Mô tả:** Hiệu ứng tiến hóa cấp sao (1★, 2★, 3★): phóng to tỷ lệ cơ thể (1.0x → 1.25x → 1.5x), hào quang ánh sáng dưới chân, sừng/mào vương miện mọc thêm và hỗ trợ nạp skin trang phục từ kho thành tựu.
+  - **Tiêu chí nghiệm thu:** Quân cờ 3 sao to lớn và uy lực hơn hẳn 1 sao mà không làm mất hình thể gốc.
+  - **Audit Note:** ⚠ Verify-world audit: Bổ sung từ thiếu sót section 23.
+- [ ] **WBS-044: Unit Status Billboard Canvas Overlays** `§24, A23, A92` *(Deps: WBS-036, WBS-038)*
+  - **Mô tả:** Bảng hiển thị thanh máu, giáp ảo, nộ khí và biểu tượng hiệu ứng bất lợi/có lợi lơ lửng trên đầu unit bằng Dynamic Texture 512x176, tự động quay mặt về camera (billboard) và bám sát vị trí cờ.
+  - **Tiêu chí nghiệm thu:** Hiển thị rõ ràng chỉ số HP/nộ; gom nhóm tối đa 6 badge trạng thái không bị đè chữ.
+  - **Audit Note:** ⚠ Verify-world audit: Tham chiếu chuẩn định mức A92.
+- [ ] **WBS-045: Combat VFX Particle Pool & Spell Projectiles** `§38, A105.2` *(Deps: WBS-036, WBS-038)*
+  - **Mô tả:** Hệ thống hạt VFX tái sử dụng (pooled particles) cho đạn bay (projectile), vệt chém, vụ nổ phép thuật, vòng hồi máu, tia sét, thiêu đốt và hiệu ứng thăng sao hào nhoáng.
+  - **Tiêu chí nghiệm thu:** Không khởi tạo mesh mới liên tục gây rác bộ nhớ (zero allocation per frame).
+  - **Audit Note:** ⚠ Verify-world audit: Cần gắn socket chuẩn trên thân unit.
+- [ ] **WBS-046: 3D Environment Biomes & Atmospheric Lighting (8 Biomes)** `§12, A91.4` *(Deps: WBS-034, WBS-036)*
+  - **Mô tả:** Mở rộng 8 chủ đề môi trường 3D sống động (Rừng Rậm Cổ Thụ, Thác Nước Hoang Sơ, Đầm Lầy Tử Khí, Núi Lửa Tro Tàn, Đỉnh Núi Băng Tuyết, Hẻm Núi Gió Hú, Đền Thần Huyền Bí, Hang Tối Dạ Quang) với sương mù fog và ánh sáng.
+  - **Tiêu chí nghiệm thu:** Môi trường thể hiện rõ nét nhận diện nguyên tố vòng đấu; ánh sáng tôn vinh cờ 3D.
+  - **Audit Note:** ⚠ Verify-world audit: Mở rộng từ WBS-023 (vốn chỉ làm phần toán học combat).
+- [ ] **WBS-047: Cohesive Visual Feedback & Timing Language** `§39, A16, A112` *(Deps: WBS-039, WBS-045)*
+  - **Mô tả:** Ngôn ngữ thị giác đồng bộ cho toàn bộ game: phân định rõ thời điểm lấy đà (anticipation), thời điểm va chạm (impact), và hồi chiêu (recovery). Lóe trắng khi dính đòn, rung màn hình khi crit, tan biến dissolve khi tử trận.
+  - **Tiêu chí nghiệm thu:** Không tạo ra cảm giác các hiệu ứng chắp vá rời rạc; không sinh thêm sự kiện sát thương ảo.
+  - **Audit Note:** ⚠ Verify-world audit: Đáp ứng yêu cầu nghiêm ngặt §39.
+- [ ] **WBS-048: WebGL Context Loss Recovery & Asset Reliability Lifecycle** `§37, A105.3` *(Deps: WBS-036)*
+  - **Mô tả:** Hệ thống bảo vệ vòng đời WebGL: lắng nghe sự kiện webglcontextlost và khôi phục mượt mà khi restored, giải phóng bộ nhớ triệt để khi đổi scene (dispose textures, geometries, materials).
+  - **Tiêu chí nghiệm thu:** Không bị crash đen màn hình khi chuyển tab hoặc khóa máy điện thoại; ram giữ mức ổn định.
+  - **Audit Note:** ⚠ Verify-world audit: Bắt buộc cho độ tin cậy sản phẩm theo §37.
+
+### Phase: UI (2/25 hoàn thành)
+
+- [x] **WBS-049: Medieval Forest-Fantasy Asset-First UI Chrome Engine** `§2.3, §50, AGENTS.md` *(Deps: WBS-001)*
+  - **Mô tả:** Hệ thống render giao diện theo chuẩn Asset-First: Canvas 2D / 9-slice PNG border, khung gỗ sồi chạm khắc, giấy da parchment, đinh tán kim loại mạ đồng, tuyệt đối không dùng CSS tô màu hoặc gradient.
+  - **Tiêu chí nghiệm thu:** CSS chỉ dùng cho bố cục/tọa độ/responsive; toàn bộ panel/button/badge được vẽ qua canvas chrome.
+  - **Audit Note:** ✓ Verify-ui audit: Passed. Đã triển khai tại src/ui/chrome.ts tuân thủ nghiêm ngặt quy tắc AGENTS.md.
+- [x] **WBS-050: Modal Coordination & Layer Stacking Manager (Z-Order Authority)** `§40, §52, A93` *(Deps: WBS-049)*
+  - **Mô tả:** Bộ điều phối modal trung tâm: quản lý màn chắn backdrop mờ, bẫy tiêu điểm (focus trap), đóng bằng phím ESC, quản lý phân tầng z-index cố định (Canvas 0, HUD 10, Backdrop 50, Modal 60, Tooltip 100).
+  - **Tiêu chí nghiệm thu:** Tại một thời điểm chỉ có tối đa 1 modal chính nhận tương tác chuột/bàn phím; đóng modal an toàn.
+  - **Audit Note:** ✓ Verify-ui audit: Passed. Đã tích hợp tại src/ui/modalManager.ts.
+- [ ] **WBS-051: Universal Viewport Tooltip Engine** `§26, A23, A96, A122` *(Deps: WBS-049, WBS-050)*
+  - **Mô tả:** Hệ thống tooltip dùng chung cho toàn bộ game: định vị thông minh tự né mép màn hình, tự tránh con trỏ, hỗ trợ hiển thị thông số quân cờ, trang bị, hiệu ứng buff, và mốc tộc/hệ.
+  - **Tiêu chí nghiệm thu:** Được xây dựng đầu tiên trong UI để các component khác import sử dụng trực tiếp.
+  - **Audit Note:** ⚠ Verify-ui audit: Đảo vị trí lên đầu UI phase để sửa lỗi đảo ngược phụ thuộc.
+- [ ] **WBS-052: App Shell & Boot Orchestrator** `§4, A51, A115` *(Deps: WBS-036, WBS-050)*
+  - **Mô tả:** Khung ứng dụng gốc, bộ bắt lỗi Fatal Error Boundary với thông điệp rõ ràng, điều hướng chuyển cảnh mượt mà giữa Loading Scene → Main Menu → Planning Scene → Combat Scene.
+  - **Tiêu chí nghiệm thu:** Không để màn hình đen vô căn cứ; lưu crash log an toàn khi gặp sự cố WebGL.
+  - **Audit Note:** ⚠ Verify-ui audit: Đã kiểm tra tham chiếu A51.
+- [ ] **WBS-053: Loading Scene & Interactive Bubble Minigame** `§4.1, A55.1, A97` *(Deps: WBS-052)*
+  - **Mô tả:** Màn hình tải game với thanh tiến trình mượt mà, minigame tương tác bắn bong bóng thư giãn trong lúc chờ, xử lý tải lười (lazy load) tài nguyên phụ không chặn trải nghiệm.
+  - **Tiêu chí nghiệm thu:** Tải thất bại 1 asset trang trí không làm treo đứng toàn bộ tiến trình nạp game.
+  - **Audit Note:** ⚠ Verify-ui audit: Phù hợp quy chuẩn A55.1.
+- [ ] **WBS-054: Main Menu Hub & Game Mode Carousel** `§5.1, §5.2, A98, A116` *(Deps: WBS-052, WBS-053)*
+  - **Mô tả:** Giao diện Menu chính gồm các nút: Tiếp tục (kèm tóm tắt run cũ), Chơi mới, Cài đặt, Bộ sưu tập, Cây công nghệ, Pháo đài, Đấu trường, Bảng vinh danh, và liên kết mạng xã hội.
+  - **Tiêu chí nghiệm thu:** Chỉ hiển thị nút Tiếp tục khi có bản lưu hợp lệ; chuyển mode mượt mà.
+  - **Audit Note:** ⚠ Verify-ui audit: Phụ thuộc vào Loading Scene và App Shell.
+- [ ] **WBS-055: Settings Panel & Keybinding Manager UI** `§6, A35, A44, A110` *(Deps: WBS-012, WBS-050, WBS-051)*
+  - **Mô tả:** Giao diện bảng cài đặt trực quan: tab Âm thanh (âm lượng, mute), Hiển thị (độ phân giải, chất lượng), Lối chơi (tốc độ game), Bàn phím (gán lại phím nóng), và Quản lý dữ liệu lưu.
+  - **Tiêu chí nghiệm thu:** Thay đổi cài đặt áp dụng tức thì qua cơ chế preview; có nút khôi phục mặc định.
+  - **Audit Note:** ✓ Verify-ui audit: Đã gắn kết trực tiếp với Settings Store từ WBS-012.
+- [ ] **WBS-056: Planning Phase Master HUD & Status Bar** `§14.1, A22, A38, A39` *(Deps: WBS-003, WBS-004, WBS-050, WBS-051)*
+  - **Mô tả:** Thanh thông tin chiến thuật trên cùng: hiển thị Vàng, Máu, Cấp độ, Thanh XP, Sức chứa quân bàn/chờ, Vòng đấu, Nút Bắt đầu trận chiến nổi bật ở giữa, và nút xả stress Hạ Cortisol.
+  - **Tiêu chí nghiệm thu:** Tự động co giãn bố cục trên di động để không che khuất bàn cờ 3D.
+  - **Audit Note:** ✓ Verify-ui audit: Cập nhật dependency Core Economy & Run State.
+- [ ] **WBS-057: Shop Tray & Bench Strip Interface** `§14.4, §14.5, §14.7, A2, A3, A75` *(Deps: WBS-003, WBS-005, WBS-051, WBS-056)*
+  - **Mô tả:** Khay cửa hàng 5 quân cờ ngẫu nhiên, nút Khóa cửa hàng, nút Đổi bài (Reroll), hàng chờ bench hiển thị số lượng cờ thực tế, và khu vực kéo thả quân cờ xuống để Bán lấy vàng.
+  - **Tiêu chí nghiệm thu:** Hiển thị đúng giá mua/bán; cờ hết tiền bị mờ xám; reroll mượt mà.
+  - **Audit Note:** ✓ Verify-ui audit: Đã phân tách rõ với formation movement.
+- [ ] **WBS-058: Formation Drag-and-Drop & Tile Highlights** `§14.2, §14.3, A75` *(Deps: WBS-005, WBS-037, WBS-056)*
+  - **Mô tả:** Trình điều khiển kéo thả cờ giữa Bench ↔ Bàn cờ và Bàn cờ ↔ Bàn cờ. Kiểm tra giới hạn số quân deploy, ngăn trùng loài, hiển thị highlight ô xanh khi kéo thả hợp lệ, đỏ khi cấm.
+  - **Tiêu chí nghiệm thu:** Thả cờ ra ngoài tự động hoàn tác (atomic rollback); hoán đổi vị trí mượt mà.
+  - **Audit Note:** ✓ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-059: Unit Card & Comprehensive Detail Modal** `§14.6, §14.16, A59, A76, A85` *(Deps: WBS-002, WBS-018, WBS-051)*
+  - **Mô tả:** Thẻ bài cờ chuẩn mực: ảnh đại diện, sao, giá tiền, vai trò, nguyên tố, tộc. Modal chi tiết hiển thị toàn bộ chỉ số gốc, trang bị đang mang, chi tiết kỹ năng theo sao và nút thao tác nhanh.
+  - **Tiêu chí nghiệm thu:** Dùng chung một ngôn ngữ thiết kế cho cả màn hình Planning và Library.
+  - **Audit Note:** ✓ Verify-ui audit: Thống nhất format với catalog data.
+- [ ] **WBS-060: Inventory Tray & Equipment Socketing UI** `§14.9, §14.10, A6, A80, A85, A86` *(Deps: WBS-006, WBS-051, WBS-056)*
+  - **Mô tả:** Khay túi đồ hiển thị danh sách nguyên liệu và trang bị. Kéo trang bị gắn vào quân cờ (tối đa 3 slot), kiểm tra trùng loại, tính toán phí tháo đồ và nút Tháo toàn bộ trang bị.
+  - **Tiêu chí nghiệm thu:** Hiển thị chính xác chi phí tháo đồ; trang bị gắn vào phản ánh ngay lên stats.
+  - **Audit Note:** ✓ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-061: 3x3 Crafting Table & Recipe Book Modal** `§14.11, §14.12, A7, A86, A106` *(Deps: WBS-007, WBS-051, WBS-060)*
+  - **Mô tả:** Giao diện bàn chế tạo 3x3: kéo nguyên liệu vào lưới, hiển thị trước vật phẩm đầu ra nếu khớp công thức, nút Ghép đồ, lịch sử ghép và cuốn sách tra cứu toàn bộ 506 công thức.
+  - **Tiêu chí nghiệm thu:** Ô bị khóa theo cấp bàn craft hiển thị rào chắn rõ ràng; tra cứu recipe mượt mà.
+  - **Audit Note:** ✓ Verify-ui audit: Kết nối trực tiếp với atomic crafting engine.
+- [ ] **WBS-062: Synergy Tracker & Threshold Inspection Panel** `§14.14, A9, A82` *(Deps: WBS-009, WBS-051, WBS-056)*
+  - **Mô tả:** Bảng theo dõi Tộc/Hệ/Nguyên tố bên cạnh màn hình: hiển thị số lượng cờ hiện tại, mốc đang kích hoạt, mốc tiếp theo và chi tiết chỉ số cộng thêm khi bấm vào xem chi tiết.
+  - **Tiêu chí nghiệm thu:** Chỉ đếm các quân cờ đang triển khai trên bàn (trừ cờ trên bench); cập nhật live.
+  - **Audit Note:** ✓ Verify-ui audit: Hoàn thiện dependency với Core Synergy.
+- [ ] **WBS-063: Augment Selection Modal (Rounds 3, 5, 7)** `§14.15, A10` *(Deps: WBS-010, WBS-050, WBS-056)*
+  - **Mô tả:** Hộp thoại chọn 1 trong 3 lõi nâng cấp: hiển thị biểu tượng, tên, mô tả chi tiết, xếp hạng độ hiếm (Tactical, Strong, Rare, Epic), và khóa toàn bộ tương tác cờ cho tới khi chọn xong.
+  - **Tiêu chí nghiệm thu:** Không thể bấm bỏ qua; chọn xong áp dụng ngay hiệu ứng và tiếp tục ván đấu.
+  - **Audit Note:** ✓ Verify-ui audit: Đồng bộ vòng đấu với phase state machine.
+- [ ] **WBS-064: Context Menu Quick Actions Component** `§14.17, A85` *(Deps: WBS-005, WBS-050, WBS-056)*
+  - **Mô tả:** Trình đơn ngữ cảnh mở nhanh khi nhấp chuột phải hoặc giữ ngón tay trên quân cờ: Bán, Tháo đồ, Đổi chỗ, Xem chi tiết. Tự động đóng menu cũ khi mở menu mới.
+  - **Tiêu chí nghiệm thu:** Chỉ tồn tại duy nhất một context menu tại một thời điểm.
+  - **Audit Note:** ✓ Verify-ui audit: Tránh trùng lặp logic kiểm tra hợp lệ với bàn cờ.
+- [ ] **WBS-065: Battle History & Event Log Modal** `§14.18, §14.19, A64` *(Deps: WBS-004, WBS-050, WBS-056)*
+  - **Mô tả:** Hộp thoại tra cứu lịch sử trận đánh: phân loại 4 tab (Tất cả, Giao tranh, Kinh tế, Hệ thống), tải lười tối đa 200 sự kiện, và thanh thông báo phản hồi nhanh các lỗi kéo thả/thiếu tiền.
+  - **Tiêu chí nghiệm thu:** Cần thiết cho trải nghiệm người chơi và bắt buộc trong Tutorial Vòng 3.
+  - **Audit Note:** ✓ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-066: Combat Phase HUD, Turn Tracker & Speed Controls** `§16.16, §16.19, A56, A95, A119` *(Deps: WBS-019, WBS-030, WBS-051)*
+  - **Mô tả:** Giao diện thời gian thực trong giao tranh: thanh tổng lực chiến 2 phe, hàng đợi lượt đánh kế tiếp, bảng thông báo sát thương thời gian thực và nút chuyển đổi tốc độ (1x, 1.5x, 2x).
+  - **Tiêu chí nghiệm thu:** Tăng tốc độ game chỉ thay đổi thời gian diễn hoạt, không đổi kết quả tính toán.
+  - **Audit Note:** ✓ Verify-ui audit: Kết nối trực tiếp với Combat Engine & Presentation Timer.
+- [ ] **WBS-067: Combat Result Modal & Loot Tally Overlay** `§16.17, A18, A87, A121` *(Deps: WBS-025, WBS-032, WBS-050)*
+  - **Mô tả:** Màn hình kết thúc trận đánh: Chiến thắng / Thất bại / Hòa, chi tiết vàng thưởng nhận được, vàng chuỗi thắng/thua, sát thủ bounty, hiển thị các hòm đồ nguyên liệu rơi ra và nút Vòng tiếp theo.
+  - **Tiêu chí nghiệm thu:** Nhận thưởng idempotent: đóng/mở lại modal không được cấp quà lần 2.
+  - **Audit Note:** ✓ Verify-ui audit: Gắn kết trực tiếp với Loot Module.
+- [ ] **WBS-068: Creature Library & 3D Collection Inspector** `§25, A109` *(Deps: WBS-002, WBS-038, WBS-050)*
+  - **Mô tả:** Thư viện bách khoa toàn thư: danh sách 120 quân cờ + 5 boss, bộ lọc theo Tộc/Hệ/Hạng sao/Độ hiếm, sân khấu 3D xoay 360 độ ngắm quái thú và tính năng đọc giọng nói Web Speech.
+  - **Tiêu chí nghiệm thu:** Mượt mà khi duyệt danh sách lớn; hiển thị đúng các mốc nâng sao và trang phục.
+  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ hoàn thiện mục tiêu Thư viện.
+- [ ] **WBS-069: Interactive Tech Tree Visual Map** `§14.13, A8, A111` *(Deps: WBS-008, WBS-050, WBS-051)*
+  - **Mô tả:** Giao diện sơ đồ cây công nghệ trực quan: hiển thị các nhánh theo dạng đồ thị cây (tree graph), làm mờ các node chưa đủ điều kiện, sáng rực node đã nghiên cứu, và nút Nghiên cứu ngay.
+  - **Tiêu chí nghiệm thu:** Hiển thị chính xác chi phí điểm công nghệ/vàng; cập nhật live vào stats trận đấu.
+  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-070: Social, Donate & Community Tribute Gallery** `§5.4, §165` *(Deps: WBS-049, WBS-050)*
+  - **Mô tả:** Giao diện Bảng vinh danh cộng đồng, tri ân người đóng góp, liên kết mạng xã hội (Discord, GitHub, Fanpage) và thông tin ủng hộ/donate phát triển tựa game.
+  - **Tiêu chí nghiệm thu:** Mở tab mới an toàn (rel='noopener noreferrer'); bố cục trang nhã, không phản cảm.
+  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-071: Version Information & Audit Modal** `§41, A51.1` *(Deps: WBS-049, WBS-050)*
+  - **Mô tả:** Màn hình thông tin phiên bản: hiển thị Git commit SHA, ngày cập nhật gần nhất, nhật ký thay đổi changelog theo phiên bản, và trạng thái kiểm định tính toàn vẹn của engine.
+  - **Tiêu chí nghiệm thu:** Hiển thị chính xác thông tin phiên bản từ build metadata; đóng mở nhanh chóng.
+  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-072: UI Interaction States & Audio Feedback Hooks** `§51, A45` *(Deps: WBS-049)*
+  - **Mô tả:** Quy chuẩn tương tác UI cao cấp: hiệu ứng hover nhẹ, nút bấm thụt 1px khi nhấn (active press), âm thanh click phản hồi nhẹ nhàng, và âm báo cấm khi thao tác sai quy định.
+  - **Tiêu chí nghiệm thu:** Mọi nút bấm trong game đều có phản hồi xúc giác/thị giác/âm thanh đồng điệu.
+  - **Audit Note:** ⚠ Verify-ui audit: Đáp ứng yêu cầu chất lượng tương tác §51.
+- [ ] **WBS-073: In-Game Developer Diagnostics & Debug Console** `§42, A105` *(Deps: WBS-050)*
+  - **Mô tả:** Bảng chẩn đoán và debug dành cho lập trình viên/tester: đo FPS, draw calls, số lượng đa giác tam giác, bật tắt wireframe 3D, thanh lọc nhanh tài nguyên, xem live state.
+  - **Tiêu chí nghiệm thu:** Ẩn hoàn toàn trong chế độ production thường; chỉ kích hoạt khi cờ debug được bật.
+  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ công tác QA theo §42.
+
+### Phase: CONTENT (0/14 hoàn thành)
+
+- [ ] **WBS-074: 8-Round Scripted Tutorial State Machine** `§15, A94, A108` *(Deps: WBS-004, WBS-056, WBS-066)*
+  - **Mô tả:** Cỗ máy trạng thái hướng dẫn tân thủ 8 vòng đấu theo kịch bản chuẩn: Vòng 1 Mua & Đặt cờ, Vòng 2 Reroll & Kinh tế, Vòng 3 Bán cờ & Nhật ký, Vòng 4 Soi cờ & Tooltip, Vòng 5 Gắn Giáp Máu, Vòng 6 Ghép Bùa Xanh, Vòng 7 Chọn Lõi, Vòng 8 Đánh Boss & Tốt nghiệp.
+  - **Tiêu chí nghiệm thu:** Khóa cứng các hành động nằm ngoài kịch bản; có nút Bỏ qua hướng dẫn (Skip) giải phóng hoàn toàn.
+  - **Audit Note:** ✓ Verify-content audit: Cần kết nối với Master HUD và Combat Scene.
+- [ ] **WBS-075: Endless Achievements & Profile Rewards System** `§27, A36, A104.1, A104.2` *(Deps: WBS-011, WBS-050)*
+  - **Mô tả:** Hệ thống thành tựu cấp tài khoản độc lập với lượt chơi: ghi nhận kỷ lục vòng cao nhất, tổng số trận thắng, số lượng cờ đã mua, số lượt reroll,... Tự động mở khóa danh hiệu và skin trang phục độc quyền.
+  - **Tiêu chí nghiệm thu:** Không bị xóa khi thua game (Game Over); lưu riêng trong profile tài khoản.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-076: 7-Layer Directed Fortress Map System** `§28, A20, A117` *(Deps: WBS-004, WBS-014, WBS-050)*
+  - **Mô tả:** Bản đồ đường đi chiến thuật 7 tầng cho chế độ Endless PvE Fortress: các nhánh rẽ lựa chọn giữa Quái thường (battle), Tinh anh (elite), Trùm (boss), Chợ (shop), Dược quán (pharmacy), Hang dã thú (beast_den), Lò rèn (blacksmith).
+  - **Tiêu chí nghiệm thu:** Tạo nhánh ngẫu nhiên theo hạt giống; người chơi chỉ có thể tiến lên, không thể lùi lại tầng cũ.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-077: Fortress Services (Pharmacy, Beast Den, Blacksmith)** `§28, A117.3` *(Deps: WBS-076)*
+  - **Mô tả:** Các dịch vụ tương tác đặc thù tại các điểm dừng Pháo đài: Dược quán (hồi máu, tăng nộ khởi đầu, mua thuốc kích thích), Hang dã thú (thu phục thú hoang miễn phí), Lò rèn (nâng cấp tier trang bị, rèn đồ hiếm).
+  - **Tiêu chí nghiệm thu:** Mỗi dịch vụ chỉ được tương tác 1 lần duy nhất trước khi chuyển sang tầng kế tiếp.
+  - **Audit Note:** ✓ Verify-content audit: Phụ thuộc vào Bản đồ Pháo Đài WBS-076.
+- [ ] **WBS-078: Co-op Multiplayer WebRTC Host-Relay** `§29, A21, A47, A114, A118` *(Deps: WBS-011, WBS-050)*
+  - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
+  - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A100.3` *(Deps: WBS-078)*
+  - **Mô tả:** Đấu trường đối kháng 1v1 hoặc 4 người: chụp ảnh snapshot đội hình người chơi làm bóng ma (ghost opponent) để thi đấu chéo cánh, đồng bộ máu người chơi và bảng xếp hạng sinh tồn vòng tròn.
+  - **Tiêu chí nghiệm thu:** Bóng ma mô phỏng chính xác 100% trang bị và chỉ số của người chơi tại vòng đấu đó.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-080: Audio Director & Procedural SFX Manager** `§32, A45, A71` *(Deps: WBS-012)*
+  - **Mô tả:** Giám đốc âm thanh toàn cục: quản lý nhạc nền BGM chuyển cảnh mượt mà theo ngữ cảnh (menu, planning, combat, victory, defeat), tổng hợp âm thanh procedural qua Web Audio API khi thiếu file MP3, và các SFX chiến trận.
+  - **Tiêu chí nghiệm thu:** Chạy an toàn không crash ngay cả khi trình duyệt chưa được người dùng cấp quyền phát audio.
+  - **Audit Note:** ✓ Verify-content audit: Kết nối với Settings Store.
+- [ ] **WBS-081: Creative Sandbox Testing Environment** `§14.20, A19` *(Deps: WBS-004, WBS-014, WBS-050)*
+  - **Mô tả:** Chế độ Sáng tạo không giới hạn tài nguyên: tự do cộng vàng/máu, triệu hồi bất kỳ quân cờ nào từ danh mục 120 tướng, tự xếp đội hình địch để thử nghiệm sát thương và combo tộc hệ.
+  - **Tiêu chí nghiệm thu:** Công cụ đắc lực cho người chơi tự do sáng tạo và kiểm thử meta chiến thuật.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-082: User Mod Management & Validation Engine** `§35, A50` *(Deps: WBS-011, WBS-050)*
+  - **Mô tả:** Hệ thống quản lý bản mod từ người dùng: nạp tệp JSON mod quân cờ/trang bị mới, kiểm tra tính hợp lệ của schema, bật/tắt mod linh hoạt mà không làm hỏng dữ liệu gốc của trò chơi.
+  - **Tiêu chí nghiệm thu:** Mod lỗi bị cô lập an toàn; không làm crash game chính; có thông báo cảnh báo rõ ràng.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-083: Discord Embedded Activity Integration** `§31, A51.2` *(Deps: WBS-052)*
+  - **Mô tả:** Tích hợp Discord Embedded App SDK: xác thực người dùng qua Discord token, lấy avatar/tên người dùng hiển thị trong game, tự động điều chỉnh khung nhìn iframe và hỗ trợ mời bạn bè cùng phòng.
+  - **Tiêu chí nghiệm thu:** Tự động tắt nhẹ nhàng và chạy độc lập bình thường khi chơi ngoài trình duyệt web thông thường.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-084: Multi-Device Input (Gamepad, Touch Joystick, Virtual D-pad)** `§34` *(Deps: WBS-012, WBS-052)*
+  - **Mô tả:** Hỗ trợ đa thiết bị đầu vào: tay cầm chơi game Gamepad (Xbox, PlayStation), cần điều khiển ảo Joystick trên màn hình cảm ứng di động, phím điều hướng D-pad cho trải nghiệm chơi cờ trên TV/mobile.
+  - **Tiêu chí nghiệm thu:** Chuyển đổi liền mạch giữa chuột/bàn phím/cảm ứng/tay cầm mà không bị kẹt trạng thái.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn đa nền tảng §34.
+- [ ] **WBS-085: Tactile Haptics Feedback Integration** `§33, A49.1` *(Deps: WBS-052)*
+  - **Mô tả:** Phản hồi xúc giác rung (Haptics) qua Navigator Vibration API trên thiết bị di động: rung nhẹ khi thả cờ đúng ô, rung nhịp tim khi máu dưới 20%, rung mạnh khi đòn chí mạng hoặc kích nổ chiêu thức.
+  - **Tiêu chí nghiệm thu:** Tự động bỏ qua an toàn trên các thiết bị không hỗ trợ bộ rung; có công tắc tắt trong Cài đặt.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn xúc giác §33.
+- [ ] **WBS-086: Web Speech & Accessibility Integration** `§43, §7771` *(Deps: WBS-068)*
+  - **Mô tả:** Tích hợp công nghệ hỗ trợ tiếp cận Accessibility: đọc to thông tin quân cờ trong Thư viện bằng Web Speech Synthesis API, hỗ trợ chế độ tương phản cao High Contrast và phụ đề chú thích hiệu ứng âm thanh.
+  - **Tiêu chí nghiệm thu:** Giúp người khiếm thị/khiếm thính dễ dàng tiếp cận và thưởng thức trò chơi.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn tiếp cận §43.
+- [ ] **WBS-087: Service Worker & Offline PWA Delivery** `§44, A51.3` *(Deps: WBS-052)*
+  - **Mô tả:** Đăng ký Service Worker và cấu hình Web App Manifest (PWA): lưu bộ nhớ đệm cache các tài nguyên tĩnh, cho phép cài đặt game lên màn hình chính điện thoại và chơi hoàn toàn offline không cần internet.
+  - **Tiêu chí nghiệm thu:** Không bị gián đoạn khi mất kết nối mạng đột ngột; tự động cập nhật khi có phiên bản mới.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn phân phối PWA §44.
+
+### Phase: POLISH (0/6 hoàn thành)
+
+- [ ] **WBS-088: Responsive Layout Engine (Desktop & Mobile Safe Areas)** `§53, A58` *(Deps: WBS-052, WBS-056)*
+  - **Mô tả:** Tối ưu hóa hiển thị responsive: tự động phát hiện màn hình dọc (portrait), màn hình ngang (landscape), tính toán vùng an toàn safe-area-inset cho iPhone tai thỏ/nốt ruồi, và tự sắp xếp lại các thanh HUD.
+  - **Tiêu chí nghiệm thu:** Mọi nút bấm và quân cờ đều bấm được bằng một tay trên điện thoại mà không bị che khuất.
+  - **Audit Note:** ✓ Verify-content audit: Đã kiểm tra tham chiếu A58.
+- [ ] **WBS-089: Performance Profiler & Adaptive Quality (30/60 FPS)** `§49, A52` *(Deps: WBS-036, WBS-045)*
+  - **Mô tả:** Bộ giám sát hiệu năng thích ứng: tự động đo FPS trung bình, tự động giảm mật độ hạt VFX, hạ độ phân giải bóng đổ, chuyển sang chế độ tiết kiệm pin 30 FPS khi phát hiện thiết bị yếu hoặc nóng máy.
+  - **Tiêu chí nghiệm thu:** Duy trì khung hình mượt mà ổn định tối thiểu 30 FPS trên các máy cấu hình khiêm tốn.
+  - **Audit Note:** ✓ Verify-content audit: Đã kiểm tra tham chiếu A52.
+- [ ] **WBS-090: Authoritative Deterministic Test Suite (A31/A53 Contracts)** `§54, §56, A31, A53` *(Deps: WBS-004, WBS-019, WBS-033)*
+  - **Mô tả:** Bộ kiểm thử tự động toàn diện: đảm bảo 100% các hợp đồng nghiệm thu toán học của A31 (hình học bàn cờ) và A53 (tính toán chiến trận) luôn luôn pass trong CI/CD trước khi xuất bản.
+  - **Tiêu chí nghiệm thu:** Suite kiểm thử chạy độc lập, tái lập xác định trên mọi môi trường Node/Vitest.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo tiêu chí nghiệm thu tối cao §56.
+- [ ] **WBS-091: Headless Browser Playtest & Visual Screenshot Verification** `§54, §56` *(Deps: WBS-036, WBS-052, WBS-056, WBS-066)*
+  - **Mô tả:** Quy trình nghiệm thu thực tế bằng Chromium Headless Playwright: khởi động game, chụp ảnh màn hình canvas 3D, đo đạc FPS thực tế, kiểm tra console log sạch 0 error, và chơi thử 1 vòng đấu thật.
+  - **Tiêu chí nghiệm thu:** Chứng minh bằng hình ảnh và log thực nghiệm trước khi công bố hoàn thành dự án.
+  - **Audit Note:** ✓ Verify-content audit: Đáp ứng yêu cầu nghiệm thu tối cao Definition of Done §56.
+- [ ] **WBS-092: Complete Player-Flow Acceptance Gates Verification** `§54, §56` *(Deps: WBS-054, WBS-056, WBS-066, WBS-067, WBS-074)*
+  - **Mô tả:** Kiểm thử tự động chuỗi trải nghiệm người chơi: 1. Khởi động → Menu → New Game → Planning → Combat → Result → Next Round; 2. Save & Continue; 3. Lựa chọn chế độ; 4. Thư viện 3D; 5. Bàn chế tạo; 6. Cây công nghệ; 7. Hoàn tất Hướng dẫn.
+  - **Tiêu chí nghiệm thu:** Không có điểm nghẽn, không có ngõ cụt, không có trạng thái kẹt nút trong toàn bộ hành trình.
+  - **Audit Note:** ✓ Verify-content audit: Bổ sung task nghiệm thu chuỗi luồng người chơi §54.
+- [ ] **WBS-093: Production Release Checklist & Clean Cutover Sign-off** `§56, §57` *(Deps: WBS-090, WBS-091, WBS-092)*
+  - **Mô tả:** Biên bản nghiệm thu bàn giao chính thức: đối chiếu toàn bộ 57 điều khoản trong Mega Prompt V3, dọn dẹp các tệp tạm rác, kiểm tra độ sạch mã nguồn, và phê duyệt xuất bản phiên bản thuần Three.js hoàn chỉnh.
+  - **Tiêu chí nghiệm thu:** Thỏa mãn 100% Definition of Done (§56) và chỉ thị tối cao cuối cùng (§57).
+  - **Audit Note:** ✓ Verify-content audit: Cột mốc hoàn tất trọn vẹn dự án Forest Throne Rebuild.

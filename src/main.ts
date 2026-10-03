@@ -1,10 +1,9 @@
-// Entry point: boots the app shell (loading → menu) over the 3D stage.
-import { boot } from "./app/app";
-import "./app/screens";
+// Entry point. App shell (loading → menu) mounts over this stage once UI art is approved.
+import { createStage } from "./world/stage";
 
 const root = document.getElementById("app");
 if (!root) throw new Error("#app root missing");
-const app = await boot(root);
+const stage = createStage(root);
 root.dataset.boot = "ready";
 // Dev/test seam for browser smoke checks.
-if (import.meta.env.DEV) Object.assign(window, { __app: app, __stage: app.stage });
+if (import.meta.env.DEV) Object.assign(window, { __stage: stage });

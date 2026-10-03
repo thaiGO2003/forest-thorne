@@ -264,6 +264,7 @@ function readJson(store: KV, key: string): unknown {
   try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; }
 }
 
+export type { KV } from "./settings";
 export const exportProgress = (env: Envelope) => JSON.stringify(env, null, 2);
 
 /** A57.4: same migration path as Continue; `persist=false` never writes. */
@@ -279,6 +280,8 @@ export function importProgress(store: KV, text: string, persist: boolean): RunPa
   }
   return m.envelope.payload;
 }
+export const exportSaveJson = exportProgress;
+export const importSaveJson = importProgress;
 
 // A57.5 — three intentionally different scopes.
 export const clearRunProgress = (store: KV) => store.removeItem(PROGRESS_KEY);
