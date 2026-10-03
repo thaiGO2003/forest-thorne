@@ -127,7 +127,7 @@ export function prepopulateRecipe(
 /** Slide each recipe across the active square; every staged cell outside the footprint must be empty. */
 export function matchRecipe(staged: (string | null)[], level: number, recipes = RECIPES): Recipe | null {
   const a = ACTIVE[level];
-  if (!a || staged.every((x) => !x)) return null;
+  if (!a || staged.length !== 9 || staged.every((x) => !x)) return null;
   const [r0, c0, n] = a;
   for (const rec of recipes) {
     for (let dr = 0; dr + rec.size <= n; dr++) {
@@ -161,7 +161,7 @@ export interface CraftState {
 
 /** Staging may only use active cells; returns a new staged array or null (bag untouched either way). */
 export function stage(staged: (string | null)[], index: number, item: string | null, level: number): (string | null)[] | null {
-  if (!activeIndices(level).includes(index)) return null;
+  if (staged.length !== 9 || !activeIndices(level).includes(index)) return null;
   const next = staged.slice();
   next[index] = item;
   return next;

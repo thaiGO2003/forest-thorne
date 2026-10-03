@@ -567,12 +567,21 @@ export function chooseAugment(s: RunState, id: string): boolean {
 
 /** Tutorial-aware craft staging wrapper. Staging remains external/non-destructive. */
 export function stageRunCraftItem(s: RunState, staged: (string | null)[], index: number, itemId: string | null): (string | null)[] | null {
+  const next = stageCraft(staged, index, itemId, s.craftTableLevel);
+  if (!next) return null;
+  const available = new Map<string, number>();
+  for (const item of s.itemBag) available.set(item, (available.get(item) ?? 0) + 1);
+  for (const item of next) {
+    if (item === null) continue;
+    const copies = available.get(item) ?? 0;
+    if (copies <= 0) return null;
+    available.set(item, copies - 1);
+  }
   if (!planning(s) || !tutorialActionAllowed(s, "add_craft_item", {
     source: itemId ? { where: "inventory", index: s.itemBag.indexOf(itemId), itemId } : undefined,
     destination: { where: "craft", index }, itemId: itemId ?? undefined,
   })) return null;
-  const next = stageCraft(staged, index, itemId, s.craftTableLevel);
-  if (next) recordTutorialEvent(s, "add_craft_item");
+  recordTutorialEvent(s, "add_craft_item");
   return next;
 }
 

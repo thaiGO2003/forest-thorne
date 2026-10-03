@@ -7,6 +7,8 @@ import {
   buyXp as buyRunXp, createModeRun, deployLimit, enemyPreview, playerCombatBonus, refresh, research as researchTech,
   runSynergies, sell as sellUnit, startCombat as beginCombat, toggleLock as toggleShopLock,
   type RoundResultSummary, type RunState,
+  chooseAugment as chooseRunAugment, craftRunItem, equipItem as equipRunItem, expandBench as expandRunBench,
+  sellItem as sellRunItem, stageRunCraftItem, unequipAll as unequipRunAll, unequipItem as unequipRunItem,
 } from "../core/run";
 import { inspectSave, clearRunProgress, persistPlanningProgress } from "../core/save";
 import { MODE_CONFIG, type GameMode } from "../core/modes";
@@ -52,6 +54,17 @@ export interface Bridge {
   startCombat(): CombatSession | null;
   /** Research a tech node through the canonical transaction (A8, A111.5); false = no change. */
   research(id: string): boolean;
+  expandBench(): boolean;
+  /** Craft staging is external to RunState and never consumes inventory before commit. */
+  craftStaging(): readonly (string | null)[];
+  stageCraftItem(index: number, itemId: string | null): boolean;
+  clearCraftStaging(): void;
+  craft(): string | null;
+  equip(itemId: string, where: "bench" | "board", index: number): boolean;
+  unequip(where: "bench" | "board", index: number, equippedIndex: number): boolean;
+  unequipAll(where: "bench" | "board", index: number): boolean;
+  sellItem(bagIndex: number): boolean;
+  chooseAugment(id: string): boolean;
   /** Planning history (A38); views filter/read only. */
   history(): PlanningHistoryState;
   /** Canonical persisted UI settings owner (A35, A110.2). */
@@ -69,6 +82,20 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
   const settings = createSettingsStore(store, (lang) => setLocale(lang));
   setLocale(settings.get().language);
   const history = createPlanningHistory();
+  let craftStaging: (string | null)[] = Array(9).fill(null);
+
+  const resetCraftStaging = () => { craftStaging = Array(9).fill(null); };
+  const reconcileCraftStaging = () => {
+    const copies = new Map<string, number>();
+    for (const item of state?.itemBag ?? []) copies.set(item, (copies.get(item) ?? 0) + 1);
+    craftStaging = craftStaging.map((item) => {
+      if (item === null) return null;
+      const remaining = copies.get(item) ?? 0;
+      if (!remaining) return null;
+      copies.set(item, remaining - 1);
+      return item;
+    });
+  };
 
   const resetHistory = () => {
     history.recent = [];
@@ -89,6 +116,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     });
   };
   const commit = (category: HistoryCategory, message: string, details?: string[]) => {
+    reconcileCraftStaging();
     record(category, message, details);
     persist();
     emit();
@@ -129,6 +157,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       const route = resolveContinueRoute(s.envelope.payload.player);
       if (route.kind === "blocked" || route.destination !== "planning") return false;
       state = s.envelope.payload.player;
+      resetCraftStaging();
       if (typeof s.envelope.payload.audioEnabled === "boolean") {
         settings.save({ audioEnabled: s.envelope.payload.audioEnabled });
       }
@@ -146,6 +175,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       clearRunProgress(store);
       state = createModeRun(Date.now() | 0, route.mode);
       state.aiMode = route.aiMode;
+      resetCraftStaging();
       resetHistory();
       persist();
       emit();
@@ -277,6 +307,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
             drops,
           });
           if (!summary) return null;
+          resetCraftStaging();
           commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`);
           return summary;
         },
@@ -287,9 +318,62 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       commit("EVENT", `Nghiên cứu ${id}`);
       return true;
     },
+    expandBench() {
+      if (!state || !expandRunBench(state)) return false;
+      commit("EVENT", "Mở rộng hàng chờ");
+      return true;
+    },
+    craftStaging: () => [...craftStaging],
+    stageCraftItem(index, itemId) {
+      if (!state) return false;
+      const next = stageRunCraftItem(state, craftStaging, index, itemId);
+      if (!next) return false;
+      craftStaging = next;
+      persist();
+      emit();
+      return true;
+    },
+    clearCraftStaging() {
+      if (craftStaging.every((item) => item === null)) return;
+      resetCraftStaging();
+      emit();
+    },
+    craft() {
+      if (!state) return null;
+      const item = craftRunItem(state, craftStaging);
+      if (!item) return null;
+      resetCraftStaging();
+      commit("CRAFT", `Chế tạo ${item}`);
+      return item;
+    },
+    equip(itemId, where, index) {
+      if (!state || !equipRunItem(state, itemId, where, index)) return false;
+      commit("EVENT", `Trang bị ${itemId}`);
+      return true;
+    },
+    unequip(where, index, equippedIndex) {
+      if (!state || !unequipRunItem(state, where, index, equippedIndex)) return false;
+      commit("EVENT", "Tháo trang bị");
+      return true;
+    },
+    unequipAll(where, index) {
+      if (!state || !unequipRunAll(state, where, index)) return false;
+      commit("EVENT", "Tháo toàn bộ trang bị");
+      return true;
+    },
+    sellItem(bagIndex) {
+      if (!state || !sellRunItem(state, bagIndex)) return false;
+      commit("SHOP", "Bán vật phẩm");
+      return true;
+    },
+    chooseAugment(id) {
+      if (!state || !chooseRunAugment(state, id)) return false;
+      commit("EVENT", `Chọn nâng cấp ${id}`);
+      return true;
+    },
     history: () => history,
     settings,
-    clearRun() { clearRunProgress(store); state = null; emit(); },
+    clearRun() { clearRunProgress(store); state = null; resetCraftStaging(); emit(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 }

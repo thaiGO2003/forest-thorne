@@ -164,6 +164,17 @@ describe("craft A7", () => {
     expect(craft(s, g)).toBeNull();
   });
 
+  it("rejects malformed grids instead of consuming ingredients outside the nine canonical cells", () => {
+    const state = { itemBag: ["tear", "claw"], craftTableLevel: 1, craftHistory: [] as string[] };
+    const grid: (string | null)[] = Array(10).fill(null);
+    grid[4] = "tear";
+    grid[9] = "claw";
+    const before = structuredClone(state);
+    expect(matchRecipe(grid, 1)).toBeNull();
+    expect(craft(state, grid)).toBeNull();
+    expect(state).toEqual(before);
+  });
+
   it("A86 subtracts staged reservations from available bag counts", () => {
     expect(availableItemStacks(
       ["tear", "claw", "tear", "bark", "tear", "claw"],
