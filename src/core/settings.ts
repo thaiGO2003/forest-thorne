@@ -47,15 +47,17 @@ const SHORTCUT_ACTION_ALIASES: Record<KeyContext, Record<string, string>> = {
 
 export function resolveShortcutAction(ctx: KeyContext, action: string): string | null {
   const stored = DEFAULT_KEYS[ctx] as Record<string, string>;
-  if (action in stored) return action;
-  const alias = SHORTCUT_ACTION_ALIASES[ctx][action];
-  return alias && alias in stored ? alias : null;
+  if (Object.hasOwn(stored, action)) return action;
+  const aliases = SHORTCUT_ACTION_ALIASES[ctx];
+  const alias = Object.hasOwn(aliases, action) ? aliases[action] : undefined;
+  return alias && Object.hasOwn(stored, alias) ? alias : null;
 }
 
 const NAMED_KEYS = ["SPACE", "DELETE", "BACKSPACE", "ENTER", "TAB", "ESCAPE"];
 /** Single letter/digit or a named key; anything else → null. */
 export function normalizeKey(v: unknown): string | null {
   if (typeof v !== "string") return null;
+  if (v === " ") return "SPACE"; // KeyboardEvent.key for the space bar.
   const k = v.trim().toUpperCase();
   return /^[A-Z0-9]$/.test(k) || NAMED_KEYS.includes(k) ? k : null;
 }
@@ -66,7 +68,13 @@ export function normalizeKeys(raw: unknown): KeyBindings {
   for (const [ctx, defs] of Object.entries(DEFAULT_KEYS)) {
     out[ctx] = {};
     for (const [action, def] of Object.entries(defs)) {
-      const k = normalizeKey(src[ctx]?.[action]);
+      const context = src[ctx];
+      const aliases = SHORTCUT_ACTION_ALIASES[ctx as KeyContext];
+      const canonical = Object.keys(aliases).find((key) => aliases[key] === action);
+      // Existing stored ids own mixed documents; canonical ids hydrate older handoffs without losing remaps.
+      const rawKey = context && Object.hasOwn(context, action) ? context[action]
+        : context && canonical && Object.hasOwn(context, canonical) ? context[canonical] : undefined;
+      const k = normalizeKey(rawKey);
       // ESCAPE is reserved: only actions defaulting to it may hold it.
       out[ctx][action] = k && (k !== "ESCAPE" || def === "ESCAPE") ? k : def;
     }
@@ -330,7 +338,16 @@ export function createSettingsStore(store: KV, onLocale?: (lang: Settings["langu
   };
   const s: SettingsStore = {
     get: () => current,
-    subscribe(fn) { listeners.push(fn); return () => { listeners.splice(listeners.indexOf(fn), 1); }; },
+    subscribe(fn) {
+      listeners.push(fn);
+      let active = true;
+      return () => {
+        if (!active) return;
+        active = false;
+        const index = listeners.indexOf(fn);
+        if (index !== -1) listeners.splice(index, 1);
+      };
+    },
     save(patch) { apply(patch); write(); for (const l of listeners) l(current); },
     preview(patch) {
       apply(patch); for (const l of listeners) l(current);

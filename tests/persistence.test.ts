@@ -431,6 +431,54 @@ describe("settings A35/A44", () => {
     expect(store.get().keys.combat.step).toBe("SPACE");
     vi.useRealTimers();
   });
+  it("loads canonical keybind ids and preserves legacy ownership in mixed documents", () => {
+    const s = mem();
+    s.m[SETTINGS_KEY] = JSON.stringify({ keys: {
+      planning: { rerollShop: "q", sellUnit: "delete", startCombat: " ", buyXp: "ESCAPE" },
+      combat: { stepCombat: "enter" }, menu: { close: "x" },
+    } });
+    const store = createSettingsStore(s);
+    expect(store.get().keys.planning).toMatchObject({ reroll: "Q", sell: "DELETE", startCombat: "SPACE", buyXp: "F" });
+    expect(store.get().keys.combat.step).toBe("ENTER");
+    expect(store.get().keys.menu.back).toBe("X");
+    store.save({ volumeLevel: 6 });
+    expect(loadSettings(s).keys).toEqual(store.get().keys);
+    const mixed = normalizeSettings({ keys: { planning: { reroll: "z", rerollShop: "q", sell: "ESCAPE", sellUnit: "x" } } });
+    expect(mixed.keys.planning).toMatchObject({ reroll: "Z", sell: "E" });
+  });
+
+  it("rejects inherited action names without saving or notifying", () => {
+    const s = mem();
+    const store = createSettingsStore(s);
+    const listener = vi.fn();
+    store.subscribe(listener);
+    for (const action of ["toString", "constructor", "__proto__"]) {
+      expect(store.setKeyboardBinding("planning", action, "A")).toEqual({ ok: false, reason: "unknown_action" });
+    }
+    expect(s.setItem).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+    expect(store.setKeyboardBinding("combat", "stepCombat", " ")).toEqual({ ok: true, key: "SPACE" });
+  });
+
+  it("repeated subscription cleanup does not detach another settings consumer", () => {
+    const store = createSettingsStore(mem());
+    const first = vi.fn();
+    const second = vi.fn();
+    const unsubscribe = store.subscribe(first);
+    store.subscribe(second);
+    unsubscribe();
+    unsubscribe();
+    store.save({ volumeLevel: 7 });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+    const shared = vi.fn();
+    const removeShared = store.subscribe(shared);
+    store.subscribe(shared);
+    removeShared();
+    removeShared();
+    store.save({ volumeLevel: 8 });
+    expect(shared).toHaveBeenCalledOnce();
+  });
 
   it("stores graphics-only preferences under the exact A104 device keys with legacy fallback", () => {
     const s = mem();
