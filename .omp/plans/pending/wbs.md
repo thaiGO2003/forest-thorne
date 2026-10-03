@@ -316,10 +316,10 @@
 
 ### Phase: CONTENT (0/14 hoàn thành)
 
-- [ ] **WBS-074: 8-Round Scripted Tutorial State Machine** `§15, A94, A108` *(Deps: WBS-004, WBS-056, WBS-066)*
+- [x] **WBS-074: 8-Round Scripted Tutorial State Machine** `§15, A94, A108` *(Deps: WBS-004, WBS-056, WBS-066)*
   - **Mô tả:** Cỗ máy trạng thái hướng dẫn tân thủ 8 vòng đấu theo kịch bản chuẩn: Vòng 1 Mua & Đặt cờ, Vòng 2 Reroll & Kinh tế, Vòng 3 Bán cờ & Nhật ký, Vòng 4 Soi cờ & Tooltip, Vòng 5 Gắn Giáp Máu, Vòng 6 Ghép Bùa Xanh, Vòng 7 Chọn Lõi, Vòng 8 Đánh Boss & Tốt nghiệp.
   - **Tiêu chí nghiệm thu:** Khóa cứng các hành động nằm ngoài kịch bản; có nút Bỏ qua hướng dẫn (Skip) giải phóng hoàn toàn.
-  - **Audit Note:** ✓ Verify-content audit: Cần kết nối với Master HUD và Combat Scene.
+  - **Audit Note:** ✓ 2026-10-03: `TUTORIAL_STEPS` bao phủ đủ vòng 1–8; `tutorialActionAllowed()` khóa action ngoài step hiện tại; `skipTutorial()` giải phóng toàn bộ action và chuyển khỏi tutorial flow. Regression `tests/tutorial.test.ts` khóa acceptance này bằng core-only tests.
 - [ ] **WBS-075: Endless Achievements & Profile Rewards System** `§27, A36, A104.1, A104.2` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Hệ thống thành tựu cấp tài khoản độc lập với lượt chơi: ghi nhận kỷ lục vòng cao nhất, tổng số trận thắng, số lượng cờ đã mua, số lượt reroll,... Tự động mở khóa danh hiệu và skin trang phục độc quyền.
   - **Tiêu chí nghiệm thu:** Không bị xóa khi thua game (Game Over); lưu riêng trong profile tài khoản.
