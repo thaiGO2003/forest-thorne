@@ -31,10 +31,15 @@ export interface BeastDenServiceResult {
   uid: string;
 }
 
+export type BlacksmithServiceId = "craft" | "upgrade" | "temper";
+
+export const isBlacksmithServiceId = (value: unknown): value is BlacksmithServiceId =>
+  value === "craft" || value === "upgrade" || value === "temper";
+
 export interface BlacksmithServiceResult {
   kind: "blacksmith";
   forgeTier: number;
-  serviceId?: string;
+  serviceId?: BlacksmithServiceId;
 }
 
 export type FortressServiceResult = PharmacyServiceResult | BeastDenServiceResult | BlacksmithServiceResult;
@@ -157,10 +162,11 @@ function normalizeServiceResult(value: unknown): FortressServiceResult | undefin
     return { kind: "beast_den", baseId: raw.baseId, uid: raw.uid };
   }
   if (raw.kind === "blacksmith") {
+    const serviceId = raw.serviceId;
     return {
       kind: "blacksmith",
       forgeTier: Math.min(5, Math.max(1, Math.floor(Number(raw.forgeTier) || 1))),
-      serviceId: typeof raw.serviceId === "string" ? raw.serviceId : undefined,
+      serviceId: isBlacksmithServiceId(serviceId) ? serviceId : undefined,
     };
   }
   return undefined;

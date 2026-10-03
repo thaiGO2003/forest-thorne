@@ -101,9 +101,10 @@ describe("Fortress route and services", () => {
     // Advance to a layer-2 blacksmith from the selected layer-1 node.
     const smith = s.fortress.graph.layers[1]!.find((node) => node.type === "blacksmith")!;
     expect(selectRunFortressNode(s, smith.id)).toBe(true);
-    expect(resolveFortressBlacksmith(s, "forge")).toBe(true);
-    expect(s.fortress.pendingNode?.serviceResult).toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "forge" });
+    expect(resolveFortressBlacksmith(s, "invented-service")).toBe(false);
+    expect(resolveFortressBlacksmith(s, "craft")).toBe(true);
+    expect(s.fortress.pendingNode?.serviceResult).toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "craft" });
     const restored = normalizeFortressState(JSON.parse(JSON.stringify(s.fortress)), 999);
-    expect(restored.pendingNode?.serviceResult).toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "forge" });
+    expect(restored.pendingNode?.serviceResult).toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "craft" });
   });
 });

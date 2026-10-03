@@ -15,7 +15,7 @@ import { lossDamage, type Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
 import {
   beastDenOffers, blacksmithForgeTier, completeFortressNode as completeFortressStateNode,
-  createFortressState, fortressRng, pharmacyOptions, selectFortressNode as selectFortressStateNode,
+  createFortressState, fortressRng, isBlacksmithServiceId, pharmacyOptions, selectFortressNode as selectFortressStateNode,
   type FortressState, type PharmacyServiceResult,
 } from "./fortress";
 import {
@@ -841,6 +841,7 @@ export function recruitFortressBeast(s: RunState, baseId: string): boolean {
 export function resolveFortressBlacksmith(s: RunState, serviceId?: string): boolean {
   const pending = s.fortress.pendingNode;
   if (s.phase !== "PLANNING" || pending?.type !== "blacksmith" || pending.serviceResult) return false;
+  if (serviceId != null && !isBlacksmithServiceId(serviceId)) return false;
   pending.serviceResult = { kind: "blacksmith", forgeTier: blacksmithForgeTier(s.round, s.fortress.actIndex), serviceId };
   return true;
 }
