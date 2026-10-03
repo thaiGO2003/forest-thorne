@@ -61,6 +61,33 @@ describe("Fortress route and services", () => {
     expect(resolveFortressPharmacy(s, "restore")).toBeNull();
   });
 
+  it("allows each Fortress service node to resolve at most once before advancing", () => {
+    const pharmacyRun = createModeRun(101, "EndlessPvEFortress");
+    const first = pharmacyRun.fortress.graph.layers[0]![0]!;
+    const pharmacy = pharmacyRun.fortress.graph.layers[1]!.find((node) => node.type === "pharmacy")!;
+    expect(selectRunFortressNode(pharmacyRun, first.id)).toBe(true);
+    expect(completeRunFortressNode(pharmacyRun)).toBe(true);
+    expect(selectRunFortressNode(pharmacyRun, pharmacy.id)).toBe(true);
+    expect(resolveFortressPharmacy(pharmacyRun, "stimulant")).not.toBeNull();
+    expect(resolveFortressPharmacy(pharmacyRun, "supplies")).toBeNull();
+
+    const beastRun = createModeRun(102, "EndlessPvEFortress");
+    const beast = beastRun.fortress.graph.layers[0]!.find((node) => node.type === "beast_den")!;
+    expect(selectRunFortressNode(beastRun, beast.id)).toBe(true);
+    const offered = beastRun.fortress.pendingNode!.serviceOffers!;
+    expect(recruitFortressBeast(beastRun, offered[0]!)).toBe(true);
+    expect(recruitFortressBeast(beastRun, offered[1]!)).toBe(false);
+
+    const smithRun = createModeRun(103, "EndlessPvEFortress");
+    const smithFirst = smithRun.fortress.graph.layers[0]![0]!;
+    const smith = smithRun.fortress.graph.layers[1]!.find((node) => node.type === "blacksmith")!;
+    expect(selectRunFortressNode(smithRun, smithFirst.id)).toBe(true);
+    expect(completeRunFortressNode(smithRun)).toBe(true);
+    expect(selectRunFortressNode(smithRun, smith.id)).toBe(true);
+    expect(resolveFortressBlacksmith(smithRun, "upgrade")).toBe(true);
+    expect(resolveFortressBlacksmith(smithRun, "temper")).toBe(false);
+  });
+
   it("beast den validates deterministic offered ids and blacksmith records canonical forge tier", () => {
     const s = createModeRun(31, "EndlessPvEFortress");
     const beast = s.fortress.graph.layers[0]!.find((node) => node.type === "beast_den")!;
