@@ -51,17 +51,24 @@ export interface MusicDirectorOptions {
 
 export interface MusicDirector {
   play(context: MusicContext): void;
+  playWeighted(id: string, tracks: readonly MusicTrack[], weights: Readonly<Record<string, number>>): void;
   dispose(): void;
 }
 
 interface ActiveTrack {
-  context: MusicContext;
+  context: MusicContext | null;
   playlist: MusicPlaylistDefinition;
   track: MusicTrack;
   order: MusicTrack[];
   index: number;
   audio: MusicAudioElement;
+  weights?: Readonly<Record<string, number>>;
 }
+
+type DesiredRequest =
+  | { kind: "context"; context: MusicContext }
+  | { kind: "weighted"; id: string; tracks: readonly MusicTrack[]; weights: Readonly<Record<string, number>> }
+  | null;
 
 function musicVolume(settings: Settings): number {
   return 0.45 * normalizedMasterVolume(settings);
@@ -91,7 +98,7 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
   const clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
   const continuity = createMusicContinuityStore(options.continuityStorage, random);
   let settings = options.settings.get();
-  let desiredContext: MusicContext | null = null;
+  let desired: DesiredRequest = null;
   let active: ActiveTrack | null = null;
   let outgoing: ActiveTrack | null = null;
   let lastTrackKey: string | null = null;
@@ -168,6 +175,23 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
     return order;
   };
 
+  const chooseWeightedTrack = (
+    tracks: readonly MusicTrack[],
+    weights: Readonly<Record<string, number>>,
+  ): MusicTrack | null => {
+    const eligible = tracks
+      .map((track) => ({ track, weight: Number(weights[track.key]) }))
+      .filter((entry) => Number.isFinite(entry.weight) && entry.weight > 0);
+    const total = eligible.reduce((sum, entry) => sum + entry.weight, 0);
+    if (total <= 0) return null;
+    let cursor = random() * total;
+    for (const entry of eligible) {
+      cursor -= entry.weight;
+      if (cursor < 0) return entry.track;
+    }
+    return eligible.at(-1)?.track ?? null;
+  };
+
   const crossfade = (next: ActiveTrack, previous: ActiveTrack | null) => {
     clearFadeTimers();
     const target = musicVolume(settings);
@@ -195,13 +219,14 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
   };
 
   const startTrack = (
-    context: MusicContext,
+    context: MusicContext | null,
     playlist: MusicPlaylistDefinition,
     track: MusicTrack,
     order: MusicTrack[],
     index: number,
     seek: number,
     previous: ActiveTrack | null,
+    weights?: Readonly<Record<string, number>>,
   ) => {
     if (outgoing && outgoing !== previous) {
       clearFadeTimers();
@@ -221,9 +246,17 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
     }
     audio.loop = playlist.tracks.length === 1;
     audio.volume = previous ? 0 : musicVolume(settings);
-    const entry: ActiveTrack = { context, playlist, track, order, index, audio };
+    const entry: ActiveTrack = { context, playlist, track, order, index, audio, weights };
     audio.onended = () => {
       if (disposed || active !== entry || audio.loop) return;
+      if (entry.weights) {
+        const weightedTrack = chooseWeightedTrack(entry.playlist.tracks, entry.weights);
+        if (!weightedTrack) return;
+        const weightedIndex = entry.playlist.tracks.findIndex((candidate) => candidate.key === weightedTrack.key);
+        lastTrackKey = entry.track.key;
+        startTrack(null, entry.playlist, weightedTrack, [...entry.playlist.tracks], weightedIndex, 0, entry, entry.weights);
+        return;
+      }
       let nextOrder = entry.order;
       let nextIndex = entry.index + 1;
       if (nextIndex >= nextOrder.length) {
@@ -260,10 +293,11 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
 
   function resumeFromGesture() {
     removeGestureResume();
-    if (disposed || !desiredContext) return;
-    const context = desiredContext;
-    desiredContext = null;
-    director.play(context);
+    if (disposed || !desired) return;
+    const request = desired;
+    desired = null;
+    if (request.kind === "context") director.play(request.context);
+    else director.playWeighted(request.id, request.tracks, request.weights);
   }
 
   const unsubscribe = options.settings.subscribe((next) => {
@@ -274,8 +308,8 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
   const director: MusicDirector = {
     play(context) {
       if (disposed) return;
-      if (desiredContext === context) return;
-      desiredContext = context;
+      if (desired?.kind === "context" && desired.context === context) return;
+      desired = { kind: "context", context };
       const playlist = options.playlists[context];
       if (!playlist || playlist.tracks.length === 0) {
         stopOwnedPlayback();
@@ -294,13 +328,27 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
       if (previous) lastTrackKey = previous.track.key;
       startTrack(context, playlist, track, order, index, seek, previous);
     },
+    playWeighted(id, tracks, weights) {
+      if (disposed) return;
+      desired = { kind: "weighted", id, tracks, weights };
+      stopOwnedPlayback();
+      const eligible = tracks.filter((track) => {
+        const weight = Number(weights[track.key]);
+        return Number.isFinite(weight) && weight > 0;
+      });
+      const track = chooseWeightedTrack(eligible, weights);
+      if (!track) return;
+      const playlist: MusicPlaylistDefinition = { id: `weighted:${id}`, tracks: eligible };
+      const index = eligible.findIndex((candidate) => candidate.key === track.key);
+      startTrack(null, playlist, track, [...eligible], index, 0, null, weights);
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
       unsubscribe();
       removeGestureResume();
       stopOwnedPlayback();
-      desiredContext = null;
+      desired = null;
     },
   };
   return director;

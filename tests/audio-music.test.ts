@@ -169,4 +169,30 @@ describe("music director A45", () => {
     expect(nextAudio.created[0]?.currentTime).toBe(37);
     next.dispose();
   });
+
+  it("supports positive relative weights over available legacy tracks", () => {
+    const settings = createSettingsStore(memoryStorage());
+    const audio = audioFactory();
+    const director = createMusicDirector({ settings, playlists, createAudioElement: audio.factory, random: () => 0.75 });
+    director.play("planning");
+    director.playWeighted(
+      "legacy-menu",
+      [{ key: "a", src: "/a.mp3" }, { key: "b", src: "/b.mp3" }],
+      { missing: 100, a: 1, b: 3, zero: 0 },
+    );
+    expect(audio.created[0]?.paused).toBe(true);
+    expect(audio.created[1]?.src).toBe("/b.mp3");
+    audio.created[1]?.onended?.();
+    expect(audio.created[2]?.src).toBe("/b.mp3");
+    director.dispose();
+  });
+
+  it("treats an empty or unloadable weighted map as a safe no-op", () => {
+    const settings = createSettingsStore(memoryStorage());
+    const audio = audioFactory();
+    const director = createMusicDirector({ settings, playlists, createAudioElement: audio.factory });
+    director.playWeighted("empty", [{ key: "a", src: "/a.mp3" }], { missing: 5, a: 0 });
+    expect(audio.created).toHaveLength(0);
+    director.dispose();
+  });
 });
