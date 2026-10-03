@@ -130,6 +130,9 @@ export interface CombatOptions {
   bonus?: Partial<Record<Side, SideBonus>>;
   /** Basic-hit attacker rage per side; AI difficulty sets R (A74). */
   rageGain?: Partial<Record<Side, number>>;
+  /** A102 RIGHT-side ranged target randomness; RNG remains owned by the seeded simulation. */
+  randomTargetChance?: number;
+  deterministicTargeting?: boolean;
   /** A32 active battlefield environment for this round. */
   environment?: EnvironmentId;
 }
@@ -156,7 +159,7 @@ export interface CombatMaterializeOptions {
   environment?: EnvironmentId;
 }
 
-export type MaterializedCombatOptions = Pick<CombatOptions, "seed" | "gold" | "rageGain">;
+export type MaterializedCombatOptions = Pick<CombatOptions, "seed" | "gold" | "rageGain" | "randomTargetChance" | "deterministicTargeting">;
 
 /** A13: 1.0 at ≤10 gold; +1% per 2 gold above 10; capped at 2.0. */
 export function goldMultiplier(gold: number): number {
@@ -426,6 +429,8 @@ interface Ctx {
   globalMult: number;
   gold: Record<Side, number>;
   rageGain: Record<Side, number>;
+  randomTargetChance: number;
+  deterministicTargeting: boolean;
   bounty: Record<Side, number>;
   bountyKills: Record<Side, number>;
 }
@@ -435,17 +440,48 @@ const friends = (c: Ctx, f: Fighter) => c.all.filter((x) => x.alive && x.side ==
 const hpRatio = (f: Fighter) => f.hp / f.maxHp;
 const addRage = (f: Fighter, n: number) => { f.rage = Math.min(f.rageMax, Math.max(0, f.rage + n)); };
 
-/** A11 basic target: taunt first; then row sweep; melee front-first, assassin back-first, ranged in-range first. */
-function basicTarget(c: Ctx, f: Fighter): Fighter | null {
-  const list = foes(c, f);
+export interface BasicTargetOptions {
+  rng?: () => number;
+  randomTargetChance?: number;
+  deterministicTargeting?: boolean;
+}
+
+const ASSASSIN_CLASS_PRIORITY: readonly Role[] = ["MAGE", "ARCHER", "SUPPORT", "FIGHTER", "TANKER", "ASSASSIN"];
+
+/** A11/A102: taunt wins; Assassin selects the far column, melee the nearest column, ranged the row sweep. */
+export function selectBasicTarget(f: Fighter, all: readonly Fighter[], options: BasicTargetOptions = {}): Fighter | null {
+  let list = all.filter((x) => x.alive && x.side !== f.side);
   const taunter = f.status.taunt?.turns ? list.find((x) => x.uid === f.tauntBy) : undefined;
   if (taunter) return taunter;
-  const back = f.role === "ASSASSIN" ? -1 : 1;
-  // ponytail: no movement on the battlefield; ranged out of range falls back to the same order so combat never stalls.
-  const inRange = (x: Fighter) => (f.range >= 2 && dist(f, x) > f.range ? 1 : 0);
-  list.sort((a, b) => inRange(a) - inRange(b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
-    || back * (depth(a) - depth(b)) || a.uid.localeCompare(b.uid));
+  if (!list.length) return null;
+  const assassin = f.role === "ASSASSIN";
+  const ranged = !assassin && f.range >= 2;
+  // Static formations do not move. Prefer legal ranged reach, then fall back when nobody is in range.
+  if (ranged) {
+    const inRange = list.filter((x) => dist(f, x) <= f.range);
+    if (inRange.length) list = inRange;
+  }
+  const columnDistance = (x: Fighter) => Math.abs(f.col - x.col);
+  list.sort((a, b) => {
+    const rows = rowRank(f.row, a.row) - rowRank(f.row, b.row);
+    const columns = columnDistance(a) - columnDistance(b);
+    const priority = assassin
+      ? depth(b) - depth(a) || rows || ASSASSIN_CLASS_PRIORITY.indexOf(a.role) - ASSASSIN_CLASS_PRIORITY.indexOf(b.role)
+      : ranged ? rows || columns : columns || rows;
+    return priority || (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0);
+  });
+  const chance = Math.min(1, Math.max(0, finite(options.randomTargetChance)));
+  if (f.side === "R" && ranged && f.role !== "TANKER" && f.role !== "FIGHTER"
+    && !options.deterministicTargeting && chance > 0 && list.length > 1 && options.rng && options.rng() < chance) {
+    return list[Math.min(list.length - 1, Math.max(0, Math.floor(options.rng() * list.length)))]!;
+  }
   return list[0] ?? null;
+}
+
+function basicTarget(c: Ctx, f: Fighter): Fighter | null {
+  return selectBasicTarget(f, c.all, {
+    rng: c.rng, randomTargetChance: c.randomTargetChance, deterministicTargeting: c.deterministicTargeting,
+  });
 }
 
 function hasStatus(f: Fighter, kind: string): boolean {
@@ -1504,16 +1540,21 @@ function act(c: Ctx, f: Fighter) {
   if (!f.alive) return;
   const gate = startTurn(c, f);
   if (!gate.canAct) return;
-  if (f.rage >= f.rageMax && !gate.silenced) castSkill(c, f);
+  const target = basicTarget(c, f);
+  if (!target) {
+    c.events.push({ t: "skip", src: f.uid, reason: "no_target" });
+    return;
+  }
+  if (f.rage >= f.rageMax && !gate.silenced && f.skillFamily) castSkill(c, f, target);
   else if (!gate.disarmed) {
-    const t = basicTarget(c, f);
+    const t = target;
     if (t) {
       const magic = f.role === "MAGE" || f.role === "SUPPORT" || f.basic.damageType === "magic";
       strike(c, f, t, stat(f, magic ? "matk" : "atk"), magic ? "magic" : "physical", false);
       // SUPPORT: basic attack that fills rage auto-casts (A14).
       if (f.alive && !gate.silenced) tryAutoCast(c, f, "support_basic");
     }
-  }
+  } else c.events.push({ t: "skip", src: f.uid, reason: "disarm" });
 }
 
 /** A11 queue: per side scan order, then interleave L0,R0,L1,R1… (empty cells only affect presentation timing). */
@@ -1559,6 +1600,8 @@ export function simulateMaterialized(all: Fighter[], o: MaterializedCombatOption
     all, rng: mulberry(o.seed), events: [], globalMult: 1,
     gold: { L: o.gold?.L ?? 0, R: o.gold?.R ?? 0 },
     rageGain: { L: o.rageGain?.L ?? 1, R: o.rageGain?.R ?? 1 },
+    randomTargetChance: o.randomTargetChance ?? 0,
+    deterministicTargeting: o.deterministicTargeting === true,
     bounty: { L: 0, R: 0 },
     bountyKills: { L: 0, R: 0 },
   };

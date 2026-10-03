@@ -251,6 +251,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
         seed: combatSeed,
         gold: { L: s.gold },
         rageGain: { R: ai.rageGain },
+        randomTargetChance: ai.randomTarget,
       });
       const survivors = new Set(result.survivors.filter((fighter) => fighter.side === "R").map((fighter) => fighter.uid));
       const lootRng = seededRng(combatSeed ^ 0x51ed270b);
