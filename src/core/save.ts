@@ -264,6 +264,16 @@ function readJson(store: KV, key: string): unknown {
   try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; }
 }
 
+export function loadAchievementProfile(store: KV): AchievementProfile {
+  return normalizeAchievementProfile(readJson(store, ACHIEVEMENTS_KEY));
+}
+
+export function saveAchievementProfile(store: KV, profile: AchievementProfile): AchievementProfile {
+  const normalized = normalizeAchievementProfile(profile);
+  store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
 export type { KV } from "./settings";
 export const exportProgress = (env: Envelope) => JSON.stringify(env, null, 2);
 
