@@ -199,10 +199,11 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     startCombat() {
       if (!state) return null;
       const s = state;
-      const preview = enemyPreview(s);
-      if (!preview?.units.length) return null;
+      if (s.phase !== "PLANNING") return null;
       const left = boardPlacements(s);
       if (!left.length) return null;
+      const preview = enemyPreview(s);
+      if (!preview?.units.length) return null;
       const right = preview.units.map((unit) => ({
         ...unit,
         equips: unit.equips ? [...unit.equips] : undefined,
@@ -265,6 +266,8 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
         roster,
         events: result.events,
         finish() {
+          // New Game/Continue/clear replace the owner; late replay completion cannot commit into another run.
+          if (state !== s) return null;
           const summary = applyRoundResult(s, {
             combatId,
             winner,

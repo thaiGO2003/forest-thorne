@@ -77,4 +77,72 @@ describe("app bridge run lifecycle", () => {
     expect(fresh?.aiMode).toBe("EASY");
     expect(JSON.parse(store.getItem(PROGRESS_KEY)!).payload.audioEnabled).toBe(false);
   });
+
+  it("resolves a materialized battle and applies its result only once", () => {
+    const store = new TrackingStorage();
+    const saved = createRun(11);
+    saved.aiMode = "EASY";
+    saved.board[14] = { uid: "u1", baseId: "ant_guard", star: 3, equips: [] };
+    saved.enemyPreview = [{ uid: "e1", baseId: "deer_song", star: 1, row: 2, col: 5 }];
+    saved.enemyPreviewRound = 1;
+    saveRun(store, { player: saved });
+    const bridge = createPlaceholderBridge(store);
+    expect(bridge.continueRun()).toBe(true);
+    const session = bridge.startCombat()!;
+    expect(session).not.toBeNull();
+    expect(session.roster).toHaveLength(2);
+    expect(bridge.run()!.phase).toBe("COMBAT");
+    expect(session.finish()).not.toBeNull();
+    expect(bridge.run()!.round).toBe(2);
+    const after = store.getItem(PROGRESS_KEY);
+    expect(session.finish()).toBeNull();
+    expect(store.getItem(PROGRESS_KEY)).toBe(after);
+  });
+
+  it.each(["new", "continue", "clear"] as const)("ignores stale combat completion after %s replaces its run owner", (replacement) => {
+    const store = new TrackingStorage();
+    const saved = createRun(12);
+    saved.aiMode = "EASY";
+    saved.board[14] = { uid: "u1", baseId: "ant_guard", star: 3, equips: [] };
+    saved.enemyPreview = [{ uid: "e1", baseId: "deer_song", star: 1, row: 2, col: 5 }];
+    saved.enemyPreviewRound = 1;
+    saveRun(store, { player: saved });
+    const bridge = createPlaceholderBridge(store);
+    bridge.continueRun();
+    const oldRun = bridge.run()!;
+    const session = bridge.startCombat()!;
+    if (replacement === "new") bridge.newRun("EndlessPvEClassic", "EASY");
+    else if (replacement === "continue") expect(bridge.continueRun()).toBe(true);
+    else bridge.clearRun();
+    const beforeSave = store.getItem(PROGRESS_KEY);
+    const beforeRun = structuredClone(bridge.run());
+    const beforeHistory = structuredClone(bridge.history());
+    const beforeOldRun = structuredClone(oldRun);
+    let changes = 0;
+    bridge.onChange(() => changes++);
+    expect(session.finish()).toBeNull();
+    expect(bridge.run()).toEqual(beforeRun);
+    expect(oldRun).toEqual(beforeOldRun);
+    expect(bridge.history()).toEqual(beforeHistory);
+    expect(store.getItem(PROGRESS_KEY)).toBe(beforeSave);
+    expect(changes).toBe(0);
+  });
+
+  it("rejects empty boards and non-Planning phases before mutating the enemy preview", () => {
+    for (const phase of ["PLANNING", "COMBAT", "GAME_OVER"] as const) {
+      const store = new TrackingStorage();
+      const saved = createRun(13);
+      saved.aiMode = "EASY";
+      saved.phase = phase;
+      if (phase !== "PLANNING") saved.board[14] = { uid: "u1", baseId: "ant_guard", star: 3, equips: [] };
+      saveRun(store, { player: saved });
+      const bridge = createPlaceholderBridge(store);
+      bridge.continueRun();
+      const before = structuredClone(bridge.run());
+      const beforeSave = store.getItem(PROGRESS_KEY);
+      expect(bridge.startCombat()).toBeNull();
+      expect(bridge.run()).toEqual(before);
+      expect(store.getItem(PROGRESS_KEY)).toBe(beforeSave);
+    }
+  });
 });
