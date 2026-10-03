@@ -69,6 +69,28 @@ describe("enemy preview A68/A103/A114", () => {
     const boosted = enemyPreview(elite)!;
     expect(boosted.budget).toBeGreaterThan(base.budget);
   });
+  it("guest replaces a same-round local cache with host authority and waits for current host data", () => {
+    const guest = createRun(27);
+    skipTutorial(guest);
+    enemyPreview(guest);
+    const shared = [{ uid: "updated-host", baseId: "deer_song", star: 2, row: 1, col: 8 }];
+    expect(enemyPreview(guest, {
+      isHost: false, sharedPreview: shared, sharedPreviewRound: 1, sharedEnemyBudget: 71,
+    })).toMatchObject({ source: "shared", budget: 71, units: [expect.objectContaining(shared[0]!)] });
+    const before = structuredClone(guest);
+    expect(enemyPreview(guest, { isHost: false })).toBeNull();
+    expect(enemyPreview(guest, { isHost: false, sharedPreview: shared, sharedPreviewRound: 2 })).toBeNull();
+    expect(guest).toEqual(before);
+  });
+
+  it("guest Creative formation cannot override the host's shared preview", () => {
+    const guest = createModeRun(28, "EndlessCreative");
+    guest.bench = [{ uid: "source", baseId: "ant_guard", star: 1, equips: [] }];
+    placeCreativeClone(guest, "bench", 0, 2, 7);
+    const shared = [{ uid: "host", baseId: "deer_song", star: 1, row: 1, col: 8 }];
+    expect(enemyPreview(guest, { isHost: false, sharedPreview: shared, sharedPreviewRound: 1 })?.source).toBe("shared");
+    expect(guest.enemyPreview[0]?.uid).toBe("host");
+  });
   it("preserves co-op rows through host generation, cached reuse and guest hydration", () => {
     const host = createRun(25);
     host.round = 39;

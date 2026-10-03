@@ -298,6 +298,17 @@ describe("persistence A57", () => {
     expect(selected.payload).toMatchObject({ aiMode: "COOP_MEDIUM", playerCapacity: 2, localSlot: "P1", hostSlot: "P1" });
     expect(Object.keys(selected.payload.players!)).toEqual(["P1", "P2"]);
   });
+  it("hydrates tutorial completion from the shared round in one pass", () => {
+    const payload = createCoopRunPayload(60);
+    payload.shared!.round = 9;
+    const normalized = normalizeCoopRunPayload(payload);
+    for (const player of Object.values(normalized.players!)) {
+      expect(player.round).toBe(9);
+      expect(player.tutorial.completed).toBe(true);
+      expect(player.aiMode).toBe("EASY");
+    }
+    expect(normalizeCoopRunPayload(structuredClone(normalized))).toEqual(normalized);
+  });
 
   it("routes Planning persistence by authority without leaking writes across save owners", () => {
     const soloStore = mem();

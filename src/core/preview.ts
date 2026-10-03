@@ -75,6 +75,16 @@ export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = 
   const round = Math.max(1, Math.floor(Number(s.round) || 1));
   const players = encounterPlayerCount(s.aiMode, options.players);
   const cfg = modeConfig(s.mode);
+  // A114 guests always hydrate the current host snapshot, even if their local cache matches the round.
+  if (options.isHost === false) {
+    if (Math.floor(Number(options.sharedPreviewRound) || 0) !== round) return null;
+    const shared = normalizeEnemyPreview(options.sharedPreview, players);
+    if (!shared.length) return null;
+    s.enemyPreview = shared;
+    s.enemyPreviewRound = round;
+    s.enemyBudget = Math.max(0, Math.round(Number(options.sharedEnemyBudget) || 0));
+    return { units: shared, round, budget: s.enemyBudget, source: "shared" };
+  }
   const creative = cfg.creative ? creativeRightEnemyOverride(s.creativeSandboxUnits) : null;
   if (creative) {
     s.enemyPreview = [];
@@ -87,16 +97,6 @@ export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = 
     const normalized = normalizeEnemyPreview(s.enemyPreview, players);
     s.enemyPreview = normalized;
     return { units: normalized, round, budget: Math.max(0, s.enemyBudget), source: "saved" };
-  }
-
-  if (options.isHost === false) {
-    if (Math.floor(Number(options.sharedPreviewRound) || 0) !== round) return null;
-    const shared = normalizeEnemyPreview(options.sharedPreview, players);
-    if (!shared.length) return null;
-    s.enemyPreview = shared;
-    s.enemyPreviewRound = round;
-    s.enemyBudget = Math.max(0, Math.round(Number(options.sharedEnemyBudget) || 0));
-    return { units: shared, round, budget: s.enemyBudget, source: "shared" };
   }
 
   const pendingType = cfg.route === "fortress" ? s.fortress.pendingNode?.type : undefined;

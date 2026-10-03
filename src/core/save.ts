@@ -242,18 +242,22 @@ export function normalizeCoopRunPayload(payload: RunPayload, log: string[] = [])
     : slots[0]!;
   const seedBase = Object.values(rawPlayers).find((value) => isObj(value) && Number.isFinite(Number(value.rngSeed)));
   const baseSeed = isObj(seedBase) ? Number(seedBase.rngSeed) | 0 : 1;
+  const rawShared: Record<string, unknown> = isObj(payload.shared) ? structuredClone(payload.shared) : {};
+  const rawLocal = rawPlayers[legalLocal];
+  const localRound = isObj(rawLocal) ? clampInt(rawLocal.round, 1, 999999, 1) : 1;
+  const sharedRound = clampInt(rawShared.round, 1, Number.MAX_SAFE_INTEGER, localRound);
   const players: Record<string, RunState> = {};
   slots.forEach((slot, index) => {
     const rawPlayer = rawPlayers[slot];
     const player = isObj(rawPlayer)
       ? rawPlayer as unknown as RunState
       : createModeRun((baseSeed + index) | 0, selectedMode);
+    // Round-dependent hydration (notably tutorial completion) must see the shared authority first.
+    player.round = sharedRound;
     players[slot] = sanitizePlayer(player, log, capacity);
   });
 
   const local = players[legalLocal]!;
-  const rawShared: Record<string, unknown> = isObj(payload.shared) ? structuredClone(payload.shared) : {};
-  const sharedRound = clampInt(rawShared.round, 1, Number.MAX_SAFE_INTEGER, local.round);
   const sharedPhase = validSharedPhase(rawShared.phase, local.phase);
   const sharedPreview = normalizeEnemyPreview(rawShared.enemyPreview ?? local.enemyPreview, capacity);
   const sharedPreviewRound = clampInt(rawShared.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, local.enemyPreviewRound);
