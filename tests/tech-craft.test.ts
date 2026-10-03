@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeIndices, availableItemStacks, craft, matchRecipe, prepopulateRecipe, recipeSuggestions, type Recipe,
 } from "../src/core/craft";
-import { createRun, expandBench, research } from "../src/core/run";
+import { createModeRun, createRun, expandBench, research } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
 import {
   canResearch, researchCost, TECH_BRANCH_ORDER, TECH_BY_ID, TECH_ROOT_ID, techEffectEntries, techModifiers,
@@ -74,6 +74,34 @@ describe("tech A8", () => {
     research(s, "explore");
     research(s, "bench_up");
     expect([s.benchBonus, s.benchUpgradeLevel]).toEqual([2, 1]);
+  });
+  it("keeps node-state eligibility and mutation aligned for Creative and multi-parent nodes", () => {
+    const creative = createModeRun(4, "EndlessCreative");
+    skipTutorial(creative);
+    creative.gold = 0;
+    expect(techNodeState(creative.techLevels, "vet", Infinity)?.researchable).toBe(true);
+    expect(canResearch(creative.techLevels, "vet", Infinity)).toBe(true);
+    expect(research(creative, "vet")).toBe(true);
+    expect([creative.gold, creative.techLevels.vet]).toEqual([0, 1]);
+    const progression: Record<string, number>[] = [{}, { survive: 1 }, { survive: 1, beast: 1 }];
+    for (const levels of progression) {
+      for (const gold of [0, 17, 18, Infinity, NaN]) {
+        const state = techNodeState(levels, "alpha_doctrine", gold)!;
+        expect(canResearch(levels, "alpha_doctrine", gold)).toBe(state.researchable);
+      }
+    }
+  });
+  it("rejects corrupt research levels atomically before charging or applying effects", () => {
+    const run = createRun(5);
+    skipTutorial(run);
+    run.gold = 100;
+    for (const level of [-1, 0.5, NaN, Infinity]) {
+      run.techLevels.vet = level;
+      const before = structuredClone(run);
+      expect(canResearch(run.techLevels, "vet", run.gold)).toBe(false);
+      expect(research(run, "vet")).toBe(false);
+      expect(run).toEqual(before);
+    }
   });
 
   it("dedicated bench expansion finishes explore, bench upgrades, then barracks", () => {

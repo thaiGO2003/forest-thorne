@@ -108,12 +108,7 @@ export function techPrerequisiteMet(levels: Readonly<Record<string, number>>, id
 
 /** A8 gate: node exists, every prerequisite ≥1 (root implicit), below max, affordable. */
 export function canResearch(levels: Record<string, number>, id: string, gold: number): boolean {
-  const t = TECH_BY_ID.get(id);
-  if (!t) return false;
-  const lvl = levels[id] ?? 0;
-  return techRequirements(t).every((r) => techPrerequisiteMet(levels, r))
-    && lvl < maxLevel(t)
-    && gold >= researchCost(t, lvl);
+  return techNodeState(levels, id, gold)?.researchable ?? false;
 }
 
 export type TechAvailability = "root" | "maxed" | "affordable" | "unaffordable" | "locked";
@@ -168,7 +163,9 @@ export function techNodeState(
   const node = TECH_BY_ID.get(id);
   if (!node) return null;
   const max = maxLevel(node);
-  const level = Math.min(max, Math.max(0, Math.floor(Number(levels[id]) || 0)));
+  const rawLevel = levels[id] ?? 0;
+  const validLevel = Number.isSafeInteger(rawLevel) && rawLevel >= 0;
+  const level = Math.min(max, validLevel ? rawLevel : 0);
   const prerequisites = techRequirements(node).map((requirement) => ({
     id: requirement,
     met: techPrerequisiteMet(levels, requirement),
@@ -176,8 +173,9 @@ export function techNodeState(
   const unlocked = prerequisites.every((requirement) => requirement.met);
   const maxed = level >= max;
   const nextCost = maxed ? null : researchCost(node, level);
-  const affordable = !maxed && Number.isFinite(gold) && gold >= (nextCost ?? Infinity);
-  const researchable = unlocked && affordable && !maxed;
+  // Creative supplies +Infinity for free purchases; NaN/-Infinity never satisfy a cost.
+  const affordable = !maxed && gold >= (nextCost ?? Infinity);
+  const researchable = validLevel && unlocked && affordable && !maxed;
   const availability: TechAvailability = maxed
     ? "maxed"
     : !unlocked

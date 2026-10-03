@@ -4,7 +4,7 @@ import { getUnit, NORMAL_UNITS } from "../content/catalog";
 import {
   addXp, benchCapacity, deployCap, refreshCost, roundIncome, sellValue, shopTierOdds, xpBuyCost,
 } from "./economy";
-import { canResearch, maxLevel, researchCost, TECH_BY_ID, techModifiers } from "./tech";
+import { maxLevel, TECH_BY_ID, techModifiers, techNodeState } from "./tech";
 import {
   equipmentSaleValue, getEquipment, itemUnequipCost, normalizeEquipment, slotCapForUnit,
 } from "./equipment";
@@ -250,10 +250,12 @@ export function toggleLock(s: RunState): void {
 /** A8 research: atomic; applies the purchased level's run-state deltas. Combat % effects read techModifiers(). */
 export function research(s: RunState, id: string): boolean {
   const researchGold = creativeEconomy(s) ? Number.POSITIVE_INFINITY : s.gold;
-  if (!planning(s) || !tutorialActionAllowed(s, "research") || !canResearch(s.techLevels, id, researchGold)) return false;
+  if (!planning(s) || !tutorialActionAllowed(s, "research")) return false;
+  const nodeState = techNodeState(s.techLevels, id, researchGold);
+  if (!nodeState?.researchable || nodeState.nextCost === null) return false;
   const t = TECH_BY_ID.get(id)!;
-  const lvl = s.techLevels[id] ?? 0;
-  spendGold(s, researchCost(t, lvl));
+  const lvl = nodeState.level;
+  spendGold(s, nodeState.nextCost);
   s.techLevels[id] = lvl + 1;
   const e = t.effects[Math.min(lvl, t.effects.length - 1)]!;
   s.benchBonus += e.bench ?? 0;
