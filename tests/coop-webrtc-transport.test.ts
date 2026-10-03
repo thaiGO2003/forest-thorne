@@ -145,6 +145,7 @@ describe("co-op WebRTC host relay", () => {
     const hostStore = new CoopSessionStore();
     const p2Store = new CoopSessionStore();
     const p3Store = new CoopSessionStore();
+    const p4Store = new CoopSessionStore();
     const host = new CoopWebRtcTransport({
       role: "host",
       localSlot: "P1",
@@ -171,22 +172,35 @@ describe("co-op WebRTC host relay", () => {
       store: p3Store,
       peerFactory: network.createPeer,
     });
+    const p4 = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P4",
+      playerCapacity: 4,
+      playerId: "p4",
+      store: p4Store,
+      peerFactory: network.createPeer,
+    });
 
     await connect(host, p2, "P2");
     await connect(host, p3, "P3");
+    await connect(host, p4, "P4");
 
     expect(p2Store.get()).toMatchObject({ roomCode: "ABC123", sharedSeed: 424242 });
     expect(p3Store.get()).toMatchObject({ roomCode: "ABC123", sharedSeed: 424242 });
+    expect(p4Store.get()).toMatchObject({ roomCode: "ABC123", sharedSeed: 424242 });
     expect(hostStore.get()?.players.P2.connected).toBe(true);
     expect(hostStore.get()?.players.P3.connected).toBe(true);
+    expect(hostStore.get()?.players.P4.connected).toBe(true);
 
     p2.sendReady(true);
     expect(hostStore.get()?.readyBySlot.P2).toBe(true);
     expect(p3Store.get()?.readyBySlot.P2).toBe(true);
+    expect(p4Store.get()?.readyBySlot.P2).toBe(true);
 
     p2.sendCombatResult({ round: 9, winner: "P2" });
     expect(hostStore.get()?.currentCombatPayload).toEqual({ round: 9, winner: "P2" });
     expect(p3Store.get()?.currentCombatPayload).toEqual({ round: 9, winner: "P2" });
+    expect(p4Store.get()?.currentCombatPayload).toEqual({ round: 9, winner: "P2" });
   });
 
   it("activates deterministic fallback when a client loses the host connection", async () => {
