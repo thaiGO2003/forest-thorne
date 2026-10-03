@@ -336,10 +336,10 @@
   - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
   - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
   - **Audit Note:** ✓ Hoàn thành headless WebRTC host-relay bằng `src/network/coopWebRtcTransport.ts`: offer/answer thủ công, `RTCDataChannel` host-relay P1→P2/P3/P4, mã phòng 6 ký tự, chia sẻ seed, đồng bộ ready/combat result và fallback khi mất host/peer. Có peer factory injectable để kiểm thử xác định mà không cần browser/UI. Kiểm chứng: WebRTC targeted 3/3, network targeted 9/9, full Vitest 167/167, `pnpm run typecheck` pass, `git diff --check` pass.
-- [ ] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A100.3` *(Deps: WBS-078)*
+- [x] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A100.3` *(Deps: WBS-078)*
   - **Mô tả:** Đấu trường đối kháng 1v1 hoặc 4 người: chụp ảnh snapshot đội hình người chơi làm bóng ma (ghost opponent) để thi đấu chéo cánh, đồng bộ máu người chơi và bảng xếp hạng sinh tồn vòng tròn.
   - **Tiêu chí nghiệm thu:** Bóng ma mô phỏng chính xác 100% trang bị và chỉ số của người chơi tại vòng đấu đó.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+  - **Audit Note:** ✓ Hoàn thành matchmaking real/ghost, castle HP/survival resolution và immutable opponent snapshot. Snapshot đóng băng board/star/equipment/variant traits, player+tech combat bonus, synergy bonus (kể cả virtual class/tribe counts) và gold tại thời điểm ghép cặp; thay đổi `RunState` nguồn sau đó không làm thay đổi ghost. Kiểm chứng: PvP targeted 9/9, full Vitest 168/168, `pnpm run typecheck` pass, `git diff --check` pass.
 - [ ] **WBS-080: Audio Director & Procedural SFX Manager** `§32, A45, A71` *(Deps: WBS-012)*
   - **Mô tả:** Giám đốc âm thanh toàn cục: quản lý nhạc nền BGM chuyển cảnh mượt mà theo ngữ cảnh (menu, planning, combat, victory, defeat), tổng hợp âm thanh procedural qua Web Audio API khi thiếu file MP3, và các SFX chiến trận.
   - **Tiêu chí nghiệm thu:** Chạy an toàn không crash ngay cả khi trình duyệt chưa được người dùng cấp quyền phát audio.
