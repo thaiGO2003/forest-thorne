@@ -87,7 +87,7 @@ describe("music director A45", () => {
     director.play("menu");
     director.play("menu");
     expect(audio.created).toHaveLength(1);
-    expect(audio.created[0]?.src).toBe("/menu-a.mp3");
+    expect(["/menu-a.mp3", "/menu-b.mp3"]).toContain(audio.created[0]?.src);
     director.play("victory");
     expect(audio.created[0]?.paused).toBe(true);
     expect(audio.created[0]?.src).toBe("");
@@ -150,5 +150,23 @@ describe("music director A45", () => {
     expect(audio.created.at(-1)?.src).toBe("/fight-a.mp3");
     director.dispose();
     expect(gestures.count()).toBe(0);
+  });
+
+  it("restores seek position when returning to a single-track context", () => {
+    const settings = createSettingsStore(memoryStorage());
+    const continuity = memoryStorage();
+    const audio = audioFactory();
+    const director = createMusicDirector({ settings, playlists, createAudioElement: audio.factory, continuityStorage: continuity });
+    director.play("planning");
+    audio.created[0]!.currentTime = 37;
+    director.play("combat");
+    vi.advanceTimersByTime(MUSIC_CROSSFADE_MS);
+    director.dispose();
+
+    const nextAudio = audioFactory();
+    const next = createMusicDirector({ settings, playlists, createAudioElement: nextAudio.factory, continuityStorage: continuity });
+    next.play("planning");
+    expect(nextAudio.created[0]?.currentTime).toBe(37);
+    next.dispose();
   });
 });

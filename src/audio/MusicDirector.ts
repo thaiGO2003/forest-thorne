@@ -1,4 +1,5 @@
-import type { Settings, SettingsStore } from "../core/settings";
+import type { KV, Settings, SettingsStore } from "../core/settings";
+import { createMusicContinuityStore } from "./MusicContinuity";
 import { normalizedMasterVolume } from "./SoundEffects";
 
 export const MUSIC_CONTEXTS = ["menu", "planning", "combat", "victory", "defeat", "ambient"] as const;
@@ -45,6 +46,7 @@ export interface MusicDirectorOptions {
   random?: () => number;
   setTimeoutFn?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   clearTimeoutFn?: (handle: ReturnType<typeof setTimeout>) => void;
+  continuityStorage?: KV | null;
 }
 
 export interface MusicDirector {
@@ -54,7 +56,10 @@ export interface MusicDirector {
 
 interface ActiveTrack {
   context: MusicContext;
+  playlist: MusicPlaylistDefinition;
   track: MusicTrack;
+  order: MusicTrack[];
+  index: number;
   audio: MusicAudioElement;
 }
 
@@ -84,6 +89,7 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
   const random = options.random ?? Math.random;
   const setTimeoutFn = options.setTimeoutFn ?? setTimeout;
   const clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
+  const continuity = createMusicContinuityStore(options.continuityStorage, random);
   let settings = options.settings.get();
   let desiredContext: MusicContext | null = null;
   let active: ActiveTrack | null = null;
@@ -102,6 +108,12 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
       entry.audio.src = "";
       entry.audio.load?.();
     } catch { /* no-op */ }
+  };
+
+  const remember = (entry: ActiveTrack | null, seekOverride?: number) => {
+    if (!entry) return;
+    const seek = seekOverride ?? entry.audio.currentTime;
+    continuity.save(entry.playlist, entry.order, entry.index, entry.track.key, seek);
   };
 
   const clearFadeTimers = () => {
@@ -125,6 +137,7 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
 
   const stopOwnedPlayback = () => {
     clearFadeTimers();
+    remember(active);
     release(active);
     release(outgoing);
     active = null;
@@ -138,27 +151,21 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
     if (outgoing && target === 0) outgoing.audio.volume = 0;
   };
 
-  const chooseInitialTrack = (playlist: MusicPlaylistDefinition): MusicTrack | null => {
-    if (playlist.tracks.length === 0) return null;
-    if (!playlist.shuffle || playlist.tracks.length === 1) return playlist.tracks[0] ?? null;
-    let eligible = playlist.tracks.filter((track) => !track.longPlay);
-    if (eligible.length === 0) eligible = [...playlist.tracks];
-    if (eligible.length > 1 && lastTrackKey) {
-      const withoutLast = eligible.filter((track) => track.key !== lastTrackKey);
-      if (withoutLast.length > 0) eligible = withoutLast;
+  const freshRuntimeOrder = (playlist: MusicPlaylistDefinition, avoidFirstKey: string | null = null): MusicTrack[] => {
+    const order = [...playlist.tracks];
+    if (playlist.shuffle) {
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = pickIndex(i + 1, random);
+        [order[i], order[j]] = [order[j]!, order[i]!];
+      }
     }
-    return eligible[pickIndex(eligible.length, random)] ?? null;
-  };
-
-  const chooseNextTrack = (playlist: MusicPlaylistDefinition, currentKey: string): MusicTrack | null => {
-    if (playlist.tracks.length === 0) return null;
-    if (playlist.tracks.length === 1) return playlist.tracks[0] ?? null;
-    if (!playlist.shuffle) {
-      const index = playlist.tracks.findIndex((track) => track.key === currentKey);
-      return playlist.tracks[(Math.max(0, index) + 1) % playlist.tracks.length] ?? playlist.tracks[0] ?? null;
+    if (order.length > 1) {
+      const preferredIndex = order.findIndex((track) => !track.longPlay && track.key !== avoidFirstKey);
+      if ((order[0]?.longPlay || order[0]?.key === avoidFirstKey) && preferredIndex > 0) {
+        [order[0], order[preferredIndex]] = [order[preferredIndex]!, order[0]!];
+      }
     }
-    const eligible = playlist.tracks.filter((track) => track.key !== currentKey);
-    return eligible[pickIndex(eligible.length, random)] ?? playlist.tracks[0] ?? null;
+    return order;
   };
 
   const crossfade = (next: ActiveTrack, previous: ActiveTrack | null) => {
@@ -187,12 +194,21 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
     }
   };
 
-  const startTrack = (context: MusicContext, track: MusicTrack, previous: ActiveTrack | null) => {
+  const startTrack = (
+    context: MusicContext,
+    playlist: MusicPlaylistDefinition,
+    track: MusicTrack,
+    order: MusicTrack[],
+    index: number,
+    seek: number,
+    previous: ActiveTrack | null,
+  ) => {
     if (outgoing && outgoing !== previous) {
       clearFadeTimers();
       release(outgoing);
       outgoing = null;
     }
+    remember(previous);
     const audio = createAudio();
     if (!audio) {
       release(previous);
@@ -200,17 +216,24 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
       return;
     }
     audio.src = track.src;
-    audio.loop = (options.playlists[context]?.tracks.length ?? 0) === 1;
+    if (seek > 0) {
+      try { audio.currentTime = seek; } catch { /* seeking is optional */ }
+    }
+    audio.loop = playlist.tracks.length === 1;
     audio.volume = previous ? 0 : musicVolume(settings);
-    const entry: ActiveTrack = { context, track, audio };
+    const entry: ActiveTrack = { context, playlist, track, order, index, audio };
     audio.onended = () => {
       if (disposed || active !== entry || audio.loop) return;
-      const playlist = options.playlists[entry.context];
-      if (!playlist) return;
-      const nextTrack = chooseNextTrack(playlist, entry.track.key);
+      let nextOrder = entry.order;
+      let nextIndex = entry.index + 1;
+      if (nextIndex >= nextOrder.length) {
+        nextOrder = freshRuntimeOrder(entry.playlist, entry.track.key);
+        nextIndex = 0;
+      }
+      const nextTrack = nextOrder[nextIndex];
       if (!nextTrack) return;
       lastTrackKey = entry.track.key;
-      startTrack(entry.context, nextTrack, entry);
+      startTrack(entry.context, entry.playlist, nextTrack, nextOrder, nextIndex, 0, entry);
     };
 
     let playResult: void | Promise<void>;
@@ -223,6 +246,7 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
       return;
     }
     active = entry;
+    continuity.save(playlist, order, index, track.key, seek);
     removeGestureResume();
     crossfade(entry, previous);
     if (playResult && typeof playResult.then === "function") {
@@ -257,14 +281,18 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
         stopOwnedPlayback();
         return;
       }
-      const track = chooseInitialTrack(playlist);
+      const restored = continuity.restore(playlist);
+      const order = restored.fresh ? freshRuntimeOrder(playlist, lastTrackKey) : restored.order;
+      const index = restored.fresh ? 0 : restored.index;
+      const seek = restored.fresh ? 0 : restored.seek;
+      const track = order[index];
       if (!track) {
         stopOwnedPlayback();
         return;
       }
       const previous = active;
       if (previous) lastTrackKey = previous.track.key;
-      startTrack(context, track, previous);
+      startTrack(context, playlist, track, order, index, seek, previous);
     },
     dispose() {
       if (disposed) return;
