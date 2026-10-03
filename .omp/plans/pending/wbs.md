@@ -328,10 +328,10 @@
   - **Mô tả:** Bản đồ đường đi chiến thuật 7 tầng cho chế độ Endless PvE Fortress: các nhánh rẽ lựa chọn giữa Quái thường (battle), Tinh anh (elite), Trùm (boss), Chợ (shop), Dược quán (pharmacy), Hang dã thú (beast_den), Lò rèn (blacksmith).
   - **Tiêu chí nghiệm thu:** Tạo nhánh ngẫu nhiên theo hạt giống; người chơi chỉ có thể tiến lên, không thể lùi lại tầng cũ.
   - **Audit Note:** ✓ 2026-10-03: `generateFortressGraph()` tạo đúng 7 tầng deterministically theo seed+act; `selectFortressNode()` chỉ nhận tầng kế tiếp, latch một node đang xử lý và từ chối node cũ/đã thăm. Regression `tests/fortress.test.ts` bao phủ topology, forward-only progression và chuyển act sau boss.
-- [ ] **WBS-077: Fortress Services (Pharmacy, Beast Den, Blacksmith)** `§28, A117.3` *(Deps: WBS-076)*
+- [x] **WBS-077: Fortress Services (Pharmacy, Beast Den, Blacksmith)** `§28, A117.3` *(Deps: WBS-076)*
   - **Mô tả:** Các dịch vụ tương tác đặc thù tại các điểm dừng Pháo đài: Dược quán (hồi máu, tăng nộ khởi đầu, mua thuốc kích thích), Hang dã thú (thu phục thú hoang miễn phí), Lò rèn (nâng cấp tier trang bị, rèn đồ hiếm).
   - **Tiêu chí nghiệm thu:** Mỗi dịch vụ chỉ được tương tác 1 lần duy nhất trước khi chuyển sang tầng kế tiếp.
-  - **Audit Note:** ✓ Verify-content audit: Phụ thuộc vào Bản đồ Pháo Đài WBS-076.
+  - **Audit Note:** ✓ 2026-10-03: Core Fortress services dùng state/inventory canonical: Pharmacy giữ đúng ba choice A117.3 (`restore`, `stimulant`, `supplies`) + skip và đi qua XP/HP/gold chuẩn; Beast Den sinh tối đa 3 offer deterministic rồi tuyển 1 unit hợp lệ miễn phí; Blacksmith expose forge tier cùng đúng ba service authored `craft`/`upgrade`/`temper` để flow canonical xử lý, không tạo item model riêng. `pendingNode.serviceResult` là latch chung nên mỗi node dịch vụ chỉ resolve một lần trước khi sang tầng kế tiếp; regression `tests/fortress.test.ts` khóa cả ba service và hydration metadata. Lưu ý mô tả WBS dùng cách gọi rút gọn; A117.3 là authority cho reward Pharmacy và không author reward starting-rage riêng.
 - [x] **WBS-078: Co-op Multiplayer WebRTC Host-Relay** `§29, A21, A47, A114, A118` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
   - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
