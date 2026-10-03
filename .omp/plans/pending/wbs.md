@@ -324,10 +324,10 @@
   - **Mô tả:** Hệ thống thành tựu cấp tài khoản độc lập với lượt chơi: ghi nhận kỷ lục vòng cao nhất, tổng số trận thắng, số lượng cờ đã mua, số lượt reroll,... Tự động mở khóa danh hiệu và skin trang phục độc quyền.
   - **Tiêu chí nghiệm thu:** Không bị xóa khi thua game (Game Over); lưu riêng trong profile tài khoản.
   - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-076: 7-Layer Directed Fortress Map System** `§28, A20, A117` *(Deps: WBS-004, WBS-014, WBS-050)*
+- [x] **WBS-076: 7-Layer Directed Fortress Map System** `§28, A20, A117` *(Deps: WBS-004, WBS-014, WBS-050)*
   - **Mô tả:** Bản đồ đường đi chiến thuật 7 tầng cho chế độ Endless PvE Fortress: các nhánh rẽ lựa chọn giữa Quái thường (battle), Tinh anh (elite), Trùm (boss), Chợ (shop), Dược quán (pharmacy), Hang dã thú (beast_den), Lò rèn (blacksmith).
   - **Tiêu chí nghiệm thu:** Tạo nhánh ngẫu nhiên theo hạt giống; người chơi chỉ có thể tiến lên, không thể lùi lại tầng cũ.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+  - **Audit Note:** ✓ 2026-10-03: `generateFortressGraph()` tạo đúng 7 tầng deterministically theo seed+act; `selectFortressNode()` chỉ nhận tầng kế tiếp, latch một node đang xử lý và từ chối node cũ/đã thăm. Regression `tests/fortress.test.ts` bao phủ topology, forward-only progression và chuyển act sau boss.
 - [ ] **WBS-077: Fortress Services (Pharmacy, Beast Den, Blacksmith)** `§28, A117.3` *(Deps: WBS-076)*
   - **Mô tả:** Các dịch vụ tương tác đặc thù tại các điểm dừng Pháo đài: Dược quán (hồi máu, tăng nộ khởi đầu, mua thuốc kích thích), Hang dã thú (thu phục thú hoang miễn phí), Lò rèn (nâng cấp tier trang bị, rèn đồ hiếm).
   - **Tiêu chí nghiệm thu:** Mỗi dịch vụ chỉ được tương tác 1 lần duy nhất trước khi chuyển sang tầng kế tiếp.
