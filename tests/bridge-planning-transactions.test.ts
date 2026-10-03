@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createPlaceholderBridge } from "../src/app/bridge";
 import { createRun, type RunState } from "../src/core/run";
-import { PROGRESS_KEY, saveRun } from "../src/core/save";
+import { COLLECTION_KEY, PROGRESS_KEY, saveRun } from "../src/core/save";
 
 class MemoryStorage implements Storage {
   private entries = new Map<string, string>();
@@ -45,6 +45,7 @@ describe("bridge planning transaction ownership", () => {
     expect(bridge.craftStaging()).toEqual(Array(9).fill(null));
     expect(bridge.history().entries.filter((entry) => entry.category === "CRAFT")).toHaveLength(1);
     expect(JSON.parse(store.getItem(PROGRESS_KEY)!).payload.player.craftHistory).toEqual(["blue_buff"]);
+    expect(bridge.achievements().stats.crafted_items).toBe(1);
     expect(bridge.craft()).toBeNull();
     expect(notices).toBe(1);
   });
@@ -95,6 +96,7 @@ describe("bridge planning transaction ownership", () => {
     expect(bridge.run()).toEqual(after);
     expect(store.getItem(PROGRESS_KEY)).toBe(saved);
     expect(bridge.history().entries).toHaveLength(1);
+    expect(bridge.achievements().stats.augments_chosen).toBe(1);
   });
 
   it("keeps selection by uid across moves and resolves context actions against current ownership", () => {
@@ -125,5 +127,45 @@ describe("bridge planning transaction ownership", () => {
     bridge.clearRun();
     expect(bridge.selection()).toBeNull();
     expect(bridge.selectedUnit()).toBeNull();
+  });
+
+  it("counts successful purchases, merges, refreshes and XP transactions, without counting rejects", () => {
+    const { bridge, store } = setup({
+      bench: [
+        { uid: "u1", baseId: "ant_guard", star: 1, equips: [] },
+        { uid: "u2", baseId: "ant_guard", star: 1, equips: [] },
+      ], shop: ["ant_guard", null, null, null, null],
+    });
+    expect(bridge.buy(0)).toBe(true);
+    expect(bridge.achievements().stats).toMatchObject({ units_bought: 1, merges: 1 });
+    expect(bridge.buy(0)).toBe(false);
+    expect(bridge.buyXp()).toBe(true);
+    bridge.toggleLock();
+    expect(bridge.reroll()).toBe(false);
+    expect(bridge.achievements().stats.shop_refreshes).toBe(0);
+    bridge.toggleLock();
+    expect(bridge.reroll()).toBe(true);
+    const stats = bridge.achievements().stats;
+    expect(stats).toMatchObject({ units_bought: 1, merges: 1, xp_purchases: 1, shop_refreshes: 1 });
+    expect(JSON.parse(store.getItem(PROGRESS_KEY)!).achievementsProfile.stats).toEqual(stats);
+    bridge.continueRun();
+    expect(bridge.achievements().stats).toEqual(stats);
+  });
+
+  it("counts New Game once per start and keeps account progress through Continue and run clears", () => {
+    const { bridge, store } = setup();
+    store.setItem(COLLECTION_KEY, JSON.stringify({ unlockedSkinIds: ["existing-skin"] }));
+    bridge.newRun("EndlessPvEClassic", "EASY");
+    expect(bridge.achievements().stats.runs_started).toBe(1);
+    bridge.continueRun();
+    expect(bridge.achievements().stats.runs_started).toBe(1);
+    bridge.clearRun();
+    expect(bridge.achievements().stats.runs_started).toBe(1);
+    bridge.newRun("EndlessPvEClassic", "EASY");
+    expect(bridge.achievements().stats.runs_started).toBe(2);
+    expect(JSON.parse(store.getItem(COLLECTION_KEY)!).unlockedSkinIds).toEqual(["existing-skin"]);
+    expect(createPlaceholderBridge(store).achievements().stats.runs_started).toBe(2);
+    bridge.newRun("EndlessCreative", "CREATIVE");
+    expect(bridge.achievements().stats.runs_started).toBe(2);
   });
 });

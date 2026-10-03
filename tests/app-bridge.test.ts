@@ -92,11 +92,16 @@ describe("app bridge run lifecycle", () => {
     expect(session).not.toBeNull();
     expect(session.roster).toHaveLength(2);
     expect(bridge.run()!.phase).toBe("COMBAT");
-    expect(session.finish()).not.toBeNull();
+    const summary = session.finish()!;
+    expect(summary).not.toBeNull();
     expect(bridge.run()!.round).toBe(2);
+    const achievementStats = bridge.achievements().stats;
+    expect(achievementStats.rounds_won + achievementStats.rounds_lost).toBe(summary.winner === "DRAW" ? 0 : 1);
+    expect(achievementStats.items_looted).toBe(summary.acceptedDrops.length);
     const after = store.getItem(PROGRESS_KEY);
     expect(session.finish()).toBeNull();
     expect(store.getItem(PROGRESS_KEY)).toBe(after);
+    expect(bridge.achievements().stats).toEqual(achievementStats);
   });
 
   it.each(["new", "continue", "clear"] as const)("ignores stale combat completion after %s replaces its run owner", (replacement) => {
@@ -118,6 +123,7 @@ describe("app bridge run lifecycle", () => {
     const beforeRun = structuredClone(bridge.run());
     const beforeHistory = structuredClone(bridge.history());
     const beforeOldRun = structuredClone(oldRun);
+    const beforeStats = bridge.achievements().stats;
     let changes = 0;
     bridge.onChange(() => changes++);
     expect(session.finish()).toBeNull();
@@ -126,6 +132,7 @@ describe("app bridge run lifecycle", () => {
     expect(bridge.history()).toEqual(beforeHistory);
     expect(store.getItem(PROGRESS_KEY)).toBe(beforeSave);
     expect(changes).toBe(0);
+    expect(bridge.achievements().stats).toEqual(beforeStats);
   });
 
   it("rejects empty boards and non-Planning phases before mutating the enemy preview", () => {

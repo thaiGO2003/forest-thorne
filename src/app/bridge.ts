@@ -10,7 +10,8 @@ import {
   chooseAugment as chooseRunAugment, craftRunItem, equipItem as equipRunItem, expandBench as expandRunBench,
   sellItem as sellRunItem, stageRunCraftItem, unequipAll as unequipRunAll, unequipItem as unequipRunItem,
 } from "../core/run";
-import { inspectSave, clearRunProgress, persistPlanningProgress } from "../core/save";
+import { inspectSave, clearRunProgress, persistPlanningProgress, loadAchievementProfile, saveAchievementProfile } from "../core/save";
+import { recordEndlessAchievementEvent, type AchievementProfile, type EndlessAchievementEvent } from "../core/achievements";
 import { MODE_CONFIG, type GameMode } from "../core/modes";
 import { resolveContinueRoute, resolveNewRunRoute } from "../core/menuRouting";
 import { AI_PROFILE } from "../core/encounter";
@@ -74,6 +75,7 @@ export interface Bridge {
   selection(): PlanningSelection | null;
   selectedUnit(): PlanningUnitInspection | null;
   contextAction(action: PlanningContextAction): PlanningContextResult;
+  achievements(): AchievementProfile;
   /** Planning history (A38); views filter/read only. */
   history(): PlanningHistoryState;
   /** Canonical persisted UI settings owner (A35, A110.2). */
@@ -131,9 +133,20 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       round: state?.round,
     });
   };
-  const commit = (category: HistoryCategory, message: string, details?: string[]) => {
+  const trackAchievements = (events: readonly EndlessAchievementEvent[] = []) => {
+    if (!state || state.mode !== "EndlessPvEClassic") return;
+    const profile = loadAchievementProfile(store);
+    for (const event of events) recordEndlessAchievementEvent(profile, state.mode, event);
+    recordEndlessAchievementEvent(profile, state.mode, {
+      type: "snapshot", round: state.round, gold: state.gold, level: state.level, winStreak: state.winStreak,
+    });
+    // Storage failure cannot undo or interrupt an already accepted gameplay transaction.
+    try { saveAchievementProfile(store, profile); } catch { /* best-effort persistence */ }
+  };
+  const commit = (category: HistoryCategory, message: string, details?: string[], events: readonly EndlessAchievementEvent[] = []) => {
     reconcileCraftStaging();
     resolveSelection();
+    trackAchievements(events);
     record(category, message, details);
     persist();
     emit();
@@ -196,6 +209,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       selection = null;
       resetCraftStaging();
       resetHistory();
+      trackAchievements([{ type: "run_started" }]);
       persist();
       emit();
       return state;
@@ -203,19 +217,24 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     clearBrokenRun() { clearRunProgress(store); emit(); },
     buy(slot) {
       if (!state) return false;
+      const ownedBefore = state.bench.length + state.board.filter(Boolean).length;
       const id = state.shop[slot];
       if (!id || !buyUnit(state, slot)) return false;
-      commit("SHOP", `Mua ${getUnit(id).nameVi}`);
+      const ownedAfter = state.bench.length + state.board.filter(Boolean).length;
+      const merges = Math.max(0, Math.floor((ownedBefore + 1 - ownedAfter) / 2));
+      commit("SHOP", `Mua ${getUnit(id).nameVi}`, undefined, [
+        { type: "unit_bought" }, ...(merges > 0 ? [{ type: "merge" as const, count: merges }] : []),
+      ]);
       return true;
     },
     reroll() {
       if (!state || !refresh(state)) return false;
-      commit("SHOP", "Làm mới cửa hàng");
+      commit("SHOP", "Làm mới cửa hàng", undefined, [{ type: "shop_refresh" }]);
       return true;
     },
     buyXp() {
       if (!state || !buyRunXp(state)) return false;
-      commit("SHOP", "Mua 4 XP");
+      commit("SHOP", "Mua 4 XP", undefined, [{ type: "xp_purchase" }]);
       return true;
     },
     toggleLock() {
@@ -327,7 +346,10 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
           });
           if (!summary) return null;
           resetCraftStaging();
-          commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`);
+          commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`, undefined, [{
+            type: "round_result", round, won: summary.winner === "LEFT", lost: summary.winner === "RIGHT",
+            itemsLooted: summary.acceptedDrops.length, gold: s.gold, level: s.level, winStreak: s.winStreak,
+          }]);
           return summary;
         },
       };
@@ -362,7 +384,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       const item = craftRunItem(state, craftStaging);
       if (!item) return null;
       resetCraftStaging();
-      commit("CRAFT", `Chế tạo ${item}`);
+      commit("CRAFT", `Chế tạo ${item}`, undefined, [{ type: "crafted" }]);
       return item;
     },
     equip(itemId, where, index) {
@@ -387,7 +409,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     },
     chooseAugment(id) {
       if (!state || !chooseRunAugment(state, id)) return false;
-      commit("EVENT", `Chọn nâng cấp ${id}`);
+      commit("EVENT", `Chọn nâng cấp ${id}`, undefined, [{ type: "augment_chosen" }]);
       return true;
     },
     selectUnit(source, index) {
@@ -416,6 +438,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
       if (result.mutated) commit("EVENT", action === "SELL" ? "Bán đơn vị đã chọn" : "Thu hồi đơn vị đã chọn");
       return result;
     },
+    achievements: () => loadAchievementProfile(store),
     history: () => history,
     settings,
     clearRun() { clearRunProgress(store); state = null; selection = null; resetCraftStaging(); emit(); },
