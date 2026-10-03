@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import { creativeRightEnemyOverride, mergeCreativeSandboxUnits, normalizeCreativeSandboxUnits } from "../src/core/creative";
 import {
-  benchCap, creativeEnemyOverride, createModeRun, moveCreativeSandboxUnit, placeCreativeClone, sellCreativeSandboxUnit,
+  addCreativeGold, addCreativeHp, benchCap, creativeEnemyOverride, createModeRun, moveCreativeSandboxUnit, placeCreativeClone,
+  sellCreativeSandboxUnit,
   type OwnedUnit,
 } from "../src/core/run";
+import { skipTutorial } from "../src/core/tutorial";
 
 const source = (uid: string, baseId = NORMAL_UNITS[0]!.id): OwnedUnit => ({ uid, baseId, star: 1, equips: [], traits: [] });
 
@@ -59,6 +61,29 @@ describe("Creative sandbox A46", () => {
     expect(sellCreativeSandboxUnit(s, uid)).toBeGreaterThan(0);
     expect(s.gold).toBe(gold);
     expect(s.creativeSandboxUnits).toHaveLength(0);
+  });
+
+  it("allows explicit finite Creative gold/HP grants without changing ordinary economy suppression", async () => {
+    const { sellItem } = await import("../src/core/run");
+    const s = createModeRun(4, "EndlessCreative");
+    skipTutorial(s);
+    s.gold = 7;
+    s.hp = 20;
+    expect(addCreativeGold(s, 13)).toBe(13);
+    expect(addCreativeHp(s, 25)).toBe(25);
+    expect([s.gold, s.hp]).toEqual([20, 45]);
+    expect(addCreativeGold(s, Number.POSITIVE_INFINITY)).toBe(0);
+    expect(addCreativeHp(s, Number.NaN)).toBe(0);
+    s.itemBag.push("tear");
+    expect(sellItem(s, s.itemBag.length - 1)).toBe(true);
+    expect(s.gold).toBe(20);
+
+    const normal = createModeRun(5, "EndlessPvEClassic");
+    const normalGold = normal.gold;
+    const normalHp = normal.hp;
+    expect(addCreativeGold(normal, 9)).toBe(0);
+    expect(addCreativeHp(normal, 9)).toBe(0);
+    expect([normal.gold, normal.hp]).toEqual([normalGold, normalHp]);
   });
 
   it("save normalization clamps malformed positions, drops duplicate occupancy and preserves RIGHT override data", () => {

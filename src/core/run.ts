@@ -234,9 +234,9 @@ const spendGold = (s: RunState, cost: number): number => {
   s.gold = Math.max(0, s.gold - spent);
   return spent;
 };
-const gainGold = (s: RunState, amount: number): number => {
+const gainGold = (s: RunState, amount: number, allowCreativeMutation = false): number => {
   const normalized = Number.isFinite(amount) ? Math.max(0, amount) : 0;
-  if (!normalized || creativeEconomy(s)) return 0;
+  if (!normalized || (creativeEconomy(s) && !allowCreativeMutation)) return 0;
   s.gold = Math.max(0, s.gold + normalized);
   return normalized;
 };
@@ -849,6 +849,20 @@ export function resolveFortressBlacksmith(s: RunState, serviceId?: string): bool
 export function completeRunFortressNode(s: RunState): boolean {
   if (modeConfig(s.mode).route !== "fortress") return false;
   return completeFortressStateNode(s.fortress);
+}
+
+/** Explicit Creative-only resource mutation; ordinary Creative economy gains remain suppressed. */
+export function addCreativeGold(s: RunState, amount: number): number {
+  if (!planning(s) || !creativeEconomy(s)) return 0;
+  return gainGold(s, amount, true);
+}
+
+/** Creative testing HP grant. HP may exceed the authored start value and stays finite/persistable. */
+export function addCreativeHp(s: RunState, amount: number): number {
+  if (!planning(s) || !creativeEconomy(s) || !Number.isFinite(amount) || amount <= 0) return 0;
+  const before = s.hp;
+  s.hp = Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, s.hp + amount));
+  return s.hp - before;
 }
 
 function sandboxOccupied(s: RunState, row: number, col: number, ignoreUid?: string): boolean {
