@@ -85,6 +85,72 @@ describe("PvP Fortress pairing and payloads", () => {
       uid: "pvp:u7", baseId: "wolf", star: 2, row: 1, col: 7, equips: ["item-a"],
     })]);
   });
+
+  it("freezes ghost equipment, traits, synergies and player combat stats at pairing time", () => {
+    const roster = players("P1", "P2", "P3");
+    for (const run of Object.values(roster)) {
+      run.board[0] = {
+        uid: "archer-a",
+        baseId: "albatross_wind",
+        star: 2,
+        equips: ["item-a"],
+        traits: [{ id: "archer_heart_pierce", seed: 17 }],
+      };
+      run.board[1] = {
+        uid: "archer-b",
+        baseId: "albatross_wind",
+        star: 1,
+        equips: ["item-b"],
+        traits: [{ id: "archer_hawk_eye", seed: 23 }],
+      };
+      run.teamAtkPct = 7;
+      run.teamMatkPct = 3;
+      run.startingRage = 2;
+      run.extraClassCount = 2;
+      run.extraTribeCount = 2;
+      run.techLevels = { mil: 1 };
+      run.gold = 37;
+    }
+
+    const started = startPvpFortressCombat(createPvpFortressState(Object.keys(roster)), roster, () => 0.25);
+    const ghost = started.state.currentMatchups.find((matchup) => matchup.type === "ghost")!;
+    const owner = roster[ghost.ghostOwnerSlot]!;
+    const payload = started.payloadBySlot[ghost.fighterSlot]!;
+    const snapshot = payload.opponentSnapshot;
+
+    expect(snapshot.placements).toHaveLength(2);
+    expect(snapshot.placements[0]).toMatchObject({
+      baseId: "albatross_wind",
+      star: 2,
+      equips: ["item-a"],
+      traits: [{ id: "archer_heart_pierce", seed: 17 }],
+    });
+    expect(snapshot.bonus).toMatchObject({ atkPct: 57, matkPct: 9, evadePct: 8, startRage: 2 });
+    expect(snapshot.synergies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "class", key: "ARCHER", count: 4, active: 4 }),
+      expect.objectContaining({ kind: "faction", key: "AVIAN", count: 4, active: 4 }),
+    ]));
+    expect(snapshot.gold).toBe(37);
+    expect(payload.run.enemyPreview).toEqual(snapshot.placements);
+    expect(payload.run.enemyPreview).not.toBe(snapshot.placements);
+
+    owner.board[0]!.equips.push("late-item");
+    owner.board[0]!.traits![0]!.seed = 999;
+    owner.board[1] = null;
+    owner.teamAtkPct = 999;
+    owner.extraClassCount = 0;
+    owner.extraTribeCount = 0;
+    owner.techLevels.mil = 0;
+    owner.gold = 999;
+
+    expect(snapshot.placements[0]).toMatchObject({
+      equips: ["item-a"],
+      traits: [{ id: "archer_heart_pierce", seed: 17 }],
+    });
+    expect(snapshot.placements).toHaveLength(2);
+    expect(snapshot.bonus).toMatchObject({ atkPct: 57, matkPct: 9, evadePct: 8, startRage: 2 });
+    expect(snapshot.gold).toBe(37);
+  });
 });
 
 describe("PvP Fortress round authority", () => {
