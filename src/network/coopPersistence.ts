@@ -58,6 +58,7 @@ export function persistCoopPlanningProgress(
   if (!session || session.sessionType === "pvp_fortress") return "failed";
   if (!(SAVE_SLOTS as readonly string[]).includes(session.activeSaveSlotId)) return "failed";
   if (!payload.players || Object.keys(payload.players).length === 0) return "failed";
+  if (!payload.players[session.localSlot]) return "failed";
   const activeSlot = session.activeSaveSlotId as CoopSaveSlot;
   const normalized = normalizeCoopRunPayload(structuredClone({
     ...payload,
@@ -67,6 +68,8 @@ export function persistCoopPlanningProgress(
     aiMode: session.aiMode,
     selectedMode: session.selectedMode,
   }));
+  // Normalization may repair metadata, but must not silently switch the active player's ownership.
+  if (normalized.localSlot !== session.localSlot || normalized.hostSlot !== session.hostSlot) return "failed";
   if (modeConfig(normalized.players![normalized.localSlot!]!.mode).pvp) return "failed";
   return persistPlanningProgress({
     authority: "coop", store, payload: normalized, activeSlot,

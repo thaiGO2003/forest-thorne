@@ -510,11 +510,19 @@ export function benchToBench(s: RunState, from: number, to: number, allowSwap = 
   return true;
 }
 
+/** Read-only eligibility probe, also used before preview/materialization at the app boundary. */
+export function combatStartRejection(s: RunState): string | null {
+  if (!planning(s)) return "not_planning";
+  // Tutorial inspection synchronizes round-local state; probing must not mutate a rejected run.
+  if (isTutorialActive(s) && !tutorialActionAllowed(structuredClone(s), "begin_combat")) return "tutorial_blocked";
+  if (boardCount(s) === 0) return "no_units";
+  return null;
+}
+
 /** A1.1: Start accepted only in PLANNING with ≥1 deployed unit. Returns reject reason or null. */
 export function startCombat(s: RunState): string | null {
-  if (!planning(s)) return "not_planning";
-  if (!tutorialActionAllowed(s, "begin_combat")) return "tutorial_blocked";
-  if (boardCount(s) === 0) return "no_units";
+  const rejection = combatStartRejection(s);
+  if (rejection) return rejection;
   recordTutorialEvent(s, "begin_combat");
   s.phase = "COMBAT";
   return null;

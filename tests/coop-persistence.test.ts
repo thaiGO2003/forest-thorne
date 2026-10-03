@@ -85,4 +85,22 @@ describe("co-op session restore and planning saves A114", () => {
     expect(store.getItem(COOP_KEY)).toBeNull();
     expect(store.getItem(PROGRESS_KEY)).toBeNull();
   });
+
+  it("refuses stale slot/difficulty combinations instead of saving another player's state", () => {
+    const store = memoryStore();
+    const sessions = new CoopSessionStore();
+    sessions.create({ localSlot: "P3", hostSlot: "P1", playerCapacity: 4, aiMode: "COOP_MEDIUM" });
+    const before = sessions.get();
+    let notices = 0;
+    sessions.subscribe(() => notices++);
+    expect(persistCoopPlanningProgress(store, createCoopRunPayload(3, "COOP4_MEDIUM"), sessions)).toBe("failed");
+    expect(sessions.get()).toBe(before);
+    expect(notices).toBe(0);
+    expect(store.getItem(COOP_KEY)).toBeNull();
+    sessions.update({ aiMode: "COOP4_MEDIUM" });
+    const payload = createCoopRunPayload(4, "COOP4_MEDIUM");
+    delete payload.players!.P3;
+    expect(persistCoopPlanningProgress(store, payload, sessions)).toBe("failed");
+    expect(store.getItem(COOP_KEY)).toBeNull();
+  });
 });

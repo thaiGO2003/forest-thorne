@@ -152,4 +152,19 @@ describe("app bridge run lifecycle", () => {
       expect(store.getItem(PROGRESS_KEY)).toBe(beforeSave);
     }
   });
+
+  it("rejects tutorial-blocked combat without generating preview or changing run/save/profile", () => {
+    const store = new TrackingStorage();
+    const saved = createRun(14);
+    saved.board[14] = { uid: "u1", baseId: "ant_guard", star: 1, equips: [] };
+    saveRun(store, { player: saved });
+    const bridge = createPlaceholderBridge(store);
+    bridge.continueRun();
+    const before = structuredClone(bridge.run());
+    const saveBefore = store.getItem(PROGRESS_KEY);
+    expect(bridge.startCombat()).toBeNull();
+    expect(bridge.run()).toEqual(before);
+    expect(store.getItem(PROGRESS_KEY)).toBe(saveBefore);
+    expect(bridge.achievements().stats.rounds_won).toBe(0);
+  });
 });

@@ -4,7 +4,7 @@
 import { getUnit } from "../content/catalog";
 import {
   applyRoundResult, benchCap, benchToBench, benchToBoard, boardToBench, boardToBoard, buy as buyUnit,
-  buyXp as buyRunXp, createModeRun, deployLimit, enemyPreview, playerCombatBonus, refresh, research as researchTech,
+  buyXp as buyRunXp, combatStartRejection, createModeRun, deployLimit, enemyPreview, playerCombatBonus, refresh, research as researchTech,
   runSynergies, sell as sellUnit, startCombat as beginCombat, toggleLock as toggleShopLock,
   type RoundResultSummary, type RunState,
   chooseAugment as chooseRunAugment, craftRunItem, equipItem as equipRunItem, expandBench as expandRunBench,
@@ -267,7 +267,7 @@ export function createPlaceholderBridge(store: Storage = localStorage): Bridge {
     startCombat() {
       if (!state) return null;
       const s = state;
-      if (s.phase !== "PLANNING") return null;
+      if (combatStartRejection(s)) return null;
       const left = boardPlacements(s);
       if (!left.length) return null;
       const preview = enemyPreview(s);
