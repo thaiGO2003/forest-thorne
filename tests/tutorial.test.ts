@@ -6,7 +6,7 @@ import {
 import {
   currentTutorialStep, dismissTutorialStep, incrementTutorialShopVariant, recommendedTutorialDeployCell,
   recordTutorialEvent, skipTutorial, syncTutorialRound, tutorialActionAllowed, tutorialShop,
-  TUTORIAL_AUGMENT_IDS,
+  TUTORIAL_AUGMENT_IDS, TUTORIAL_STEPS,
 } from "../src/core/tutorial";
 import { getUnit } from "../src/content/catalog";
 
@@ -141,6 +141,18 @@ describe("tutorial A94/A108", () => {
     expect(s.aiMode).toBe("EASY");
     expect(s.tutorial.roundEventCounts.skip_tutorial).toBe(1);
     expect(currentTutorialStep(s)).toBeNull();
+  });
+
+  it("covers all eight scripted rounds, hard-locks unrelated actions, and fully unlocks after skip", () => {
+    expect([...new Set(TUTORIAL_STEPS.map((step) => step.round))]).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+
+    const s = createRun(17);
+    expect(tutorialActionAllowed(s, "sell_unit")).toBe(false);
+
+    expect(skipTutorial(s)).toBe(true);
+    for (const action of ["buy_unit", "sell_unit", "refresh_shop", "begin_combat"] as const) {
+      expect(tutorialActionAllowed(s, action)).toBe(true);
+    }
   });
 
   it("marks completion and hands AI to EASY only after the final tutorial combat resolves", () => {
