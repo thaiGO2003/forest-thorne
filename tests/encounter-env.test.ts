@@ -71,7 +71,18 @@ describe("encounter A33/A34", () => {
     expect(generateEncounter({ round: 5, mode: "EASY", rng: rng(2) }).units).toHaveLength(6);
     expect(generateEncounter({ round: 3, mode: "HARD", rng: rng(2) }).units).toHaveLength(3);
     expect(generateEncounter({ round: 4, mode: "HARD", rng: rng(2) }).units).toHaveLength(8);
-    expect(generateEncounter({ round: 4, mode: "COOP_MEDIUM", rng: rng(2) }).units).toHaveLength(8);
+    expect(generateEncounter({ round: 4, mode: "COOP_MEDIUM", players: 1, rng: rng(2) }).units).toHaveLength(8);
+  });
+  it("scales co-op teams onto all 10/20 logical rows without truncating them to the solo half-board", () => {
+    for (const [mode, players] of [["COOP_MEDIUM", 2], ["COOP4_HARD", 4]] as const) {
+      const generated = generateEncounter({ round: 40, mode, rng: rng(7) });
+      expect(generated.units.length).toBeGreaterThan(25);
+      expect(generated.units.length).toBeLessThanOrEqual(players * 25);
+      expect(new Set(generated.units.map((u) => `${u.row},${u.col}`)).size).toBe(generated.units.length);
+      expect(generated.units.some((u) => u.row >= 5)).toBe(true);
+      expect(generated.units.every((u) => u.row >= 0 && u.row < players * 5 && u.col >= 5 && u.col <= 9)).toBe(true);
+      expect(generateEncounter({ round: 40, mode, rng: rng(7) })).toEqual(generated);
+    }
   });
   it("starts deterministic AI equipment at the authored round and respects tier pressure", () => {
     const before = generateEncounter({ round: 7, mode: "EASY", rng: () => 0 });

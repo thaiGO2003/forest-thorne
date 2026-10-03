@@ -69,4 +69,19 @@ describe("enemy preview A68/A103/A114", () => {
     const boosted = enemyPreview(elite)!;
     expect(boosted.budget).toBeGreaterThan(base.budget);
   });
+  it("preserves co-op rows through host generation, cached reuse and guest hydration", () => {
+    const host = createRun(25);
+    host.round = 39;
+    host.aiMode = "COOP4_HARD";
+    const first = enemyPreview(host)!;
+    expect(first.units.length).toBeGreaterThan(25);
+    expect(first.units.some((u) => u.row >= 10)).toBe(true);
+    expect(enemyPreview(host)!.units).toEqual(first.units);
+    const guest = createRun(26);
+    guest.aiMode = host.aiMode;
+    guest.round = host.round;
+    expect(enemyPreview(guest, {
+      isHost: false, sharedPreview: first.units, sharedPreviewRound: 39, sharedEnemyBudget: first.budget,
+    })!.units).toEqual(first.units);
+  });
 });

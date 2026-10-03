@@ -37,6 +37,11 @@ export const AI_PROFILE: Record<AiMode, AiProfile> = {
 export const normalizeAiMode = (v: unknown, fallback: AiMode = "MEDIUM"): AiMode =>
   (AI_MODES as readonly unknown[]).includes(v) ? (v as AiMode) : fallback;
 
+export type EncounterPlayerCount = 1 | 2 | 4;
+export function encounterPlayerCount(mode: AiMode, override?: EncounterPlayerCount): EncounterPlayerCount {
+  return override ?? (mode.startsWith("COOP4_") ? 4 : mode.startsWith("COOP_") ? 2 : 1);
+}
+
 export const BOSS_ROTATION = [
   "boss_ember_dragon", "boss_storm_phoenix", "boss_venom_hydra", "boss_earth_colossus", "boss_tempest_jelly",
 ] as const;
@@ -51,18 +56,21 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const FRONT: Role[] = ["TANKER", "FIGHTER"];
 // Enemy half: cols 5 (front) .. 9 (back). Role priority lists consume unique cells deterministically.
 const ROWS_ORDER = [2, 1, 3, 0, 4];
-const cells = (cols: number[]) => cols.flatMap((c) => ROWS_ORDER.map((r) => ({ r, c })));
-const SLOT_ORDER: Record<"front" | "back" | "assassin", { r: number; c: number }[]> = {
-  front: cells([5, 6, 7, 8, 9]),
-  back: cells([9, 8, 7, 6, 5]),
-  assassin: [...cells([9]).filter((x) => x.r === 0 || x.r === 4), ...cells([9, 8, 7, 6, 5])],
-};
+function slotOrder(players: EncounterPlayerCount) {
+  const rows = Array.from({ length: players }, (_, slot) => ROWS_ORDER.map((row) => row + slot * 5)).flat();
+  const cells = (cols: number[]) => cols.flatMap((c) => rows.map((r) => ({ r, c })));
+  return {
+    front: cells([5, 6, 7, 8, 9]),
+    back: cells([9, 8, 7, 6, 5]),
+    assassin: [...cells([9]).filter((x) => x.r === 0 || x.r === players * 5 - 1), ...cells([9, 8, 7, 6, 5])],
+  };
+}
 
 export interface Encounter { boss: boolean; budget: number; units: Placement[] }
 
 export interface EncounterInput {
   round: number; mode: AiMode; rng: () => number; sandbox?: boolean; bossRounds?: boolean;
-  players?: 1 | 2 | 4; budgetMult?: number;
+  players?: EncounterPlayerCount; budgetMult?: number;
 }
 
 /** Team spend remains approximated by the A33 level/deploy model because tier costs are not authored. */
@@ -73,13 +81,15 @@ export function generateEncounter(i: EncounterInput): Encounter {
   if (boss) return { boss: true, budget, units: [{ uid: "e0", baseId: boss, star: 3, row: 2, col: 7 }] };
 
   const ai = AI_PROFILE[mode];
+  const players = encounterPlayerCount(mode, i.players);
+  const slots = slotOrder(players);
   const hard = mode.endsWith("HARD");
   const maxTier = clamp(1 + Math.floor(round / 3) + ai.maxTierBonus, 1, 5);
   const level = clamp(1 + Math.floor(round / 2) + ai.levelBonus, 1, 15);
   const periodicGrowth = Math.min(ai.growthCap, Math.floor(Math.max(0, round) / ai.growthEvery));
   let size = deployCap(level) + ai.teamBonus + periodicGrowth - (i.sandbox ? 1 : 0);
   if (hard && round < 4) size = Math.min(size, 3);
-  size = clamp(size * (i.players ?? 1), 1, (i.players ?? 1) === 1 ? 15 : 25);
+  size = clamp(size * players, 1, players === 1 ? 15 : players * 25);
 
   const pool = NORMAL_UNITS.filter((u) => u.tier <= maxTier);
   const pickFrom = (wantFront: boolean) => {
@@ -110,7 +120,7 @@ export function generateEncounter(i: EncounterInput): Encounter {
   const used: Record<string, true> = {};
   const units = picks.map((p, k): Placement => {
     const lane = FRONT.includes(p.u.role) ? "front" : p.u.role === "ASSASSIN" ? "assassin" : "back";
-    const cell = SLOT_ORDER[lane].find((x) => !used[`${x.r},${x.c}`])!;
+    const cell = slots[lane].find((x) => !used[`${x.r},${x.c}`])!;
     used[`${cell.r},${cell.c}`] = true;
     const eligibleEquipment = EQUIPMENT.filter((item) => item.tier <= ai.equipMaxTier && item.tier <= p.star);
     const equips: string[] = [];

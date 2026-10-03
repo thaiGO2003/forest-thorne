@@ -2,7 +2,7 @@
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
 import type { Placement } from "./combat";
 import { creativeRightEnemyOverride } from "./creative";
-import { generateEncounter } from "./encounter";
+import { encounterPlayerCount, generateEncounter, type EncounterPlayerCount } from "./encounter";
 import { FORTRESS_BUDGET_MULTIPLIER } from "./fortress";
 import { modeConfig } from "./modes";
 import type { RunState } from "./run";
@@ -12,13 +12,13 @@ const record = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
 /** Preview entries are identity/placement only; temporary combat state never belongs here. */
-export function normalizeEnemyPreview(value: unknown): Placement[] {
+export function normalizeEnemyPreview(value: unknown, players: EncounterPlayerCount = 1): Placement[] {
   if (!Array.isArray(value)) return [];
   const out: Placement[] = [];
   for (let index = 0; index < value.length; index++) {
     const raw = record(value[index]);
     if (!raw || typeof raw.baseId !== "string" || !UNIT_BY_ID.has(raw.baseId)) continue;
-    const row = Math.min(4, Math.max(0, Math.floor(Number(raw.row) || 0)));
+    const row = Math.min(players * 5 - 1, Math.max(0, Math.floor(Number(raw.row) || 0)));
     const col = Math.min(9, Math.max(5, Math.floor(Number(raw.col) || 5)));
     const star = Math.min(3, Math.max(1, Math.round(Number(raw.star) || 1)));
     const uid = typeof raw.uid === "string" && raw.uid.trim()
@@ -73,6 +73,7 @@ export interface EnemyPreviewResult {
 
 export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = {}): EnemyPreviewResult | null {
   const round = Math.max(1, Math.floor(Number(s.round) || 1));
+  const players = encounterPlayerCount(s.aiMode, options.players);
   const cfg = modeConfig(s.mode);
   const creative = cfg.creative ? creativeRightEnemyOverride(s.creativeSandboxUnits) : null;
   if (creative) {
@@ -83,14 +84,14 @@ export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = 
   }
 
   if (!options.force && s.enemyPreviewRound === round && s.enemyPreview.length > 0) {
-    const normalized = normalizeEnemyPreview(s.enemyPreview);
+    const normalized = normalizeEnemyPreview(s.enemyPreview, players);
     s.enemyPreview = normalized;
     return { units: normalized, round, budget: Math.max(0, s.enemyBudget), source: "saved" };
   }
 
   if (options.isHost === false) {
     if (Math.floor(Number(options.sharedPreviewRound) || 0) !== round) return null;
-    const shared = normalizeEnemyPreview(options.sharedPreview);
+    const shared = normalizeEnemyPreview(options.sharedPreview, players);
     if (!shared.length) return null;
     s.enemyPreview = shared;
     s.enemyPreviewRound = round;
@@ -106,10 +107,10 @@ export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = 
     rng: seededPreviewRng(s.rngSeed, round),
     sandbox: cfg.creative,
     bossRounds: s.mode === "EndlessPvEClassic",
-    players: options.players,
+    players,
     budgetMult,
   });
-  const units = normalizeEnemyPreview(generated.units);
+  const units = normalizeEnemyPreview(generated.units, players);
   s.enemyPreview = units;
   s.enemyPreviewRound = round;
   s.enemyBudget = Math.max(0, Math.round(generated.budget));

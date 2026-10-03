@@ -6,7 +6,7 @@ import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
 import { isGameMode, modeConfig } from "./modes";
 import { normalizeFortressState } from "./fortress";
 import { normalizeCreativeSandboxUnits } from "./creative";
-import { normalizeAiMode, type AiMode } from "./encounter";
+import { normalizeAiMode, type AiMode, type EncounterPlayerCount } from "./encounter";
 import { normalizeTutorialState, TUTORIAL_END_ROUND } from "./tutorial";
 import { normalizeEnemyPreview } from "./preview";
 import { BASE_MATERIALS } from "./craft";
@@ -110,7 +110,7 @@ function sanitizeUnit(u: unknown, log: string[]): OwnedUnit | null {
 }
 
 /** Clamp numeric ranges without truncating legal progression (A37). Mutates and returns p. */
-function sanitizePlayer(p: RunState, log: string[]): RunState {
+function sanitizePlayer(p: RunState, log: string[], previewPlayers: EncounterPlayerCount = 1): RunState {
   const legacy = p as RunState & { deployBonus?: unknown };
   p.phase = p.phase === "AUGMENT" || p.phase === "COMBAT" || p.phase === "GAME_OVER" ? p.phase : "PLANNING";
   p.mode = isGameMode(p.mode) ? p.mode : "EndlessPvEClassic";
@@ -199,7 +199,7 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.shopSlotCount = clampInt(p.shopSlotCount, savedShopLength, 20, savedShopLength);
   p.shop = p.shop.slice(0, p.shopSlotCount);
   while (p.shop.length < p.shopSlotCount) p.shop.push(null);
-  p.enemyPreview = normalizeEnemyPreview(p.enemyPreview);
+  p.enemyPreview = normalizeEnemyPreview(p.enemyPreview, previewPlayers);
   p.enemyPreviewRound = clampInt(p.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, 0);
   p.enemyBudget = clampInt(p.enemyBudget, 0, Number.MAX_SAFE_INTEGER, 0);
   p.augmentRoundsTaken = Array.isArray(p.augmentRoundsTaken)
@@ -248,14 +248,14 @@ export function normalizeCoopRunPayload(payload: RunPayload, log: string[] = [])
     const player = isObj(rawPlayer)
       ? rawPlayer as unknown as RunState
       : createModeRun((baseSeed + index) | 0, selectedMode);
-    players[slot] = sanitizePlayer(player, log);
+    players[slot] = sanitizePlayer(player, log, capacity);
   });
 
   const local = players[legalLocal]!;
   const rawShared: Record<string, unknown> = isObj(payload.shared) ? structuredClone(payload.shared) : {};
   const sharedRound = clampInt(rawShared.round, 1, Number.MAX_SAFE_INTEGER, local.round);
   const sharedPhase = validSharedPhase(rawShared.phase, local.phase);
-  const sharedPreview = normalizeEnemyPreview(rawShared.enemyPreview ?? local.enemyPreview);
+  const sharedPreview = normalizeEnemyPreview(rawShared.enemyPreview ?? local.enemyPreview, capacity);
   const sharedPreviewRound = clampInt(rawShared.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, local.enemyPreviewRound);
   const sharedEnemyBudget = clampInt(rawShared.enemyBudget, 0, Number.MAX_SAFE_INTEGER, local.enemyBudget);
   const shared: CoopSharedState = {

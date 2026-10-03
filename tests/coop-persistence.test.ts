@@ -22,6 +22,7 @@ describe("co-op session restore and planning saves A114", () => {
     saved.players!.P3!.gold = 77;
     saved.shared!.round = 9;
     saved.shared!.phase = "PLANNING";
+    saved.shared!.enemyPreview = [{ uid: "far-row", baseId: "ant_guard", star: 1, row: 17, col: 7 }];
     saveCoopSlot(store, "SAVE_2", saved);
     const sessions = new CoopSessionStore();
     sessions.create({
@@ -36,6 +37,8 @@ describe("co-op session restore and planning saves A114", () => {
     if (restored.kind !== "restored") throw new Error("expected restore");
     expect(restored.localPlayer).toBe(restored.payload.players!.P3);
     expect(restored.localPlayer).toMatchObject({ gold: 77, round: 9 });
+    expect(restored.payload.shared!.enemyPreview[0]!.row).toBe(17);
+    expect(restored.localPlayer.enemyPreview[0]!.row).toBe(17);
     const session = sessions.get()!;
     expect(session).toMatchObject({
       roomCode: "ROOM42", localSlot: "P3", hostSlot: "P2", playerCapacity: 4,
