@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createRun } from "../src/core/run";
 import {
   ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope, importProgress, inspectSave,
-  migrate, PROGRESS_KEY, remapCoopHost, saveCoopSlot, saveRun, selectCoopSlot,
+  loadAchievementProfile, migrate, PROGRESS_KEY, remapCoopHost, saveAchievementProfile, saveCoopSlot, saveRun, selectCoopSlot,
 } from "../src/core/save";
+import { createAchievementProfile } from "../src/core/achievements";
 import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
 
 function mem() {
@@ -140,6 +141,19 @@ describe("persistence A57", () => {
     expect(Object.keys(s.m).sort()).toEqual([ACHIEVEMENTS_KEY, COLLECTION_KEY, SETTINGS_KEY].sort());
     clearProgress(s);
     expect(Object.keys(s.m)).toEqual([SETTINGS_KEY]);
+  });
+
+  it("stores achievements independently from run progress", () => {
+    const s = mem();
+    const profile = createAchievementProfile();
+    profile.stats.runs_started = 3;
+    profile.stats.best_round = 12;
+    saveAchievementProfile(s, profile);
+    s.m[PROGRESS_KEY] = "run-state";
+
+    clearRunProgress(s);
+    expect(loadAchievementProfile(s).stats).toMatchObject({ runs_started: 3, best_round: 12 });
+    expect(s.m[PROGRESS_KEY]).toBeUndefined();
   });
 
   it("co-op: empty SAVE_2 targets SAVE_2; NEW → AUTO; malformed slot ignored; resume exposes summary", () => {
