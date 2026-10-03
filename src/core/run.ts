@@ -892,6 +892,29 @@ export function placeCreativeClone(
   return clone.uid;
 }
 
+/** Summon any canonical normal roster unit directly into the separate Creative sandbox collection. */
+export function summonCreativeUnit(s: RunState, baseId: string, row: number, col: number): string | null {
+  if (!planning(s) || !creativeEconomy(s) || !validSandboxCell(row, col) || sandboxOccupied(s, row, col)) return null;
+  const def = NORMAL_UNITS.find((unit) => unit.id === baseId);
+  if (!def) return null;
+  const uid = allocateUid(s);
+  const seed = nextUint32(s);
+  s.creativeSandboxUnits.push({
+    uid,
+    baseId,
+    star: 1,
+    equips: [],
+    traits: [rollVariantTrait(def.role, seed)],
+    sandbox: true,
+    sourceUid: null,
+    side: sandboxSideForCol(col),
+    row,
+    col,
+  });
+  mergeCreativeRunUnits(s);
+  return uid;
+}
+
 export function moveCreativeSandboxUnit(s: RunState, uid: string, row: number, col: number): boolean {
   if (!planning(s) || !creativeEconomy(s) || !validSandboxCell(row, col) || sandboxOccupied(s, row, col, uid)) return false;
   const unit = s.creativeSandboxUnits.find((candidate) => candidate.uid === uid);

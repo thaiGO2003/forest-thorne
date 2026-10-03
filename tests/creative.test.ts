@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { NORMAL_UNITS } from "../src/content/catalog";
+import { BOSSES, NORMAL_UNITS } from "../src/content/catalog";
 import { creativeRightEnemyOverride, mergeCreativeSandboxUnits, normalizeCreativeSandboxUnits } from "../src/core/creative";
 import {
   addCreativeGold, addCreativeHp, benchCap, creativeEnemyOverride, createModeRun, moveCreativeSandboxUnit, placeCreativeClone,
-  sellCreativeSandboxUnit,
+  removeCreativeSandboxUnit, sellCreativeSandboxUnit, summonCreativeUnit,
   type OwnedUnit,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
@@ -84,6 +84,24 @@ describe("Creative sandbox A46", () => {
     expect(addCreativeGold(normal, 9)).toBe(0);
     expect(addCreativeHp(normal, 9)).toBe(0);
     expect([normal.gold, normal.hp]).toEqual([normalGold, normalHp]);
+  });
+
+  it("can summon every one of the 120 normal catalog units with independent sandbox identity", () => {
+    const s = createModeRun(6, "EndlessCreative");
+    expect(NORMAL_UNITS).toHaveLength(120);
+    for (const def of NORMAL_UNITS) {
+      const uid = summonCreativeUnit(s, def.id, 0, 6);
+      expect(uid).not.toBeNull();
+      expect(s.creativeSandboxUnits[0]).toMatchObject({
+        uid, baseId: def.id, star: 1, sandbox: true, sourceUid: null, side: "RIGHT", row: 0, col: 6,
+      });
+      expect(removeCreativeSandboxUnit(s, uid!)).toBe(true);
+    }
+    const first = summonCreativeUnit(s, NORMAL_UNITS[0]!.id, 0, 6)!;
+    const second = summonCreativeUnit(s, NORMAL_UNITS[0]!.id, 1, 6)!;
+    expect(first).not.toBe(second);
+    expect(BOSSES.length).toBeGreaterThan(0);
+    expect(summonCreativeUnit(s, BOSSES[0]!.id, 2, 6)).toBeNull();
   });
 
   it("save normalization clamps malformed positions, drops duplicate occupancy and preserves RIGHT override data", () => {
