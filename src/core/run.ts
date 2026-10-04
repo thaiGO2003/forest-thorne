@@ -759,7 +759,7 @@ export function resolveFortressPharmacy(
   const beforeLevel = s.level;
   s.hp = Math.min(modeConfig(s.mode).startHp, Math.max(0, Math.floor(s.hp + option.hpDelta)));
   if (option.goldDelta > 0) gainGold(s, option.goldDelta);
-  if (option.xpDelta > 0) Object.assign(s, addXp(s.level, s.xp, option.xpDelta));
+  if (option.xpDelta > 0) Object.assign(s, addXp(s.level, s.xp, option.xpDelta, 25));
   const result: PharmacyServiceResult = {
     kind: "pharmacy",
     optionId,

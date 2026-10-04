@@ -10,9 +10,11 @@ export function xpToNext(level: number): number {
 }
 
 /** Apply XP with carry-over level-ups. */
-export function addXp(level: number, xp: number, gain: number): { level: number; xp: number } {
+export function addXp(
+  level: number, xp: number, gain: number, maxLevel = Number.POSITIVE_INFINITY,
+): { level: number; xp: number } {
   xp += gain;
-  while (xp >= xpToNext(level)) {
+  while (level < maxLevel && xp >= xpToNext(level)) {
     xp -= xpToNext(level);
     level++;
   }

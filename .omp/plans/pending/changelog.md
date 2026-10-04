@@ -493,3 +493,13 @@
 - Added a regression proving serialized/hydrated progress preserves visited/current state, rejects an old-layer node, and still accepts the next legal layer.
 - `src/core/run.ts` exposes the canonical Fortress selection/completion/service wrappers, but repository search finds no production caller under `src/`; only tests call them. Therefore A117.1/A117.2 persist-before-routing and pending-node resume are not end-to-end wired in the active runtime.
 - Verification: `corepack pnpm exec vitest run tests/fortress.test.ts` → 1 file / 6 tests passed; `corepack pnpm typecheck` → passed. WBS-076 remains unchecked.
+
+## 2026-10-04 — WBS-077 logic-only Fortress services audit
+
+- Audited A117.3-A117.5 against `src/core/fortress.ts`, `src/core/run.ts`, canonical economy/bench/crafting services, save normalization, and the production call graph.
+- `src/core/economy.ts`: `addXp(...)` now accepts an optional maximum level while preserving existing uncapped callers; Fortress Pharmacy supplies the authoritative cap of 25.
+- `src/core/run.ts`: Pharmacy XP can no longer advance a Fortress run beyond level 25. Existing HP cap, canonical gold mutation, multi-level XP carry, one-shot service result, deterministic Beast Den offers/recruitment, canonical bench-cap/auto-merge behavior, and Blacksmith forge-tier metadata remain intact.
+- `tests/fortress.test.ts`: added regressions for HP capping + multi-level stimulant XP, level-25 Pharmacy behavior, Beast Den one-shot/full-bench rejection, and one-shot persisted Blacksmith metadata using authored `craft`/`temper` service ids.
+- Verification: `corepack pnpm exec vitest run tests/fortress.test.ts tests/economy.test.ts` → 2 files / 20 tests passed; `corepack pnpm typecheck` → passed.
+- Non-visual Bun/TypeScript smoke exercised the real service path: a level-25 Fortress run at 867 XP resolved stimulant to `level=25`, `xp=869`, `xpDelta=2`, `levelsGained=0`.
+- Production `src/` contains definitions but no caller for `resolveFortressPharmacy(...)`, `recruitFortressBeast(...)`, or `resolveFortressBlacksmith(...)`; persist-after-service / continue-to-Planning remains unwired. WBS-077 therefore remains unchecked.

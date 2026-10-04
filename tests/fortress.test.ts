@@ -68,19 +68,38 @@ describe("Fortress route and services", () => {
     expect(offers.length).toBeLessThanOrEqual(3);
   });
 
-  it("run integration resolves service results without a duplicate Fortress inventory model", () => {
+  it("pharmacy caps HP, carries multi-level XP, and resolves once", () => {
     const s = createModeRun(19, "EndlessPvEFortress");
     const pharmacy = s.fortress.graph.layers[1]!.find((node) => node.type === "pharmacy")!;
     const first = s.fortress.graph.layers[0]![0]!;
     expect(selectRunFortressNode(s, first.id)).toBe(true);
     expect(completeRunFortressNode(s)).toBe(true);
     expect(selectRunFortressNode(s, pharmacy.id)).toBe(true);
-    s.hp = 50;
-    expect(resolveFortressPharmacy(s, "restore")?.hpDelta).toBeGreaterThan(0);
+    s.round = 17;
+    s.hp = 90;
+    s.level = 1;
+    s.xp = 0;
+    expect(resolveFortressPharmacy(s, "stimulant")).toEqual({
+      kind: "pharmacy", optionId: "stimulant", hpDelta: 10, goldDelta: 0, xpDelta: 6, levelsGained: 2,
+    });
+    expect([s.hp, s.level, s.xp]).toEqual([100, 3, 0]);
     expect(resolveFortressPharmacy(s, "restore")).toBeNull();
   });
 
-  it("beast den validates deterministic offered ids and blacksmith records canonical forge tier", () => {
+  it("pharmacy XP stops at level 25", () => {
+    const s = createModeRun(23, "EndlessPvEFortress");
+    const first = s.fortress.graph.layers[0]![0]!;
+    const pharmacy = s.fortress.graph.layers[1]!.find((node) => node.type === "pharmacy")!;
+    expect(selectRunFortressNode(s, first.id)).toBe(true);
+    expect(completeRunFortressNode(s)).toBe(true);
+    expect(selectRunFortressNode(s, pharmacy.id)).toBe(true);
+    s.level = 25;
+    s.xp = 867;
+    const result = resolveFortressPharmacy(s, "stimulant");
+    expect([s.level, s.xp, result?.levelsGained, result?.xpDelta]).toEqual([25, 869, 0, 2]);
+  });
+
+  it("beast den validates offered ids and resolves one recruit", () => {
     const s = createModeRun(31, "EndlessPvEFortress");
     const beast = s.fortress.graph.layers[0]!.find((node) => node.type === "beast_den")!;
     expect(selectRunFortressNode(s, beast.id)).toBe(true);
@@ -88,14 +107,35 @@ describe("Fortress route and services", () => {
     expect(recruitFortressBeast(s, "not-a-real-unit")).toBe(false);
     expect(recruitFortressBeast(s, offer)).toBe(true);
     expect(s.bench.some((unit) => unit.baseId === offer)).toBe(true);
-    expect(completeRunFortressNode(s)).toBe(true);
+    expect(recruitFortressBeast(s, offer)).toBe(false);
+  });
 
-    // Advance to a layer-2 blacksmith from the selected layer-1 node.
+  it("beast den rejects recruitment at canonical base bench capacity", () => {
+    const s = createModeRun(37, "EndlessPvEFortress");
+    const beast = s.fortress.graph.layers[0]!.find((node) => node.type === "beast_den")!;
+    expect(selectRunFortressNode(s, beast.id)).toBe(true);
+    const offer = s.fortress.pendingNode!.serviceOffers![0]!;
+    s.bench = Array.from({ length: 8 }, (_, index) => ({
+      uid: `full-${index}`, baseId: offer, star: 1, equips: [], traits: [],
+    }));
+    expect(recruitFortressBeast(s, offer)).toBe(false);
+    expect(s.bench).toHaveLength(8);
+    expect(s.fortress.pendingNode?.serviceResult ?? null).toBeNull();
+  });
+
+  it("blacksmith records authored forge tier once and survives hydration", () => {
+    const s = createModeRun(31, "EndlessPvEFortress");
+    const first = s.fortress.graph.layers[0]![0]!;
+    expect(selectRunFortressNode(s, first.id)).toBe(true);
+    expect(completeRunFortressNode(s)).toBe(true);
     const smith = s.fortress.graph.layers[1]!.find((node) => node.type === "blacksmith")!;
     expect(selectRunFortressNode(s, smith.id)).toBe(true);
-    expect(resolveFortressBlacksmith(s, "forge")).toBe(true);
-    expect(s.fortress.pendingNode?.serviceResult).toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "forge" });
+    expect(resolveFortressBlacksmith(s, "craft")).toBe(true);
+    expect(resolveFortressBlacksmith(s, "temper")).toBe(false);
+    expect(s.fortress.pendingNode?.serviceResult)
+      .toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "craft" });
     const restored = normalizeFortressState(JSON.parse(JSON.stringify(s.fortress)), 999);
-    expect(restored.pendingNode?.serviceResult).toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "forge" });
+    expect(restored.pendingNode?.serviceResult)
+      .toMatchObject({ kind: "blacksmith", forgeTier: 1, serviceId: "craft" });
   });
 });

@@ -331,7 +331,7 @@
 - [ ] **WBS-077: Fortress Services (Pharmacy, Beast Den, Blacksmith)** `§28, A117.3` *(Deps: WBS-076)*
   - **Mô tả:** Các dịch vụ tương tác đặc thù tại các điểm dừng Pháo đài: Dược quán (hồi máu, tăng nộ khởi đầu, mua thuốc kích thích), Hang dã thú (thu phục thú hoang miễn phí), Lò rèn (nâng cấp tier trang bị, rèn đồ hiếm).
   - **Tiêu chí nghiệm thu:** Mỗi dịch vụ chỉ được tương tác 1 lần duy nhất trước khi chuyển sang tầng kế tiếp.
-  - **Audit Note:** ✓ Verify-content audit: Phụ thuộc vào Bản đồ Pháo Đài WBS-076.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-04: A117.3-A117.5 service formulas and one-shot core mutations are implemented. Pharmacy now uses the normal XP curve with an explicit level-25 cap, caps HP at configured start/max HP, and records effective HP plus authored gold/XP/level metadata. Beast Den uses deterministic unique catalog offers, canonical bench capacity, normal 1★ recruitment and the same auto-merge path as Planning. Blacksmith records authored forge tier + selected service id without a duplicate Fortress item model. The three service wrappers still have no production caller under `src/`, so A117 persist-after-service/continue-to-Planning wiring is not end-to-end; WBS-077 stays unchecked.
 - [ ] **WBS-078: Co-op Multiplayer WebRTC Host-Relay** `§29, A21, A47, A114, A118` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
   - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
