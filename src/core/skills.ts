@@ -181,19 +181,23 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   if (cached) return cached;
   const u = getUnit(baseId);
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
+  const s = parseSkill(detail);
+  const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
-    const s = parseSkill(detail);
-    const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, detail].filter(Boolean).join(" ");
     s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
-  // Boss skill prose has no numbers. ponytail: battlefield-wide 1.5× primary-stat hit plus parsed status words;
-  // replace with authored boss numbers when the data ships them.
-  const s = parseSkill(u.skill.detailVi ?? "");
-  const magic = u.stats.matk > u.stats.atk;
-  s.side = "enemy";
-  s.area = "all";
-  s.selector = "frontline_default";
-  s.damage ??= { base: 0, scale: 1.5, stat: magic ? "matk" : "atk", type: magic ? "magic" : "physical" };
+
+  // A84 boss rows currently author targeting/family identity and rage costs, but no numeric effect payloads.
+  // Keep sparse boss skills inert rather than synthesizing damage/heal/shield/status magnitudes.
+  if (u.skill.family === "global_fire" || u.skill.family === "damage_shield_taunt") {
+    s.side = "enemy";
+    s.area = "all";
+  } else if (u.skill.family === "cone_shot" || u.skill.family === "chain_shock") {
+    s.side = "enemy";
+  } else if (u.skill.family === "self_regen_team_heal") {
+    s.side = "self";
+  }
+  s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
   return (CACHE[key] = s);
 }

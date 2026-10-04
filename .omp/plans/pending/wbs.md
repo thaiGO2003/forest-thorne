@@ -126,7 +126,7 @@
 - [ ] **WBS-028: Multi-Phase Boss AI & Telegraph Systems** `§16.15, §19, A34` *(Deps: WBS-019, WBS-024)*
   - **Mô tả:** Cơ chế chiến đấu của 5 Trùm Cuối (Cổ Thụ Rừng Rậm, Ma Sói Bóng Đêm, Bão Ưng Sấm Sét, Thạch Quái Khổng Lồ, Nhện Chúa Hang Sâu) với thanh nộ độc lập, đổi phase khi dưới 50% HP và hiển thị vùng cảnh báo telegraph đỏ trước khi tung chiêu nộ.
   - **Tiêu chí nghiệm thu:** Boss chuyển giai đoạn mượt mà; telegraph hiển thị đúng ô chịu đòn trước 1 lượt đánh.
-  - **Audit Note:** ⚠ Verify-combat audit: Cần thiết để đáp ứng yêu cầu boss fight kịch tính của mega prompt.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-04: A34/A84 xác nhận roster boss hiện hành là Ember Dragon / Storm Phoenix / Venom Hydra / Earth Colossus / Tempest Jelly; lịch round và rage cost theo từng boss/star đã có. Đã bỏ fallback sai tự chế mọi boss thành đòn 1.5× toàn sân; boss sparse giờ chỉ giữ targeting/family identity được author và không sinh damage/heal/shield/status magnitude khi manifest chưa có số. WBS prose về 5 tên boss cũ, phase dưới 50% HP và telegraph đỏ trước 1 lượt không có contract authoritative tương ứng trong A34/A84 hiện tại, nên không được bịa thêm và mục này vẫn để chưa hoàn thành.
 - [x] **WBS-029: AI Archetype & Difficulty Progression Engine (5 Tiers)** `§18, A33` *(Deps: WBS-019, WBS-024)*
   - **Mô tả:** Bộ phân loại 5 cấp độ trí tuệ nhân tạo: EASY, MEDIUM, HARD, NIGHTMARE, TUTORIAL. Điều khiển thuật toán xếp cờ (hàng trước tank, hàng sau dame), tốc độ roll/leveling và tỷ lệ roll tướng theo round.
   - **Tiêu chí nghiệm thu:** AI Nightmare biết xếp cờ khắc chế tộc/hệ người chơi; Tutorial tuân thủ kịch bản 8 vòng.

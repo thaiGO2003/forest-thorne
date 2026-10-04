@@ -454,3 +454,12 @@
 - `vitest.config.ts`: resolver `fix-relative-src-imports` không còn trả fs path cho id đã resolve / có `?raw`/`?url` (trước đây làm hỏng id của Vite và bỏ mất query).
 - Done Criteria §2.3 đạt: `tsc --noEmit` = 0, `pnpm build` = 0, targeted suite 33/33 passed, manifest inventory/census tái sinh không đổi.
 - Wave 2.1 (tách `src/three/` thành engine/scenes/board/units/ui/audio) hoãn vô thời hạn: ngoài phạm vi Done Criteria, blast radius entry/vite/tsconfig/test globs.
+
+## 2026-10-04 — WBS-028 logic-only boss audit
+
+- Audited WBS-028 against current A34/A84 and generated boss catalog. Canonical scheduled bosses remain `boss_ember_dragon`, `boss_storm_phoenix`, `boss_venom_hydra`, `boss_earth_colossus`, and `boss_tempest_jelly`; the older WBS boss names/phase/telegraph prose is not present in the active authoritative boss contract.
+- `src/core/skills.ts`: removed the fabricated universal boss fallback that forced every boss to `enemy + all + 1.5×` primary-stat damage. Sparse boss rows now parse only authored star payloads and preserve family/targeting identity (`global_fire`, `damage_shield_taunt`, `cone_shot`, `chain_shock`, `self_regen_team_heal`) without inventing missing damage, heal, shield, DoT, rage-drain, or status magnitudes.
+- `tests/skills.test.ts`: replaced the implementation-pinning “all bosses are battlefield-wide damage” assertion with regressions for distinct boss targeting plus authored rage thresholds (Storm Phoenix 1★ = 2 rage; Ember Dragon 1★ = 3 rage).
+- Verification: `corepack pnpm exec vitest run tests/skills.test.ts tests/combat.test.ts tests/encounter-env.test.ts` → 3 files / 18 tests passed; `corepack pnpm typecheck` → passed.
+- Non-visual Vite SSR smoke through real `simulate()`: Storm Phoenix started at full rage and emitted `{"t":"cast","src":"boss","targets":["L1","L0","L2"]}`; the next event was another unit's basic attack, confirming no synthesized boss effect event was injected after the sparse cast.
+- WBS-028 remains unchecked: no authoritative <50% HP phase transition or one-action telegraph simulation contract exists in current A34/A84, and visual telegraph rendering is outside this logic-only audit.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UNITS } from "../src/content/catalog";
+import { makeFighter } from "../src/core/combat";
 import { parseSkill, skillSpec } from "../src/core/skills";
 
 describe("skill parser", () => {
@@ -18,7 +18,26 @@ describe("skill parser", () => {
     expect(parseSkill("Cuộn tròn, tăng 20 DEF và 20 MDEF trong 2 lượt."))
       .toMatchObject({ side: "self", buffs: [{ stat: "def", value: 20, turns: 2 }, { stat: "mdef", value: 20, turns: 2 }] });
   });
-  it("bosses always resolve to a battlefield-wide damaging skill", () => {
-    for (const b of UNITS.filter((u) => u.boss)) expect(skillSpec(b.id, 1)).toMatchObject({ side: "enemy", area: "all", damage: expect.any(Object) });
+  it("bosses preserve authored targeting without synthesizing missing effect magnitudes", () => {
+    expect(skillSpec("boss_ember_dragon", 1)).toMatchObject({
+      side: "enemy", area: "all", selector: "frontline_default", damage: null, dots: [],
+    });
+    expect(skillSpec("boss_storm_phoenix", 1)).toMatchObject({
+      side: "enemy", area: "single", selector: "front_cone", damage: null,
+    });
+    expect(skillSpec("boss_tempest_jelly", 1)).toMatchObject({
+      side: "enemy", area: "single", selector: "highest_rage", damage: null,
+    });
+    expect(skillSpec("boss_earth_colossus", 1)).toMatchObject({
+      side: "enemy", area: "all", damage: null, controls: [], shield: null,
+    });
+    expect(skillSpec("boss_venom_hydra", 1)).toMatchObject({
+      side: "self", area: "single", selector: "self", heal: null, selfHealPctMaxHp: 0,
+    });
+  });
+
+  it("boss rage thresholds come from the authored per-star profiles", () => {
+    expect(makeFighter({ uid: "phoenix", baseId: "boss_storm_phoenix", star: 1, row: 2, col: 7 }, "R").rageMax).toBe(2);
+    expect(makeFighter({ uid: "dragon", baseId: "boss_ember_dragon", star: 1, row: 2, col: 7 }, "R").rageMax).toBe(3);
   });
 });
