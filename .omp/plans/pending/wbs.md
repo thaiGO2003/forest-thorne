@@ -368,10 +368,10 @@
   - **Mô tả:** Tích hợp công nghệ hỗ trợ tiếp cận Accessibility: đọc to thông tin quân cờ trong Thư viện bằng Web Speech Synthesis API, hỗ trợ chế độ tương phản cao High Contrast và phụ đề chú thích hiệu ứng âm thanh.
   - **Tiêu chí nghiệm thu:** Giúp người khiếm thị/khiếm thính dễ dàng tiếp cận và thưởng thức trò chơi.
   - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn tiếp cận §43.
-- [ ] **WBS-087: Service Worker & Offline PWA Delivery** `§44, A51.3` *(Deps: WBS-052)*
+- [ ] **WBS-087: Service Worker & Offline PWA Delivery** `§44, A51.4` *(Deps: WBS-052)*
   - **Mô tả:** Đăng ký Service Worker và cấu hình Web App Manifest (PWA): lưu bộ nhớ đệm cache các tài nguyên tĩnh, cho phép cài đặt game lên màn hình chính điện thoại và chơi hoàn toàn offline không cần internet.
   - **Tiêu chí nghiệm thu:** Không bị gián đoạn khi mất kết nối mạng đột ngột; tự động cập nhật khi có phiên bản mới.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn phân phối PWA §44.
+  - **Audit Note:** ⚠ Headless/runtime portion implemented and verified: production-only registration, offline cache strategies, old-cache cleanup, version handshake/update/skip-waiting/reload guard, manifest wiring, and build output are covered. Task remains open because installability still needs favicon/app-icon visual assets, which are intentionally out of scope for the current non-visual workstream.
 
 ### Phase: POLISH (0/6 hoàn thành)
 
