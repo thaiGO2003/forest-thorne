@@ -454,3 +454,11 @@
 - `vitest.config.ts`: resolver `fix-relative-src-imports` không còn trả fs path cho id đã resolve / có `?raw`/`?url` (trước đây làm hỏng id của Vite và bỏ mất query).
 - Done Criteria §2.3 đạt: `tsc --noEmit` = 0, `pnpm build` = 0, targeted suite 33/33 passed, manifest inventory/census tái sinh không đổi.
 - Wave 2.1 (tách `src/three/` thành engine/scenes/board/units/ui/audio) hoãn vô thời hạn: ngoài phạm vi Done Criteria, blast radius entry/vite/tsconfig/test globs.
+
+## 2026-10-04T16:39:00+07:00 — WBS-027 non-visual staging contract
+
+- Added renderer-neutral A56 game-speed scaling and A119 basic melee staging metadata without changing synchronous combat simulation.
+- `MELEE_FRONT` and `ASSASSIN_BACK` use the canonical 140/35/45/140 ms phases; damage-bearing basic events are marked at semantic impact only.
+- Assassin staging is metadata-only and does not mutate canonical fighter or placement coordinates.
+- Visual movement, VFX, animation playback, and rendering consumers remain intentionally out of scope.
+- Verification: `corepack pnpm typecheck`; `corepack pnpm exec vitest --run tests/combat-staging.test.ts tests/combat.test.ts` (12/12); Vite SSR smoke for impact/total timing and 6x display multiplier.
