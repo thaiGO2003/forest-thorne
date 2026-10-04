@@ -401,7 +401,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
     // Only handle if clicking canvas directly (not UI overlays)
     if (e.target !== stage.renderer.domElement) return;
 
-    const hit = unitMgr.pickScreen(e.clientX, e.clientY, stage.camera, state);
+    const hit = unitMgr.pickScreen(e.clientX, e.clientY, stage.renderer.domElement, stage.camera, state);
     if (!hit) {
       selectedTarget = null;
       unitMgr.select(null);

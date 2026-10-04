@@ -24,7 +24,9 @@ export function cellToWorld(c: Cell, p: Profile): { x: number; z: number } {
 /** World point → logical cell. River interior (|x| < BLOCK/2) and off-board points return null. */
 export function worldToLogical(x: number, z: number, p: Profile) {
   if (Math.abs(x) < BLOCK / 2) return null;
-  return toLogical(Math.round(x / BLOCK + (VISUAL_COLS - 1) / 2), Math.round(z / BLOCK + (totalRows(p) - 1) / 2), p);
+  const visualX = Math.round(x / BLOCK + (VISUAL_COLS - 1) / 2);
+  const visualZ = Math.round(z / BLOCK + (totalRows(p) - 1) / 2);
+  return toLogical(Object.is(visualX, -0) ? 0 : visualX, Object.is(visualZ, -0) ? 0 : visualZ, p);
 }
 
 export interface Arena {

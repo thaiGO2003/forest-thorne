@@ -560,3 +560,10 @@
 - Assassin staging is metadata-only and does not mutate canonical fighter or placement coordinates.
 - Visual movement, VFX, animation playback, and rendering consumers remain intentionally out of scope.
 - Verification: `corepack pnpm typecheck`; `corepack pnpm exec vitest --run tests/combat-staging.test.ts tests/combat.test.ts` (12/12); Vite SSR smoke for impact/total timing and 6x display multiplier.
+## 2026-10-04T16:53:00+07:00 — WBS-037 non-visual board picking contract
+
+- Added a renderer-neutral board picking controller using Pointer Events, canvas-relative client coordinates, Three.js raycasting, and canonical `worldToLogical()` mapping.
+- Reused the same canvas-to-ray helper in planning unit picking so offset/resized canvases no longer depend on `window.innerWidth` / `window.innerHeight`.
+- River coordinates remain non-logical even if raycast geometry exists there; signed-zero edge coordinates are normalized at the canonical arena mapping boundary.
+- No highlights, VFX, CSS, rendering chrome, shaders, camera cosmetics, or other visual behavior were added.
+- Verification: `corepack pnpm exec vitest --run tests/board-picking.test.ts tests/arena-mapping.test.ts tests/planning-unit-manager.test.ts` (9/9); `corepack pnpm typecheck`; tilted-camera Vite SSR smoke picked logical cell (9,4) with canvas offset [143,77] and returned none for river geometry.

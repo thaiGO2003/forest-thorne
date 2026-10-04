@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { benchPerimeter, toVisual, type Profile } from "../board/geometry";
 import { cellToWorld } from "./arena";
+import { setRayFromClientPoint, type CanvasBoundsSource } from "./boardPicking";
 import { createUnitModel } from "./units/factory";
 import type { UnitModel } from "./units/kit";
 import type { OwnedUnit, RunState } from "../core/run";
@@ -29,6 +30,8 @@ export class UnitManager {
   private selectedKey: string | null = null;
   private readonly selectRing: THREE.Mesh;
   private readonly destMarkers: THREE.Mesh[] = [];
+  private readonly screenRaycaster = new THREE.Raycaster();
+  private readonly screenNdc = new THREE.Vector2();
   private readonly profile: Profile = "solo";
 
   constructor(private readonly scene: THREE.Scene) {
@@ -228,12 +231,9 @@ export class UnitManager {
     this.setSelected(target);
   }
 
-  pickScreen(clientX: number, clientY: number, camera: THREE.Camera, s: RunState): { type: "board" | "bench"; index: number; unit?: OwnedUnit } | null {
-    const raycaster = new THREE.Raycaster();
-    const x = (clientX / window.innerWidth) * 2 - 1;
-    const y = -(clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-    const hit = this.pick(raycaster, s);
+  pickScreen(clientX: number, clientY: number, canvas: CanvasBoundsSource, camera: THREE.Camera, s: RunState): { type: "board" | "bench"; index: number; unit?: OwnedUnit } | null {
+    if (!setRayFromClientPoint(canvas, clientX, clientY, camera, this.screenRaycaster, this.screenNdc)) return null;
+    const hit = this.pick(this.screenRaycaster, s);
     if (!hit) return null;
     if (hit.unitTarget) {
       return { type: hit.unitTarget.type, index: hit.unitTarget.index, unit: hit.unitTarget.unit };
