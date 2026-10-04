@@ -463,3 +463,25 @@
 - Verification: `corepack pnpm exec vitest run tests/skills.test.ts tests/combat.test.ts tests/encounter-env.test.ts` → 3 files / 18 tests passed; `corepack pnpm typecheck` → passed.
 - Non-visual Vite SSR smoke through real `simulate()`: Storm Phoenix started at full rage and emitted `{"t":"cast","src":"boss","targets":["L1","L0","L2"]}`; the next event was another unit's basic attack, confirming no synthesized boss effect event was injected after the sparse cast.
 - WBS-028 remains unchecked: no authoritative <50% HP phase transition or one-action telegraph simulation contract exists in current A34/A84, and visual telegraph rendering is outside this logic-only audit.
+
+## 2026-10-04 — WBS-032 logic-only result-tally audit
+
+- Audited WBS-032 against §16.17, A18, A87 and A121 plus the canonical `CombatEvent` / `CombatResult` shapes in `src/core/combat.ts` and result economy in `src/core/run.ts`.
+- The authoritative result contract covers winner/survivors, mode damage, base/star/bounty reward decomposition, loot, progression and exactly-once handoff. It does not define per-unit damage-dealt/damage-taken/healing totals, an MVP score, or an MVP tie-break rule.
+- Event-log attribution is currently asymmetric: direct `basic`/`skill` damage and `heal` events carry `src`, while `dot` events carry only `dst`, `kind` and `dmg`; environment poison-aura damage is also emitted as `dot` without a source. A reducer therefore cannot reconstruct 100% per-unit damage ownership from the canonical log.
+- No combat schema or tally logic was changed: adding DoT ownership or an MVP formula here would invent semantics absent from the active spec. WBS-032 remains unchecked until those contracts are authored.
+
+## 2026-10-04 — WBS-074 logic-only tutorial audit
+
+- Audited A94/A108 tutorial core behavior in `src/core/tutorial.ts` and canonical run wrappers. Script gating, tutorial event progression, persistence, and Skip release are implemented and covered by targeted tests.
+- UI-originated tutorial events `open_history`, `close_history`, `open_settings`, `close_settings`, and `show_attack_preview` have no canonical core producer; Master HUD/Combat Scene integration is outside this logic-only pass.
+- Verification retained from this audit: `corepack pnpm exec vitest run tests/tutorial.test.ts tests/persistence.test.ts` → 2 files / 20 tests passed. WBS-074 remains unchecked.
+
+## 2026-10-04 — WBS-075 logic-only achievement persistence audit
+
+- `src/core/achievements.ts`: collection profile now normalizes to A104.1 version 2 with canonical `equippedSkinByUnitId`, deduped non-empty strings, and `.lofi_` → `.loli_` migration for unlocked/equipped skin ids.
+- Added lower-level A104 persistence primitives `claimAchievementSkin(...)` and `equipUnitSkin(...)`; higher-level `claimSkinReward(...)` and `equipCollectionSkin(...)` retain achievement/unlocked-skin eligibility checks.
+- `src/core/save.ts`: canonical side-store keys are now `forest_throne_endless_achievements_v1` and `forest_throne_collection_profile_v1`; load tolerates malformed/storage failures, save normalizes first, collection-only clear removes only the collection key, and full progress clear removes run + achievement + collection while ordinary run clear preserves account profiles.
+- Regression coverage verifies exact keys, v2 canonical shape, legacy collection-field compatibility, skin-id migration, independent idempotent claim mutations, invalid/empty equip removal, import normalization, corruption tolerance, normalize-before-save, and scoped clears.
+- Verification: `corepack pnpm exec vitest run tests/achievements-history.test.ts tests/persistence.test.ts` → 2 files / 21 tests passed; `corepack pnpm typecheck` → passed.
+- Runtime integration gap remains: production code has no account-profile owner/caller for `recordEndlessAchievementEvent(...)`; only tests exercise it. WBS-075 therefore remains unchecked rather than claiming end-to-end completion.

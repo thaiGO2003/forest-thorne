@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRun } from "../src/core/run";
 import {
-  ACHIEVEMENTS_KEY, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope, importProgress, inspectSave,
-  migrate, PROGRESS_KEY, remapCoopHost, saveCoopSlot, saveRun, selectCoopSlot,
+  ACHIEVEMENTS_KEY, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope,
+  importProgress, inspectSave, loadAchievementProfile, loadCollectionProfile, migrate, PROGRESS_KEY, remapCoopHost,
+  saveCollectionProfile, saveCoopSlot, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
 
@@ -43,20 +44,63 @@ describe("persistence A57", () => {
     expect(s.setItem.mock.calls.length).toBe(writes);
   });
 
-  it("import persist=false never writes; persist=true restores profiles", () => {
+  it("import persist=false never writes; persist=true restores normalized canonical profiles", () => {
     const s = mem();
     const text = JSON.stringify({
       version: 4,
       payload: { player: createRun(3) },
       achievementsProfile: { version: 1, stats: { runs_started: 4, highest_level: 3 } },
-      collectionProfile: { version: 1, unlockedSkinIds: ["skin_a"], claimedAchievementIds: [], equippedSkinByUnit: {} },
+      collectionProfile: {
+        version: 1,
+        unlockedSkinIds: ["skin.lofi_a", "skin.lofi_a"],
+        claimedAchievementIds: [],
+        equippedSkinByUnit: { ant_guard: "skin.lofi_a" },
+      },
     });
     expect(importProgress(s, text, false)?.player?.round).toBe(1);
     expect(s.setItem).not.toHaveBeenCalled();
     expect(importProgress(s, "[]", true)).toBeNull();
     importProgress(s, text, true);
+    expect(ACHIEVEMENTS_KEY).toBe("forest_throne_endless_achievements_v1");
+    expect(COLLECTION_KEY).toBe("forest_throne_collection_profile_v1");
     expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!).stats).toMatchObject({ runs_started: 4, highest_level: 3 });
-    expect(JSON.parse(s.m[COLLECTION_KEY]!).unlockedSkinIds).toEqual(["skin_a"]);
+    expect(JSON.parse(s.m[COLLECTION_KEY]!)).toEqual({
+      version: 2,
+      unlockedSkinIds: ["skin.loli_a"],
+      claimedAchievementIds: [],
+      equippedSkinByUnitId: { ant_guard: "skin.loli_a" },
+    });
+  });
+
+  it("side profile stores tolerate corruption, normalize before save, and clear only their own key", () => {
+    const s = mem();
+    s.m[ACHIEVEMENTS_KEY] = "{bad";
+    s.m[COLLECTION_KEY] = "{bad";
+    expect(loadAchievementProfile(s).stats).toMatchObject({ runs_started: 0, highest_level: 1 });
+    expect(loadCollectionProfile(s)).toEqual({
+      version: 2,
+      unlockedSkinIds: [],
+      claimedAchievementIds: [],
+      equippedSkinByUnitId: {},
+    });
+    saveCollectionProfile(s, {
+      version: 1,
+      unlockedSkinIds: ["skin.lofi_a", "", "skin.lofi_a"],
+      claimedAchievementIds: ["runs_started_1", "runs_started_1"],
+      equippedSkinByUnit: { ant_guard: "skin.lofi_a" },
+    });
+    expect(JSON.parse(s.m[COLLECTION_KEY]!)).toEqual({
+      version: 2,
+      unlockedSkinIds: ["skin.loli_a"],
+      claimedAchievementIds: ["runs_started_1"],
+      equippedSkinByUnitId: { ant_guard: "skin.loli_a" },
+    });
+    Object.assign(s.m, { [PROGRESS_KEY]: "run", [SETTINGS_KEY]: "settings", [ACHIEVEMENTS_KEY]: "{}" });
+    clearCollectionProfile(s);
+    expect(s.m[COLLECTION_KEY]).toBeUndefined();
+    expect(s.m[PROGRESS_KEY]).toBe("run");
+    expect(s.m[ACHIEVEMENTS_KEY]).toBe("{}");
+    expect(s.m[SETTINGS_KEY]).toBe("settings");
   });
 
   it("hydrates extended run ranges, shop capacity and uid allocator state without truncation", () => {

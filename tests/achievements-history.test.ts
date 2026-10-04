@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  ACHIEVEMENT_CATEGORIES, achievementRows, claimSkinReward, createAchievementProfile, createCollectionProfile,
-  equipCollectionSkin, rankAchievementRows, recordEndlessAchievementEvent, unlockedAchievementCount,
-  validateAchievementRewards,
+  ACHIEVEMENT_CATEGORIES, achievementRows, claimAchievementSkin, claimSkinReward, createAchievementProfile,
+  createCollectionProfile, equipCollectionSkin, equipUnitSkin, normalizeCollectionProfile, rankAchievementRows,
+  recordEndlessAchievementEvent, unlockedAchievementCount, validateAchievementRewards,
 } from "../src/core/achievements";
 import {
   COMBAT_HISTORY_CAP, createCombatHistory, createPlanningHistory, filterPlanningHistory, PLANNING_HISTORY_CAP,
@@ -36,6 +36,38 @@ describe("achievement + collection profile", () => {
     const ranked = rankAchievementRows(p, createCollectionProfile(), [mapping]);
     expect(ranked[0]?.id).toBe("runs_started_1");
     expect(ranked[0]?.claimable).toBe(true);
+  });
+
+  it("normalizes the A104 collection profile shape and legacy skin ids", () => {
+    const unitId = NORMAL_UNITS[0]!.id;
+    expect(normalizeCollectionProfile({
+      version: 1,
+      unlockedSkinIds: ["skin.lofi_alpha", "skin.lofi_alpha", "", 7],
+      claimedAchievementIds: ["runs_started_1", "runs_started_1", ""],
+      equippedSkinByUnit: { [unitId]: "skin.lofi_old" },
+      equippedSkinByUnitId: { [unitId]: "skin.lofi_alpha" },
+    })).toEqual({
+      version: 2,
+      unlockedSkinIds: ["skin.loli_alpha"],
+      claimedAchievementIds: ["runs_started_1"],
+      equippedSkinByUnitId: { [unitId]: "skin.loli_alpha" },
+    });
+  });
+
+  it("applies idempotent collection claim/equip persistence primitives", () => {
+    const unitId = NORMAL_UNITS[0]!.id;
+    const c = createCollectionProfile();
+    expect(claimAchievementSkin(c, "runs_started_1", "")).toBe(true);
+    expect(claimAchievementSkin(c, "", "skin.lofi_reward")).toBe(true);
+    expect(claimAchievementSkin(c, "runs_started_1", "skin.loli_reward")).toBe(false);
+    expect(c).toMatchObject({
+      claimedAchievementIds: ["runs_started_1"],
+      unlockedSkinIds: ["skin.loli_reward"],
+    });
+    expect(equipUnitSkin(c, unitId, "skin.lofi_reward")).toBe(true);
+    expect(c.equippedSkinByUnitId[unitId]).toBe("skin.loli_reward");
+    expect(equipUnitSkin(c, unitId, 42)).toBe(true);
+    expect(c.equippedSkinByUnitId[unitId]).toBeUndefined();
   });
 
   it("validates achievement skin mapping invariants", () => {

@@ -142,7 +142,7 @@
 - [ ] **WBS-032: Combat Result Tally & Damage Distribution Breakdown** `§16.17, A18, A87, A121` *(Deps: WBS-019, WBS-025)*
   - **Mô tả:** Bảng thống kê kết quả trận đấu: tổng sát thương gây ra của từng quân cờ, lượng sát thương gánh chịu, lượng máu hồi phục, chi tiết vàng thưởng nhận được (thắng/chuỗi/bounty).
   - **Tiêu chí nghiệm thu:** Số liệu khớp 100% với event log combat simulation; phân định rõ MVP của trận.
-  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ màn hình tổng kết trận đánh.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-04: §16.17/A18/A87/A121 author round outcome, survivor counts, mode damage, reward decomposition, loot and idempotent result handoff, but do **not** define per-unit damage/heal tally semantics, MVP scoring, or tie-breaks. Current `CombatEvent` direct hits/heals have `src`, while DoT/environment damage events are `{ t: "dot", dst, kind, dmg }` with no source ownership; therefore the stated “100% event-log” per-unit attribution and MVP acceptance cannot be implemented truthfully without a new authored contract. Keep unchecked; do not invent formulas or DoT ownership.
 
 ### Phase: WORLD (4/16 hoàn thành)
 
@@ -319,11 +319,11 @@
 - [ ] **WBS-074: 8-Round Scripted Tutorial State Machine** `§15, A94, A108` *(Deps: WBS-004, WBS-056, WBS-066)*
   - **Mô tả:** Cỗ máy trạng thái hướng dẫn tân thủ 8 vòng đấu theo kịch bản chuẩn: Vòng 1 Mua & Đặt cờ, Vòng 2 Reroll & Kinh tế, Vòng 3 Bán cờ & Nhật ký, Vòng 4 Soi cờ & Tooltip, Vòng 5 Gắn Giáp Máu, Vòng 6 Ghép Bùa Xanh, Vòng 7 Chọn Lõi, Vòng 8 Đánh Boss & Tốt nghiệp.
   - **Tiêu chí nghiệm thu:** Khóa cứng các hành động nằm ngoài kịch bản; có nút Bỏ qua hướng dẫn (Skip) giải phóng hoàn toàn.
-  - **Audit Note:** ✓ Verify-content audit: Cần kết nối với Master HUD và Combat Scene.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-04: A94/A108 core state machine, canonical action gates, skip release, and tutorial persistence pass targeted coverage. Master HUD/Combat Scene integration plus UI-originated events (`open_history`, `close_history`, `open_settings`, `close_settings`, `show_attack_preview`) remain presentation integration work, so WBS-074 stays unchecked.
 - [ ] **WBS-075: Endless Achievements & Profile Rewards System** `§27, A36, A104.1, A104.2` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Hệ thống thành tựu cấp tài khoản độc lập với lượt chơi: ghi nhận kỷ lục vòng cao nhất, tổng số trận thắng, số lượng cờ đã mua, số lượt reroll,... Tự động mở khóa danh hiệu và skin trang phục độc quyền.
   - **Tiêu chí nghiệm thu:** Không bị xóa khi thua game (Game Over); lưu riêng trong profile tài khoản.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-04: A104 persistence contract corrected to canonical achievement/collection keys, collection profile v2, `.lofi_`→`.loli_` normalization, idempotent claim/equip primitives, corruption-tolerant loading, normalize-before-save, and scoped clears. No production account-profile owner/caller currently emits `recordEndlessAchievementEvent(...)`, so end-to-end runtime achievement accumulation remains unwired and WBS-075 stays unchecked.
 - [ ] **WBS-076: 7-Layer Directed Fortress Map System** `§28, A20, A117` *(Deps: WBS-004, WBS-014, WBS-050)*
   - **Mô tả:** Bản đồ đường đi chiến thuật 7 tầng cho chế độ Endless PvE Fortress: các nhánh rẽ lựa chọn giữa Quái thường (battle), Tinh anh (elite), Trùm (boss), Chợ (shop), Dược quán (pharmacy), Hang dã thú (beast_den), Lò rèn (blacksmith).
   - **Tiêu chí nghiệm thu:** Tạo nhánh ngẫu nhiên theo hạt giống; người chơi chỉ có thể tiến lên, không thể lùi lại tầng cũ.

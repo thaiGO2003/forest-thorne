@@ -3,7 +3,7 @@ import { UNIT_BY_ID } from "../content/catalog";
 import type { GameMode } from "./modes";
 
 export const ACHIEVEMENT_PROFILE_VERSION = 1;
-export const COLLECTION_PROFILE_VERSION = 1;
+export const COLLECTION_PROFILE_VERSION = 2;
 
 export const ACHIEVEMENT_THRESHOLDS = {
   best_round: [2, 3, 5, 8, 12, 16, 20, 25, 30, 40],
@@ -47,7 +47,7 @@ export interface CollectionProfile {
   version: number;
   unlockedSkinIds: string[];
   claimedAchievementIds: string[];
-  equippedSkinByUnit: Record<string, string>;
+  equippedSkinByUnitId: Record<string, string>;
 }
 
 const DEFAULT_STATS: AchievementStats = {
@@ -76,6 +76,10 @@ const nonNegativeInt = (value: unknown, fallback = 0): number => {
 const uniqueStrings = (value: unknown): string[] => Array.isArray(value)
   ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length > 0))]
   : [];
+const normalizeLegacySkinId = (value: string): string => value.split(".lofi_").join(".loli_");
+const uniqueSkinIds = (value: unknown): string[] => [
+  ...new Set(uniqueStrings(value).map(normalizeLegacySkinId)),
+];
 
 export function createAchievementProfile(): AchievementProfile {
   return { version: ACHIEVEMENT_PROFILE_VERSION, stats: { ...DEFAULT_STATS } };
@@ -94,22 +98,28 @@ export function normalizeAchievementProfile(value: unknown): AchievementProfile 
 }
 
 export function createCollectionProfile(): CollectionProfile {
-  return { version: COLLECTION_PROFILE_VERSION, unlockedSkinIds: [], claimedAchievementIds: [], equippedSkinByUnit: {} };
+  return { version: COLLECTION_PROFILE_VERSION, unlockedSkinIds: [], claimedAchievementIds: [], equippedSkinByUnitId: {} };
 }
 
 export function normalizeCollectionProfile(value: unknown): CollectionProfile {
   const raw = record(value);
   if (!raw) return createCollectionProfile();
-  const equippedRaw = record(raw.equippedSkinByUnit);
-  const equippedSkinByUnit: Record<string, string> = {};
-  if (equippedRaw) for (const [unitId, skinId] of Object.entries(equippedRaw)) {
-    if (UNIT_BY_ID.has(unitId) && typeof skinId === "string" && skinId) equippedSkinByUnit[unitId] = skinId;
+  const legacyEquipped = record(raw.equippedSkinByUnit);
+  const canonicalEquipped = record(raw.equippedSkinByUnitId);
+  const equippedSkinByUnitId: Record<string, string> = {};
+  for (const equippedRaw of [legacyEquipped, canonicalEquipped]) {
+    if (!equippedRaw) continue;
+    for (const [unitId, skinId] of Object.entries(equippedRaw)) {
+      if (UNIT_BY_ID.has(unitId) && typeof skinId === "string" && skinId) {
+        equippedSkinByUnitId[unitId] = normalizeLegacySkinId(skinId);
+      }
+    }
   }
   return {
     version: COLLECTION_PROFILE_VERSION,
-    unlockedSkinIds: uniqueStrings(raw.unlockedSkinIds),
+    unlockedSkinIds: uniqueSkinIds(raw.unlockedSkinIds),
     claimedAchievementIds: uniqueStrings(raw.claimedAchievementIds),
-    equippedSkinByUnit,
+    equippedSkinByUnitId,
   };
 }
 
@@ -226,25 +236,46 @@ export function validateAchievementRewards(
   return errors;
 }
 
+export function claimAchievementSkin(
+  collection: CollectionProfile, achievementId: string, skinId: string,
+): boolean {
+  let changed = false;
+  if (achievementId && !collection.claimedAchievementIds.includes(achievementId)) {
+    collection.claimedAchievementIds.push(achievementId);
+    changed = true;
+  }
+  const normalizedSkinId = skinId ? normalizeLegacySkinId(skinId) : "";
+  if (normalizedSkinId && !collection.unlockedSkinIds.includes(normalizedSkinId)) {
+    collection.unlockedSkinIds.push(normalizedSkinId);
+    changed = true;
+  }
+  return changed;
+}
+
+export function equipUnitSkin(collection: CollectionProfile, unitId: string, skinId: unknown): boolean {
+  if (!UNIT_BY_ID.has(unitId)) return false;
+  if (typeof skinId !== "string" || skinId.length === 0) {
+    const changed = unitId in collection.equippedSkinByUnitId;
+    delete collection.equippedSkinByUnitId[unitId];
+    return changed;
+  }
+  const normalizedSkinId = normalizeLegacySkinId(skinId);
+  if (collection.equippedSkinByUnitId[unitId] === normalizedSkinId) return false;
+  collection.equippedSkinByUnitId[unitId] = normalizedSkinId;
+  return true;
+}
+
 export function claimSkinReward(
   achievements: AchievementProfile, collection: CollectionProfile, mapping: AchievementRewardMapping,
 ): boolean {
   const row = achievementRows(achievements).find((item) => item.id === mapping.achievementId);
   if (!row?.unlocked || collection.claimedAchievementIds.includes(mapping.achievementId)) return false;
-  collection.claimedAchievementIds.push(mapping.achievementId);
-  if (!collection.unlockedSkinIds.includes(mapping.skinId)) collection.unlockedSkinIds.push(mapping.skinId);
-  return true;
+  return claimAchievementSkin(collection, mapping.achievementId, mapping.skinId);
 }
 
 export function equipCollectionSkin(collection: CollectionProfile, unitId: string, skinId: string | null): boolean {
-  if (!UNIT_BY_ID.has(unitId)) return false;
-  if (skinId === null) {
-    delete collection.equippedSkinByUnit[unitId];
-    return true;
-  }
-  if (!collection.unlockedSkinIds.includes(skinId)) return false;
-  collection.equippedSkinByUnit[unitId] = skinId;
-  return true;
+  if (skinId !== null && !collection.unlockedSkinIds.includes(normalizeLegacySkinId(skinId))) return false;
+  return equipUnitSkin(collection, unitId, skinId);
 }
 
 export interface RankedAchievementRow extends AchievementRow { rewardSkinId?: string; claimed: boolean; claimable: boolean }

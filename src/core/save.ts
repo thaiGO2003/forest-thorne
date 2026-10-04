@@ -21,8 +21,8 @@ import type { OwnedUnit, RunState } from "./run";
 
 export const PROGRESS_KEY = "forest_throne_progress_v1";
 export const COOP_KEY = "forest_throne_coop_save_slots_v1";
-export const ACHIEVEMENTS_KEY = "forest_throne_achievements_v1";
-export const COLLECTION_KEY = "forest_throne_collection_v1";
+export const ACHIEVEMENTS_KEY = "forest_throne_endless_achievements_v1";
+export const COLLECTION_KEY = "forest_throne_collection_profile_v1";
 export const ENVELOPE_VERSION = 4;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
 
@@ -253,15 +253,47 @@ export function inspectSave(store: KV): ContinueState {
 
 export function saveRun(store: KV, payload: RunPayload): Envelope {
   const env = createEnvelope(structuredClone(payload), {
-    achievementsProfile: normalizeAchievementProfile(readJson(store, ACHIEVEMENTS_KEY)),
-    collectionProfile: normalizeCollectionProfile(readJson(store, COLLECTION_KEY)),
+    achievementsProfile: loadAchievementProfile(store),
+    collectionProfile: loadCollectionProfile(store),
   });
   store.setItem(PROGRESS_KEY, JSON.stringify(env));
   return env;
 }
 
-function readJson(store: KV, key: string): unknown {
-  try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; }
+function readStoredJson(store: KV, key: string): unknown {
+  try {
+    return JSON.parse(store.getItem(key) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+export function loadAchievementProfile(store: KV): AchievementProfile {
+  return normalizeAchievementProfile(readStoredJson(store, ACHIEVEMENTS_KEY));
+}
+
+export function saveAchievementProfile(store: KV, value: unknown): AchievementProfile {
+  const normalized = normalizeAchievementProfile(value);
+  store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
+export function clearAchievementProfile(store: KV): void {
+  store.removeItem(ACHIEVEMENTS_KEY);
+}
+
+export function loadCollectionProfile(store: KV): CollectionProfile {
+  return normalizeCollectionProfile(readStoredJson(store, COLLECTION_KEY));
+}
+
+export function saveCollectionProfile(store: KV, value: unknown): CollectionProfile {
+  const normalized = normalizeCollectionProfile(value);
+  store.setItem(COLLECTION_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
+export function clearCollectionProfile(store: KV): void {
+  store.removeItem(COLLECTION_KEY);
 }
 
 export type { KV } from "./settings";
@@ -275,8 +307,8 @@ export function importProgress(store: KV, text: string, persist: boolean): RunPa
   if (!m) return null;
   if (persist) {
     store.setItem(PROGRESS_KEY, JSON.stringify(m.envelope));
-    if (isObj(raw) && isObj(raw.achievementsProfile)) store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(m.envelope.achievementsProfile));
-    if (isObj(raw) && isObj(raw.collectionProfile)) store.setItem(COLLECTION_KEY, JSON.stringify(m.envelope.collectionProfile));
+    if (isObj(raw) && isObj(raw.achievementsProfile)) saveAchievementProfile(store, m.envelope.achievementsProfile);
+    if (isObj(raw) && isObj(raw.collectionProfile)) saveCollectionProfile(store, m.envelope.collectionProfile);
   }
   return m.envelope.payload;
 }
@@ -287,8 +319,8 @@ export const importSaveJson = importProgress;
 export const clearRunProgress = (store: KV) => store.removeItem(PROGRESS_KEY);
 export function clearProgress(store: KV) {
   store.removeItem(PROGRESS_KEY);
-  store.removeItem(ACHIEVEMENTS_KEY);
-  store.removeItem(COLLECTION_KEY);
+  clearAchievementProfile(store);
+  clearCollectionProfile(store);
 }
 export const clearAllLocalStorage = (store: Pick<Storage, "clear">) => store.clear();
 
