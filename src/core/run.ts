@@ -552,6 +552,12 @@ export interface RoundResultInput {
 export interface RoundResultSummary {
   winner: RoundWinner;
   goldEarned: number;
+  rewardBreakdown: {
+    baseWinGold: number;
+    starWinGold: number;
+    bountyGold: number;
+    winBonusGold: number;
+  };
   xpEarned: number;
   damageTaken: number;
   hpAfter: number;
@@ -717,15 +723,23 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   s.appliedCombats.push(input.combatId);
 
   let goldEarned = 0;
+  const rewardBreakdown = {
+    baseWinGold: 0,
+    starWinGold: 0,
+    bountyGold: Math.max(0, input.bounty),
+    winBonusGold: 0,
+  };
   let xpEarned = 0;
   let damageTaken = 0;
   let gameOver = false;
   if (input.winner === "LEFT") {
     s.winStreak++;
     s.loseStreak = 0;
-    goldEarned = input.enemyStars.length
-      + input.enemyStars.reduce((sum, star) => sum + Math.max(0, star - 1), 0)
-      + input.bounty + s.winGoldBonus + (techModifiers(s.techLevels).winGold ?? 0);
+    rewardBreakdown.baseWinGold = input.enemyStars.length;
+    rewardBreakdown.starWinGold = input.enemyStars.reduce((sum, star) => sum + Math.max(0, star - 1), 0);
+    rewardBreakdown.winBonusGold = s.winGoldBonus + (techModifiers(s.techLevels).winGold ?? 0);
+    goldEarned = rewardBreakdown.baseWinGold + rewardBreakdown.starWinGold
+      + rewardBreakdown.bountyGold + rewardBreakdown.winBonusGold;
     if (!cfg.creative) {
       s.gold += goldEarned;
       xpEarned = 2;
@@ -734,7 +748,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   } else if (input.winner === "RIGHT") {
     s.winStreak = 0;
     s.loseStreak++;
-    goldEarned = input.bounty;
+    goldEarned = rewardBreakdown.bountyGold;
     if (!cfg.creative) s.gold += goldEarned;
     if (!cfg.creative && s.lossCondition === "NO_HEARTS") {
       damageTaken = lossDamage(cfg.damageRule, input.enemySurvivors);
@@ -744,7 +758,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   } else {
     s.winStreak = 0;
     s.loseStreak = 0;
-    goldEarned = input.bounty;
+    goldEarned = rewardBreakdown.bountyGold;
     if (!cfg.creative) s.gold += goldEarned;
   }
 
@@ -778,7 +792,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
     winStreak: s.winStreak,
   });
   return {
-    winner: input.winner, goldEarned, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,
+    winner: input.winner, goldEarned, rewardBreakdown, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,
     gameOver, incomeEarned, acceptedDrops, rejectedDrops,
   };
 }

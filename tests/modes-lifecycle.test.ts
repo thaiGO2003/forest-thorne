@@ -52,6 +52,12 @@ describe("game modes and run lifecycle", () => {
       ],
     })!;
     expect(result.goldEarned).toBe(5); // 2 enemy base + 1 star + 2 bounty
+    expect(result.rewardBreakdown).toEqual({
+      baseWinGold: 2,
+      starWinGold: 1,
+      bountyGold: 2,
+      winBonusGold: 0,
+    });
     expect(result.xpEarned).toBe(2);
     expect(s.gold).toBeGreaterThan(gold + result.goldEarned); // includes round-3 income
     expect(s.itemBag).toHaveLength(1); // one owned unit -> inventory capacity 1
