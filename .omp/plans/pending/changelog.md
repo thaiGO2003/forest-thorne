@@ -553,3 +553,10 @@
 - WBS-090 remains unchecked: existing geometry/combat tests provide real deterministic coverage, but the complete A31/A53 gate includes networking, PvP Fortress and mod contracts whose production owners are absent. WBS-092 also remains unchecked because the required browser/player-flow acceptance suite does not exist and is outside this non-visual logic pass.
 - WBS-098/A88 remains presentation/input-integration work: `src/ui/modalManager.ts` owns single-modal state/backdrop/Escape behavior, not tactical pointer/wheel priority, phase-gated shortcuts, board-pan start legality, or stale drag/press/pan cleanup. WBS-099 likewise remains unchecked because semantic visual-target plans and tooltip/VFX consumers are presentation-facing even though the provenance logic slice is now implemented.
 - Final focused verification: `corepack pnpm exec vitest --run tests/creative.test.ts tests/combat.test.ts` → 2 files / 29 tests passed; `corepack pnpm typecheck` → passed.
+## 2026-10-04T16:39:00+07:00 — WBS-027 non-visual staging contract
+
+- Added renderer-neutral A56 game-speed scaling and A119 basic melee staging metadata without changing synchronous combat simulation.
+- `MELEE_FRONT` and `ASSASSIN_BACK` use the canonical 140/35/45/140 ms phases; damage-bearing basic events are marked at semantic impact only.
+- Assassin staging is metadata-only and does not mutate canonical fighter or placement coordinates.
+- Visual movement, VFX, animation playback, and rendering consumers remain intentionally out of scope.
+- Verification: `corepack pnpm typecheck`; `corepack pnpm exec vitest --run tests/combat-staging.test.ts tests/combat.test.ts` (12/12); Vite SSR smoke for impact/total timing and 6x display multiplier.
