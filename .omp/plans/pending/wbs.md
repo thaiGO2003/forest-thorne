@@ -85,7 +85,7 @@
   - **Tiêu chí nghiệm thu:** Định dạng số thập phân, % tỷ lệ, hiển thị diff (+/-) đồng bộ trên mọi màn hình UI.
   - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/inspection-recommendations.test.ts.
 
-### Phase: COMBAT (10/14 hoàn thành)
+### Phase: COMBAT (11/14 hoàn thành)
 
 - [x] **WBS-019: Combat Queue & Deterministic Interleaving Engine** `§16.1, §16.14, A11` *(Deps: WBS-004, WBS-005)*
   - **Mô tả:** Hàng đợi lượt đánh xác định: giới hạn cứng 20 chu kỳ. Quét phe TRÁI (cột 4→0, hàng 0→cuối) và phe PHẢI (cột 5→9, hàng 0→cuối). Chia chunk gồm ô trống và unit kế tiếp để đan xen L/R chuẩn xác.
@@ -139,10 +139,10 @@
   - **Mô tả:** Hiệu ứng 3D rơi hòm đồ thưởng: hòm gỗ/bạc/vàng rơi từ trên trời xuống ô địch chết, mở nắp văng nguyên liệu và đồng vàng bay lượn về phía kho tài nguyên người chơi.
   - **Tiêu chí nghiệm thu:** Hiệu ứng diễn ra trong 0.8s, không cản trở luồng bấm nút Vòng tiếp theo.
   - **Audit Note:** ⚠ Verify-world audit: Tách biệt khỏi logic phát thưởng toán học WBS-025.
-- [ ] **WBS-032: Combat Result Tally & Damage Distribution Breakdown** `§16.17, A18, A87, A121` *(Deps: WBS-019, WBS-025)*
+- [x] **WBS-032: Combat Result Tally & Damage Distribution Breakdown** `§16.17, A18, A87, A121` *(Deps: WBS-019, WBS-025)*
   - **Mô tả:** Bảng thống kê kết quả trận đấu: tổng sát thương gây ra của từng quân cờ, lượng sát thương gánh chịu, lượng máu hồi phục, chi tiết vàng thưởng nhận được (thắng/chuỗi/bounty).
   - **Tiêu chí nghiệm thu:** Số liệu khớp 100% với event log combat simulation; phân định rõ MVP của trận.
-  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ màn hình tổng kết trận đánh.
+  - **Audit Note:** ✓ Headless acceptance passed: combat event log now preserves exact HP damage/source provenance, tally derives per-unit/side damage + healing + deterministic MVP, and round-result output exposes base/star/bounty/win-bonus reward decomposition. Result-modal presentation remains isolated in WBS-067; no visual work was added here.
 
 ### Phase: WORLD (4/16 hoàn thành)
 
