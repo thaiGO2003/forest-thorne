@@ -2,10 +2,12 @@
 
 > Chuẩn hóa từ MEGA PROMPT V3 (9731 dòng) • Bao phủ 57 Điều Khoản Kỹ Thuật (§1 - §57) & Phụ Lục A (A1 - A125).
 
-- **Tổng số hạng mục:** 93 tasks
-- **Đã hoàn thành:** 34 tasks (37%)
+- **Tổng số hạng mục:** 102 tasks
+- **Đã hoàn thành:** 34 tasks (33%)
 - **Đang triển khai:** 1 tasks
-- **Chờ thực hiện:** 58 tasks
+- **Chờ thực hiện:** 67 tasks
+
+> **Cross-cutting authority gates:** A54 (conflict precedence) và A99 (product completeness) áp dụng cho mọi WBS item. Khi legacy/prototype mâu thuẫn với Mega Prompt, chỉ giữ một canonical rule; mỗi subsystem phải nêu đủ trigger/state đọc, legality, success mutation, no-op/rejection state, feedback, persistence/mode differences, cleanup và mọi numeric boundary/tie-break/default có liên quan.
 
 ## Danh Sách Phân Rã Công Việc Chi Tiết
 
@@ -68,10 +70,10 @@
   - **Mô tả:** Định nghĩa cấu hình headless cho 4 chế độ: Endless PvE Classic, Endless PvE Fortress, PvP 4 Fortress, Creative Sandbox. Khởi tạo tài nguyên ban đầu, hệ thống bật/tắt (availability), và điều kiện thắng/thua (NO_HEARTS vs NO_UNITS).
   - **Tiêu chí nghiệm thu:** Mode config điều khiển trực tiếp logic round mà không hardcode rải rác; chuẩn hóa ID an toàn.
   - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/modes-lifecycle.test.ts.
-- [x] **WBS-015: Centralized Emoji & Icon Authority Pipeline** `§36, AGENTS.md` *(Deps: WBS-001)*
-  - **Mô tả:** Pipeline quản lý semantic icon và emoji thống nhất theo quy định AGENTS.md, tích hợp fallback emoji-api.com với API key bảo mật qua biến môi trường VITE_EMOJI_API_KEY.
-  - **Tiêu chí nghiệm thu:** Không hardcode emoji rải rác trong code; tuyệt đối không commit API key; fallback Unicode chuẩn.
-  - **Audit Note:** ✓ Verify-foundation audit: Đã kiểm chứng qua tests/emojiIcon.test.ts.
+- [x] **WBS-015: Centralized Emoji & Icon Authority Pipeline** `§36, A61, AGENTS.md` *(Deps: WBS-001)*
+  - **Mô tả:** Pipeline semantic icon/emoji thống nhất: normalize semantic name/Unicode alias, fallback Unicode tức thì, metadata lookup tùy chọn qua emoji-api.com với `VITE_EMOJI_API_KEY`, cache cả lookup thành công/thất bại, và shared Three.js texture cache cho world-space emoji.
+  - **Tiêu chí nghiệm thu:** Không cần API key/network vẫn render đúng; unknown text fallback an toàn; variation-selector alias dùng chung texture key; headless không crash; dispose atlas giải phóng texture, xóa cache và reset readiness; tuyệt đối không commit API key.
+  - **Audit Note:** ✓ Coverage audit 2026-10-04: A61 được map vào owner hiện hữu; `src/core/emojiIcon.ts` và `tests/emojiIcon.test.ts` đã có semantic fallback, API cache, Three texture reuse/headless/disposal coverage.
 - [x] **WBS-016: Structured Skill Schema & Data-Driven Authoring Model** `§46, A41, A83` *(Deps: WBS-002)*
   - **Mô tả:** Mô hình dữ liệu kỹ năng có cấu trúc: phân định rõ mô tả ngắn (pitch) và chi tiết kỹ thuật (target, shape, AoE, duration, damage type physical/magic/true, metrics, cost).
   - **Tiêu chí nghiệm thu:** Đầy đủ các trường định nghĩa kỹ năng phục vụ cả UI thẻ bài và bộ giải quyết combat.
@@ -127,10 +129,10 @@
   - **Mô tả:** Cơ chế chiến đấu của 5 Trùm Cuối (Cổ Thụ Rừng Rậm, Ma Sói Bóng Đêm, Bão Ưng Sấm Sét, Thạch Quái Khổng Lồ, Nhện Chúa Hang Sâu) với thanh nộ độc lập, đổi phase khi dưới 50% HP và hiển thị vùng cảnh báo telegraph đỏ trước khi tung chiêu nộ.
   - **Tiêu chí nghiệm thu:** Boss chuyển giai đoạn mượt mà; telegraph hiển thị đúng ô chịu đòn trước 1 lượt đánh.
   - **Audit Note:** ⚠ Logic-only audit 2026-10-04: A34/A84 xác nhận roster boss hiện hành là Ember Dragon / Storm Phoenix / Venom Hydra / Earth Colossus / Tempest Jelly; lịch round và rage cost theo từng boss/star đã có. Đã bỏ fallback sai tự chế mọi boss thành đòn 1.5× toàn sân; boss sparse giờ chỉ giữ targeting/family identity được author và không sinh damage/heal/shield/status magnitude khi manifest chưa có số. WBS prose về 5 tên boss cũ, phase dưới 50% HP và telegraph đỏ trước 1 lượt không có contract authoritative tương ứng trong A34/A84 hiện tại, nên không được bịa thêm và mục này vẫn để chưa hoàn thành.
-- [x] **WBS-029: AI Archetype & Difficulty Progression Engine (5 Tiers)** `§18, A33` *(Deps: WBS-019, WBS-024)*
-  - **Mô tả:** Bộ phân loại 5 cấp độ trí tuệ nhân tạo: EASY, MEDIUM, HARD, NIGHTMARE, TUTORIAL. Điều khiển thuật toán xếp cờ (hàng trước tank, hàng sau dame), tốc độ roll/leveling và tỷ lệ roll tướng theo round.
-  - **Tiêu chí nghiệm thu:** AI Nightmare biết xếp cờ khắc chế tộc/hệ người chơi; Tutorial tuân thủ kịch bản 8 vòng.
-  - **Audit Note:** ✓ Verify-combat audit: Passed. Đã kiểm chứng trong tests/encounter-env.test.ts.
+- [x] **WBS-029: AI Mode Registry & Baseline Encounter Progression** `§18, A33` *(Deps: WBS-019, WBS-024)*
+  - **Mô tả:** Registry mode AI canonical cho TUTORIAL, EASY, MEDIUM, HARD, CREATIVE cùng các biến thể COOP/COOP4; chuẩn hóa mode và chọn profile encounter deterministic theo round/mode thay vì duy trì tier `NIGHTMARE` không có trong authority hiện hành.
+  - **Tiêu chí nghiệm thu:** Mode không hợp lệ normalize theo rule A33; encounter generation deterministic theo RNG seed và chỉ dùng mode được selected game mode cho phép. Ma trận số đầy đủ, star/equipment pressure và targeting order được tách sang WBS-100/A102.
+  - **Audit Note:** ✓ Coverage audit 2026-10-04: giữ trạng thái hoàn thành cho baseline A33 đã kiểm chứng; bỏ prose `NIGHTMARE` cũ mâu thuẫn authority. Full A102 contract chưa được claim ở task này.
 - [x] **WBS-030: Canonical Game Speed Controller (1x, 1.5x, 2x)** `§45, A56` *(Deps: WBS-012, WBS-019)*
   - **Mô tả:** Bộ điều tốc trò chơi chính thống: đồng bộ tốc độ diễn hoạt Three.js, bước nhảy thời gian combat simulator và thời lượng hạt VFX theo 1 nguồn duy nhất (1x, 1.5x, 2x).
   - **Tiêu chí nghiệm thu:** Tăng tốc game không làm sai lệch kết quả sát thương hoặc làm đứt gãy sự kiện âm thanh.
@@ -194,10 +196,10 @@
   - **Mô tả:** Bảng hiển thị thanh máu, giáp ảo, nộ khí và biểu tượng hiệu ứng bất lợi/có lợi lơ lửng trên đầu unit bằng Dynamic Texture 512x176, tự động quay mặt về camera (billboard) và bám sát vị trí cờ.
   - **Tiêu chí nghiệm thu:** Hiển thị rõ ràng chỉ số HP/nộ; gom nhóm tối đa 6 badge trạng thái không bị đè chữ.
   - **Audit Note:** ⚠ Verify-world audit: Tham chiếu chuẩn định mức A92.
-- [ ] **WBS-045: Combat VFX Particle Pool & Spell Projectiles** `§38, A105.2` *(Deps: WBS-036, WBS-038)*
-  - **Mô tả:** Hệ thống hạt VFX tái sử dụng (pooled particles) cho đạn bay (projectile), vệt chém, vụ nổ phép thuật, vòng hồi máu, tia sét, thiêu đốt và hiệu ứng thăng sao hào nhoáng.
-  - **Tiêu chí nghiệm thu:** Không khởi tạo mesh mới liên tục gây rác bộ nhớ (zero allocation per frame).
-  - **Audit Note:** ⚠ Verify-world audit: Cần gắn socket chuẩn trên thân unit.
+- [ ] **WBS-045: Combat VFX Particle Pool & Spell Projectiles** `§38, A29, A105.2` *(Deps: WBS-036, WBS-038)*
+  - **Mô tả:** Hệ thống VFX pooled cho projectile, beam, impact, scan, status, death, loot và spell effects; mọi effect bám semantic rig/world anchor thay vì screen-coordinate magic number và tự cleanup deterministic.
+  - **Tiêu chí nghiệm thu:** Không allocation mesh liên tục theo frame; quality/reduced-effects chỉ giảm density/shake, không đổi canonical action timing hoặc combat outcome; effect transient không rò rỉ sau action/scene teardown.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A29 bổ sung semantic anchor, deterministic cleanup và accessibility scaling vào scope VFX.
 - [ ] **WBS-046: 3D Environment Biomes & Atmospheric Lighting (8 Biomes)** `§12, A91.4` *(Deps: WBS-034, WBS-036)*
   - **Mô tả:** Mở rộng 8 chủ đề môi trường 3D sống động (Rừng Rậm Cổ Thụ, Thác Nước Hoang Sơ, Đầm Lầy Tử Khí, Núi Lửa Tro Tàn, Đỉnh Núi Băng Tuyết, Hẻm Núi Gió Hú, Đền Thần Huyền Bí, Hang Tối Dạ Quang) với sương mù fog và ánh sáng.
   - **Tiêu chí nghiệm thu:** Môi trường thể hiện rõ nét nhận diện nguyên tố vòng đấu; ánh sáng tôn vinh cờ 3D.
@@ -221,10 +223,10 @@
   - **Mô tả:** Bộ điều phối modal trung tâm: quản lý màn chắn backdrop mờ, bẫy tiêu điểm (focus trap), đóng bằng phím ESC, quản lý phân tầng z-index cố định (Canvas 0, HUD 10, Backdrop 50, Modal 60, Tooltip 100).
   - **Tiêu chí nghiệm thu:** Tại một thời điểm chỉ có tối đa 1 modal chính nhận tương tác chuột/bàn phím; đóng modal an toàn.
   - **Audit Note:** ✓ Verify-ui audit: Passed. Đã tích hợp tại src/ui/modalManager.ts.
-- [ ] **WBS-051: Universal Viewport Tooltip Engine** `§26, A23, A96, A122` *(Deps: WBS-049, WBS-050)*
-  - **Mô tả:** Hệ thống tooltip dùng chung cho toàn bộ game: định vị thông minh tự né mép màn hình, tự tránh con trỏ, hỗ trợ hiển thị thông số quân cờ, trang bị, hiệu ứng buff, và mốc tộc/hệ.
-  - **Tiêu chí nghiệm thu:** Được xây dựng đầu tiên trong UI để các component khác import sử dụng trực tiếp.
-  - **Audit Note:** ⚠ Verify-ui audit: Đảo vị trí lên đầu UI phase để sửa lỗi đảo ngược phụ thuộc.
+- [ ] **WBS-051: Universal Viewport Tooltip Engine** `§26, A23, A67.1, A96, A122` *(Deps: WBS-049, WBS-050)*
+  - **Mô tả:** Một tooltip behavior dùng chung cho unit/synergy/Planning/Combat với modes off/compact/summary/expanded; hỗ trợ portrait, stats, HP/rage meters, real status chips, skill text và mobile pinning.
+  - **Tiêu chí nghiệm thu:** Tooltip luôn nằm trong usable viewport, flip/reposition khi overflow, không click-through khi pinned; hover-out/source destroy/modal close/scene teardown cleanup sạch; speech optional fail-silent.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A67.1 được hợp nhất với rich-tooltip lifecycle A122 thay vì tạo hệ tooltip thứ hai.
 - [ ] **WBS-052: App Shell & Boot Orchestrator** `§4, A51, A115` *(Deps: WBS-036, WBS-050)*
   - **Mô tả:** Khung ứng dụng gốc, bộ bắt lỗi Fatal Error Boundary với thông điệp rõ ràng, điều hướng chuyển cảnh mượt mà giữa Loading Scene → Main Menu → Planning Scene → Combat Scene.
   - **Tiêu chí nghiệm thu:** Không để màn hình đen vô căn cứ; lưu crash log an toàn khi gặp sự cố WebGL.
@@ -245,10 +247,10 @@
   - **Mô tả:** Thanh thông tin chiến thuật trên cùng: hiển thị Vàng, Máu, Cấp độ, Thanh XP, Sức chứa quân bàn/chờ, Vòng đấu, Nút Bắt đầu trận chiến nổi bật ở giữa, và nút xả stress Hạ Cortisol.
   - **Tiêu chí nghiệm thu:** Tự động co giãn bố cục trên di động để không che khuất bàn cờ 3D.
   - **Audit Note:** ✓ Verify-ui audit: Cập nhật dependency Core Economy & Run State.
-- [ ] **WBS-057: Shop Tray & Bench Strip Interface** `§14.4, §14.5, §14.7, A2, A3, A75` *(Deps: WBS-003, WBS-005, WBS-051, WBS-056)*
-  - **Mô tả:** Khay cửa hàng 5 quân cờ ngẫu nhiên, nút Khóa cửa hàng, nút Đổi bài (Reroll), hàng chờ bench hiển thị số lượng cờ thực tế, và khu vực kéo thả quân cờ xuống để Bán lấy vàng.
-  - **Tiêu chí nghiệm thu:** Hiển thị đúng giá mua/bán; cờ hết tiền bị mờ xám; reroll mượt mà.
-  - **Audit Note:** ✓ Verify-ui audit: Đã phân tách rõ với formation movement.
+- [ ] **WBS-057: Shop Tray & Bench Strip Interface** `§14.4, §14.5, §14.7, A2, A3, A75, A107.4` *(Deps: WBS-003, WBS-005, WBS-051, WBS-056)*
+  - **Mô tả:** Khay shop 5 offer baseline, lock/reroll, bench compact, vùng Sell và shared pager semantics cho các surface shop/bench có capacity động.
+  - **Tiêu chí nghiệm thu:** Giá mua/bán và affordability đúng; Previous enabled iff `page > 0`, Next iff `page < maxPage`; `maxPage` dẫn xuất từ capacity owner thay vì hardcode và teardown hủy cả hai control.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A107.4 được gắn vào owner shop/bench để pagination không tạo capacity truth thứ hai.
 - [ ] **WBS-058: Formation Drag-and-Drop & Tile Highlights** `§14.2, §14.3, A75` *(Deps: WBS-005, WBS-037, WBS-056)*
   - **Mô tả:** Trình điều khiển kéo thả cờ giữa Bench ↔ Bàn cờ và Bàn cờ ↔ Bàn cờ. Kiểm tra giới hạn số quân deploy, ngăn trùng loài, hiển thị highlight ô xanh khi kéo thả hợp lệ, đỏ khi cấm.
   - **Tiêu chí nghiệm thu:** Thả cờ ra ngoài tự động hoàn tác (atomic rollback); hoán đổi vị trí mượt mà.
@@ -261,10 +263,10 @@
   - **Mô tả:** Khay túi đồ hiển thị danh sách nguyên liệu và trang bị. Kéo trang bị gắn vào quân cờ (tối đa 3 slot), kiểm tra trùng loại, tính toán phí tháo đồ và nút Tháo toàn bộ trang bị.
   - **Tiêu chí nghiệm thu:** Hiển thị chính xác chi phí tháo đồ; trang bị gắn vào phản ánh ngay lên stats.
   - **Audit Note:** ✓ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-061: 3x3 Crafting Table & Recipe Book Modal** `§14.11, §14.12, A7, A86, A106` *(Deps: WBS-007, WBS-051, WBS-060)*
-  - **Mô tả:** Giao diện bàn chế tạo 3x3: kéo nguyên liệu vào lưới, hiển thị trước vật phẩm đầu ra nếu khớp công thức, nút Ghép đồ, lịch sử ghép và cuốn sách tra cứu toàn bộ 506 công thức.
-  - **Tiêu chí nghiệm thu:** Ô bị khóa theo cấp bàn craft hiển thị rào chắn rõ ràng; tra cứu recipe mượt mà.
-  - **Audit Note:** ✓ Verify-ui audit: Kết nối trực tiếp với atomic crafting engine.
+- [ ] **WBS-061: 3x3 Crafting Table & Recipe Book Modal** `§14.11, §14.12, A7, A86, A106, A107.6` *(Deps: WBS-007, WBS-051, WBS-060)*
+  - **Mô tả:** Crafting UI 3×3 + Recipe Library: staged ingredients, output preview, craft history, dependency diagram và detail panel có icon/name/tier/category/bonus/description/pattern, independent scrolling và prerequisite navigation.
+  - **Tiêu chí nghiệm thu:** Locked cells đúng craftTableLevel; 2×2/3×3 pattern giữ exact row-major positions kể cả ô trống; ingredient multiplicity đúng; browse recipe tuyệt đối không mutate inventory/spend material.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: bổ sung A107.6 để Recipe Library không dừng ở dependency diagram.
 - [ ] **WBS-062: Synergy Tracker & Threshold Inspection Panel** `§14.14, A9, A82` *(Deps: WBS-009, WBS-051, WBS-056)*
   - **Mô tả:** Bảng theo dõi Tộc/Hệ/Nguyên tố bên cạnh màn hình: hiển thị số lượng cờ hiện tại, mốc đang kích hoạt, mốc tiếp theo và chi tiết chỉ số cộng thêm khi bấm vào xem chi tiết.
   - **Tiêu chí nghiệm thu:** Chỉ đếm các quân cờ đang triển khai trên bàn (trừ cờ trên bench); cập nhật live.
@@ -277,10 +279,10 @@
   - **Mô tả:** Trình đơn ngữ cảnh mở nhanh khi nhấp chuột phải hoặc giữ ngón tay trên quân cờ: Bán, Tháo đồ, Đổi chỗ, Xem chi tiết. Tự động đóng menu cũ khi mở menu mới.
   - **Tiêu chí nghiệm thu:** Chỉ tồn tại duy nhất một context menu tại một thời điểm.
   - **Audit Note:** ✓ Verify-ui audit: Tránh trùng lặp logic kiểm tra hợp lệ với bàn cờ.
-- [ ] **WBS-065: Battle History & Event Log Modal** `§14.18, §14.19, A64` *(Deps: WBS-004, WBS-050, WBS-056)*
-  - **Mô tả:** Hộp thoại tra cứu lịch sử trận đánh: phân loại 4 tab (Tất cả, Giao tranh, Kinh tế, Hệ thống), tải lười tối đa 200 sự kiện, và thanh thông báo phản hồi nhanh các lỗi kéo thả/thiếu tiền.
-  - **Tiêu chí nghiệm thu:** Cần thiết cho trải nghiệm người chơi và bắt buộc trong Tutorial Vòng 3.
-  - **Audit Note:** ✓ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-065: Battle History & Structured Event Log Modal** `§14.18, §14.19, A64, A107.1, A123` *(Deps: WBS-004, WBS-050, WBS-056)*
+  - **Mô tả:** History dùng structured entries với filter order `ALL → COMBAT → SHOP → CRAFT → EVENT`, retention 300 entries và compact live preview 6 entries; newest-first, detail rows giàu dữ liệu và malformed category normalize về EVENT.
+  - **Tiêu chí nghiệm thu:** Lazy-build tối đa một History surface/in-flight request mỗi scene; success/failure luôn clear load marker; reopen/filter/scroll chỉ refresh presentation, không replay mutation; History có ưu tiên wheel/keyboard/gamepad khi visible và release modal ownership khi đóng.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: sửa prose cũ 200 events/4 tab vốn mâu thuẫn A107.1; A123 bổ sung single-flight lifecycle và input ownership.
 - [ ] **WBS-066: Combat Phase HUD, Turn Tracker & Speed Controls** `§16.16, §16.19, A56, A95, A119` *(Deps: WBS-019, WBS-030, WBS-051)*
   - **Mô tả:** Giao diện thời gian thực trong giao tranh: thanh tổng lực chiến 2 phe, hàng đợi lượt đánh kế tiếp, bảng thông báo sát thương thời gian thực và nút chuyển đổi tốc độ (1x, 1.5x, 2x).
   - **Tiêu chí nghiệm thu:** Tăng tốc độ game chỉ thay đổi thời gian diễn hoạt, không đổi kết quả tính toán.
@@ -289,10 +291,10 @@
   - **Mô tả:** Màn hình kết thúc trận đánh: Chiến thắng / Thất bại / Hòa, chi tiết vàng thưởng nhận được, vàng chuỗi thắng/thua, sát thủ bounty, hiển thị các hòm đồ nguyên liệu rơi ra và nút Vòng tiếp theo.
   - **Tiêu chí nghiệm thu:** Nhận thưởng idempotent: đóng/mở lại modal không được cấp quà lần 2.
   - **Audit Note:** ✓ Verify-ui audit: Gắn kết trực tiếp với Loot Module.
-- [ ] **WBS-068: Creature Library & 3D Collection Inspector** `§25, A109` *(Deps: WBS-002, WBS-038, WBS-050)*
-  - **Mô tả:** Thư viện bách khoa toàn thư: danh sách 120 quân cờ + 5 boss, bộ lọc theo Tộc/Hệ/Hạng sao/Độ hiếm, sân khấu 3D xoay 360 độ ngắm quái thú và tính năng đọc giọng nói Web Speech.
-  - **Tiêu chí nghiệm thu:** Mượt mà khi duyệt danh sách lớn; hiển thị đúng các mốc nâng sao và trang phục.
-  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ hoàn thiện mục tiêu Thư viện.
+- [ ] **WBS-068: Creature Library & 3D Collection Inspector** `§25, A67.2, A107.2, A107.3, A107.4, A109` *(Deps: WBS-002, WBS-038, WBS-050)*
+  - **Mô tả:** Library có ba tab Units/Recipes/Odds; Units hỗ trợ search + Class/Tribe/Tier filters, canonical sorting, responsive list/detail, star/skin preview độc lập và 3D inspector. Deterministic cosmetic themes là non-gameplay capability tách khỏi equipped skin ownership.
+  - **Tiêu chí nghiệm thu:** Open/refresh reload Collection/Achievement profile; switching tab reset scroll/detail đúng contract; pager dùng capacity thật; attack explainer chỉ là presentation và canonical target/skill footprint luôn đến từ live combat/Library preview authority, không tạo targeting algorithm thứ hai.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A67.2/A107.2-.4 mở rộng Library từ “list + 3D model” thành browse/detail/odds/search/preview lifecycle đầy đủ.
 - [ ] **WBS-069: Interactive Tech Tree Visual Map** `§14.13, A8, A111` *(Deps: WBS-008, WBS-050, WBS-051)*
   - **Mô tả:** Giao diện sơ đồ cây công nghệ trực quan: hiển thị các nhánh theo dạng đồ thị cây (tree graph), làm mờ các node chưa đủ điều kiện, sáng rực node đã nghiên cứu, và nút Nghiên cứu ngay.
   - **Tiêu chí nghiệm thu:** Hiển thị chính xác chi phí điểm công nghệ/vàng; cập nhật live vào stats trận đấu.
@@ -301,18 +303,18 @@
   - **Mô tả:** Giao diện Bảng vinh danh cộng đồng, tri ân người đóng góp, liên kết mạng xã hội (Discord, GitHub, Fanpage) và thông tin ủng hộ/donate phát triển tựa game.
   - **Tiêu chí nghiệm thu:** Mở tab mới an toàn (rel='noopener noreferrer'); bố cục trang nhã, không phản cảm.
   - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-071: Version Information & Audit Modal** `§41, A51.1` *(Deps: WBS-049, WBS-050)*
-  - **Mô tả:** Màn hình thông tin phiên bản: hiển thị Git commit SHA, ngày cập nhật gần nhất, nhật ký thay đổi changelog theo phiên bản, và trạng thái kiểm định tính toàn vẹn của engine.
-  - **Tiêu chí nghiệm thu:** Hiển thị chính xác thông tin phiên bản từ build metadata; đóng mở nhanh chóng.
-  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-071: Version Information & Release Notes Modal** `§41, A51.1, A107.5` *(Deps: WBS-049, WBS-050)*
+  - **Mô tả:** User-facing version surface lấy `version` từ `APP_VERSION_TAG`, `updatedAt` từ `APP_LAST_UPDATED`, và ordered localized notes từ 12 slot Planning version notes.
+  - **Tiêu chí nghiệm thu:** Modal hiển thị version + update date + numbered notes; backdrop/close đều dismiss và opening tuân thủ single-modal/blocking-input rules.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A107.5 làm rõ đây là release-notes capability, không chỉ build/audit metadata.
 - [ ] **WBS-072: UI Interaction States & Audio Feedback Hooks** `§51, A45` *(Deps: WBS-049)*
   - **Mô tả:** Quy chuẩn tương tác UI cao cấp: hiệu ứng hover nhẹ, nút bấm thụt 1px khi nhấn (active press), âm thanh click phản hồi nhẹ nhàng, và âm báo cấm khi thao tác sai quy định.
   - **Tiêu chí nghiệm thu:** Mọi nút bấm trong game đều có phản hồi xúc giác/thị giác/âm thanh đồng điệu.
   - **Audit Note:** ⚠ Verify-ui audit: Đáp ứng yêu cầu chất lượng tương tác §51.
-- [ ] **WBS-073: In-Game Developer Diagnostics & Debug Console** `§42, A105` *(Deps: WBS-050)*
-  - **Mô tả:** Bảng chẩn đoán và debug dành cho lập trình viên/tester: đo FPS, draw calls, số lượng đa giác tam giác, bật tắt wireframe 3D, thanh lọc nhanh tài nguyên, xem live state.
-  - **Tiêu chí nghiệm thu:** Ẩn hoàn toàn trong chế độ production thường; chỉ kích hoạt khi cờ debug được bật.
-  - **Audit Note:** ⚠ Verify-ui audit: Bổ sung task để phục vụ công tác QA theo §42.
+- [ ] **WBS-073: In-Game Developer Diagnostics & Debug Console** `§42, A30, A105` *(Deps: WBS-050)*
+  - **Mô tả:** Debug surface từ menu với structured diagnostics cho phase, mode, round, board profile, selected unit, queue/action, network state và presentation health; hỗ trợ inspect live state, wireframe/resource/debug views.
+  - **Tiêu chí nghiệm thu:** Debug inspect không mutate normal progression trừ explicit cheat/debug action; production thường không expose destructive debug controls; diagnostics phản ánh state hiện hành thay vì snapshot stale.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A30 được gắn vào owner diagnostics; performance/leak instrumentation chi tiết được phối hợp với WBS-089.
 
 ### Phase: CONTENT (0/14 hoàn thành)
 
@@ -336,34 +338,34 @@
   - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
   - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
   - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A100.3` *(Deps: WBS-078)*
-  - **Mô tả:** Đấu trường đối kháng 1v1 hoặc 4 người: chụp ảnh snapshot đội hình người chơi làm bóng ma (ghost opponent) để thi đấu chéo cánh, đồng bộ máu người chơi và bảng xếp hạng sinh tồn vòng tròn.
-  - **Tiêu chí nghiệm thu:** Bóng ma mô phỏng chính xác 100% trang bị và chỉ số của người chơi tại vòng đấu đó.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-080: Audio Director & Procedural SFX Manager** `§32, A45, A71` *(Deps: WBS-012)*
-  - **Mô tả:** Giám đốc âm thanh toàn cục: quản lý nhạc nền BGM chuyển cảnh mượt mà theo ngữ cảnh (menu, planning, combat, victory, defeat), tổng hợp âm thanh procedural qua Web Audio API khi thiếu file MP3, và các SFX chiến trận.
-  - **Tiêu chí nghiệm thu:** Chạy an toàn không crash ngay cả khi trình duyệt chưa được người dùng cấp quyền phát audio.
-  - **Audit Note:** ✓ Verify-content audit: Kết nối với Settings Store.
+- [ ] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A67.3, A100.3` *(Deps: WBS-078)*
+  - **Mô tả:** Chỉ triển khai competitive ruleset PvP Fortress theo A48: snapshot đội hình/ownership cần thiết cho pairing/resolution. Generic PvP cũ vẫn là internal/hidden concept và không được biến thành production mode.
+  - **Tiêu chí nghiệm thu:** Snapshot giữ canonical owned state cần cho opponent resolution; New Game không expose generic PvP hoặc PvP Fortress khi availability gate hiện hành còn khóa.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: sửa scope “1v1 hoặc 4 người” quá rộng; A67.3/A100.3 yêu cầu giữ generic PvP hidden và tôn trọng gate hiện hành.
+- [ ] **WBS-080: Audio Director & Procedural SFX Manager** `§32, A29, A45, A71` *(Deps: WBS-012)*
+  - **Mô tả:** Audio director quản lý music/ambient/UI/combat SFX với setting/mute độc lập, BGM transition theo context, ambient forest world presentation và procedural fallback khi thiếu asset.
+  - **Tiêu chí nghiệm thu:** Audio permission/resume failure không crash; attack/skill SFX trigger từ semantic action/impact events nên game-speed changes không làm lệch tiếng khỏi visual impact.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A29 bổ sung category ownership và event-synchronized sound contract.
 - [ ] **WBS-081: Creative Sandbox Testing Environment** `§14.20, A19` *(Deps: WBS-004, WBS-014, WBS-050)*
   - **Mô tả:** Chế độ Sáng tạo không giới hạn tài nguyên: tự do cộng vàng/máu, triệu hồi bất kỳ quân cờ nào từ danh mục 120 tướng, tự xếp đội hình địch để thử nghiệm sát thương và combo tộc hệ.
   - **Tiêu chí nghiệm thu:** Công cụ đắc lực cho người chơi tự do sáng tạo và kiểm thử meta chiến thuật.
   - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-082: User Mod Management & Validation Engine** `§35, A50` *(Deps: WBS-011, WBS-050)*
-  - **Mô tả:** Hệ thống quản lý bản mod từ người dùng: nạp tệp JSON mod quân cờ/trang bị mới, kiểm tra tính hợp lệ của schema, bật/tắt mod linh hoạt mà không làm hỏng dữ liệu gốc của trò chơi.
-  - **Tiêu chí nghiệm thu:** Mod lỗi bị cô lập an toàn; không làm crash game chính; có thông báo cảnh báo rõ ràng.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+- [ ] **WBS-082: User Mod Management & Validation Engine** `§35, A28, A50, A67.4` *(Deps: WBS-011, WBS-050)*
+  - **Mô tả:** Public mod surface cho `.ftunit`/`.ftlogic`/`.ftmodpack` và optional CSV/import content: manifest/version validation, deterministic registration, same validation contract như built-in content, quoted-field-safe parsing và management state enabled/source/version/dependencies/conflicts/reload.
+  - **Tiêu chí nghiệm thu:** Bad mod/import bị reject và error-isolated không corrupt base catalog/run; conflict được report deterministic; loader không trực tiếp mutate active-run internals; CSV parser giữ commas/quotes/empty fields đúng chuẩn.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A28/A67.4 mở rộng task cũ từ “JSON mod bật/tắt” thành canonical loader/management/import contract.
 - [ ] **WBS-083: Discord Embedded Activity Integration** `§31, A51.2` *(Deps: WBS-052)*
   - **Mô tả:** Tích hợp Discord Embedded App SDK: xác thực người dùng qua Discord token, lấy avatar/tên người dùng hiển thị trong game, tự động điều chỉnh khung nhìn iframe và hỗ trợ mời bạn bè cùng phòng.
   - **Tiêu chí nghiệm thu:** Tự động tắt nhẹ nhàng và chạy độc lập bình thường khi chơi ngoài trình duyệt web thông thường.
   - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
-- [ ] **WBS-084: Multi-Device Input (Gamepad, Touch Joystick, Virtual D-pad)** `§34` *(Deps: WBS-012, WBS-052)*
-  - **Mô tả:** Hỗ trợ đa thiết bị đầu vào: tay cầm chơi game Gamepad (Xbox, PlayStation), cần điều khiển ảo Joystick trên màn hình cảm ứng di động, phím điều hướng D-pad cho trải nghiệm chơi cờ trên TV/mobile.
-  - **Tiêu chí nghiệm thu:** Chuyển đổi liền mạch giữa chuột/bàn phím/cảm ứng/tay cầm mà không bị kẹt trạng thái.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn đa nền tảng §34.
-- [ ] **WBS-085: Tactile Haptics Feedback Integration** `§33, A49.1` *(Deps: WBS-052)*
-  - **Mô tả:** Phản hồi xúc giác rung (Haptics) qua Navigator Vibration API trên thiết bị di động: rung nhẹ khi thả cờ đúng ô, rung nhịp tim khi máu dưới 20%, rung mạnh khi đòn chí mạng hoặc kích nổ chiêu thức.
-  - **Tiêu chí nghiệm thu:** Tự động bỏ qua an toàn trên các thiết bị không hỗ trợ bộ rung; có công tắc tắt trong Cài đặt.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo chuẩn xúc giác §33.
+- [ ] **WBS-084: Multi-Device Input & Canonical Gamepad Navigation** `§34, A65` *(Deps: WBS-012, WBS-052)*
+  - **Mô tả:** Mouse/keyboard/touch/gamepad cùng dùng canonical actions. Gamepad baseline: D-pad/left stick (dead-zone 0.55), A confirm, B cancel, X Shop, Y Board, LB Bench, RB Shop, Back Settings, Start combat khi legal; directional repeat 170ms rồi 120ms.
+  - **Tiêu chí nghiệm thu:** Focus chuyển spatial giữa Shop/Bench/local Board bằng capacity/row ownership thật; major modal suspend board/shop/bench navigation; disconnect clears controller cursor, reconnect resume không restart scene.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A65 thay mô tả gamepad chung chung bằng mapping, repeat timing, focus-region và modal ownership cụ thể.
+- [ ] **WBS-085: Tactile Haptics Feedback Integration** `§33, A29, A49.1` *(Deps: WBS-052)*
+  - **Mô tả:** Haptic feedback qua browser/device vibration cho authored interaction/combat cues; chỉ là presentation feedback và không tham gia legality, timing hay gameplay outcome.
+  - **Tiêu chí nghiệm thu:** Thiết bị/API không hỗ trợ phải no-op an toàn; có setting tắt; haptics không bao giờ gate action hoặc làm thay đổi simulation.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A29 bổ sung nguyên tắc supported-device-only/non-gating cho haptics.
 - [ ] **WBS-086: Web Speech & Accessibility Integration** `§43, §7771` *(Deps: WBS-068)*
   - **Mô tả:** Tích hợp công nghệ hỗ trợ tiếp cận Accessibility: đọc to thông tin quân cờ trong Thư viện bằng Web Speech Synthesis API, hỗ trợ chế độ tương phản cao High Contrast và phụ đề chú thích hiệu ứng âm thanh.
   - **Tiêu chí nghiệm thu:** Giúp người khiếm thị/khiếm thính dễ dàng tiếp cận và thưởng thức trò chơi.
@@ -379,10 +381,10 @@
   - **Mô tả:** Tối ưu hóa hiển thị responsive: tự động phát hiện màn hình dọc (portrait), màn hình ngang (landscape), tính toán vùng an toàn safe-area-inset cho iPhone tai thỏ/nốt ruồi, và tự sắp xếp lại các thanh HUD.
   - **Tiêu chí nghiệm thu:** Mọi nút bấm và quân cờ đều bấm được bằng một tay trên điện thoại mà không bị che khuất.
   - **Audit Note:** ✓ Verify-content audit: Đã kiểm tra tham chiếu A58.
-- [ ] **WBS-089: Performance Profiler & Adaptive Quality (30/60 FPS)** `§49, A52` *(Deps: WBS-036, WBS-045)*
-  - **Mô tả:** Bộ giám sát hiệu năng thích ứng: tự động đo FPS trung bình, tự động giảm mật độ hạt VFX, hạ độ phân giải bóng đổ, chuyển sang chế độ tiết kiệm pin 30 FPS khi phát hiện thiết bị yếu hoặc nóng máy.
-  - **Tiêu chí nghiệm thu:** Duy trì khung hình mượt mà ổn định tối thiểu 30 FPS trên các máy cấu hình khiêm tốn.
-  - **Audit Note:** ✓ Verify-content audit: Đã kiểm tra tham chiếu A52.
+- [ ] **WBS-089: Performance Profiler & Adaptive Quality (30/60 FPS)** `§49, A30, A52` *(Deps: WBS-036, WBS-045)*
+  - **Mô tả:** Instrument frame/render timing, unit/mesh counts, expensive-effect counts và cleanup/leak signals; adaptive quality có thể giảm particle density, shadow resolution và chọn 30/60 FPS/battery policy theo device health.
+  - **Tiêu chí nghiệm thu:** Duy trì tối thiểu 30 FPS trên target thấp; quality scaling không đổi gameplay timing/outcome; profiler giúp phát hiện duplicate previews/browser contexts/asset copies và transient-object leaks.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A30 nối diagnostics hiệu năng với adaptive-quality owner thay vì chỉ đo FPS trung bình.
 - [ ] **WBS-090: Authoritative Deterministic Test Suite (A31/A53 Contracts)** `§54, §56, A31, A53` *(Deps: WBS-004, WBS-019, WBS-033)*
   - **Mô tả:** Bộ kiểm thử tự động toàn diện: đảm bảo 100% các hợp đồng nghiệm thu toán học của A31 (hình học bàn cờ) và A53 (tính toán chiến trận) luôn luôn pass trong CI/CD trước khi xuất bản.
   - **Tiêu chí nghiệm thu:** Suite kiểm thử chạy độc lập, tái lập xác định trên mọi môi trường Node/Vitest.
@@ -395,7 +397,46 @@
   - **Mô tả:** Kiểm thử tự động chuỗi trải nghiệm người chơi: 1. Khởi động → Menu → New Game → Planning → Combat → Result → Next Round; 2. Save & Continue; 3. Lựa chọn chế độ; 4. Thư viện 3D; 5. Bàn chế tạo; 6. Cây công nghệ; 7. Hoàn tất Hướng dẫn.
   - **Tiêu chí nghiệm thu:** Không có điểm nghẽn, không có ngõ cụt, không có trạng thái kẹt nút trong toàn bộ hành trình.
   - **Audit Note:** ✓ Verify-content audit: Bổ sung task nghiệm thu chuỗi luồng người chơi §54.
-- [ ] **WBS-093: Production Release Checklist & Clean Cutover Sign-off** `§56, §57` *(Deps: WBS-090, WBS-091, WBS-092)*
-  - **Mô tả:** Biên bản nghiệm thu bàn giao chính thức: đối chiếu toàn bộ 57 điều khoản trong Mega Prompt V3, dọn dẹp các tệp tạm rác, kiểm tra độ sạch mã nguồn, và phê duyệt xuất bản phiên bản thuần Three.js hoàn chỉnh.
-  - **Tiêu chí nghiệm thu:** Thỏa mãn 100% Definition of Done (§56) và chỉ thị tối cao cuối cùng (§57).
-  - **Audit Note:** ✓ Verify-content audit: Cột mốc hoàn tất trọn vẹn dự án Forest Throne Rebuild.
+- [ ] **WBS-093: Production Release Checklist & Clean Cutover Sign-off** `§56, §57, A54, A99` *(Deps: WBS-090, WBS-091, WBS-092)*
+  - **Mô tả:** Release sign-off đối chiếu toàn bộ Mega Prompt, dọn temporary/dead paths và kiểm tra clean Three.js cutover; mọi conflict legacy/prototype phải collapse về một canonical rule trước khi ship.
+  - **Tiêu chí nghiệm thu:** Thỏa Definition of Done và A99 completeness gate: từng subsystem có explicit trigger/state/legality/success+no-op mutation/feedback/persistence/mode differences/cleanup cùng mọi numeric boundary/default/tie-break liên quan; không còn hai behavior cạnh tranh cho cùng feature.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A54/A99 là cross-cutting release gates, không phải runtime subsystem độc lập.
+
+### Phase: AUTHORITY COVERAGE (0/9 hoàn thành)
+
+- [ ] **WBS-094: Co-op Board Ownership, Composition & Capacity Authority** `A63` *(Deps: WBS-004, WBS-005, WBS-006, WBS-011, WBS-033)*
+  - **Mô tả:** Canonical shared-board composition giữ mỗi player local board 5×5, compose 2P thành 10 rows và 4P thành 20 rows; map shared↔local row theo ownership span, lấy local slot từ session với fallback hợp lệ, và reject mọi remote mutation nếu mode không explicit shared-control.
+  - **Tiêu chí nghiệm thu:** Shared/local mapping chỉ round-trip trong owned span; remote move/replace/sell là no-op; bench cap đúng `clamp(8 + benchUpgradeLevel × 6 + benchBonus, 1, 44)`, Creative ordinary bench = resolved cap − 1; inventory base capacity = owned board + bench và over-cap existing items vẫn visible/retrievable.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: WBS-005/006/011/033 chỉ bao phủ từng mảnh; chưa task nào sở hữu trọn A63 ownership + composition + capacity contract.
+- [ ] **WBS-095: Canonical Enemy Preview & Combat-Strength Readout** `A68` *(Deps: WBS-004, WBS-024, WBS-056, WBS-078)*
+  - **Mô tả:** Planning preview dùng chính encounter data của current round: reuse persisted same-round preview, Creative manual RIGHT units override procedural generation, co-op host là generator duy nhất, guest không tự reroll; Fortress budget multiplier theo node normal/blacksmith/elite/boss.
+  - **Tiêu chí nghiệm thu:** Persist preview units+round+budget; combat power đúng công thức A68 và dead current power = 0; team HP/power status tính riêng LEFT/RIGHT; metric chỉ informational, tuyệt đối không đổi targeting/damage/matchmaking/outcome.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: core preview code tồn tại nhưng WBS trước đây không có owner end-to-end cho lifecycle, host ownership, persistence và exact strength formula.
+- [ ] **WBS-096: Reusable Skill Effects & Status-Merge Semantics** `A70` *(Deps: WBS-019, WBS-020, WBS-021, WBS-022)*
+  - **Mô tả:** Chuẩn hóa reusable effect families: single/global damage qua canonical resolver; single heal chọn living injured ally có HP ratio thấp nhất; global heal cho mọi living ally; stun resolves damage trước; DEF buff merge giữ value mạnh hơn và duration dài hơn; generic slow intentionally inert.
+  - **Tiêu chí nghiệm thu:** Stun chỉ áp nếu target sống, chance clamp đúng authored chance×star multiplier với default 100%/1 turn; DEF buff default +15/3 turns; không subsystem nào tạo một damage/heal/status resolver song song.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: WBS-022 sở hữu parser/execution pipeline nhưng không mô tả canonical cross-skill semantics của A70.
+- [ ] **WBS-097: Battle-Start Unit Materialization Order & Single-Apply Guard** `A77` *(Deps: WBS-004, WBS-005, WBS-009, WBS-017, WBS-019, WBS-023)*
+  - **Mô tả:** Materialize fresh combat records exactly once từ owned state theo order authority: catalog/star/base → enemy AI/mode scaling → player aug/tech → empty transient status/mod payload → equipment → variant traits → environment → final formation/synergies → remaining opening rage/shield → authoritative combat record.
+  - **Tiêu chí nghiệm thu:** Persistent owned state không bị mutate bởi temporary combat initialization; reconnect/presentation refresh không reapply bất kỳ modifier nào; order-sensitive modifiers có deterministic regression coverage.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: không task trước đây sở hữu exact construction/modifier order của A77.
+- [ ] **WBS-098: Modal Input Ownership & Tactical Interception** `A88` *(Deps: WBS-037, WBS-050, WBS-055, WBS-056, WBS-066, WBS-084)*
+  - **Mô tả:** Major modal/blocking overlay là input owner cho keyboard/controller/pointer/wheel trong Planning và Combat; routing priority và board-pan legality tuân A88, không cho tactical action xuyên qua Settings/History/Library.
+  - **Tiêu chí nghiệm thu:** Closing modal clear mọi pending drag/press/pan state của surface bị che; later pointer release không thể stale buy/move/sell/equip/craft; step-combat/audio toggle/back action đều bị gate đúng modal/phase ownership.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: WBS-050 mới quản lý layer/focus; A88 cần task riêng cho runtime input interception và stale-state cleanup.
+- [ ] **WBS-099: Semantic Skill Visual Targets & Status Provenance** `A89` *(Deps: WBS-021, WBS-022, WBS-044, WBS-045, WBS-051)*
+  - **Mô tả:** Skill preview/VFX nhận visual-target plan từ cùng star-aware semantic target rules của Combat; resolve primary target trước, apply target/area star bonus đúng family, bỏ dead/inactive visuals và dedupe stable uid. Status mutation snapshot trước/so sánh sau để ghi source skill/unit/star khi state thực sự thay đổi.
+  - **Tiêu chí nghiệm thu:** Animation/VFX không reroll/reselect target; visual affected-unit set không nói dối gameplay; unchanged statuses giữ provenance cũ; tooltip ưu tiên source-skill/current-star summary + current turns/value và fallback generic khi không resolve source.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A89 kết nối targeting truth, VFX và status tooltip; không thể chia thành ba thuật toán presentation độc lập.
+- [ ] **WBS-100: Full AI Difficulty Matrix & Deterministic Targeting Pressure** `A102` *(Deps: WBS-024, WBS-029)*
+  - **Mô tả:** Freeze toàn bộ A102 numeric knobs cho solo/co-op/Creative/Tutorial: HP/ATK/MATK/rage, random-target chance, team growth cadence/cap, budget/level/max-tier pressure, max-star/guaranteed-star/chance bonuses và equipment cadence/cap/tier.
+  - **Tiêu chí nghiệm thu:** Unknown difficulty normalize MEDIUM trừ setup flow explicit khác; AI action order `stunned→SKIP; target; no target→SKIP; full rage skill; disarmed→SKIP; ATTACK`; taunt precedence và melee/ranged/Assassin target ordering side-aware deterministic với injected RNG.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: WBS-029/A33 chỉ là baseline registry; A102 là separate full numeric/targeting contract và không được claim bằng prose “5 tiers/NIGHTMARE”.
+- [ ] **WBS-101: Combat Aftermath, Status Turns & Reactive Auto-Cast** `A120` *(Deps: WBS-019, WBS-020, WBS-021, WBS-022)*
+  - **Mô tả:** Canonical post-damage pipeline cho rage, burn/poison/lifesteal, reflect/counter, Phoenix revive/death, berserk kill chain, start-of-turn DOT/HOT/disease/environment aura và Tanker/Support rage auto-cast.
+  - **Tiêu chí nghiệm thu:** Reflect true-damage/force-hit/no-recursion; burn/poison refresh ≥2 turns giữ damage mạnh hơn; revive default 30% clamped 1..100% và one-shot; DOT không grant rage/reflect; status skips đúng freeze/stun/sleep/death; auto-cast revalidate trước consume rage, dùng normal cast pipeline và clear in-flight latch trong `finally`.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A120 là aftermath/status-turn orchestration vượt scope từng task damage/status/skill hiện hữu.
+- [ ] **WBS-102: Developer Source Documentation & Unit Visual-QA Tools** `A124` *(Deps: WBS-002, WBS-038, WBS-039, WBS-073)*
+  - **Mô tả:** Developer-only workflows: source documentation assistant có scan/exclusion/priority, structural report, localized header/JSDoc/comment proposals, translation-preserving technical tokens và dry-run/write modes; unit visual-QA preview dùng production resolver/controller để inspect canonical unit/boss 1★/2★/3★, skins và action states mà không tạo/mutate gameplay run.
+  - **Tiêu chí nghiệm thu:** Parse/file failure isolated; write validates JSDoc, preserves original and rolls back only failed file while continuing; totals/status không report false success. Visual QA exposes unknown id/missing action/broken anatomy/fallback visibly và disposes temporary scene/model/audio/VFX/input on close/change.
+  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A124 là dev workflow riêng; WBS-073 diagnostics và WBS-091 screenshot playtest không bao phủ source-doc assistant hoặc production-resolver unit action preview.
