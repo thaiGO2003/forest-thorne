@@ -37,6 +37,25 @@ describe("Fortress route and services", () => {
     expect(state.graph.actIndex).toBe(2);
   });
 
+  it("preserves forward-only route progress after hydration", () => {
+    const state = createFortressState(11);
+    const first = state.graph.layers[0]![1]!;
+    expect(selectFortressNode(state, first.id)?.nodeId).toBe(first.id);
+    expect(completeFortressNode(state)).toBe(true);
+
+    const second = state.graph.layers[1]![2]!;
+    expect(selectFortressNode(state, second.id)?.nodeId).toBe(second.id);
+    expect(completeFortressNode(state)).toBe(true);
+
+    const restored = normalizeFortressState(JSON.parse(JSON.stringify(state)), 999);
+    expect(restored.stepIndex).toBe(2);
+    expect(restored.currentNodeId).toBe(second.id);
+    expect(restored.visitedNodeIds).toEqual([first.id, second.id]);
+    expect(selectFortressNode(restored, first.id)).toBeNull();
+    expect(selectFortressNode(restored, restored.graph.layers[2]![0]!.id)?.nodeId)
+      .toBe(restored.graph.layers[2]![0]!.id);
+  });
+
   it("uses exact pharmacy, beast-den and blacksmith progression formulas", () => {
     expect(pharmacyOptions(1, 1)).toEqual([
       { id: "restore", kind: "heal", hpDelta: 26, xpDelta: 0, goldDelta: 0 },

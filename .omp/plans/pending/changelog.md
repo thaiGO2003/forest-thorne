@@ -485,3 +485,11 @@
 - Regression coverage verifies exact keys, v2 canonical shape, legacy collection-field compatibility, skin-id migration, independent idempotent claim mutations, invalid/empty equip removal, import normalization, corruption tolerance, normalize-before-save, and scoped clears.
 - Verification: `corepack pnpm exec vitest run tests/achievements-history.test.ts tests/persistence.test.ts` → 2 files / 21 tests passed; `corepack pnpm typecheck` → passed.
 - Runtime integration gap remains: production code has no account-profile owner/caller for `recordEndlessAchievementEvent(...)`; only tests exercise it. WBS-075 therefore remains unchecked rather than claiming end-to-end completion.
+
+## 2026-10-04 — WBS-076 logic-only Fortress route audit
+
+- Audited A20/A117 against `src/core/fortress.ts`, `src/core/run.ts`, save hydration, and the production call graph.
+- Core route behavior already matches authority: deterministic seeded seven-layer topology, authored per-layer composition, every node connected to every node in the next layer, forward-only `stepIndex + 1` selection, one pending-node latch, visited/current tracking, and next-act regeneration after the boss layer.
+- Added a regression proving serialized/hydrated progress preserves visited/current state, rejects an old-layer node, and still accepts the next legal layer.
+- `src/core/run.ts` exposes the canonical Fortress selection/completion/service wrappers, but repository search finds no production caller under `src/`; only tests call them. Therefore A117.1/A117.2 persist-before-routing and pending-node resume are not end-to-end wired in the active runtime.
+- Verification: `corepack pnpm exec vitest run tests/fortress.test.ts` → 1 file / 6 tests passed; `corepack pnpm typecheck` → passed. WBS-076 remains unchecked.
