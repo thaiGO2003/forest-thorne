@@ -336,8 +336,15 @@ export interface CoopSummary {
 }
 interface CoopStore { version: number; slots: Partial<Record<CoopSlot, CoopEntry>> }
 
-/** Co-op AI mode → player capacity. ponytail: COOP4_* = 4 seats, every other co-op mode = 2. */
+const COOP_PLAYER_SLOTS = ["P1", "P2", "P3", "P4"] as const;
 const coopCapacity = (aiMode: string) => (aiMode.startsWith("COOP4_") ? 4 : 2);
+const allowedCoopSlots = (aiMode: string) => COOP_PLAYER_SLOTS.slice(0, coopCapacity(aiMode));
+
+function normalizeCoopLocalSlot(payload: RunPayload): string {
+  const allowed = allowedCoopSlots(payload.aiMode ?? "COOP_MEDIUM");
+  if (payload.localSlot && allowed.some((slot) => slot === payload.localSlot)) return payload.localSlot;
+  return allowed.find((slot) => payload.players?.[slot]) ?? allowed[0]!;
+}
 
 function normEntry(slotId: CoopSlot, v: unknown): CoopEntry | null {
   if (!isObj(v)) return null;
@@ -358,7 +365,7 @@ export function readCoopStore(store: KV): Partial<Record<CoopSlot, CoopEntry>> {
 export function coopSummary(e: CoopEntry): CoopSummary {
   const p = e.envelope.payload;
   const aiMode = p.aiMode ?? "COOP_MEDIUM";
-  const localSlot = p.localSlot ?? Object.keys(p.players ?? {})[0] ?? "P1";
+  const localSlot = normalizeCoopLocalSlot(p);
   const local = p.players?.[localSlot];
   return {
     slotId: e.slotId, savedAt: e.savedAt,
@@ -393,13 +400,17 @@ export function selectCoopSlot(store: KV, id: CoopSelectId): CoopSelection {
 export function remapCoopHost(payload: RunPayload, desiredLocal: string, roomCode?: string): RunPayload {
   const p = structuredClone(payload);
   const players = p.players ?? {};
-  const slots = Object.keys(players);
-  const target = slots.includes(desiredLocal) ? desiredLocal : (p.localSlot ?? slots[0]!);
-  const from = p.localSlot ?? slots[0]!;
-  if (slots.length === 2 && target !== from) [players[from], players[target]] = [players[target]!, players[from]!];
+  const allowed = allowedCoopSlots(p.aiMode ?? "COOP_MEDIUM");
+  const from = normalizeCoopLocalSlot(p);
+  const target = allowed.some((slot) => slot === desiredLocal) && players[desiredLocal]
+    ? desiredLocal
+    : from;
+  if (Object.keys(players).length === 2 && target !== from && players[from] && players[target]) {
+    [players[from], players[target]] = [players[target]!, players[from]!];
+  }
   p.localSlot = target;
   p.hostSlot = target;
   if (roomCode) p.roomCode = roomCode;
-  p.playerCapacity = coopCapacity(p.aiMode ?? "COOP_MEDIUM");
+  p.playerCapacity = allowed.length;
   return p;
 }

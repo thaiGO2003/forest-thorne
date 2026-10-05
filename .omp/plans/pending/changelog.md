@@ -534,3 +534,12 @@
 - WBS-101/A120 remains unchecked because structured authority is absent for reflect/physical reflect, counter, Phoenix one-shot state, berserk duration/kill chain/rage gain, and reflect offense-debuff payloads; none were invented.
 - Verification: `corepack pnpm exec vitest --run tests/encounter-env.test.ts tests/combat.test.ts` → 2 files / 34 tests passed; `corepack pnpm typecheck` → passed.
 - Non-visual Vite SSR smoke through production modules: unknown difficulty budget = MEDIUM budget (`21`), deterministic RIGHT targeting selected `same`, TANKER deferred cast targeted the current attacker, and SUPPORT deferred cast emitted `targets:[\"support\"]` with trigger `SUPPORT`.
+
+## 2026-10-05 — WBS-094 A63 co-op ownership audit
+
+- `src/board/geometry.ts`: added authority-backed local-row→shared-row and shared-row→local-row conversion for solo/2P/4P profiles. Invalid slots/local rows fail closed; shared rows outside the requested player's five-row ownership span return `null`.
+- `src/core/save.ts`: persisted co-op summaries and host remap now normalize an invalid `localSlot` against the selected COOP/COOP4 capacity, preferring an allowed saved player slot and otherwise falling back to P1. A 2P save can no longer retain P3/P4 as active local/host slots.
+- Existing A63 capacity logic remains canonical and unchanged: bench `clamp(8 + upgrade×6 + bonus, 1, 44)`, Creative ordinary bench reserve, inventory base capacity from owned board+bench, and over-cap item visibility.
+- Focused verification: `corepack pnpm exec vitest --run tests/geometry.test.ts tests/persistence.test.ts` → 2 files / 21 tests passed; `corepack pnpm typecheck` → passed.
+- Non-visual Vite SSR smoke through production modules observed P2 local row 4 → shared row 9, remote row lookup → `null`, invalid 2P `localSlot=P3` → `P1`, and invalid host request `P4` → local/host `P1` with capacity 2.
+- WBS-094 remains unchecked because WBS-078's live co-op session/transport owner is not implemented: no production layer currently composes per-player 5×5 boards or authorizes/rejects remote shared-board mutations. Re-checks also confirm WBS-075/076/077 remain blocked only at their previously documented production orchestration boundaries; no unauthoritative gameplay logic was added.

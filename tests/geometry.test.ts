@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  benchPerimeter, benchSlots, brownRing, ownsRow, riverCells, RIVER_X, toLogical, toVisual, totalRows, VISUAL_COLS,
+  benchPerimeter, benchSlots, brownRing, localRowToSharedRow, ownsRow, riverCells, RIVER_X,
+  sharedRowToLocalRow, toLogical, toVisual, totalRows, VISUAL_COLS,
 } from "../src/board/geometry";
 
 const key = (c: { x: number; z: number }) => `${c.x},${c.z}`;
@@ -50,5 +51,19 @@ describe("board geometry (A31.1)", () => {
     expect(ownsRow(0, 4)).toBe(true);
     expect(ownsRow(0, 5)).toBe(false);
     expect(ownsRow(1, 5)).toBe(true);
+  });
+
+  it("maps local co-op rows only within the owning player span", () => {
+    expect(localRowToSharedRow(0, 4, "coop2")).toBe(4);
+    expect(localRowToSharedRow(1, 0, "coop2")).toBe(5);
+    expect(localRowToSharedRow(3, 4, "coop4")).toBe(19);
+    expect(localRowToSharedRow(2, 0, "coop2")).toBeNull();
+    expect(localRowToSharedRow(1, 5, "coop2")).toBeNull();
+
+    expect(sharedRowToLocalRow(1, 5, "coop2")).toBe(0);
+    expect(sharedRowToLocalRow(1, 9, "coop2")).toBe(4);
+    expect(sharedRowToLocalRow(3, 19, "coop4")).toBe(4);
+    expect(sharedRowToLocalRow(0, 5, "coop2")).toBeNull();
+    expect(sharedRowToLocalRow(2, 10, "coop2")).toBeNull();
   });
 });

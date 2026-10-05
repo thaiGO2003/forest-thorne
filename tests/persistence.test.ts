@@ -198,6 +198,13 @@ describe("persistence A57", () => {
     const sel = selectCoopSlot(s, "SAVE_1");
     expect(sel.mode === "resume" && sel.summary).toMatchObject({ round: 1, hearts: 3, playerCapacity: 2, localSlot: "P1" });
     expect(selectCoopSlot(s, "SAVE_3").mode).toBe("new");
+    saveCoopSlot(s, "SAVE_2", {
+      players: { P1: createRun(3), P2: createRun(4) },
+      localSlot: "P3",
+      aiMode: "COOP_MEDIUM",
+    });
+    const fallback = selectCoopSlot(s, "SAVE_2");
+    expect(fallback.mode === "resume" && fallback.summary).toMatchObject({ playerCapacity: 2, localSlot: "P1" });
   });
 
   it("two-player host swap keeps player-owned board/bench under the new local slot", () => {
@@ -205,6 +212,18 @@ describe("persistence A57", () => {
     const b = createRun(2); b.gold = 5;
     const out = remapCoopHost({ players: { P1: a, P2: b }, localSlot: "P1" }, "P2", "ROOM");
     expect([out.localSlot, out.hostSlot, out.roomCode, out.players!.P2!.gold, out.players!.P1!.gold]).toEqual(["P2", "P2", "ROOM", 77, 5]);
+  });
+
+  it("co-op host remap rejects slots outside the selected player profile", () => {
+    const a = createRun(1); a.gold = 77;
+    const b = createRun(2); b.gold = 5;
+    const out = remapCoopHost(
+      { players: { P1: a, P2: b }, localSlot: "P3", aiMode: "COOP_MEDIUM" },
+      "P4",
+      "ROOM",
+    );
+    expect([out.localSlot, out.hostSlot, out.playerCapacity, out.players!.P1!.gold, out.players!.P2!.gold])
+      .toEqual(["P1", "P1", 2, 77, 5]);
   });
 });
 

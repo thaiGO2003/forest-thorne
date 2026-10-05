@@ -26,6 +26,18 @@ export function toLogical(x: number, z: number, p: Profile = "solo"): { col: num
 /** Rows owned by player slot `slot` (0-based). */
 export const ownsRow = (slot: number, row: number) => Math.floor(row / ROWS_PER_PLAYER) === slot;
 
+export function localRowToSharedRow(slot: number, localRow: number, p: Profile): number | null {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= PROFILE_PLAYERS[p]) return null;
+  if (!Number.isInteger(localRow) || localRow < 0 || localRow >= ROWS_PER_PLAYER) return null;
+  return slot * ROWS_PER_PLAYER + localRow;
+}
+
+export function sharedRowToLocalRow(slot: number, sharedRow: number, p: Profile): number | null {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= PROFILE_PLAYERS[p]) return null;
+  if (!Number.isInteger(sharedRow) || sharedRow < 0 || sharedRow >= totalRows(p) || !ownsRow(slot, sharedRow)) return null;
+  return sharedRow - slot * ROWS_PER_PLAYER;
+}
+
 /**
  * Cells on the rectangle ring `inset` blocks outside the battlefield, clockwise from the
  * top-left corner, each cell exactly once. Deterministic order = stable bench slot positions.
