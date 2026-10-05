@@ -22,6 +22,23 @@ const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 
 interface Mod extends StatMod { stackKey?: string }
 
+export interface SkillStatusSource {
+  skillId: string;
+  unitUid: string;
+  unitBaseId: string;
+  unitStar: number;
+  turns: number;
+  value: number;
+}
+
+export interface TimedStatus {
+  turns: number;
+  value: number;
+  source?: SkillStatusSource;
+}
+
+type SkillStatusOrigin = Omit<SkillStatusSource, "turns" | "value">;
+
 export interface Fighter {
   uid: string; baseId: string; star: number; side: Side; row: number; col: number;
   role: Role; element: Element;
@@ -29,8 +46,8 @@ export interface Fighter {
   range: number; rageMax: number; rage: number; shield: number; alive: boolean;
   crit: number; critDmg: number; accuracy: number; evade: number; lifesteal: number; rageGainPct: number; healPct: number;
   onHitBurn: number; onHitPoison: number;
-  /** Timed statuses: control kinds + DoT kinds; DoTs carry per-tick value. */
-  status: Record<string, { turns: number; value: number }>;
+  /** Timed statuses: control kinds + DoT kinds; DoTs carry per-tick value and optional skill provenance. */
+  status: Record<string, TimedStatus>;
   mods: Mod[];
   /** Uid of the unit that taunted this fighter while `status.taunt` is active. */
   tauntBy: string | null;
@@ -58,7 +75,7 @@ export type CombatEvent =
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
-  | { t: "status"; dst: string; kind: string; turns: number }
+  | { t: "status"; dst: string; kind: string; turns: number; source?: SkillStatusSource }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string };
@@ -234,12 +251,33 @@ function basicTarget(c: Ctx, f: Fighter): Fighter | null {
   return list[0] ?? null;
 }
 
-function applyStatus(c: Ctx, dst: Fighter, kind: string, turns: number, value = 0) {
+function applyStatus(
+  c: Ctx,
+  dst: Fighter,
+  kind: string,
+  turns: number,
+  value = 0,
+  source?: SkillStatusOrigin,
+) {
   if (!dst.alive || turns <= 0) return;
   const cur = dst.status[kind];
-  // Never shorten; keep the stronger payload (A73).
-  dst.status[kind] = { turns: Math.max(turns, cur?.turns ?? 0), value: Math.max(value, cur?.value ?? 0) };
-  c.events.push({ t: "status", dst: dst.uid, kind, turns: dst.status[kind]!.turns });
+  const nextTurns = Math.max(turns, cur?.turns ?? 0);
+  const nextValue = Math.max(value, cur?.value ?? 0);
+  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue;
+  // Never shorten; keep the stronger payload (A73). A89 source changes only when the merged state changes.
+  if (!cur) {
+    dst.status[kind] = source
+      ? { turns: nextTurns, value: nextValue, source: { ...source, turns: nextTurns, value: nextValue } }
+      : { turns: nextTurns, value: nextValue };
+  } else if (changed) {
+    cur.turns = nextTurns;
+    cur.value = nextValue;
+    if (source) cur.source = { ...source, turns: nextTurns, value: nextValue };
+    else delete cur.source;
+  }
+  const event: Extract<CombatEvent, { t: "status" }> = { t: "status", dst: dst.uid, kind, turns: nextTurns };
+  if (dst.status[kind]?.source) event.source = dst.status[kind]!.source;
+  c.events.push(event);
 }
 
 function applyMod(dst: Fighter, mod: StatMod, stackKey?: string) {
@@ -516,7 +554,14 @@ interface CastSkillOptions {
 
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = skillSpec(f.baseId, f.star);
-  const family = getUnit(f.baseId).skill.family;
+  const skill = getUnit(f.baseId).skill;
+  const family = skill.family;
+  const statusSource: SkillStatusOrigin = {
+    skillId: family,
+    unitUid: f.uid,
+    unitBaseId: f.baseId,
+    unitStar: f.star,
+  };
   const teamDefBuff = family === "team_def_buff";
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
@@ -546,10 +591,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const dotMult = STAR_DOT[f.star] ?? 1;
     for (const t of enemies) {
       if (!t.alive) continue;
-      for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult));
+      for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult), statusSource);
       for (const k of sp.controls) {
         if (k.kind === "stun" && c.rng() >= Math.min(1, k.chance * starChance)) continue;
-        applyStatus(c, t, k.kind, k.turns);
+        applyStatus(c, t, k.kind, k.turns, 0, statusSource);
         if (k.kind === "taunt") t.tauntBy = f.uid;
       }
       for (const m of sp.debuffs) t.mods.push({ ...m, value: -m.value });

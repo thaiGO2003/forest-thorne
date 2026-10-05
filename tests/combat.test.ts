@@ -112,6 +112,49 @@ describe("combat", () => {
     }
   });
 
+  it("replaces skill provenance when a stronger skill changes the merged status", () => {
+    let merged: CombatEvent[] = [];
+    for (let seed = 1; seed <= 32 && merged.length < 2; seed++) {
+      const result = simulate(
+        [
+          { uid: "short", baseId: "bison_stampede", star: 1, row: 1, col: 4 },
+          { uid: "long", baseId: "monkey_spear", star: 3, row: 1, col: 3 },
+        ],
+        [
+          { uid: "decoy", baseId: "titan_earth", star: 1, row: 0, col: 5 },
+          { uid: "target", baseId: "titan_earth", star: 1, row: 1, col: 5 },
+        ],
+        { seed, bonus: { L: { startRage: 4 } } },
+      );
+      const targetTurn = result.events.findIndex((e) => e.t === "skip" && e.src === "target");
+      const beforeTargetTurn = targetTurn < 0 ? result.events : result.events.slice(0, targetTurn);
+      merged = beforeTargetTurn.filter((e) => e.t === "status" && e.dst === "target" && e.kind === "stun");
+    }
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toMatchObject({
+      turns: 1,
+      source: {
+        skillId: "damage_stun",
+        unitUid: "short",
+        unitBaseId: "bison_stampede",
+        unitStar: 1,
+        turns: 1,
+        value: 0,
+      },
+    });
+    expect(merged[1]).toMatchObject({
+      turns: 2,
+      source: {
+        skillId: "rock_throw_stun",
+        unitUid: "long",
+        unitBaseId: "monkey_spear",
+        unitStar: 3,
+        turns: 2,
+        value: 0,
+      },
+    });
+  });
+
   it("keeps a longer active stun when a shorter stun lands before the target turn", () => {
     let merged: CombatEvent[] = [];
     for (let seed = 1; seed <= 32 && merged.length < 2; seed++) {
@@ -131,8 +174,28 @@ describe("combat", () => {
       merged = beforeTargetTurn.filter((e) => e.t === "status" && e.dst === "target" && e.kind === "stun");
     }
     expect(merged).toHaveLength(2);
-    expect(merged[0]).toMatchObject({ turns: 2 });
-    expect(merged[1]).toMatchObject({ turns: 2 });
+    expect(merged[0]).toMatchObject({
+      turns: 2,
+      source: {
+        skillId: "rock_throw_stun",
+        unitUid: "long",
+        unitBaseId: "monkey_spear",
+        unitStar: 3,
+        turns: 2,
+        value: 0,
+      },
+    });
+    expect(merged[1]).toMatchObject({
+      turns: 2,
+      source: {
+        skillId: "rock_throw_stun",
+        unitUid: "long",
+        unitBaseId: "monkey_spear",
+        unitStar: 3,
+        turns: 2,
+        value: 0,
+      },
+    });
   });
 
   it("single heal picks the lowest injured HP ratio and never invents a full-health heal", () => {

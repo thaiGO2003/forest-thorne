@@ -337,11 +337,11 @@
 - [ ] **WBS-078: Co-op Multiplayer WebRTC Host-Relay** `§29, A21, A47, A114, A118` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Hệ thống kết nối phòng chơi 4 người qua giao thức WebRTC (P2P Mesh/Host-Relay): tạo mã phòng, chia sẻ hạt giống seed, gửi tín hiệu sẵn sàng, đồng bộ kết quả vòng đấu giữa các máy khách.
   - **Tiêu chí nghiệm thu:** Chơi mượt mà không cần cài đặt server tập trung; cơ chế fallback khi rớt mạng.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: persisted co-op slot/capacity primitives exist, but the live tree has no `src/network` session owner and no room signalling, WebRTC host-relay transport, authoritative snapshot/delta/heartbeat, or reconnect lifecycle. Those A47/A114/A118 semantics are production-ownership blocked; WBS-078 stays unchecked rather than inventing a parallel multiplayer architecture.
 - [ ] **WBS-079: PvP Fortress Matchmaking & Ghost Opponent Snapshot** `§30, A48, A67.3, A100.3` *(Deps: WBS-078)*
   - **Mô tả:** Chỉ triển khai competitive ruleset PvP Fortress theo A48: snapshot đội hình/ownership cần thiết cho pairing/resolution. Generic PvP cũ vẫn là internal/hidden concept và không được biến thành production mode.
   - **Tiêu chí nghiệm thu:** Snapshot giữ canonical owned state cần cho opponent resolution; New Game không expose generic PvP hoặc PvP Fortress khi availability gate hiện hành còn khóa.
-  - **Audit Note:** ⚠ Coverage audit 2026-10-04: sửa scope “1v1 hoặc 4 người” quá rộng; A67.3/A100.3 yêu cầu giữ generic PvP hidden và tôn trọng gate hiện hành.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: `FortressPvP4` exists only as an explicitly `available: false` mode config and A67.3 keeps generic PvP hidden. No production pairing, ghost opponent, canonical opponent snapshot, castle-damage/elimination, or champion-transition owner is present under `src/`; WBS-079 stays unchecked.
 - [ ] **WBS-080: Audio Director & Procedural SFX Manager** `§32, A29, A45, A71` *(Deps: WBS-012)*
   - **Mô tả:** Audio director quản lý music/ambient/UI/combat SFX với setting/mute độc lập, BGM transition theo context, ambient forest world presentation và procedural fallback khi thiếu asset.
   - **Tiêu chí nghiệm thu:** Audio permission/resume failure không crash; attack/skill SFX trigger từ semantic action/impact events nên game-speed changes không làm lệch tiếng khỏi visual impact.
@@ -349,11 +349,11 @@
 - [ ] **WBS-081: Creative Sandbox Testing Environment** `§14.20, A19` *(Deps: WBS-004, WBS-014, WBS-050)*
   - **Mô tả:** Chế độ Sáng tạo không giới hạn tài nguyên: tự do cộng vàng/máu, triệu hồi bất kỳ quân cờ nào từ danh mục 120 tướng, tự xếp đội hình địch để thử nghiệm sát thương và combo tộc hệ.
   - **Tiêu chí nghiệm thu:** Công cụ đắc lực cho người chơi tự do sáng tạo và kiểm thử meta chiến thuật.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task riêng biệt theo khuyến nghị audit.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: A46 core Creative semantics are implemented: infinite-economy routing, persisted sandbox cloning/moving/removal, same-side 3-copy cascade merge, sale value, hydration normalization, and canonical RIGHT-side enemy override/preview. Repository call-graph search still finds no production combat-start owner that consumes `creativeEnemyOverride(...)` / persisted `enemyPreview(...)` as the RIGHT argument to `simulate(...)`; exact manual enemy formation is therefore not end-to-end owned and WBS-081 stays unchecked.
 - [ ] **WBS-082: User Mod Management & Validation Engine** `§35, A28, A50, A67.4` *(Deps: WBS-011, WBS-050)*
   - **Mô tả:** Public mod surface cho `.ftunit`/`.ftlogic`/`.ftmodpack` và optional CSV/import content: manifest/version validation, deterministic registration, same validation contract như built-in content, quoted-field-safe parsing và management state enabled/source/version/dependencies/conflicts/reload.
   - **Tiêu chí nghiệm thu:** Bad mod/import bị reject và error-isolated không corrupt base catalog/run; conflict được report deterministic; loader không trực tiếp mutate active-run internals; CSV parser giữ commas/quotes/empty fields đúng chuẩn.
-  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A28/A67.4 mở rộng task cũ từ “JSON mod bật/tắt” thành canonical loader/management/import contract.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: no canonical `src/mods` registry/loader or active-run-safe mod management owner exists in the live tree. A28/A50/A67.4 package validation, deterministic registration/conflicts, enable/load-order persistence and quoted-field-safe import cannot be attached safely without inventing a second content architecture, so WBS-082 stays unchecked.
 - [ ] **WBS-083: Discord Embedded Activity Integration** `§31, A51.2` *(Deps: WBS-052)*
   - **Mô tả:** Tích hợp Discord Embedded App SDK: xác thực người dùng qua Discord token, lấy avatar/tên người dùng hiển thị trong game, tự động điều chỉnh khung nhìn iframe và hỗ trợ mời bạn bè cùng phòng.
   - **Tiêu chí nghiệm thu:** Tự động tắt nhẹ nhàng và chạy độc lập bình thường khi chơi ngoài trình duyệt web thông thường.
@@ -361,7 +361,7 @@
 - [ ] **WBS-084: Multi-Device Input & Canonical Gamepad Navigation** `§34, A65` *(Deps: WBS-012, WBS-052)*
   - **Mô tả:** Mouse/keyboard/touch/gamepad cùng dùng canonical actions. Gamepad baseline: D-pad/left stick (dead-zone 0.55), A confirm, B cancel, X Shop, Y Board, LB Bench, RB Shop, Back Settings, Start combat khi legal; directional repeat 170ms rồi 120ms.
   - **Tiêu chí nghiệm thu:** Focus chuyển spatial giữa Shop/Bench/local Board bằng capacity/row ownership thật; major modal suspend board/shop/bench navigation; disconnect clears controller cursor, reconnect resume không restart scene.
-  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A65 thay mô tả gamepad chung chung bằng mapping, repeat timing, focus-region và modal ownership cụ thể.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: A65 defines controller mapping, dead-zone/repeat timing, spatial focus, modal suspension and disconnect/reconnect state, but the live tree has no canonical gamepad/controller state owner. Existing pointer/UI handlers do not constitute that runtime navigation contract; WBS-084 stays unchecked as input/presentation ownership work.
 - [ ] **WBS-085: Tactile Haptics Feedback Integration** `§33, A29, A49.1` *(Deps: WBS-052)*
   - **Mô tả:** Haptic feedback qua browser/device vibration cho authored interaction/combat cues; chỉ là presentation feedback và không tham gia legality, timing hay gameplay outcome.
   - **Tiêu chí nghiệm thu:** Thiết bị/API không hỗ trợ phải no-op an toàn; có setting tắt; haptics không bao giờ gate action hoặc làm thay đổi simulation.
@@ -388,7 +388,7 @@
 - [ ] **WBS-090: Authoritative Deterministic Test Suite (A31/A53 Contracts)** `§54, §56, A31, A53` *(Deps: WBS-004, WBS-019, WBS-033)*
   - **Mô tả:** Bộ kiểm thử tự động toàn diện: đảm bảo 100% các hợp đồng nghiệm thu toán học của A31 (hình học bàn cờ) và A53 (tính toán chiến trận) luôn luôn pass trong CI/CD trước khi xuất bản.
   - **Tiêu chí nghiệm thu:** Suite kiểm thử chạy độc lập, tái lập xác định trên mọi môi trường Node/Vitest.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task theo tiêu chí nghiệm thu tối cao §56.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: deterministic geometry/combat coverage is real (`tests/geometry.test.ts` covers A31 board/ownership primitives and `tests/combat.test.ts` covers repeatable simulation plus authority-backed combat slices), but WBS-090 requires the complete A31/A53 acceptance matrix. A53 explicitly includes co-op signalling/transport/sync, PvP Fortress and mods whose runtime owners are absent, so their deterministic harness coverage cannot exist yet; the full gate is incomplete and WBS-090 stays unchecked.
 - [ ] **WBS-091: Headless Browser Playtest & Visual Screenshot Verification** `§54, §56` *(Deps: WBS-036, WBS-052, WBS-056, WBS-066)*
   - **Mô tả:** Quy trình nghiệm thu thực tế bằng Chromium Headless Playwright: khởi động game, chụp ảnh màn hình canvas 3D, đo đạc FPS thực tế, kiểm tra console log sạch 0 error, và chơi thử 1 vòng đấu thật.
   - **Tiêu chí nghiệm thu:** Chứng minh bằng hình ảnh và log thực nghiệm trước khi công bố hoàn thành dự án.
@@ -396,7 +396,7 @@
 - [ ] **WBS-092: Complete Player-Flow Acceptance Gates Verification** `§54, §56` *(Deps: WBS-054, WBS-056, WBS-066, WBS-067, WBS-074)*
   - **Mô tả:** Kiểm thử tự động chuỗi trải nghiệm người chơi: 1. Khởi động → Menu → New Game → Planning → Combat → Result → Next Round; 2. Save & Continue; 3. Lựa chọn chế độ; 4. Thư viện 3D; 5. Bàn chế tạo; 6. Cây công nghệ; 7. Hoàn tất Hướng dẫn.
   - **Tiêu chí nghiệm thu:** Không có điểm nghẽn, không có ngõ cụt, không có trạng thái kẹt nút trong toàn bộ hành trình.
-  - **Audit Note:** ✓ Verify-content audit: Bổ sung task nghiệm thu chuỗi luồng người chơi §54.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: no Playwright/e2e/player-flow suite exists in the live tree. Core state machines cover several non-visual transitions, but WBS-092 requires full browser-facing Menu → Planning → Combat → Result, Continue, Library, Crafting, Tech and Tutorial journeys with no dead-end UI state. That acceptance surface is presentation/browser integration outside this logic-only pass, so WBS-092 stays unchecked.
 - [ ] **WBS-093: Production Release Checklist & Clean Cutover Sign-off** `§56, §57, A54, A99` *(Deps: WBS-090, WBS-091, WBS-092)*
   - **Mô tả:** Release sign-off đối chiếu toàn bộ Mega Prompt, dọn temporary/dead paths và kiểm tra clean Three.js cutover; mọi conflict legacy/prototype phải collapse về một canonical rule trước khi ship.
   - **Tiêu chí nghiệm thu:** Thỏa Definition of Done và A99 completeness gate: từng subsystem có explicit trigger/state/legality/success+no-op mutation/feedback/persistence/mode differences/cleanup cùng mọi numeric boundary/default/tie-break liên quan; không còn hai behavior cạnh tranh cho cùng feature.
@@ -423,11 +423,11 @@
 - [ ] **WBS-098: Modal Input Ownership & Tactical Interception** `A88` *(Deps: WBS-037, WBS-050, WBS-055, WBS-056, WBS-066, WBS-084)*
   - **Mô tả:** Major modal/blocking overlay là input owner cho keyboard/controller/pointer/wheel trong Planning và Combat; routing priority và board-pan legality tuân A88, không cho tactical action xuyên qua Settings/History/Library.
   - **Tiêu chí nghiệm thu:** Closing modal clear mọi pending drag/press/pan state của surface bị che; later pointer release không thể stale buy/move/sell/equip/craft; step-combat/audio toggle/back action đều bị gate đúng modal/phase ownership.
-  - **Audit Note:** ⚠ Coverage audit 2026-10-04: WBS-050 mới quản lý layer/focus; A88 cần task riêng cho runtime input interception và stale-state cleanup.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: `src/ui/modalManager.ts` owns single-modal stack, backdrop dismissal and Escape close only. It does not implement A88 Combat/Planning pointer-move/down/wheel priority, phase-gated shortcuts, board-pan start legality, or clearing obscured drag/press/pan state on close. Those are caller-level input/presentation integrations; WBS-098 stays unchecked.
 - [ ] **WBS-099: Semantic Skill Visual Targets & Status Provenance** `A89` *(Deps: WBS-021, WBS-022, WBS-044, WBS-045, WBS-051)*
   - **Mô tả:** Skill preview/VFX nhận visual-target plan từ cùng star-aware semantic target rules của Combat; resolve primary target trước, apply target/area star bonus đúng family, bỏ dead/inactive visuals và dedupe stable uid. Status mutation snapshot trước/so sánh sau để ghi source skill/unit/star khi state thực sự thay đổi.
   - **Tiêu chí nghiệm thu:** Animation/VFX không reroll/reselect target; visual affected-unit set không nói dối gameplay; unchanged statuses giữ provenance cũ; tooltip ưu tiên source-skill/current-star summary + current turns/value và fallback generic khi không resolve source.
-  - **Audit Note:** ⚠ Coverage audit 2026-10-04: A89 kết nối targeting truth, VFX và status tooltip; không thể chia thành ba thuật toán presentation độc lập.
+  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: implemented the headless A89 provenance slice in `src/core/combat.ts`: timed statuses may carry canonical source skill/unit/base/star plus resulting turns/value; provenance updates only when merged status state changes and weaker/shorter reapplication retains the previous source. Focused regressions cover stronger-source replacement and unchanged-source retention. The semantic visual-target plan and tooltip/VFX consumers remain presentation-facing/missing, so WBS-099 stays unchecked.
 - [ ] **WBS-100: Full AI Difficulty Matrix & Deterministic Targeting Pressure** `A102` *(Deps: WBS-024, WBS-029)*
   - **Mô tả:** Freeze toàn bộ A102 numeric knobs cho solo/co-op/Creative/Tutorial: HP/ATK/MATK/rage, random-target chance, team growth cadence/cap, budget/level/max-tier pressure, max-star/guaranteed-star/chance bonuses và equipment cadence/cap/tier.
   - **Tiêu chí nghiệm thu:** Unknown difficulty normalize MEDIUM trừ setup flow explicit khác; AI action order `stunned→SKIP; target; no target→SKIP; full rage skill; disarmed→SKIP; ATTACK`; taunt precedence và melee/ranged/Assassin target ordering side-aware deterministic với injected RNG.
