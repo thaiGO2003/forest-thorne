@@ -522,3 +522,15 @@
 - Regression coverage in `tests/skills.test.ts` and `tests/combat.test.ts` proves leading/trailing/default stun chance parsing, 3★ chance saturation, damage-before-stun ordering, no stun after lethal damage, non-shortening stun refresh, single/global heal targeting, and team DEF default/merge behavior.
 - Verification: `corepack pnpm exec vitest --run tests/skills.test.ts tests/combat.test.ts` → 2 files / 18 tests passed; `corepack pnpm typecheck` → passed.
 - Non-visual Vite SSR smoke through real `simulate(...)`: seed 1 surviving target emitted `cast → skill(dmg=72) → status(stun=1) → skip(stun)`; seed 2 lethal 3★ Bison emitted `cast → skill(dmg=332) → death` with no following stun status.
+
+## 2026-10-05 — WBS-095/097/100/101 logic-only authority audit
+
+- WBS-095/A68: canonical preview persistence/manual/shared semantics and combat-strength helpers exist, but no production combat-start owner consumes persisted same-round preview units into `simulate(...)`; kept unchecked instead of inventing orchestration.
+- WBS-097/A77: fresh fighter materialization and the canonical modifier sources exist, but no production caller owns the exact once-only battle-start materialization order/reconnect guard; kept unchecked.
+- `src/core/encounter.ts`: public encounter entry points now normalize unknown difficulty to MEDIUM before budget/profile lookup. Existing A102 numeric matrix generation remains canonical.
+- `src/core/combat.ts`: completed the reachable A102/A120 logic slice: exact RIGHT Assassin back-column/same-row/top-first tie-break coverage; deferred reactive auto-casts; per-fighter in-flight latches; execution-time alive/silence/rage/skill revalidation; rage reset before cast; TANKER preferred-attacker targeting; miss-driven TANKER trigger; SUPPORT trigger only from qualifying positive basic-hit rage gain; deferred SUPPORT self fallback when no ordinary target exists, without applying enemy-only damage/control payloads to itself.
+- `tests/combat.test.ts`: added regressions for Assassin tie-breaking, deferred ordering after on-hit aftermath, miss-triggered TANKER response, same-role latch independence, silence revalidation, preferred attacker targeting, SUPPORT basic-only trigger and self fallback.
+- WBS-100/A102 remains unchecked because authority/data defines equipment cadence/caps/tier eligibility but not a canonical deterministic candidate-selection algorithm.
+- WBS-101/A120 remains unchecked because structured authority is absent for reflect/physical reflect, counter, Phoenix one-shot state, berserk duration/kill chain/rage gain, and reflect offense-debuff payloads; none were invented.
+- Verification: `corepack pnpm exec vitest --run tests/encounter-env.test.ts tests/combat.test.ts` → 2 files / 34 tests passed; `corepack pnpm typecheck` → passed.
+- Non-visual Vite SSR smoke through production modules: unknown difficulty budget = MEDIUM budget (`21`), deterministic RIGHT targeting selected `same`, TANKER deferred cast targeted the current attacker, and SUPPORT deferred cast emitted `targets:[\"support\"]` with trigger `SUPPORT`.

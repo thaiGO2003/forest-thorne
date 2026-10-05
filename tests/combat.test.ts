@@ -10,6 +10,9 @@ const firstCastWindow = (events: CombatEvent[], src: string): CombatEvent[] => {
   const to = events.findIndex((e, i) => i > from && e.t === "cast" && e.src === src);
   return from < 0 ? [] : events.slice(from, to < 0 ? undefined : to);
 };
+const firstTargetBy = (events: CombatEvent[], src: string) =>
+  events.find((event) => (event.t === "basic" || event.t === "skill" || event.t === "miss") && event.src === src);
+
 
 
 describe("combat", () => {
@@ -195,6 +198,215 @@ describe("combat", () => {
     }
     expect(healed).toEqual(new Set(["allyA", "allyB"]));
   });
+
+  it("RIGHT melee prefers nearest column, then same row, then top-first row sweep", () => {
+    const melee = { uid: "right", baseId: "titan_earth", star: 1, row: 2, col: 5 };
+    const nearest = simulate(
+      [
+        { uid: "near", baseId: "titan_earth", star: 1, row: 4, col: 4 },
+        { uid: "same-far", baseId: "titan_earth", star: 1, row: 2, col: 3 },
+      ],
+      [melee],
+      { seed: 3 },
+    );
+    expect(firstTargetBy(nearest.events, "right")).toMatchObject({ dst: "near" });
+
+    const sameRow = simulate(
+      [
+        { uid: "top", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "same", baseId: "titan_earth", star: 1, row: 2, col: 4 },
+      ],
+      [melee],
+      { seed: 3 },
+    );
+    expect(firstTargetBy(sameRow.events, "right")).toMatchObject({ dst: "same" });
+
+    const topFirst = simulate(
+      [
+        { uid: "bottom", baseId: "titan_earth", star: 1, row: 4, col: 4 },
+        { uid: "top", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+      ],
+      [melee],
+      { seed: 3 },
+    );
+    expect(firstTargetBy(topFirst.events, "right")).toMatchObject({ dst: "top" });
+  });
+
+  it("RIGHT ranged prefers same row, then top-first row sweep before column distance", () => {
+    const ranged = { uid: "right", baseId: "monkey_spear", star: 1, row: 2, col: 5 };
+    const sameRow = simulate(
+      [
+        { uid: "top-near", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "same-far", baseId: "titan_earth", star: 1, row: 2, col: 0 },
+      ],
+      [ranged],
+      { seed: 4 },
+    );
+    expect(firstTargetBy(sameRow.events, "right")).toMatchObject({ dst: "same-far" });
+
+    const topFirst = simulate(
+      [
+        { uid: "bottom-near", baseId: "titan_earth", star: 1, row: 4, col: 4 },
+        { uid: "top-far", baseId: "titan_earth", star: 1, row: 0, col: 0 },
+      ],
+      [ranged],
+      { seed: 4 },
+    );
+    expect(firstTargetBy(topFirst.events, "right")).toMatchObject({ dst: "top-far" });
+  });
+
+  it("RIGHT Assassin takes the far/back column before row and class tie-breakers", () => {
+    const result = simulate(
+      [
+        { uid: "near-mage", baseId: "salamander_flame", star: 1, row: 2, col: 4 },
+        { uid: "far-tank", baseId: "titan_earth", star: 1, row: 4, col: 0 },
+      ],
+      [{ uid: "right", baseId: "weasel_quick", star: 1, row: 2, col: 5 }],
+      { seed: 5 },
+    );
+    expect(firstTargetBy(result.events, "right")).toMatchObject({ dst: "far-tank" });
+  });
+
+  it("taunt overrides ordinary RIGHT target scoring while the taunter is alive", () => {
+    const result = simulate(
+      [
+        { uid: "taunter", baseId: "golem_stone", star: 1, row: 0, col: 4 },
+        { uid: "ordinary", baseId: "titan_earth", star: 1, row: 2, col: 4 },
+      ],
+      [{ uid: "right", baseId: "titan_earth", star: 1, row: 2, col: 5 }],
+      { seed: 6, bonus: { L: { startRage: 4 } } },
+    );
+    expect(result.events.some((event) => event.t === "status" && event.dst === "right" && event.kind === "taunt")).toBe(true);
+    expect(firstTargetBy(result.events, "right")).toMatchObject({ dst: "taunter" });
+  });
+
+  it("seeded RIGHT random-target pressure is reproducible and deterministic targeting suppresses only that pressure", () => {
+    const left: Placement[] = [
+      { uid: "same", baseId: "titan_earth", star: 1, row: 2, col: 0 },
+      { uid: "top", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+      { uid: "bottom", baseId: "titan_earth", star: 1, row: 4, col: 4 },
+    ];
+    const right: Placement[] = [{ uid: "right", baseId: "monkey_spear", star: 1, row: 2, col: 5 }];
+    let observed: { seed: number; random: string; deterministic: string } | null = null;
+    for (let seed = 1; seed <= 32 && !observed; seed++) {
+      const pressured = firstTargetBy(simulate(left, right, { seed, rightRandomTargetChance: 1 }).events, "right");
+      const deterministic = firstTargetBy(simulate(left, right, {
+        seed,
+        rightRandomTargetChance: 1,
+        deterministicTargeting: true,
+      }).events, "right");
+      if (pressured && deterministic && "dst" in pressured && "dst" in deterministic && pressured.dst !== deterministic.dst) {
+        observed = { seed, random: pressured.dst, deterministic: deterministic.dst };
+      }
+    }
+    expect(observed).not.toBeNull();
+    expect(observed!.deterministic).toBe("same");
+    const replay = firstTargetBy(simulate(left, right, {
+      seed: observed!.seed,
+      rightRandomTargetChance: 1,
+    }).events, "right");
+    expect(replay).toMatchObject({ dst: observed!.random });
+  });
+
+  it("RIGHT Assassin breaks equal back-column ties by same row, then top-first row sweep", () => {
+    const assassin = { uid: "right", baseId: "weasel_quick", star: 1, row: 2, col: 5 };
+    const sameRow = simulate(
+      [
+        { uid: "top", baseId: "salamander_flame", star: 1, row: 0, col: 0 },
+        { uid: "same", baseId: "titan_earth", star: 1, row: 2, col: 0 },
+      ],
+      [assassin],
+      { seed: 5 },
+    );
+    expect(firstTargetBy(sameRow.events, "right")).toMatchObject({ dst: "same" });
+
+    const topFirst = simulate(
+      [
+        { uid: "bottom", baseId: "titan_earth", star: 1, row: 4, col: 0 },
+        { uid: "top", baseId: "salamander_flame", star: 1, row: 0, col: 0 },
+      ],
+      [assassin],
+      { seed: 5 },
+    );
+    expect(firstTargetBy(topFirst.events, "right")).toMatchObject({ dst: "top" });
+  });
+
+  it("defers TANKER hit-response until on-hit aftermath finishes and prefers the attacker", () => {
+    const result = simulate(
+      [
+        { uid: "attacker", baseId: "salamander_flame", star: 1, row: 4, col: 4 },
+        { uid: "decoy", baseId: "titan_earth", star: 1, row: 0, col: 3 },
+      ],
+      [{ uid: "tank", baseId: "kraken_deep", star: 1, row: 0, col: 5 }],
+      { seed: 3, environment: "FIRE", bonus: { R: { startRage: 4 } } },
+    );
+    const burnAt = result.events.findIndex((e) => e.t === "status" && e.dst === "tank" && e.kind === "burn");
+    const castAt = result.events.findIndex((e) => e.t === "cast" && e.src === "tank" && e.trigger === "TANKER");
+    expect(burnAt).toBeGreaterThanOrEqual(0);
+    expect(castAt).toBeGreaterThan(burnAt);
+    expect(result.events.slice(castAt + 1).find((e) => e.t === "skill" && e.src === "tank"))
+      .toMatchObject({ dst: "attacker" });
+  });
+
+  it("a missed basic can still fill defender rage and schedule a TANKER auto-cast", () => {
+    let observed: CombatResult | null = null;
+    for (let seed = 1; seed <= 64 && !observed; seed++) {
+      const result = simulate(
+        [{ uid: "attacker", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+        [{ uid: "tank", baseId: "kraken_deep", star: 1, row: 0, col: 5 }],
+        { seed, environment: "WIND", bonus: { R: { startRage: 4 } } },
+      );
+      const missAt = result.events.findIndex((e) => e.t === "miss" && e.src === "attacker" && e.dst === "tank");
+      const castAt = result.events.findIndex((e) => e.t === "cast" && e.src === "tank" && e.trigger === "TANKER");
+      if (missAt >= 0 && castAt > missAt) observed = result;
+    }
+    expect(observed).not.toBeNull();
+  });
+
+  it("keeps deferred auto-cast ownership per fighter and revalidates silence before execution", () => {
+    const twoTanks = simulate(
+      [{ uid: "caster", baseId: "chimera_flame", star: 1, row: 0, col: 4 }],
+      [
+        { uid: "tankA", baseId: "kraken_deep", star: 1, row: 0, col: 5 },
+        { uid: "tankB", baseId: "kraken_deep", star: 1, row: 1, col: 5 },
+      ],
+      { seed: 2, bonus: { L: { startRage: 5 }, R: { startRage: 4 } } },
+    );
+    expect(twoTanks.events.flatMap((e) => e.t === "cast" && e.trigger === "TANKER" ? [e.src] : []))
+      .toEqual(expect.arrayContaining(["tankA", "tankB"]));
+
+    const silenced = simulate(
+      [{ uid: "left", baseId: "kraken_deep", star: 1, row: 0, col: 4 }],
+      [{ uid: "right", baseId: "kraken_deep", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 5 }, R: { startRage: 4 } } },
+    );
+    const silenceAt = silenced.events.findIndex((e) => e.t === "status" && e.dst === "right" && e.kind === "silence");
+    const nextRight = silenced.events.slice(silenceAt + 1).find((e) => "src" in e && e.src === "right");
+    expect(silenceAt).toBeGreaterThanOrEqual(0);
+    expect(nextRight).not.toMatchObject({ t: "cast", trigger: "TANKER" });
+  });
+
+  it("SUPPORT auto-casts only from a positive basic hit and self-falls back without self-harm", () => {
+    const fallback = simulate(
+      [{ uid: "support", baseId: "dryad_tree", star: 3, row: 0, col: 4 }],
+      [{ uid: "fragile", baseId: "firefly_light", star: 1, row: 0, col: 5 }],
+      { seed: 1, bonus: { L: { startRage: 3, matkPct: 10_000 } } },
+    );
+    const triggeredAt = fallback.events.findIndex((e) => e.t === "cast" && e.src === "support" && e.trigger === "SUPPORT");
+    expect(triggeredAt).toBeGreaterThanOrEqual(0);
+    expect(fallback.events[triggeredAt]).toMatchObject({ targets: ["support"] });
+    expect(fallback.events.slice(triggeredAt + 1).some((e) =>
+      (e.t === "skill" && e.src === "support" && e.dst === "support")
+      || (e.t === "status" && e.dst === "support" && e.kind === "silence"))).toBe(false);
+
+    const fullRage = simulate(
+      [{ uid: "support", baseId: "dryad_tree", star: 3, row: 0, col: 4 }],
+      [{ uid: "enemy", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+      { seed: 1, bonus: { L: { startRage: 4 } } },
+    );
+    expect(fullRage.events.find((e) => e.t === "cast" && e.src === "support")).not.toHaveProperty("trigger");
+  });
+
 
   it("dead units leave target selection: no event targets a unit after its death", () => {
     const res = simulate(team(ids.slice(10, 15), "L"), team(ids.slice(20, 25), "R"), { seed: 11 });

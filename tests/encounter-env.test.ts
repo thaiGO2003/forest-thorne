@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { makeFighter, simulate } from "../src/core/combat";
 import { bossForRound, encounterBudget, generateEncounter, normalizeAiMode } from "../src/core/encounter";
 import { environmentFor, environmentMods } from "../src/core/environment";
-import { NORMAL_UNITS } from "../src/content/catalog";
+import { getUnit, NORMAL_UNITS } from "../src/content/catalog";
 
 const rng = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x80000000);
+const fixedRng = (value: number) => () => value;
 
 describe("environment A32", () => {
   it("cycles FIRE..WOOD every 8 rounds; round <1 clamps to FIRE", () => {
@@ -51,7 +52,73 @@ describe("encounter A33/A34", () => {
       }
     }
   });
+  it("applies authored team growth, co-op family mapping, tier pressure and star pressure", () => {
+    const easyBeforeGrowth = generateEncounter({ round: 4, mode: "EASY", rng: rng(11) });
+    const easyAtGrowth = generateEncounter({ round: 5, mode: "EASY", rng: rng(11) });
+    expect(easyAtGrowth.units.length).toBe(easyBeforeGrowth.units.length + 1);
+
+    const coop2 = generateEncounter({ round: 1, mode: "COOP_EASY", players: 2, rng: rng(9) });
+    const coop4Family = generateEncounter({ round: 1, mode: "COOP4_EASY", players: 2, rng: rng(9) });
+    const fourPlayers = generateEncounter({ round: 1, mode: "COOP4_EASY", players: 4, rng: rng(9) });
+    expect(coop4Family).toEqual(coop2);
+    expect(fourPlayers.units.length).toBe(coop2.units.length * 2);
+
+    const fixed = (n: number) => () => n;
+    const mediumTier = generateEncounter({ round: 3, mode: "MEDIUM", rng: fixed(0.999) });
+    const coopMediumTier = generateEncounter({ round: 3, mode: "COOP_MEDIUM", rng: fixed(0.999) });
+    const tiers = new Map(NORMAL_UNITS.map((unit) => [unit.id, unit.tier]));
+    expect(Math.max(...mediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBeLessThanOrEqual(2);
+    expect(Math.max(...coopMediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBe(3);
+
+    const mediumStars = generateEncounter({ round: 7, mode: "MEDIUM", rng: fixed(0.05) });
+    const coopMediumStars = generateEncounter({ round: 7, mode: "COOP_MEDIUM", rng: fixed(0.05) });
+    expect(mediumStars.units.filter((unit) => unit.star >= 2)).toHaveLength(1);
+    expect(coopMediumStars.units.filter((unit) => unit.star >= 2).length).toBeGreaterThan(1);
+  });
+
   it("HARD guarantees 3★ from round 14", () => {
     expect(generateEncounter({ round: 14, mode: "HARD", rng: rng(7) }).units.some((u) => u.star === 3)).toBe(true);
+  });
+
+  it("applies authored team growth cadence and level pressure to generated team size", () => {
+    expect(generateEncounter({ round: 4, mode: "EASY", rng: fixedRng(0.99) }).units).toHaveLength(5);
+    expect(generateEncounter({ round: 5, mode: "EASY", rng: fixedRng(0.99) }).units).toHaveLength(6);
+    expect(generateEncounter({ round: 10, mode: "EASY", rng: fixedRng(0.99) }).units).toHaveLength(9);
+    expect(generateEncounter({ round: 3, mode: "MEDIUM", rng: fixedRng(0.99) }).units).toHaveLength(4);
+    expect(generateEncounter({ round: 3, mode: "COOP_MEDIUM", rng: fixedRng(0.99) }).units).toHaveLength(6);
+  });
+
+  it("applies max-tier bonus to the generated unit pool", () => {
+    const seenMedium = new Set<number>();
+    const seenCoopMedium = new Set<number>();
+    for (let seed = 1; seed <= 64; seed++) {
+      for (const unit of generateEncounter({ round: 3, mode: "MEDIUM", rng: rng(seed) }).units) {
+        seenMedium.add(getUnit(unit.baseId).tier);
+      }
+      for (const unit of generateEncounter({ round: 3, mode: "COOP_MEDIUM", rng: rng(seed) }).units) {
+        seenCoopMedium.add(getUnit(unit.baseId).tier);
+      }
+    }
+    expect(Math.max(...seenMedium)).toBe(2);
+    expect(Math.max(...seenCoopMedium)).toBe(3);
+  });
+
+  it("applies star chance bonuses before guaranteed-star floors", () => {
+    const medium = generateEncounter({ round: 8, mode: "MEDIUM", rng: fixedRng(0.09) });
+    const coopEasy = generateEncounter({ round: 8, mode: "COOP_EASY", rng: fixedRng(0.09) });
+    expect(medium.units.filter((u) => u.star >= 2)).toHaveLength(1);
+    expect(coopEasy.units.every((u) => u.star === 2)).toBe(true);
+
+    const hard = generateEncounter({ round: 12, mode: "HARD", rng: fixedRng(0.03) });
+    const coopHard = generateEncounter({ round: 12, mode: "COOP_HARD", rng: fixedRng(0.03) });
+    expect(hard.units.some((u) => u.star === 3)).toBe(false);
+    expect(coopHard.units.every((u) => u.star === 3)).toBe(true);
+  });
+
+  it("enforces guaranteed-star boundaries at the authored rounds", () => {
+    expect(generateEncounter({ round: 4, mode: "MEDIUM", rng: fixedRng(0.99) }).units.some((u) => u.star >= 2)).toBe(false);
+    expect(generateEncounter({ round: 5, mode: "MEDIUM", rng: fixedRng(0.99) }).units.some((u) => u.star >= 2)).toBe(true);
+    expect(generateEncounter({ round: 13, mode: "HARD", rng: fixedRng(0.99) }).units.some((u) => u.star === 3)).toBe(false);
+    expect(generateEncounter({ round: 14, mode: "HARD", rng: fixedRng(0.99) }).units.some((u) => u.star === 3)).toBe(true);
   });
 });

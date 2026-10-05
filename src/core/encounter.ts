@@ -10,27 +10,93 @@ export const AI_MODES = [
 export type AiMode = (typeof AI_MODES)[number];
 
 export interface AiProfile {
-  hp: number; atk: number; matk: number; randomTarget: number; budget: number; maxStar: 1 | 2 | 3;
-  star2Round: number | null; star3Round: number | null; equipStart: number; equipMaxTier: number; rageGain: number;
+  hp: number;
+  atk: number;
+  matk: number;
+  rageGain: number;
+  randomTarget: number;
+  teamBonus: number;
+  growthEvery: number;
+  growthCap: number;
+  budget: number;
+  levelBonus: number;
+  maxTierBonus: number;
+  maxStar: 1 | 2 | 3;
+  star2Round: number | null;
+  star3Round: number | null;
+  star2Bonus: number;
+  star3Bonus: number;
+  equipStart: number;
+  equipBase: number;
+  equipGrowth: number;
+  equipCap: number;
+  equipMaxTier: number;
   frontShare: number;
 }
 
-const P = (hp: number, atk: number, rt: number, budget: number, maxStar: 1 | 2 | 3, s2: number | null, s3: number | null,
-  equipStart: number, equipMaxTier: number, rageGain: number, frontShare: number): AiProfile =>
-  ({ hp, atk, matk: atk, randomTarget: rt, budget, maxStar, star2Round: s2, star3Round: s3, equipStart, equipMaxTier, rageGain, frontShare });
+const P = (p: Omit<AiProfile, "matk"> & { matk?: number }): AiProfile => ({ ...p, matk: p.matk ?? p.atk });
+
+const EASY = P({
+  hp: 0.84, atk: 0.82, rageGain: 1, randomTarget: 0.58, teamBonus: 0, growthEvery: 5, growthCap: 1,
+  budget: 0.9, levelBonus: 0, maxTierBonus: 0, maxStar: 1, star2Round: null, star3Round: null,
+  star2Bonus: -1, star3Bonus: -1, equipStart: 8, equipBase: 0.1, equipGrowth: 0.02, equipCap: 0.35,
+  equipMaxTier: 1, frontShare: 0.55,
+});
+const MEDIUM = P({
+  hp: 0.95, atk: 0.93, rageGain: 1, randomTarget: 0.3, teamBonus: 0, growthEvery: 5, growthCap: 1,
+  budget: 1, levelBonus: 0, maxTierBonus: 0, maxStar: 2, star2Round: 5, star3Round: null,
+  star2Bonus: -0.02, star3Bonus: -1, equipStart: 6, equipBase: 0.12, equipGrowth: 0.03, equipCap: 0.55,
+  equipMaxTier: 2, frontShare: 0.42,
+});
+const HARD = P({
+  hp: 1.05, atk: 1.04, rageGain: 1, randomTarget: 0.12, teamBonus: 1, growthEvery: 4, growthCap: 2,
+  budget: 1.05, levelBonus: 1, maxTierBonus: 1, maxStar: 3, star2Round: 4, star3Round: 14,
+  star2Bonus: 0, star3Bonus: 0, equipStart: 5, equipBase: 0.15, equipGrowth: 0.04, equipCap: 0.7,
+  equipMaxTier: 3, frontShare: 0.34,
+});
+const COOP_EASY = P({
+  hp: 0.98, atk: 0.96, rageGain: 1, randomTarget: 0.42, teamBonus: 1, growthEvery: 4, growthCap: 2,
+  budget: 1.02, levelBonus: 0, maxTierBonus: 0, maxStar: 2, star2Round: 6, star3Round: null,
+  star2Bonus: 0.02, star3Bonus: -1, equipStart: 7, equipBase: 0.14, equipGrowth: 0.03, equipCap: 0.45,
+  equipMaxTier: 2, frontShare: 0.55,
+});
+const COOP_MEDIUM = P({
+  hp: 1.08, atk: 1.06, rageGain: 1, randomTarget: 0.22, teamBonus: 1, growthEvery: 4, growthCap: 3,
+  budget: 1.08, levelBonus: 1, maxTierBonus: 1, maxStar: 2, star2Round: 5, star3Round: null,
+  star2Bonus: 0.03, star3Bonus: -1, equipStart: 6, equipBase: 0.16, equipGrowth: 0.04, equipCap: 0.62,
+  equipMaxTier: 2, frontShare: 0.42,
+});
+const COOP_HARD = P({
+  hp: 1.18, atk: 1.15, rageGain: 1.05, randomTarget: 0.1, teamBonus: 2, growthEvery: 3, growthCap: 4,
+  budget: 1.15, levelBonus: 1, maxTierBonus: 1, maxStar: 3, star2Round: 4, star3Round: 12,
+  star2Bonus: 0.05, star3Bonus: 0.02, equipStart: 5, equipBase: 0.18, equipGrowth: 0.05, equipCap: 0.78,
+  equipMaxTier: 3, frontShare: 0.34,
+});
+const CREATIVE = P({
+  hp: 0.75, atk: 0.72, rageGain: 0.9, randomTarget: 0.8, teamBonus: -1, growthEvery: 8, growthCap: 0,
+  budget: 0.8, levelBonus: 0, maxTierBonus: -1, maxStar: 1, star2Round: null, star3Round: null,
+  star2Bonus: -1, star3Bonus: -1, equipStart: 99, equipBase: 0, equipGrowth: 0, equipCap: 0,
+  equipMaxTier: 0, frontShare: 0.55,
+});
+const TUTORIAL = P({
+  hp: 0.65, atk: 0.6, rageGain: 0.8, randomTarget: 0.75, teamBonus: -1, growthEvery: 8, growthCap: 0,
+  budget: 0.7, levelBonus: 0, maxTierBonus: -1, maxStar: 1, star2Round: null, star3Round: null,
+  star2Bonus: -1, star3Bonus: -1, equipStart: 99, equipBase: 0, equipGrowth: 0, equipCap: 0,
+  equipMaxTier: 0, frontShare: 0.55,
+});
 
 export const AI_PROFILE: Record<AiMode, AiProfile> = {
-  TUTORIAL: P(0.65, 0.6, 0.75, 0.7, 1, null, null, 99, 0, 0.8, 0.55),
-  EASY: P(0.84, 0.82, 0.58, 0.9, 1, null, null, 8, 1, 1, 0.55),
-  MEDIUM: P(0.95, 0.93, 0.3, 1, 2, 5, null, 6, 2, 1, 0.42),
-  HARD: P(1.05, 1.04, 0.12, 1.05, 3, 4, 14, 5, 3, 1, 0.34),
-  CREATIVE: P(0.75, 0.72, 0.8, 0.8, 1, null, null, 99, 0, 0.9, 0.55),
-  COOP_EASY: P(0.98, 0.96, 0.42, 1.02, 2, 6, null, 7, 2, 1, 0.55),
-  COOP_MEDIUM: P(1.08, 1.06, 0.22, 1.08, 2, 5, null, 6, 2, 1, 0.42),
-  COOP_HARD: P(1.18, 1.15, 0.1, 1.15, 3, 4, 12, 5, 3, 1.05, 0.34),
-  COOP4_EASY: P(0.98, 0.96, 0.42, 1.02, 2, 6, null, 7, 2, 1, 0.55),
-  COOP4_MEDIUM: P(1.08, 1.06, 0.22, 1.08, 2, 5, null, 6, 2, 1, 0.42),
-  COOP4_HARD: P(1.18, 1.15, 0.1, 1.15, 3, 4, 12, 5, 3, 1.05, 0.34),
+  TUTORIAL,
+  EASY,
+  MEDIUM,
+  HARD,
+  CREATIVE,
+  COOP_EASY,
+  COOP_MEDIUM,
+  COOP_HARD,
+  COOP4_EASY: { ...COOP_EASY },
+  COOP4_MEDIUM: { ...COOP_MEDIUM },
+  COOP4_HARD: { ...COOP_HARD },
 };
 
 export const normalizeAiMode = (v: unknown, fallback: AiMode = "MEDIUM"): AiMode =>
@@ -43,8 +109,10 @@ export const BOSS_ROTATION = [
 export const bossForRound = (round: number): string | null =>
   round > 0 && round % 10 === 0 ? BOSS_ROTATION[(Math.floor(round / 10) - 1) % 5]! : null;
 
-export const encounterBudget = (round: number, mode: AiMode, sandbox = false, external = 1) =>
-  Math.round((8 + round * (sandbox ? 2.1 : 2.6)) * AI_PROFILE[mode].budget * external);
+export const encounterBudget = (round: number, mode: unknown, sandbox = false, external = 1) => {
+  const profile = AI_PROFILE[normalizeAiMode(mode)];
+  return Math.round((8 + round * (sandbox ? 2.1 : 2.6)) * profile.budget * external);
+};
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const FRONT: Role[] = ["TANKER", "FIGHTER"];
@@ -60,25 +128,27 @@ const SLOT_ORDER: Record<"front" | "back" | "assassin", { r: number; c: number }
 export interface Encounter { boss: boolean; budget: number; units: Placement[] }
 
 export interface EncounterInput {
-  round: number; mode: AiMode; rng: () => number; sandbox?: boolean; bossRounds?: boolean;
+  round: number; mode: unknown; rng: () => number; sandbox?: boolean; bossRounds?: boolean;
   players?: 1 | 2 | 4; budgetMult?: number;
 }
 
 /**
  * ponytail: "working budget" spend is approximated by team size from the A33 level/deploy model
- * (tier cost not authored); equipment rolls omitted until an equipment catalog ships.
+ * (tier cost not authored); equipment rolls stay blocked until canonical encounter item-selection semantics exist.
  */
 export function generateEncounter(i: EncounterInput): Encounter {
-  const { round, mode, rng } = i;
+  const { round, rng } = i;
+  const mode = normalizeAiMode(i.mode);
   const budget = encounterBudget(round, mode, i.sandbox, i.budgetMult);
   const boss = i.bossRounds ? bossForRound(round) : null;
   if (boss) return { boss: true, budget, units: [{ uid: "e0", baseId: boss, star: 3, row: 2, col: 7 }] };
 
   const ai = AI_PROFILE[mode];
   const hard = mode.endsWith("HARD");
-  const maxTier = clamp(1 + Math.floor(round / 3), 1, 5);
-  const level = clamp(1 + Math.floor(round / 2), 1, 15);
-  let size = deployCap(level) + (hard ? 1 : 0) + Math.floor(round / 10) - (i.sandbox ? 1 : 0);
+  const maxTier = clamp(1 + Math.floor(round / 3) + ai.maxTierBonus, 1, 5);
+  const level = clamp(1 + Math.floor(round / 2) + ai.levelBonus, 1, 15);
+  const periodicGrowth = ai.growthCap > 0 ? Math.min(ai.growthCap, Math.floor(round / ai.growthEvery)) : 0;
+  let size = deployCap(level) + ai.teamBonus + periodicGrowth - (i.sandbox ? 1 : 0);
   if (hard && round < 4) size = Math.min(size, 3);
   size = clamp(size * (i.players ?? 1), 1, (i.players ?? 1) === 1 ? 15 : 25);
 
@@ -92,8 +162,8 @@ export function generateEncounter(i: EncounterInput): Encounter {
   const picks = Array.from({ length: size }, (_, k) => {
     const u = pickFrom(k < frontNeed);
     let star: 1 | 2 | 3 = 1;
-    if (ai.maxStar >= 3 && rng() < clamp((round - 11) * 0.018, 0, 0.08)) star = 3;
-    else if (ai.maxStar >= 2 && rng() < clamp((round - 6) * 0.045, 0, 0.38)) star = 2;
+    if (ai.maxStar >= 3 && rng() < clamp((round - 11) * 0.018 + ai.star3Bonus, 0, 0.08)) star = 3;
+    else if (ai.maxStar >= 2 && rng() < clamp((round - 6) * 0.045 + ai.star2Bonus, 0, 0.38)) star = 2;
     return { u, star };
   });
   // Guaranteed stars: 2★ grows every 4 rounds up to half; 3★ every 6 rounds up to quarter, higher tier first.
