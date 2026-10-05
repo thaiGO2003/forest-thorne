@@ -119,6 +119,10 @@ export function createUnitCard(
   card.appendChild(skillBox);
 
   // Equips
+  const basic = document.createElement("div");
+  basic.style.fontSize = "12px"; basic.style.marginBottom = "8px";
+  basic.textContent = `Đòn đánh thường: ${def.basic.textVi}`;
+  card.append(basic);
   if (unit.equips.length > 0) {
     const equipBox = document.createElement("div");
     equipBox.style.fontSize = "11px";
