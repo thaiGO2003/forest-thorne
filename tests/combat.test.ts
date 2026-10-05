@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
-import { goldMultiplier, makeFighter, simulate, turnOrder, type CombatEvent, type CombatResult, type Placement } from "../src/core/combat";
+import { goldMultiplier, makeFighter, reflectOffenseStat, simulate, turnOrder, type CombatEvent, type CombatResult, type Placement } from "../src/core/combat";
 
 const team = (ids: string[], side: "L" | "R"): Placement[] =>
   ids.map((baseId, i) => ({ uid: `${side}${i}`, baseId, star: 1, row: i % 5, col: side === "L" ? 4 - Math.floor(i / 5) : 5 + Math.floor(i / 5) }));
@@ -470,6 +470,137 @@ describe("combat", () => {
     expect(fullRage.events.find((e) => e.t === "cast" && e.src === "support")).not.toHaveProperty("trigger");
   });
 
+
+  it("reflects finalized HP damage, applies the authored ATK debuff, and never recursively reflects", () => {
+    const reflected = simulate(
+      [{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
+      [{ uid: "weasel", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 4, startShield: 20, hpPct: 1_000 }, R: { hpPct: 10_000 } } },
+    );
+    const incoming = reflected.events.find((e) => e.t === "basic" && e.src === "weasel" && e.dst === "badger");
+    const bounce = reflected.events.find((e) => e.t === "reflect" && e.src === "badger" && e.dst === "weasel");
+    if (!incoming || incoming.t !== "basic" || !bounce || bounce.t !== "reflect") throw new Error("missing authored physical reflect window");
+    expect(bounce.dmg).toBe(Math.max(1, Math.round((incoming.dmg - incoming.absorbed) * 0.35)));
+    const weasel = reflected.survivors.find((f) => f.uid === "weasel");
+    expect(weasel?.mods.some((m) => m.stat === "atk" && m.value === -20)).toBe(true);
+    expect(weasel?.mods.some((m) => m.stat === "matk" && m.value === -20)).toBe(false);
+    expect(reflectOffenseStat("MAGE")).toBe("matk");
+    expect(reflectOffenseStat("SUPPORT")).toBe("matk");
+    expect(reflectOffenseStat("TANKER")).toBe("atk");
+
+    const mirrorMatch = simulate(
+      [{ uid: "left", baseId: "badger_stone", star: 1, row: 0, col: 4 }],
+      [{ uid: "right", baseId: "badger_stone", star: 1, row: 0, col: 5 }],
+      { seed: 3, bonus: { L: { startRage: 2 }, R: { startRage: 2 } } },
+    );
+    expect(mirrorMatch.events.some((e) => e.t === "reflect")).toBe(true);
+    for (let i = 0; i < mirrorMatch.events.length - 1; i++) {
+      if (mirrorMatch.events[i]!.t === "reflect") expect(mirrorMatch.events[i + 1]!.t).not.toBe("reflect");
+    }
+  });
+
+  it("type-gates physical and magic reflection", () => {
+    const physicalOnly = simulate(
+      [{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
+      [{ uid: "mage", baseId: "firefly_light", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 4 }, R: { matkPct: 1_000, hpPct: 500 } } },
+    );
+    expect(physicalOnly.events.some((e) => e.t === "reflect" && e.src === "badger")).toBe(false);
+
+    const magicOnly = simulate(
+      [{ uid: "butterfly", baseId: "butterfly_mirror", star: 1, row: 0, col: 4 }],
+      [{ uid: "mage", baseId: "firefly_light", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 2 }, R: { matkPct: 1_000, hpPct: 500 } } },
+    );
+    expect(magicOnly.events.some((e) => e.t === "reflect" && e.src === "butterfly" && e.dst === "mage")).toBe(true);
+  });
+
+  it("counters only a surviving melee attacker and owns lethal counter death immediately", () => {
+    const lethalCounter = simulate(
+      [{ uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 }],
+      [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 4, atkPct: 100 } } },
+    );
+    const triggerAt = lethalCounter.events.findIndex((e) => e.t === "basic" && e.src === "enemy" && e.dst === "rhino");
+    const counterAt = lethalCounter.events.findIndex((e, i) => i > triggerAt && e.t === "basic" && e.src === "rhino" && e.dst === "enemy");
+    const deathAt = lethalCounter.events.findIndex((e) => e.t === "death" && e.dst === "enemy");
+    expect(triggerAt).toBeGreaterThanOrEqual(0);
+    expect(counterAt).toBe(triggerAt + 1);
+    expect(deathAt).toBe(counterAt + 1);
+    expect(lethalCounter.survivors.some((f) => f.uid === "enemy")).toBe(false);
+
+    const deadDefender = simulate(
+      [{ uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 }],
+      [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 2 }, R: { atkPct: 2_000 } } },
+    );
+    expect(deadDefender.events.some((e) => e.t === "death" && e.dst === "rhino")).toBe(true);
+    expect(deadDefender.events.some((e) => e.t === "basic" && e.src === "rhino" && e.dst === "enemy")).toBe(false);
+
+    const ranged = simulate(
+      [
+        { uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 },
+        { uid: "ally", baseId: "titan_earth", star: 1, row: 1, col: 4 },
+      ],
+      [{ uid: "ranged", baseId: "butterfly_mirror", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 2 } } },
+    );
+    const rangedHitAt = ranged.events.findIndex((e) => e.t === "basic" && e.src === "ranged" && e.dst === "rhino");
+    expect(rangedHitAt).toBeGreaterThanOrEqual(0);
+    const nextLeftAction = ranged.events.slice(rangedHitAt + 1).find((e) => "src" in e && (e.src === "rhino" || e.src === "ally"));
+    expect(nextLeftAction).toMatchObject({ src: "ally" });
+  });
+
+  it("Phoenix rebirth is one-shot, restores the authored HP share, and later lethal damage kills normally", () => {
+    const placement = { uid: "phoenix", baseId: "phoenix_rebirth", star: 1, row: 0, col: 4 };
+    const base = makeFighter(placement, "L", { startRage: 3, startShield: 100 });
+    const revived = simulate(
+      [placement],
+      [{ uid: "wolf", baseId: "wolverine_rage", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 3, startShield: 100 }, R: { atkPct: 1_000, hpPct: 1_000 } } },
+    );
+    const revives = revived.events.filter((e) => e.t === "revive" && e.dst === "phoenix");
+    expect(revives).toHaveLength(1);
+    expect(revives[0]).toMatchObject({ src: "phoenix", hp: Math.max(1, Math.round(base.maxHp * 0.3)) });
+    const survivor = revived.survivors.find((f) => f.uid === "phoenix");
+    expect(survivor).toMatchObject({ shield: 0, phoenix: { armed: false, used: true, revivePct: 0.3 } });
+
+    const killedLater = simulate(
+      [placement],
+      [{ uid: "weasel", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 3, startShield: 100 }, R: { atkPct: 1_000_000, hpPct: 1_000 } } },
+    );
+    const laterRevives = killedLater.events.filter((e) => e.t === "revive" && e.dst === "phoenix");
+    expect(laterRevives).toHaveLength(1);
+    const reviveAt = killedLater.events.findIndex((e) => e === laterRevives[0]);
+    expect(killedLater.events.findIndex((e, i) => i > reviveAt && e.t === "death" && e.dst === "phoenix")).toBeGreaterThan(reviveAt);
+  });
+
+  it("Berserk applies first-basic damage, lifesteal, kill rage/duration extension, and nearest chained basics", () => {
+    const result = simulate(
+      [
+        { uid: "wolverine", baseId: "wolverine_rage", star: 3, row: 0, col: 4 },
+        { uid: "ally1", baseId: "butterfly_mirror", star: 1, row: 1, col: 4 },
+        { uid: "ally4", baseId: "butterfly_mirror", star: 1, row: 4, col: 4 },
+      ],
+      [
+        { uid: "near", baseId: "firefly_light", star: 1, row: 0, col: 5 },
+        { uid: "close", baseId: "firefly_light", star: 1, row: 1, col: 5 },
+        { uid: "far", baseId: "firefly_light", star: 1, row: 4, col: 5 },
+      ],
+      { seed: 2, bonus: { L: { startRage: 3, atkPct: 400, hpPct: 1_000 } } },
+    );
+    const hits = result.events.filter((e): e is Extract<CombatEvent, { t: "basic" | "skill" }> => e.t === "basic" && e.src === "wolverine");
+    expect(hits.map((e) => e.dst)).toEqual(["near", "close", "far"]);
+    expect(hits.every((e) => !e.crit)).toBe(true);
+    expect(hits[0]!.dmg).toBeGreaterThan(hits[1]!.dmg);
+    expect(result.events.filter((e) => e.t === "heal" && e.src === "wolverine" && e.dst === "wolverine")).toHaveLength(2);
+    const survivor = result.survivors.find((f) => f.uid === "wolverine");
+    expect(survivor).toBeDefined();
+    expect(survivor!.rage).toBe(survivor!.rageMax);
+    expect(survivor!.berserk?.turns).toBe(5);
+    expect(survivor!.mods.find((m) => m.stackKey === "self_bersek:atk:pct")?.turns).toBe(5);
+  });
 
   it("dead units leave target selection: no event targets a unit after its death", () => {
     const res = simulate(team(ids.slice(10, 15), "L"), team(ids.slice(20, 25), "R"), { seed: 11 });

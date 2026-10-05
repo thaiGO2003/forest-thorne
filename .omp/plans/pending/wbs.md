@@ -3,9 +3,9 @@
 > Chuẩn hóa từ MEGA PROMPT V3 (9731 dòng) • Bao phủ 57 Điều Khoản Kỹ Thuật (§1 - §57) & Phụ Lục A (A1 - A125).
 
 - **Tổng số hạng mục:** 102 tasks
-- **Đã hoàn thành:** 34 tasks (33%)
+- **Đã hoàn thành:** 35 tasks (34%)
 - **Đang triển khai:** 1 tasks
-- **Chờ thực hiện:** 67 tasks
+- **Chờ thực hiện:** 66 tasks
 
 > **Cross-cutting authority gates:** A54 (conflict precedence) và A99 (product completeness) áp dụng cho mọi WBS item. Khi legacy/prototype mâu thuẫn với Mega Prompt, chỉ giữ một canonical rule; mỗi subsystem phải nêu đủ trigger/state đọc, legality, success mutation, no-op/rejection state, feedback, persistence/mode differences, cleanup và mọi numeric boundary/tie-break/default có liên quan.
 
@@ -402,7 +402,7 @@
   - **Tiêu chí nghiệm thu:** Thỏa Definition of Done và A99 completeness gate: từng subsystem có explicit trigger/state/legality/success+no-op mutation/feedback/persistence/mode differences/cleanup cùng mọi numeric boundary/default/tie-break liên quan; không còn hai behavior cạnh tranh cho cùng feature.
   - **Audit Note:** ⚠ Logic-only audit 2026-10-05: A54/A99 are cross-cutting release gates spanning presentation, networking, tooling and gameplay; this is release-signoff work, not an independently implementable gameplay subsystem.
 
-### Phase: AUTHORITY COVERAGE (1/9 hoàn thành)
+### Phase: AUTHORITY COVERAGE (2/9 hoàn thành)
 
 - [ ] **WBS-094: Co-op Board Ownership, Composition & Capacity Authority** `A63` *(Deps: WBS-004, WBS-005, WBS-006, WBS-011, WBS-033)*
   - **Mô tả:** Canonical shared-board composition giữ mỗi player local board 5×5, compose 2P thành 10 rows và 4P thành 20 rows; map shared↔local row theo ownership span, lấy local slot từ session với fallback hợp lệ, và reject mọi remote mutation nếu mode không explicit shared-control.
@@ -432,10 +432,10 @@
   - **Mô tả:** Freeze toàn bộ A102 numeric knobs cho solo/co-op/Creative/Tutorial: HP/ATK/MATK/rage, random-target chance, team growth cadence/cap, budget/level/max-tier pressure, max-star/guaranteed-star/chance bonuses và equipment cadence/cap/tier.
   - **Tiêu chí nghiệm thu:** Unknown difficulty normalize MEDIUM trừ setup flow explicit khác; AI action order `stunned→SKIP; target; no target→SKIP; full rage skill; disarmed→SKIP; ATTACK`; taunt precedence và melee/ranged/Assassin target ordering side-aware deterministic với injected RNG.
   - **Audit Note:** ⚠ Logic-only audit 2026-10-05: A102 difficulty normalization, authored encounter budget/team/tier/star pressure, RIGHT taunt/melee/ranged/Assassin targeting order, random-target pressure and action ordering are verified. Equipment eligibility/cadence values exist, but current authority/data does not define a canonical deterministic equipment candidate-selection/picker algorithm; inventing one would violate authority. WBS-100 stays unchecked.
-- [ ] **WBS-101: Combat Aftermath, Status Turns & Reactive Auto-Cast** `A120` *(Deps: WBS-019, WBS-020, WBS-021, WBS-022)*
+- [x] **WBS-101: Combat Aftermath, Status Turns & Reactive Auto-Cast** `A120` *(Deps: WBS-019, WBS-020, WBS-021, WBS-022)*
   - **Mô tả:** Canonical post-damage pipeline cho rage, burn/poison/lifesteal, reflect/counter, Phoenix revive/death, berserk kill chain, start-of-turn DOT/HOT/disease/environment aura và Tanker/Support rage auto-cast.
   - **Tiêu chí nghiệm thu:** Reflect true-damage/force-hit/no-recursion; burn/poison refresh ≥2 turns giữ damage mạnh hơn; revive default 30% clamped 1..100% và one-shot; DOT không grant rage/reflect; status skips đúng freeze/stun/sleep/death; auto-cast revalidate trước consume rage, dùng normal cast pipeline và clear in-flight latch trong `finally`.
-  - **Audit Note:** ⚠ Logic-only audit 2026-10-05: canonical DoT/status turns plus deferred TANKER/SUPPORT auto-cast now revalidate eligibility, consume rage before execution, use per-fighter in-flight guards, preserve preferred attacker targeting, and provide SUPPORT self fallback without converting enemy-only payloads into self-harm. Reflect/counter/Phoenix one-shot/berserk chain payloads still lack structured `SkillSpec` authority, so WBS-101 stays unchecked. Targeted `encounter-env+combat` = 34/34, typecheck pass, SSR smoke verified unknown→MEDIUM budget, deterministic RIGHT targeting, and both deferred auto-cast paths.
+  - **Audit Note:** ✅ Logic-only completion 2026-10-05: A73/A74/A120 authored families are parsed once into typed `SkillSpec.reaction` payloads and materialized on canonical `Fighter` state. Combat now resolves finalized-HP reflect with damage-type gating/no recursion and role-derived ATK/MATK debuff, melee-only counter through the normal basic pipeline, one-shot Phoenix self-rebirth with authored percent/shield reset, and Wolverine Berserk first-basic multiplier/lifesteal/rage-on-kill/duration extension/nearest-Manhattan chained basics. Existing DoT/status-turn and deferred TANKER/SUPPORT auto-cast semantics remain canonical, including execution-time revalidation and in-flight cleanup. Targeted `skills+combat` = 35/35, typecheck passed, and production Vite SSR smoke observed Rhino `cast → enemy basic → Rhino counter basic → enemy death` with immediate lethal ownership.
 - [ ] **WBS-102: Developer Source Documentation & Unit Visual-QA Tools** `A124` *(Deps: WBS-002, WBS-038, WBS-039, WBS-073)*
   - **Mô tả:** Developer-only workflows: source documentation assistant có scan/exclusion/priority, structural report, localized header/JSDoc/comment proposals, translation-preserving technical tokens và dry-run/write modes; unit visual-QA preview dùng production resolver/controller để inspect canonical unit/boss 1★/2★/3★, skins và action states mà không tạo/mutate gameplay run.
   - **Tiêu chí nghiệm thu:** Parse/file failure isolated; write validates JSDoc, preserves original and rolls back only failed file while continuing; totals/status không report false success. Visual QA exposes unknown id/missing action/broken anatomy/fallback visibly và disposes temporary scene/model/audio/VFX/input on close/change.

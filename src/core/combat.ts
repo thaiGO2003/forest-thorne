@@ -1,7 +1,5 @@
-// Deterministic combat engine (spec A11–A18, A73, A74). Pure: no rendering, timers or audio.
+// Deterministic combat engine (spec A11–A18, A73, A74, A120). Pure: no rendering, timers or audio.
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
-// ponytail: status families with bespoke payloads (soul link, berserk, guardian, reflect...) are not modeled;
-// add them as SkillSpec grows per-family handlers.
 import { getUnit, type Element, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
 import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
@@ -16,6 +14,13 @@ export const ROWS = 5;
 const CYCLE_CAP = 20;
 const ROLE_EVADE: Record<Role, number> = { TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.1, MAGE: 0.05, SUPPORT: 0.07 };
 const ROLE_CRIT: Record<Role, number> = { TANKER: 0.05, FIGHTER: 0.05, ASSASSIN: 0.25, ARCHER: 0.2, MAGE: 0.1, SUPPORT: 0.05 };
+const REFLECT_OFFENSE_STAT: Record<Role, BuffStat> = {
+  TANKER: "atk", ASSASSIN: "atk", ARCHER: "atk", MAGE: "matk", SUPPORT: "matk", FIGHTER: "atk",
+};
+
+export function reflectOffenseStat(role: Role): BuffStat {
+  return REFLECT_OFFENSE_STAT[role];
+}
 const STAR_DOT = [0, 1, 1.3, 1.6];
 const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
@@ -37,6 +42,30 @@ export interface TimedStatus {
   source?: SkillStatusSource;
 }
 
+export interface ReflectReactionState {
+  damageType: "physical" | "magic" | "all";
+  pct: number;
+  turns: number;
+  offenseDebuff?: { value: number; turns: number; mode: "autoByRole" };
+}
+
+export interface PhoenixReactionState {
+  armed: boolean;
+  used: boolean;
+  revivePct: number;
+}
+
+export interface BerserkReactionState {
+  turns: number;
+  lifestealPct: number;
+  firstBasicMultiplier: number;
+  firstBasicPending: boolean;
+  rageOnKill: number;
+  extendTurnsOnKill: number;
+  chainedBasicsOnKill: number;
+  atkBuffStackKey: string;
+}
+
 type SkillStatusOrigin = Omit<SkillStatusSource, "turns" | "value">;
 
 export interface Fighter {
@@ -53,6 +82,10 @@ export interface Fighter {
   tauntBy: string | null;
   /** Re-entrancy guard: TANKER auto-cast cannot recurse inside its own skill. */
   casting: boolean;
+  reflect: ReflectReactionState | null;
+  counterTurns: number;
+  phoenix: PhoenixReactionState;
+  berserk: BerserkReactionState | null;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
 }
@@ -70,6 +103,7 @@ export interface Placement {
 
 export type CombatEvent =
   | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean }
+  | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
   | { t: "dot"; dst: string; kind: string; dmg: number }
@@ -148,7 +182,8 @@ export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environ
     healPct: ((b.healPct ?? 0) + (equipment.healPct ?? 0) + (traits.healPct ?? 0)) / 100 + env.healPct,
     onHitBurn: (b.burn ?? 0) + (equipment.burnOnHit ?? 0) + env.burnOnHit,
     onHitPoison: (b.poison ?? 0) + (equipment.poisonOnHit ?? 0) + env.poisonOnHit,
-    status: {}, mods: [], tauntBy: null, casting: false, env,
+    status: {}, mods: [], tauntBy: null, casting: false,
+    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, env,
   };
 }
 
@@ -313,20 +348,117 @@ function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
   }
 }
 
-/** Shield first, then HP. Emits the hit event before any resulting death so replay order is cause → effect. */
-function applyDamage(c: Ctx, dst: Fighter, dmg: number, killer: Fighter | null, event: (absorbed: number) => CombatEvent) {
+/** Shield first, then HP. Attack callers may defer lethal resolution until A120 aftermath completes. */
+function applyDamage(
+  c: Ctx,
+  dst: Fighter,
+  dmg: number,
+  killer: Fighter | null,
+  event: (absorbed: number) => CombatEvent,
+  deferDeath = false,
+) {
   const absorbed = Math.min(dst.shield, dmg);
   dst.shield -= absorbed;
   const toHp = Math.min(dst.hp, dmg - absorbed);
   dst.hp -= toHp;
   c.events.push(event(absorbed));
-  const killed = dst.hp <= 0 && dst.alive;
-  if (killed) kill(c, dst, killer);
-  return { hp: toHp, absorbed, killed };
+  const lethal = dst.hp <= 0 && dst.alive;
+  let killed = false;
+  if (lethal && !deferDeath) {
+    kill(c, dst, killer);
+    killed = true;
+  }
+  return { hp: toHp, absorbed, lethal, killed };
 }
 
-/** A12/A13 pipeline + A74 aftermath. Returns HP damage dealt (0 on miss). */
-function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical" | "magic" | "true", skill: boolean) {
+function resolveLethal(c: Ctx, f: Fighter, killer: Fighter | null): boolean {
+  if (!f.alive || f.hp > 0) return false;
+  if (f.phoenix.armed && !f.phoenix.used) {
+    const pct = Math.min(1, Math.max(0.01, Number.isFinite(f.phoenix.revivePct) ? f.phoenix.revivePct : 0.3));
+    f.phoenix.armed = false;
+    f.phoenix.used = true;
+    f.shield = 0;
+    f.hp = Math.max(1, Math.round(f.maxHp * pct));
+    c.events.push({ t: "revive", src: f.uid, dst: f.uid, hp: f.hp });
+    return false;
+  }
+  kill(c, f, killer);
+  return true;
+}
+
+function activeBerserk(f: Fighter): BerserkReactionState | null {
+  return f.berserk?.turns && f.berserk.turns > 0 ? f.berserk : null;
+}
+
+function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType: "physical" | "magic" | "true", actualHpDamage: number) {
+  const reflect = defender.reflect;
+  if (!reflect || reflect.turns <= 0 || actualHpDamage <= 0) return;
+  if (reflect.damageType !== "all" && reflect.damageType !== incomingType) return;
+  const dmg = Math.max(1, Math.round(actualHpDamage * reflect.pct));
+  applyDamage(c, attacker, dmg, defender,
+    (absorbed) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg, absorbed }), true);
+}
+
+function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualHpDamage: number) {
+  const payload = defender.reflect?.offenseDebuff;
+  if (!payload || actualHpDamage <= 0 || attacker.hp <= 0) return;
+  const stat = reflectOffenseStat(attacker.role);
+  applyMod(attacker, { stat, value: -Math.abs(payload.value), pct: false, turns: payload.turns });
+}
+
+interface StrikeOptions {
+  allowCounter?: boolean;
+}
+
+function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
+  const u = getUnit(src.baseId);
+  const magic = src.role === "MAGE" || src.role === "SUPPORT" || u.basic.damageType === "magic";
+  return strike(c, src, dst, stat(src, magic ? "matk" : "atk"), magic ? "magic" : "physical", false, options);
+}
+
+function resolveCounter(c: Ctx, defender: Fighter, attacker: Fighter) {
+  if (defender.counterTurns <= 0 || defender.hp <= 0 || attacker.hp <= 0 || attacker.range > 1) return;
+  basicAttack(c, defender, attacker, { allowCounter: false });
+}
+
+function nearestFoe(c: Ctx, src: Fighter): Fighter | null {
+  const stable = stableTargets(src, foes(c, src));
+  stable.sort((a, b) => dist(src, a) - dist(src, b) || a.uid.localeCompare(b.uid));
+  return stable[0] ?? null;
+}
+
+function resolveBerserkKill(c: Ctx, src: Fighter) {
+  const berserk = activeBerserk(src);
+  if (!berserk) return;
+  if (berserk.rageOnKill > 0) addRage(src, berserk.rageOnKill);
+  if (berserk.extendTurnsOnKill > 0) {
+    berserk.turns += berserk.extendTurnsOnKill;
+    const atkBuff = src.mods.find((m) => m.stackKey === berserk.atkBuffStackKey);
+    if (atkBuff) atkBuff.turns = Math.max(atkBuff.turns, berserk.turns);
+  }
+  for (let i = 0; i < berserk.chainedBasicsOnKill && src.alive; i++) {
+    const target = nearestFoe(c, src);
+    if (!target) break;
+    basicAttack(c, src, target);
+  }
+}
+
+/** A12/A13 pipeline + A74/A120 aftermath. Returns HP damage dealt (0 on miss). */
+function strike(
+  c: Ctx,
+  src: Fighter,
+  dst: Fighter,
+  raw: number,
+  type: "physical" | "magic" | "true",
+  skill: boolean,
+  options: StrikeOptions = {},
+) {
+  let adjustedRaw = raw;
+  const berserk = !skill ? activeBerserk(src) : null;
+  if (berserk?.firstBasicPending) {
+    adjustedRaw *= berserk.firstBasicMultiplier;
+    berserk.firstBasicPending = false;
+  }
   let crit = src.crit;
   let critMult = src.critDmg;
   let hit = src.accuracy + src.env.accuracy - stat(dst, "evade");
@@ -339,7 +471,7 @@ function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical
     afterDefender(c, dst, src);
     return { hp: 0, absorbed: 0, killed: false, landed: false };
   }
-  let dmg = Math.max(1, raw);
+  let dmg = Math.max(1, adjustedRaw);
   if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
   if (src.element === "FIRE") dmg *= dst.env.fireVuln;
   if (CLASS_COUNTER[src.role]?.includes(dst.role)) dmg *= 1 + COUNTER_BONUS;
@@ -349,18 +481,27 @@ function strike(c: Ctx, src: Fighter, dst: Fighter, raw: number, type: "physical
   else if (type === "magic") dmg = (dmg * 100) / (100 + stat(dst, "mdef"));
   dmg = Math.max(1, Math.round(dmg * c.globalMult));
   const resolved = applyDamage(c, dst, dmg, src,
-    (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }));
+    (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }), true);
+
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
     if (src.role === "SUPPORT") scheduleAutoCast(c, src, "SUPPORT", dst);
   }
   afterDefender(c, dst, src);
   if (resolved.hp > 0) {
-    if (src.lifesteal > 0) heal(c, src, src, resolved.hp * src.lifesteal);
-    if (dst.alive && src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn);
-    if (dst.alive && src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison);
+    if (src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn);
+    if (src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison);
+    applyReflect(c, dst, src, type, resolved.hp);
+    applyReflectOffenseDebuff(dst, src, resolved.hp);
+    if (options.allowCounter ?? true) resolveCounter(c, dst, src);
+    const lifesteal = src.lifesteal + (activeBerserk(src)?.lifestealPct ?? 0);
+    if (lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
   }
-  return { ...resolved, landed: true };
+
+  resolveLethal(c, src, dst);
+  const killed = resolveLethal(c, dst, src);
+  if (!skill && killed && src.alive) resolveBerserkKill(c, src);
+  return { hp: resolved.hp, absorbed: resolved.absorbed, killed, landed: true };
 }
 
 /** Defender +1 rage; TANKER full rage when attacked schedules the deferred A74/A120 response. */
@@ -572,6 +713,20 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
     if (options.trigger) castEvent.trigger = options.trigger;
     c.events.push(castEvent);
+    if (sp.reaction.reflect) f.reflect = { ...sp.reaction.reflect };
+    if (sp.reaction.counter) f.counterTurns = sp.reaction.counter.turns;
+    if (sp.reaction.phoenix && !f.phoenix.used) {
+      f.phoenix.armed = true;
+      f.phoenix.revivePct = sp.reaction.phoenix.revivePct;
+    }
+    if (sp.reaction.berserk) {
+      const r = sp.reaction.berserk;
+      f.berserk = {
+        ...r,
+        firstBasicPending: true,
+        atkBuffStackKey: `${family}:atk:pct`,
+      };
+    }
     const starSkill = STAR_SKILL[f.star] ?? 1;
     const starChance = STAR_EFFECT_CHANCE[f.star] ?? 1;
     const enemyHit = new Set<string>();
@@ -622,7 +777,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
         a.shield += amount;
         c.events.push({ t: "shield", src: f.uid, dst: a.uid, amount });
       }
-      if (!teamDefBuff) for (const m of sp.buffs) applyMod(a, m);
+      if (!teamDefBuff) for (const m of sp.buffs) {
+        const stackKey = a === f && m.stat === "atk" && sp.reaction.berserk ? f.berserk?.atkBuffStackKey : undefined;
+        applyMod(a, m, stackKey);
+      }
       if (sp.rageGrant && a !== f) addRage(a, sp.rageGrant);
     }
     if (teamDefBuff) {
@@ -672,6 +830,9 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
     if (!f.alive) return { canAct: false, silenced, disarmed };
   }
   f.mods = f.mods.filter((m) => --m.turns > 0);
+  if (f.reflect && --f.reflect.turns <= 0) f.reflect = null;
+  if (f.counterTurns > 0) f.counterTurns -= 1;
+  if (f.berserk && --f.berserk.turns <= 0) f.berserk = null;
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
@@ -702,8 +863,7 @@ function act(c: Ctx, f: Fighter) {
     c.events.push({ t: "skip", src: f.uid, reason: "disarm" });
     return;
   }
-  const magic = f.role === "MAGE" || f.role === "SUPPORT" || u.basic.damageType === "magic";
-  strike(c, f, target, stat(f, magic ? "matk" : "atk"), magic ? "magic" : "physical", false);
+  basicAttack(c, f, target);
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
 }
 

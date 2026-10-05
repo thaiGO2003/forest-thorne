@@ -21,6 +21,29 @@ export type SkillSelector =
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
 
+export interface ReflectReactionSpec {
+  damageType: "physical" | "magic" | "all";
+  pct: number;
+  turns: number;
+  offenseDebuff?: { value: number; turns: number; mode: "autoByRole" };
+}
+export interface CounterReactionSpec { turns: number }
+export interface PhoenixReactionSpec { revivePct: number }
+export interface BerserkReactionSpec {
+  turns: number;
+  lifestealPct: number;
+  firstBasicMultiplier: number;
+  rageOnKill: number;
+  extendTurnsOnKill: number;
+  chainedBasicsOnKill: number;
+}
+export interface SkillReactionSpec {
+  reflect?: ReflectReactionSpec;
+  counter?: CounterReactionSpec;
+  phoenix?: PhoenixReactionSpec;
+  berserk?: BerserkReactionSpec;
+}
+
 export interface SkillSpec {
   /** Who the primary effect lands on. */
   side: "enemy" | "ally" | "self";
@@ -40,6 +63,7 @@ export interface SkillSpec {
   debuffs: StatMod[];
   rageGrant: number;
   revivePct: number;
+  reaction: SkillReactionSpec;
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
@@ -183,7 +207,55 @@ export function parseSkill(text: string): SkillSpec {
     shield, buffs: statMods(t, "tăng"), debuffs: statMods(t, "giảm"),
     rageGrant: rage ? Number(rage[1]) : 0,
     revivePct: revive ? Number(revive[1]) / 100 : 0,
+    reaction: {},
   };
+}
+
+function reactionSpec(text: string, family: string): SkillReactionSpec {
+  const t = text.replace(/\s+/g, " ");
+  const out: SkillReactionSpec = {};
+  if (family === "self_armor_reflect" || family === "mirror_reflect") {
+    const reflected = /phản\s+(?:(\d+(?:\.\d+)?)%\s+)?sát thương\s+(vật lý|phép)(?:\s+nhận vào)?\s+trong\s+(\d+)\s+lượt/i.exec(t);
+    if (reflected) {
+      const debuff = /giảm\s+(\d+(?:\.\d+)?)\s+ATK\s+hoặc\s+MATK\s+theo vai trò\s+trong\s+(\d+)\s+lượt/i.exec(t);
+      out.reflect = {
+        damageType: reflected[2] === "vật lý" ? "physical" : "magic",
+        pct: Math.min(1, Math.max(0, reflected[1] === undefined ? 1 : Number(reflected[1]) / 100)),
+        turns: Number(reflected[3]),
+        ...(debuff ? { offenseDebuff: { value: Number(debuff[1]), turns: Number(debuff[2]), mode: "autoByRole" as const } } : {}),
+      };
+    }
+  }
+  if (family === "rhino_counter") {
+    const counter = /phản đòn\s+trong\s+(\d+)\s+lượt/i.exec(t);
+    if (counter) out.counter = { turns: Number(counter[1]) };
+  }
+  if (family === "phoenix_rebirth") {
+    const phoenix = /tái sinh\s+1\s+lần(?:\s+với\s+(\d+(?:\.\d+)?)%\s+HP)?/i.exec(t);
+    if (phoenix) {
+      const pct = phoenix[1] === undefined ? 0.3 : Number(phoenix[1]) / 100;
+      out.phoenix = { revivePct: Math.min(1, Math.max(0.01, pct)) };
+    }
+  }
+  if (family === "self_bersek") {
+    const turns = /tăng\s+\d+(?:\.\d+)?%\s+ATK\s+trong\s+(\d+)\s+lượt/i.exec(t);
+    if (turns) {
+      const lifesteal = /hút\s+(\d+(?:\.\d+)?)%\s+sát thương/i.exec(t);
+      const firstBasic = /Đòn đánh thường đầu tiên[^.]*?gây thêm\s+(\d+(?:\.\d+)?)%\s+sát thương/i.exec(t);
+      const rageOnKill = /hạ gục[^.]*?hồi\s+(\d+)\s+nộ/i.exec(t);
+      const extend = /kéo dài\s+cuồng nộ\s+thêm\s+(\d+)\s+lượt/i.exec(t);
+      const chain = /lập tức tung\s+(\d+)\s+đòn đánh thường/i.exec(t);
+      out.berserk = {
+        turns: Number(turns[1]),
+        lifestealPct: lifesteal ? Number(lifesteal[1]) / 100 : 0,
+        firstBasicMultiplier: firstBasic ? 1 + Number(firstBasic[1]) / 100 : 1,
+        rageOnKill: rageOnKill ? Number(rageOnKill[1]) : 0,
+        extendTurnsOnKill: extend ? Number(extend[1]) : 0,
+        chainedBasicsOnKill: chain ? Number(chain[1]) : 0,
+      };
+    }
+  }
+  return out;
 }
 
 const CACHE: Record<string, SkillSpec> = {};
@@ -196,6 +268,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const u = getUnit(baseId);
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
+  s.reaction = reactionSpec(detail, u.skill.family);
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {

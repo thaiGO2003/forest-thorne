@@ -34,6 +34,28 @@ describe("skill parser", () => {
     ]));
     expect(skillSpec("lizard_elder", 1).buffs).toContainEqual({ stat: "def", value: 15, pct: false, turns: 3 });
   });
+  it("materializes authored reaction payloads per star", () => {
+    expect(skillSpec("badger_stone", 1).reaction.reflect).toEqual({
+      damageType: "physical", pct: 0.25, turns: 2,
+    });
+    expect(skillSpec("badger_stone", 3).reaction.reflect).toEqual({
+      damageType: "physical", pct: 0.35, turns: 3,
+      offenseDebuff: { value: 20, turns: 2, mode: "autoByRole" },
+    });
+    expect(skillSpec("butterfly_mirror", 3).reaction.reflect).toEqual({
+      damageType: "magic", pct: 0.45, turns: 3,
+    });
+    expect(skillSpec("rhino_quake", 2).reaction.counter).toEqual({ turns: 4 });
+    expect(skillSpec("phoenix_rebirth", 3).reaction.phoenix).toEqual({ revivePct: 0.5 });
+    expect(skillSpec("wolverine_rage", 2).reaction.berserk).toEqual({
+      turns: 3, lifestealPct: 0.15, firstBasicMultiplier: 1.4,
+      rageOnKill: 0, extendTurnsOnKill: 0, chainedBasicsOnKill: 0,
+    });
+    expect(skillSpec("wolverine_rage", 3).reaction.berserk).toEqual({
+      turns: 3, lifestealPct: 0.15, firstBasicMultiplier: 1.5,
+      rageOnKill: 1, extendTurnsOnKill: 1, chainedBasicsOnKill: 1,
+    });
+  });
 
   it("bosses preserve authored targeting without synthesizing missing effect magnitudes", () => {
     expect(skillSpec("boss_ember_dragon", 1)).toMatchObject({
