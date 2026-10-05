@@ -567,3 +567,11 @@
 - River coordinates remain non-logical even if raycast geometry exists there; signed-zero edge coordinates are normalized at the canonical arena mapping boundary.
 - No highlights, VFX, CSS, rendering chrome, shaders, camera cosmetics, or other visual behavior were added.
 - Verification: `corepack pnpm exec vitest --run tests/board-picking.test.ts tests/arena-mapping.test.ts tests/planning-unit-manager.test.ts` (9/9); `corepack pnpm typecheck`; tilted-camera Vite SSR smoke picked logical cell (9,4) with canvas offset [143,77] and returned none for river geometry.
+
+## 2026-10-05 — A107.1 History logic slice and final logic-only WBS reconciliation
+
+- `src/core/history.ts`: completed the reachable A107.1 headless History contract with canonical `ALL → COMBAT → SHOP → CRAFT → EVENT` filters, 300 retained Planning entries, 6 compact recent lines, 240 combat lines, newest-first filtering, normalized structured entries, tolerant rich-detail flattening, missing-category content inference and malformed explicit-category fallback to `EVENT`.
+- `tests/achievements-history.test.ts`: added behavioral coverage for filter order, retention, newest-first ordering, malformed category handling, Vietnamese case/diacritic-insensitive inference, rich field/detail preservation, compact `previewText`, and combat-history capping.
+- Verification on the final tree: History focused test passed 9/9; `corepack pnpm typecheck` passed; clean production-module Vite SSR smoke confirmed SHOP/EVENT normalization, newest-first ordering, compact preview retention, and flattened details.
+- WBS-065 remains unchecked because A123 lazy-build/single-flight modal lifecycle plus wheel/keyboard/gamepad ownership are presentation integration. The WBS audit notes now explicitly classify the other remaining pending rows as presentation/dev/release work, authority-blocked, or production-owner-blocked instead of implying hidden gameplay completion.
+- No new networking, PvP, mod, gamepad, battle-start orchestration, equipment picker, reflect/counter/Phoenix/berserk, rendering, VFX or UI architecture was invented to satisfy prose without an authoritative owner/contract.

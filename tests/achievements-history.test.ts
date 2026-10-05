@@ -6,8 +6,9 @@ import {
   recordEndlessAchievementEvent, unlockedAchievementCount, validateAchievementRewards,
 } from "../src/core/achievements";
 import {
-  COMBAT_HISTORY_CAP, createCombatHistory, createPlanningHistory, filterPlanningHistory, PLANNING_HISTORY_CAP,
-  pushCombatHistory, pushPlanningHistory, RECENT_LOG_CAP,
+  COMBAT_HISTORY_CAP, createCombatHistory, createPlanningHistory, filterPlanningHistory, HISTORY_FILTERS,
+  normalizeHistoryCategory, normalizeHistoryDetails, PLANNING_HISTORY_CAP, pushCombatHistory,
+  pushPlanningHistory, RECENT_LOG_CAP,
 } from "../src/core/history";
 
 describe("achievement + collection profile", () => {
@@ -81,7 +82,7 @@ describe("achievement + collection profile", () => {
 });
 
 describe("history retention", () => {
-  it("caps recent at 6, Planning at 300 and filters by canonical category", () => {
+  it("caps recent at 6, Planning at 300 and filters newest-first by canonical category", () => {
     const h = createPlanningHistory();
     for (let i = 0; i < PLANNING_HISTORY_CAP + 12; i++) pushPlanningHistory(h, {
       message: `m${i}`, category: i % 2 ? "SHOP" : "COMBAT", timestamp: i, round: 1,
@@ -89,8 +90,38 @@ describe("history retention", () => {
     expect(h.entries).toHaveLength(PLANNING_HISTORY_CAP);
     expect(h.recent).toHaveLength(RECENT_LOG_CAP);
     expect(h.recent.at(-1)).toBe(`m${PLANNING_HISTORY_CAP + 11}`);
-    expect(filterPlanningHistory(h, "SHOP").every((entry) => entry.category === "SHOP")).toBe(true);
+    expect(HISTORY_FILTERS).toEqual(["ALL", "COMBAT", "SHOP", "CRAFT", "EVENT"]);
+    const shop = filterPlanningHistory(h, "SHOP");
+    expect(shop.every((entry) => entry.category === "SHOP")).toBe(true);
+    expect(shop[0]!.timestamp).toBeGreaterThan(shop.at(-1)!.timestamp);
     expect(filterPlanningHistory(h, "ALL")).toHaveLength(PLANNING_HISTORY_CAP);
+  });
+
+  it("normalizes malformed categories and infers Vietnamese category text without diacritic/case drift", () => {
+    expect(normalizeHistoryCategory(" combat ")).toBe("COMBAT");
+    expect(normalizeHistoryCategory("unknown")).toBe("EVENT");
+    expect(normalizeHistoryCategory(42)).toBe("EVENT");
+
+    const h = createPlanningHistory();
+    pushPlanningHistory(h, { message: "Đã MUA một đơn vị từ cửa hàng", timestamp: 1 });
+    pushPlanningHistory(h, { message: "Ghép CÔNG THỨC từ nguyên liệu", timestamp: 2 });
+    pushPlanningHistory(h, { message: "Kỹ năng gây SÁT THƯƠNG chí mạng", timestamp: 3 });
+    expect(h.entries.map((entry) => entry.category)).toEqual(["SHOP", "CRAFT", "COMBAT"]);
+  });
+
+  it("preserves rich fields, flattens detail payload and uses previewText for the compact log", () => {
+    const h = createPlanningHistory();
+    pushPlanningHistory(h, {
+      id: "round-3", message: "Kết quả vòng", previewText: "Thắng vòng 3", timestamp: 3, round: 3,
+      phase: "COMBAT", category: "bad", title: "Chiến thắng", summary: "Tổng kết", icon: "trophy", tone: "positive",
+      meta: { gold: 12 }, details: ["  +10 vàng  ", ["", 2, [false, "  bounty +2  "]], null],
+    });
+    expect(normalizeHistoryDetails([" a ", ["", 0, true]])).toEqual(["a", "0", "true"]);
+    expect(h.entries[0]).toMatchObject({
+      id: "round-3", category: "EVENT", title: "Chiến thắng", summary: "Tổng kết",
+      details: ["+10 vàng", "2", "false", "bounty +2"], icon: "trophy", tone: "positive", meta: { gold: 12 },
+    });
+    expect(h.recent).toEqual(["Thắng vòng 3"]);
   });
 
   it("caps current combat history at 240", () => {
