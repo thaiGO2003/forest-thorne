@@ -7,20 +7,6 @@ import { createUnitManager } from "../src/world/unitManager";
 import { cellToWorld } from "../src/world/arena";
 
 describe("Planning UnitManager (spec §14, §22, A24, A90)", () => {
-  it("shows the saved enemy preview without allowing it to become a planning move target", () => {
-    const scene = new THREE.Scene(), mgr = createUnitManager(scene), state = createRun(42);
-    state.enemyPreview = [{ uid: "preview:ant", baseId: "ant_guard", star: 2, row: 2, col: 7 }];
-    mgr.sync(state); mgr.update(.016);
-    const enemy = mgr.getGroup().children.find((child) => child.name === "unit:ant_guard");
-    expect(enemy?.position.x).toBeGreaterThan(0);
-    const w = cellToWorld(toVisual(7, 2), "solo");
-    const ray = new THREE.Raycaster(new THREE.Vector3(w.x, 10, w.z), new THREE.Vector3(0, -1, 0));
-    scene.updateMatrixWorld(true);
-    expect(mgr.pick(ray, state)).toBeNull();
-    state.enemyPreview = []; mgr.sync(state);
-    expect(mgr.getGroup().children.some((child) => child.name === "unit:ant_guard")).toBe(false);
-    mgr.dispose();
-  });
   it("synchronizes 3D models with RunState board and bench", () => {
     const scene = new THREE.Scene();
     const mgr = createUnitManager(scene);

@@ -98,14 +98,6 @@ export class UnitManager {
       this.updateOrSpawn(key, u, targetPos, targetRotY);
     }
 
-    // Reuse the canonical preview; enemies are read-only and never planning move targets.
-    for (const enemy of s.enemyPreview) {
-      const key = `enemy-${enemy.uid}`;
-      activeKeys.add(key);
-      const w = cellToWorld(toVisual(enemy.col, enemy.row), this.profile);
-      this.updateOrSpawn(key, { ...enemy, star: Math.min(3, Math.max(1, enemy.star)) as 1 | 2 | 3, equips: enemy.equips ?? [], traits: enemy.traits ?? [] },
-        new THREE.Vector3(w.x, .06, w.z), -Math.PI / 2);
-    }
     // 3. Remove obsolete units
     for (const [key, item] of this.units.entries()) {
       if (!activeKeys.has(key)) {

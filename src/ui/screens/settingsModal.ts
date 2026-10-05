@@ -1,12 +1,12 @@
 // Settings modal view (spec §6, A35, A44).
 // Canvas chrome panel with live preview & save through SettingsStore.
 import { attachChrome, drawButton, drawPanel, setupButtonChrome } from "../chrome";
-import { TOOLTIP_MODES, type Settings, type SettingsStore } from "../../core/settings";
+import type { Settings, SettingsStore } from "../../core/settings";
 import { t } from "../../core/i18n";
 import { AI_MODES } from "../../core/encounter";
 import { clearProgress, clearRunProgress, importProgress, PROGRESS_KEY, type KV } from "../../core/save";
 
-export function createSettingsModal(store: SettingsStore, kvStore: KV, onClose: () => void, onProgressChange?: () => void): HTMLElement {
+export function createSettingsModal(store: SettingsStore, kvStore: KV, onClose: () => void): HTMLElement {
   const modal = document.createElement("div");
   modal.className = "ft-settings-modal";
   modal.style.position = "relative";
@@ -199,7 +199,7 @@ export function createSettingsModal(store: SettingsStore, kvStore: KV, onClose: 
   tipSel.style.background = "#1b140e";
   tipSel.style.color = "#e2d5c3";
   tipSel.style.border = "1px solid #4a3525";
-  for (const m of TOOLTIP_MODES) {
+  for (const m of ["summary", "detailed", "expanded"] as const) {
     const opt = document.createElement("option");
     opt.value = m;
     opt.textContent = m.toUpperCase();
@@ -289,7 +289,6 @@ export function createSettingsModal(store: SettingsStore, kvStore: KV, onClose: 
     if (text) {
       const res = importProgress(kvStore, text, true);
       if (res) {
-        onProgressChange?.();
         alert("Save imported successfully!");
       } else {
         alert("Failed to import save: invalid format");
@@ -308,7 +307,6 @@ export function createSettingsModal(store: SettingsStore, kvStore: KV, onClose: 
   clearRunBtn.addEventListener("click", () => {
     if (confirm("Clear active run progress?")) {
       clearRunProgress(kvStore);
-      onProgressChange?.();
       alert("Run progress cleared");
     }
   });
@@ -324,7 +322,6 @@ export function createSettingsModal(store: SettingsStore, kvStore: KV, onClose: 
   clearAllBtn.addEventListener("click", () => {
     if (confirm("Reset ALL data (runs, achievements, collections)?")) {
       clearProgress(kvStore);
-      onProgressChange?.();
       alert("All game data reset");
     }
   });

@@ -1,4 +1,3 @@
-import { ownCleanup } from "./lifecycle";
 // Asset-first canvas chrome renderer (spec §2.3, AGENTS.md).
 // CSS is reserved strictly for geometry and layout; chrome is painted to 2D Canvas.
 
@@ -165,8 +164,6 @@ export function attachChrome(
   el: HTMLElement,
   draw: (canvas: HTMLCanvasElement) => void,
 ): () => void {
-  const position = getComputedStyle(el).position;
-  if (!position || position === "static") el.style.position = "relative";
   const canvas = document.createElement("canvas");
   canvas.className = "ui-chrome-canvas";
   canvas.style.position = "absolute";
@@ -174,8 +171,7 @@ export function attachChrome(
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.pointerEvents = "none";
-  el.style.isolation = "isolate";
-  canvas.style.zIndex = "-1";
+  canvas.style.zIndex = "0";
 
   el.insertBefore(canvas, el.firstChild);
 
@@ -195,20 +191,16 @@ export function attachChrome(
   observer.observe(el);
   update();
 
-  return ownCleanup(el, () => {
+  return () => {
     observer.disconnect();
     canvas.remove();
-  });
+  };
 }
 
 /**
  * Helper to make a button with reactive canvas chrome state (normal, hover, active, disabled).
  */
-const buttonCleanups = new WeakMap<HTMLButtonElement, () => void>();
 export function setupButtonChrome(btn: HTMLButtonElement, variant: ButtonVariant = "wood"): () => void {
-  buttonCleanups.get(btn)?.();
-  btn.style.background = "transparent";
-  btn.style.border = "0";
   let state: ButtonState = btn.disabled ? "disabled" : "normal";
 
   const teardown = attachChrome(btn, (cvs) => drawButton(cvs, state, variant));
@@ -223,13 +215,11 @@ export function setupButtonChrome(btn: HTMLButtonElement, variant: ButtonVariant
   btn.addEventListener("pointerdown", onDown);
   btn.addEventListener("pointerup", onUp);
 
-  const release = ownCleanup(btn, () => {
+  return () => {
     btn.removeEventListener("pointerenter", onEnter);
     btn.removeEventListener("pointerleave", onLeave);
     btn.removeEventListener("pointerdown", onDown);
     btn.removeEventListener("pointerup", onUp);
     teardown();
-  });
-  buttonCleanups.set(btn, release);
-  return release;
+  };
 }

@@ -1,7 +1,3 @@
-import { disposeTree } from "../lifecycle";
-import { hasOpenModal } from "../modalManager";
-import type { HistoryCategory } from "../../core/history";
-import { currentTutorialStep, dismissTutorialStep, recordTutorialEvent, skipTutorial, tutorialActionAllowed } from "../../core/tutorial";
 // Planning Phase HUD & Workspace (spec §14, A1, A2, A3, A4, A8, A14).
 // Asset-first overlay mounted on top of the 3D Stage with interactive shop, unit inspector, and modals.
 import { attachChrome, drawBadge, drawButton, drawPanel, setupButtonChrome } from "../chrome";
@@ -16,7 +12,6 @@ import {
   buyXp,
   deployLimit,
   refresh,
-  sell,
   toggleLock,
   type RunState,
 } from "../../core/run";
@@ -31,7 +26,7 @@ import { createSynergyModal } from "./synergyModal";
 import { createUnitCard } from "./unitCard";
 import { createUnitManager, type UnitManager, type UnitTarget } from "../../world/unitManager";
 import type { Stage } from "../../world/stage";
-import { normalizeKey, type KV, type SettingsStore } from "../../core/settings";
+import type { KV, SettingsStore } from "../../core/settings";
 
 export interface PlanningHudOptions {
   state: RunState;
@@ -40,10 +35,6 @@ export interface PlanningHudOptions {
   settingsStore: SettingsStore;
   onStartCombat: () => void;
   onMainMenu: () => void;
-  onHistory?: () => void;
-  onProgressChange?: () => void;
-  onNewRun?: () => void;
-  onMutation?: (category: HistoryCategory, message: string) => void;
 }
 
 export interface PlanningHud {
@@ -72,8 +63,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   // 3D Unit Manager
   const unitMgr: UnitManager = createUnitManager(stage.scene);
   unitMgr.sync(state);
-  const offFrame = stage.addUpdateHook((dt) => unitMgr.update(dt));
-  const changed = (category: HistoryCategory = "EVENT", message = "Cập nhật đội hình") => { options.onMutation?.(category, message); sync(); };
 
   let selectedTarget: UnitTarget | null = null;
   let inspectorEl: HTMLElement | null = null;
@@ -121,7 +110,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   actionsBar.style.display = "flex";
   actionsBar.style.alignItems = "center";
   actionsBar.style.gap = "8px";
-  actionsBar.style.flexWrap = "wrap";
 
   // Synergy Button
   const synBtn = document.createElement("button");
@@ -145,7 +133,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   bagBtn.style.cursor = "pointer";
   setupButtonChrome(bagBtn, "wood");
   bagBtn.addEventListener("click", () => {
-    openModal("inventory", (close) => createInventoryModal(state, selectedTarget, () => changed("EVENT", "Cập nhật túi đồ"), close));
+    openModal("inventory", (close) => createInventoryModal(state, selectedTarget, () => sync(), close));
   });
   actionsBar.appendChild(bagBtn);
 
@@ -158,7 +146,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   craftBtn.style.cursor = "pointer";
   setupButtonChrome(craftBtn, "wood");
   craftBtn.addEventListener("click", () => {
-    openModal("craft", (close) => createCraftModal(state, () => changed("CRAFT", "Chế tạo trang bị"), close));
+    openModal("craft", (close) => createCraftModal(state, () => sync(), close));
   });
   actionsBar.appendChild(craftBtn);
 
@@ -171,7 +159,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   techBtn.style.cursor = "pointer";
   setupButtonChrome(techBtn, "wood");
   techBtn.addEventListener("click", () => {
-    openModal("tech", (close) => createTechModal(state, () => changed("EVENT", "Nghiên cứu công nghệ"), close));
+    openModal("tech", (close) => createTechModal(state, () => sync(), close));
   });
   actionsBar.appendChild(techBtn);
 
@@ -184,10 +172,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   settingsBtn.style.cursor = "pointer";
   setupButtonChrome(settingsBtn, "wood");
   settingsBtn.addEventListener("click", () => {
-    recordTutorialEvent(state, "open_settings"); changed("EVENT", "Mở cài đặt");
-    openModal("settings", (close) => createSettingsModal(settingsStore, kvStore, close, options.onProgressChange), {
-      onClose: () => { recordTutorialEvent(state, "close_settings"); changed("EVENT", "Đóng cài đặt"); },
-    });
+    openModal("settings", (close) => createSettingsModal(settingsStore, kvStore, close));
   });
   actionsBar.appendChild(settingsBtn);
 
@@ -203,40 +188,8 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   startBtn.addEventListener("click", onStartCombat);
   actionsBar.appendChild(startBtn);
 
-  const historyBtn = document.createElement("button");
-  historyBtn.textContent = "📜 Lịch sử"; setupButtonChrome(historyBtn);
-  historyBtn.addEventListener("click", () => { recordTutorialEvent(state, "open_history"); changed("EVENT", "Mở lịch sử"); options.onHistory?.(); }); actionsBar.append(historyBtn);
-  const menuBtn = document.createElement("button");
-  menuBtn.textContent = "☰ Menu"; setupButtonChrome(menuBtn);
-  menuBtn.addEventListener("click", onMainMenu); actionsBar.append(menuBtn);
   topBar.appendChild(actionsBar);
   root.appendChild(topBar);
-  const tutorialBar = document.createElement("div");
-  tutorialBar.className = "recovery-tutorial"; tutorialBar.style.pointerEvents = "auto";
-  root.append(tutorialBar);
-  function renderTutorial(): void {
-    disposeTree(tutorialBar); tutorialBar.replaceChildren();
-    const step = currentTutorialStep(state);
-    if (!step) { tutorialBar.hidden = true; return; }
-    tutorialBar.hidden = false;
-    const copy = document.createElement("span");
-    const action = step.allowedActions[0];
-    const instructions: Record<string, string> = {
-      buy_unit: "Chọn một tướng trong cửa hàng.", move_unit: "Chọn tướng rồi chọn ô để di chuyển.",
-      begin_combat: "Bấm Bắt đầu để giao tranh.", sell_unit: "Chọn tướng và bấm Bán.",
-      roll_shop: "Bấm Đổi tướng.", buy_xp: "Bấm Mua XP.", equip_item: "Mở Túi để trang bị cho tướng đã chọn.",
-      toggle_history: "Mở hoặc đóng Lịch sử.", open_settings: "Mở Cài đặt.", close_settings: "Đóng Cài đặt.",
-      select_bench: "Chọn tướng ở hàng chờ.", start_unit_drag: "Chọn tướng rồi chọn ô đích.",
-    };
-    copy.textContent = `Hướng dẫn — ${instructions[action] ?? "Khám phá đội hình, cửa hàng và các nút thao tác."}`;
-    tutorialBar.append(copy);
-    if (step.trigger === "dismiss") {
-      const next = document.createElement("button"); next.textContent = "Tiếp tục";
-      next.addEventListener("click", () => { if (dismissTutorialStep(state, step.id)) changed("EVENT", "Tiếp tục hướng dẫn"); }); tutorialBar.append(next);
-    }
-    const skip = document.createElement("button"); skip.textContent = "Bỏ qua hướng dẫn";
-    skip.addEventListener("click", () => { if (skipTutorial(state)) changed("EVENT", "Bỏ qua hướng dẫn"); }); tutorialBar.append(skip);
-  }
 
   // CENTER AREA (Inspector on left)
   const centerArea = document.createElement("div");
@@ -250,7 +203,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
 
   function renderInspector(): void {
     if (inspectorEl) {
-      disposeTree(inspectorEl);
       inspectorEl.remove();
       inspectorEl = null;
     }
@@ -259,7 +211,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
     inspectorEl = createUnitCard(
       state,
       selectedTarget,
-      () => changed("SHOP", "Cập nhật đơn vị / trang bị"),
+      () => sync(),
       () => {
         selectedTarget = null;
         unitMgr.select(null);
@@ -275,9 +227,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   shopBar.style.gap = "10px";
   shopBar.style.pointerEvents = "auto";
   shopBar.style.padding = "12px";
-  shopBar.className = "ft-shop-bar";
   shopBar.style.alignItems = "stretch";
-  shopBar.style.overflowX = "auto";
   shopBar.style.boxSizing = "border-box";
   attachChrome(shopBar, (c) => drawPanel(c, "darkwood"));
 
@@ -297,7 +247,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   setupButtonChrome(rerollBtn, "wood");
   rerollBtn.addEventListener("click", () => {
     const ok = refresh(state);
-    if (ok) changed("SHOP", "Cập nhật cửa hàng");
+    if (ok) sync();
   });
   shopControls.appendChild(rerollBtn);
 
@@ -309,7 +259,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   setupButtonChrome(xpBtn, "wood");
   xpBtn.addEventListener("click", () => {
     const ok = buyXp(state);
-    if (ok) changed("SHOP", "Cập nhật cửa hàng");
+    if (ok) sync();
   });
   shopControls.appendChild(xpBtn);
 
@@ -320,9 +270,8 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   lockBtn.style.cursor = "pointer";
   setupButtonChrome(lockBtn, "wood");
   lockBtn.addEventListener("click", () => {
-    const before = state.shopLocked;
     toggleLock(state);
-    if (before !== state.shopLocked) changed("SHOP", state.shopLocked ? "Khóa cửa hàng" : "Mở cửa hàng");
+    sync();
   });
   shopControls.appendChild(lockBtn);
 
@@ -331,7 +280,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   // Shop Cards (5 slots)
   const cardsContainer = document.createElement("div");
   cardsContainer.style.flex = "1";
-  cardsContainer.style.minWidth = "420px";
   cardsContainer.style.display = "grid";
   cardsContainer.style.gridTemplateColumns = "repeat(5, 1fr)";
   cardsContainer.style.gap = "8px";
@@ -348,8 +296,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
     lockBtn.textContent = state.shopLocked ? "🔒 Cửa hàng đã khóa" : "🔓 Khóa cửa hàng";
 
     // Cards
-    disposeTree(cardsContainer);
-    cardsContainer.replaceChildren();
+    cardsContainer.innerHTML = "";
     for (let slot = 0; slot < state.shop.length; slot++) {
       const unitId = state.shop[slot];
       const card = document.createElement("div");
@@ -413,7 +360,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
         card.addEventListener("click", () => {
           const ok = buy(state, slot);
           if (ok) {
-            changed("SHOP", `Mua ${def.nameVi}`);
+            sync();
           }
         });
       }
@@ -424,8 +371,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
 
   function sync(): void {
     // Sync Top Bar
-    renderTutorial();
-    startBtn.disabled = state.phase !== "PLANNING" || !boardCount(state) || !tutorialActionAllowed(state, "begin_combat");
     roundEl.textContent = `Vòng ${state.round}`;
     hpEl.textContent = `❤️ ${state.hp}`;
     goldEl.textContent = `🪙 ${state.gold}`;
@@ -433,9 +378,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
 
     // Sync 3D scene
     unitMgr.sync(state);
-    for (let row = 0; row < 5; row++) for (let col = 0; col < 10; col++) {
-      stage.arena.setOccupied(col, row, col < 5 ? !!state.board[row * 5 + col] : state.enemyPreview.some((enemy) => enemy.col === col && enemy.row === row));
-    }
 
     // Sync Shop
     renderShop();
@@ -457,7 +399,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   // Pointer Interaction with 3D Canvas
   function onPointerUp(e: PointerEvent): void {
     // Only handle if clicking canvas directly (not UI overlays)
-    if (e.target !== stage.renderer.domElement || hasOpenModal()) return;
+    if (e.target !== stage.renderer.domElement) return;
 
     const hit = unitMgr.pickScreen(e.clientX, e.clientY, stage.renderer.domElement, stage.camera, state);
     if (!hit) {
@@ -472,9 +414,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
       if (hit.unit) {
         selectedTarget = { type: hit.type, index: hit.index, unit: hit.unit };
         unitMgr.select(selectedTarget);
-        recordTutorialEvent(state, hit.type === "bench" ? "select_bench" : "select_board");
-        if (hit.type === "board") recordTutorialEvent(state, "show_attack_preview");
-        changed("EVENT", "Chọn đơn vị");
+        renderInspector();
       }
     } else {
       // Movement / Swap action
@@ -494,7 +434,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
       if (moved) {
         selectedTarget = null;
         unitMgr.select(null);
-        changed("EVENT", "Di chuyển đơn vị");
+        sync();
       } else {
         // Switch selection to new unit if legal
         if (hit.unit) {
@@ -511,27 +451,6 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
   }
 
   stage.renderer.domElement.addEventListener("pointerup", onPointerUp);
-  const onKey = (event: KeyboardEvent) => {
-    if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || hasOpenModal()) return;
-    if (event.target instanceof HTMLElement && (event.target.isContentEditable || event.target.closest("input, select, textarea, button"))) return;
-    const key = event.code === "Space" ? "SPACE" : normalizeKey(event.key);
-    const bindings = settingsStore.get().keys.planning;
-    const action = Object.entries(bindings).find(([, value]) => value === key)?.[0];
-    if (!action) return;
-    event.preventDefault();
-    switch (action) {
-      case "startCombat": if (!startBtn.disabled) startBtn.click(); break;
-      case "reroll": rerollBtn.click(); break;
-      case "buyXp": xpBtn.click(); break;
-      case "settings": settingsBtn.click(); break;
-      case "newRun": options.onNewRun?.(); break;
-      case "toggleAudio": settingsStore.save({ audioMuted: !settingsStore.get().audioMuted }); break;
-      case "sell":
-        if (selectedTarget && sell(state, selectedTarget.type, selectedTarget.index)) { selectedTarget = null; unitMgr.select(null); changed("SHOP", "Bán đơn vị"); }
-        break;
-    }
-  };
-  window.addEventListener("keydown", onKey);
 
   sync();
 
@@ -539,10 +458,7 @@ export function createPlanningHud(options: PlanningHudOptions): PlanningHud {
     root,
     sync,
     dispose() {
-      offFrame();
-      window.removeEventListener("keydown", onKey);
       stage.renderer.domElement.removeEventListener("pointerup", onPointerUp);
-      disposeTree(root);
       unitMgr.dispose();
       root.remove();
     },

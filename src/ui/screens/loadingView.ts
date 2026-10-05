@@ -9,7 +9,6 @@ export interface LoadingViewOptions {
 export function createLoadingView(options: LoadingViewOptions): {
   element: HTMLElement;
   setProgress: (p: number) => void;
-  dispose(): void;
 } {
   const root = document.createElement("div");
   root.className = "ft-loading-overlay";
@@ -42,9 +41,6 @@ export function createLoadingView(options: LoadingViewOptions): {
   }
   const bubbles: Bubble[] = [];
   let animId = 0;
-  let complete = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const dispose = () => { complete = true; cancelAnimationFrame(animId); clearTimeout(timer); window.removeEventListener("resize", resizeBubbles); };
 
   function resizeBubbles() {
     bubbleCanvas.width = window.innerWidth;
@@ -176,15 +172,13 @@ export function createLoadingView(options: LoadingViewOptions): {
   root.appendChild(box);
 
   const setProgress = (pct: number) => {
-    if (complete) return;
     drawProgress(pct);
     if (pct >= 1) {
-      complete = true;
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resizeBubbles);
-      timer = setTimeout(options.onReady, 200);
+      setTimeout(options.onReady, 200);
     }
   };
 
-  return { element: root, setProgress, dispose };
+  return { element: root, setProgress };
 }
