@@ -402,7 +402,7 @@
   - **Tiêu chí nghiệm thu:** Thỏa Definition of Done và A99 completeness gate: từng subsystem có explicit trigger/state/legality/success+no-op mutation/feedback/persistence/mode differences/cleanup cùng mọi numeric boundary/default/tie-break liên quan; không còn hai behavior cạnh tranh cho cùng feature.
   - **Audit Note:** ⚠ Coverage audit 2026-10-04: A54/A99 là cross-cutting release gates, không phải runtime subsystem độc lập.
 
-### Phase: AUTHORITY COVERAGE (0/9 hoàn thành)
+### Phase: AUTHORITY COVERAGE (1/9 hoàn thành)
 
 - [ ] **WBS-094: Co-op Board Ownership, Composition & Capacity Authority** `A63` *(Deps: WBS-004, WBS-005, WBS-006, WBS-011, WBS-033)*
   - **Mô tả:** Canonical shared-board composition giữ mỗi player local board 5×5, compose 2P thành 10 rows và 4P thành 20 rows; map shared↔local row theo ownership span, lấy local slot từ session với fallback hợp lệ, và reject mọi remote mutation nếu mode không explicit shared-control.
@@ -412,10 +412,10 @@
   - **Mô tả:** Planning preview dùng chính encounter data của current round: reuse persisted same-round preview, Creative manual RIGHT units override procedural generation, co-op host là generator duy nhất, guest không tự reroll; Fortress budget multiplier theo node normal/blacksmith/elite/boss.
   - **Tiêu chí nghiệm thu:** Persist preview units+round+budget; combat power đúng công thức A68 và dead current power = 0; team HP/power status tính riêng LEFT/RIGHT; metric chỉ informational, tuyệt đối không đổi targeting/damage/matchmaking/outcome.
   - **Audit Note:** ⚠ Coverage audit 2026-10-04: core preview code tồn tại nhưng WBS trước đây không có owner end-to-end cho lifecycle, host ownership, persistence và exact strength formula.
-- [ ] **WBS-096: Reusable Skill Effects & Status-Merge Semantics** `A70` *(Deps: WBS-019, WBS-020, WBS-021, WBS-022)*
+- [x] **WBS-096: Reusable Skill Effects & Status-Merge Semantics** `A70` *(Deps: WBS-019, WBS-020, WBS-021, WBS-022)*
   - **Mô tả:** Chuẩn hóa reusable effect families: single/global damage qua canonical resolver; single heal chọn living injured ally có HP ratio thấp nhất; global heal cho mọi living ally; stun resolves damage trước; DEF buff merge giữ value mạnh hơn và duration dài hơn; generic slow intentionally inert.
   - **Tiêu chí nghiệm thu:** Stun chỉ áp nếu target sống, chance clamp đúng authored chance×star multiplier với default 100%/1 turn; DEF buff default +15/3 turns; không subsystem nào tạo một damage/heal/status resolver song song.
-  - **Audit Note:** ⚠ Coverage audit 2026-10-04: WBS-022 sở hữu parser/execution pipeline nhưng không mô tả canonical cross-skill semantics của A70.
+  - **Audit Note:** ✅ Logic-only verification 2026-10-05: authored stun chance được giữ trong `SkillSpec`, star chance dùng `1.0/1.4/2.0`, stun gate sau damage và bỏ qua target chết, refresh stun không rút ngắn duration, single/global heal theo living injured semantics, team DEF dùng default `+15/3` và keyed max-value/max-duration merge; generic slow vẫn inert. Targeted `skills+combat` 18/18 pass, typecheck pass, production SSR smoke xác nhận cast→damage→stun→skip và lethal cast→damage→death không có stun.
 - [ ] **WBS-097: Battle-Start Unit Materialization Order & Single-Apply Guard** `A77` *(Deps: WBS-004, WBS-005, WBS-009, WBS-017, WBS-019, WBS-023)*
   - **Mô tả:** Materialize fresh combat records exactly once từ owned state theo order authority: catalog/star/base → enemy AI/mode scaling → player aug/tech → empty transient status/mod payload → equipment → variant traits → environment → final formation/synergies → remaining opening rage/shield → authoritative combat record.
   - **Tiêu chí nghiệm thu:** Persistent owned state không bị mutate bởi temporary combat initialization; reconnect/presentation refresh không reapply bất kỳ modifier nào; order-sensitive modifiers có deterministic regression coverage.

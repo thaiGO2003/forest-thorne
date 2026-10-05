@@ -3,8 +3,8 @@
 // ponytail: status families with bespoke payloads (soul link, berserk, guardian, reflect...) are not modeled;
 // add them as SkillSpec grows per-family handlers.
 import { getUnit, type Element, type Role } from "../content/catalog";
-import { STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat } from "./skills";
+import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
+import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -20,7 +20,7 @@ const STAR_DOT = [0, 1, 1.3, 1.6];
 const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 
-interface Mod { stat: BuffStat; value: number; pct: boolean; turns: number }
+interface Mod extends StatMod { stackKey?: string }
 
 export interface Fighter {
   uid: string; baseId: string; star: number; side: Side; row: number; col: number;
@@ -190,6 +190,20 @@ function applyStatus(c: Ctx, dst: Fighter, kind: string, turns: number, value = 
   // Never shorten; keep the stronger payload (A73).
   dst.status[kind] = { turns: Math.max(turns, cur?.turns ?? 0), value: Math.max(value, cur?.value ?? 0) };
   c.events.push({ t: "status", dst: dst.uid, kind, turns: dst.status[kind]!.turns });
+}
+
+function applyMod(dst: Fighter, mod: StatMod, stackKey?: string) {
+  if (!stackKey) {
+    dst.mods.push({ ...mod });
+    return;
+  }
+  const cur = dst.mods.find((m) => m.stackKey === stackKey && m.stat === mod.stat && m.pct === mod.pct);
+  if (!cur) {
+    dst.mods.push({ ...mod, stackKey });
+    return;
+  }
+  cur.value = Math.max(cur.value, mod.value);
+  cur.turns = Math.max(cur.turns, mod.turns);
 }
 
 function heal(c: Ctx, src: Fighter, dst: Fighter, raw: number) {
@@ -403,17 +417,29 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter): F
   return ordered;
 }
 
+function standardHealTargets(c: Ctx, f: Fighter, sp: SkillSpec): Fighter[] {
+  if (!sp.heal) return [];
+  if (sp.side === "self") return f.hp < f.maxHp ? [f] : [];
+  const living = friends(c, f);
+  if (sp.area === "all" && !sp.pickLowestHp) return living;
+  const injured = stableTargets(f, living.filter((a) => a.hp < a.maxHp));
+  injured.sort((a, b) => hpRatio(a) - hpRatio(b) || a.uid.localeCompare(b.uid));
+  return injured.slice(0, Math.max(1, sp.count));
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
   const sp = skillSpec(f.baseId, f.star);
+  const family = getUnit(f.baseId).skill.family;
+  const teamDefBuff = family === "team_def_buff";
   f.casting = true;
   f.rage = 0;
   const targets = skillTargets(c, f, sp, preferred);
   c.events.push({ t: "cast", src: f.uid, targets: targets.map((x) => x.uid) });
   const starSkill = STAR_SKILL[f.star] ?? 1;
+  const starChance = STAR_EFFECT_CHANCE[f.star] ?? 1;
   const enemyHit = new Set<string>();
   const enemies = sp.side === "enemy" ? targets : [];
   const allies = sp.side === "enemy" ? [f] : targets;
-
   if (sp.damage) {
     const d = sp.damage;
     const raw = Math.round((d.base + statValue(f, d.stat) * d.scale) * starSkill * goldMultiplier(c.gold[f.side]));
@@ -430,6 +456,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
     if (!t.alive) continue;
     for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult));
     for (const k of sp.controls) {
+      if (k.kind === "stun" && c.rng() >= Math.min(1, k.chance * starChance)) continue;
       applyStatus(c, t, k.kind, k.turns);
       if (k.kind === "taunt") t.tauntBy = f.uid;
     }
@@ -444,16 +471,27 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter) {
       c.events.push({ t: "revive", src: f.uid, dst: dead.uid, hp: dead.hp });
     }
   }
+  const healTargets = standardHealTargets(c, f, sp);
+  for (const a of healTargets) {
+    const raw = sp.heal!.formula
+      ? (sp.heal!.formula.base + statValue(f, sp.heal!.formula.stat) * sp.heal!.formula.scale) * starSkill
+      : a.maxHp * sp.heal!.pctMaxHp;
+    heal(c, f, a, Math.floor(raw));
+  }
   for (const a of allies) {
     if (!a.alive) continue;
-    if (sp.heal) heal(c, f, a, sp.heal.formula ? (sp.heal.formula.base + statValue(f, sp.heal.formula.stat) * sp.heal.formula.scale) * starSkill : a.maxHp * sp.heal.pctMaxHp);
     if (sp.shield) {
       const amount = Math.max(1, Math.round((sp.shield.base + statValue(f, sp.shield.stat) * sp.shield.scale) * starSkill));
       a.shield += amount;
       c.events.push({ t: "shield", src: f.uid, dst: a.uid, amount });
     }
-    for (const m of sp.buffs) a.mods.push({ ...m });
+    if (!teamDefBuff) for (const m of sp.buffs) applyMod(a, m);
     if (sp.rageGrant && a !== f) addRage(a, sp.rageGrant);
+  }
+  if (teamDefBuff) {
+    for (const a of friends(c, f)) {
+      for (const m of sp.buffs) applyMod(a, m, `${family}:${m.stat}:${m.pct ? "pct" : "flat"}`);
+    }
   }
   if (sp.selfHealPctMaxHp) heal(c, f, f, f.maxHp * sp.selfHealPctMaxHp);
   if (f.role === "MAGE") addRage(f, enemyHit.size);

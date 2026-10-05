@@ -38,9 +38,10 @@ export const benchCapacity = (benchUpgradeLevel: number, benchBonus = 0, creativ
 const STAR_SELL = [0, 1, 3, 5];
 export const sellValue = (tier: number, star: number) => tier * (STAR_SELL[star] ?? 0);
 
-/** Stat scaling and skill raw-damage scaling are separate tables (A4). Index = star. */
+/** Stat, raw-skill damage, and status-chance star scaling use distinct A4/A12 tables. Index = star. */
 export const STAR_STAT = [0, 1.0, 1.6, 2.5];
 export const STAR_SKILL = [0, 1.0, 1.2, 1.4];
+export const STAR_EFFECT_CHANCE = [0, 1.0, 1.4, 2.0];
 
 // Shop tier odds (A3): [peak, leftSpan, rightSpan] per tier.
 const TIER_PROFILES: [number, number, number][] = [

@@ -18,6 +18,23 @@ describe("skill parser", () => {
     expect(parseSkill("Cuộn tròn, tăng 20 DEF và 20 MDEF trong 2 lượt."))
       .toMatchObject({ side: "self", buffs: [{ stat: "def", value: 20, turns: 2 }, { stat: "mdef", value: 20, turns: 2 }] });
   });
+  it("retains authored stun chance/duration and standard family defaults", () => {
+    expect(parseSkill("Gây sát thương và có 45% gây choáng 1 lượt.").controls)
+      .toEqual([{ kind: "stun", turns: 1, chance: 0.45 }]);
+    expect(parseSkill("Gây sát thương rồi choáng 2 lượt với 35% tỉ lệ.").controls)
+      .toEqual([{ kind: "stun", turns: 2, chance: 0.35 }]);
+    expect(parseSkill("Gây sát thương rồi choáng 1 lượt.").controls)
+      .toEqual([{ kind: "stun", turns: 1, chance: 1 }]);
+    expect(parseSkill("Gây sát thương và làm chậm mục tiêu 2 lượt.").controls).toEqual([]);
+
+    expect(skillSpec("bison_stampede", 2).controls).toContainEqual({ kind: "stun", turns: 1, chance: 0.55 });
+    expect(skillSpec("titan_earth", 3).buffs).toEqual(expect.arrayContaining([
+      { stat: "def", value: 45, pct: false, turns: 4 },
+      { stat: "mdef", value: 45, pct: false, turns: 4 },
+    ]));
+    expect(skillSpec("lizard_elder", 1).buffs).toContainEqual({ stat: "def", value: 15, pct: false, turns: 3 });
+  });
+
   it("bosses preserve authored targeting without synthesizing missing effect magnitudes", () => {
     expect(skillSpec("boss_ember_dragon", 1)).toMatchObject({
       side: "enemy", area: "all", selector: "frontline_default", damage: null, dots: [],

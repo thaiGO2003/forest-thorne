@@ -30,7 +30,7 @@ export interface SkillSpec {
   pickLowestHp: boolean;
   damage: (Formula & { type: DamageType }) | null;
   dots: { kind: DotKind; value: number; turns: number }[];
-  controls: { kind: ControlKind; turns: number }[];
+  controls: { kind: ControlKind; turns: number; chance: number }[];
   /** Heal: flat formula or % of target max HP. */
   heal: { formula: Formula | null; pctMaxHp: number } | null;
   selfHealPctMaxHp: number;
@@ -95,19 +95,31 @@ function formulaAt(m: RegExpMatchArray | null): Formula | null {
   return { base: Number(m[1]), scale, stat: STAT_KEY[m[4]!]! };
 }
 
-/** Duration of the first "N lượt" after `from` within the same sentence; default 1. */
-function turnsAfter(text: string, from: number): number {
+/** Duration of the first "N lượt" after `from` within the same sentence. */
+function turnsAfter(text: string, from: number, fallback = 1): number {
   const rest = text.slice(from);
   const end = rest.search(/\.(?!\d)/);
   const m = /(\d+) lượt/.exec(end < 0 ? rest : rest.slice(0, end));
-  return m ? Number(m[1]) : 1;
+  return m ? Number(m[1]) : fallback;
 }
 
-function statMods(text: string, verb: "tăng" | "giảm"): StatMod[] {
+/** Authored control chance adjacent to the control phrase; omitted means 100%. */
+function controlChance(text: string, from: number, length: number): number {
+  const sentenceStart = text.lastIndexOf(".", from) + 1;
+  const sentenceEnd = text.indexOf(".", from);
+  const before = text.slice(sentenceStart, from);
+  const after = text.slice(from + length, sentenceEnd < 0 ? text.length : sentenceEnd);
+  const leading = /(\d+(?:\.\d+)?)%\s*(?:(?:gây|làm)\s*)?$/i.exec(before);
+  const trailing = /^\s*(?:\d+\s+lượt\s*)?(?:với\s*)?\(?(\d+(?:\.\d+)?)%\)?(?:\s*(?:tỉ lệ|xác suất))?/i.exec(after);
+  const pct = Number(leading?.[1] ?? trailing?.[1] ?? 100);
+  return Math.min(1, Math.max(0, pct / 100));
+}
+
+function statMods(text: string, verb: "tăng" | "giảm", fallbackTurns = 1): StatMod[] {
   const out: StatMod[] = [];
   const re = new RegExp(String.raw`${verb === "tăng" ? "(?:[Tt]ăng|nhận)" : "[Gg]iảm"} ${NUM}(%?) (ATK|MATK|DEF|MDEF|né tránh)(?: và ${NUM}(%?) (ATK|MATK|DEF|MDEF|né tránh))?`, "g");
   for (const m of text.matchAll(re)) {
-    const turns = turnsAfter(text, m.index!);
+    const turns = turnsAfter(text, m.index!, fallbackTurns);
     out.push({ stat: BUFF_WORD[m[3]!]!, value: Number(m[1]), pct: m[2] === "%", turns });
     if (m[6]) out.push({ stat: BUFF_WORD[m[6]]!, value: Number(m[4]), pct: m[5] === "%", turns });
   }
@@ -129,7 +141,9 @@ export function parseSkill(text: string): SkillSpec {
   const controls: SkillSpec["controls"] = [];
   for (const m of t.matchAll(/(choáng|đóng băng|câm lặng|tước vũ khí|khiêu khích|(?<![a-zà-ỹ])ngủ(?![a-zà-ỹ]))/g)) {
     const kind = CONTROL_WORD[m[1]!]!;
-    if (!controls.some((c) => c.kind === kind)) controls.push({ kind, turns: turnsAfter(t, m.index!) });
+    if (!controls.some((c) => c.kind === kind)) {
+      controls.push({ kind, turns: turnsAfter(t, m.index!), chance: controlChance(t, m.index!, m[0]!.length) });
+    }
   }
 
   const allyHeal = /[Hh]ồi (?:dần )?(?:máu )?(\d+)% HP tối đa(?: trong \d+ lượt)? cho (?!bản)/.exec(t);
@@ -182,6 +196,12 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const u = getUnit(baseId);
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
+  if (u.skill.family === "team_def_buff") {
+    s.buffs = statMods(detail, "tăng", 3);
+    if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
+      s.buffs.push({ stat: "def", value: 15, pct: false, turns: 3 });
+    }
+  }
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
     s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);

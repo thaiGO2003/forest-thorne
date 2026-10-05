@@ -513,3 +513,12 @@
 - Treated A54 conflict precedence and A99 completeness as cross-cutting gates plus WBS-093 release acceptance, rather than inventing runtime feature tasks. The WBS now explicitly requires one canonical rule on conflicts and complete trigger/state/legality/mutation/no-op/feedback/persistence/mode/cleanup/numeric-boundary semantics before sign-off.
 - Coverage/integrity verification after edits: 102 tasks total = 34 complete + 1 in progress + 67 pending; numbering is contiguous WBS-001..WBS-102; no duplicate task IDs; every `Deps:` WBS reference resolves; every top-level A1..A125 authority heading is now referenced intentionally somewhere in WBS.
 - This audit changes planning coverage only; no runtime source/test behavior was modified, so verification is structural/reference analysis rather than gameplay test execution.
+
+## 2026-10-05 — WBS-096 reusable skill effects/status merge
+
+- `src/core/skills.ts`: retained authored stun probability in `SkillSpec.controls`, defaulting omitted chance/duration to 100% / 1 turn; generic slow remains intentionally unparsed/inert. Standard `team_def_buff` now receives the A70 fallback `+15 DEF / 3 turns` when authored prose omits a numeric DEF value.
+- `src/core/economy.ts` + `src/core/combat.ts`: added canonical star effect-chance multipliers `1★=1.0`, `2★=1.4`, `3★=2.0`; stun rolls through combat RNG only after damage and only for surviving targets, clamped at `min(1, authoredChance × starMultiplier)`. Existing status merge keeps the longer stun duration.
+- Standard heal targeting now selects the living injured ally with the lowest current-HP/max-HP ratio for single heal, emits no fake heal when nobody is injured, and applies global heal to every living ally. Team DEF buffs share one keyed modifier and preserve the stronger value plus longer remaining duration instead of stacking duplicates.
+- Regression coverage in `tests/skills.test.ts` and `tests/combat.test.ts` proves leading/trailing/default stun chance parsing, 3★ chance saturation, damage-before-stun ordering, no stun after lethal damage, non-shortening stun refresh, single/global heal targeting, and team DEF default/merge behavior.
+- Verification: `corepack pnpm exec vitest --run tests/skills.test.ts tests/combat.test.ts` → 2 files / 18 tests passed; `corepack pnpm typecheck` → passed.
+- Non-visual Vite SSR smoke through real `simulate(...)`: seed 1 surviving target emitted `cast → skill(dmg=72) → status(stun=1) → skip(stun)`; seed 2 lethal 3★ Bison emitted `cast → skill(dmg=332) → death` with no following stun status.
