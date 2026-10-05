@@ -2,6 +2,7 @@
 // Canvas chrome panel with Continue summary, New Game, Settings, Library, Language.
 import { attachChrome, drawButton, drawPanel, setupButtonChrome } from "../chrome";
 import { inspectSave, type KV } from "../../core/save";
+import { MODE_CONFIG } from "../../core/modes";
 import { setLocale, t } from "../../core/i18n";
 import type { SettingsStore } from "../../core/settings";
 import { openModal } from "../modalManager";
@@ -13,6 +14,7 @@ export interface MainMenuOptions {
   onNewGame: () => void;
   onContinue: () => void;
   onOpenLibrary: () => void;
+  onProgressChange?: () => void;
 }
 
 export function createMainMenu(options: MainMenuOptions): HTMLElement {
@@ -76,7 +78,8 @@ export function createMainMenu(options: MainMenuOptions): HTMLElement {
   continueBtn.style.cursor = "pointer";
   continueBtn.style.position = "relative";
 
-  const isContinueValid = saveState.status === "valid";
+  const saved = saveState.status === "valid" ? saveState.envelope.payload.player : undefined;
+  const isContinueValid = !!saved && saved.phase !== "GAME_OVER" && MODE_CONFIG[saved.mode].available;
   if (!isContinueValid) {
     continueBtn.disabled = true;
     continueBtn.style.cursor = "not-allowed";
@@ -154,7 +157,7 @@ export function createMainMenu(options: MainMenuOptions): HTMLElement {
   settingsBtn.style.position = "relative";
   setupButtonChrome(settingsBtn, "wood");
   settingsBtn.addEventListener("click", () => {
-    openModal("settings", (close) => createSettingsModal(settingsStore, kvStore, close));
+    openModal("settings", (close) => createSettingsModal(settingsStore, kvStore, close, options.onProgressChange));
   });
   utilRow.appendChild(settingsBtn);
 

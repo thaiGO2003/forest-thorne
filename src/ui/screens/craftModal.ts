@@ -2,7 +2,7 @@
 import { attachChrome, drawButton, drawPanel, setupButtonChrome } from "../chrome";
 import { activeIndices, craft, matchRecipe, type Recipe } from "../../core/craft";
 import { getEquipment } from "../../core/equipment";
-import type { RunState } from "../../core/run";
+import { craftRunItem, stageRunCraftItem, type RunState } from "../../core/run";
 
 export function createCraftModal(
   state: RunState,
@@ -60,7 +60,7 @@ export function createCraftModal(
   }
 
   // 3x3 Craft Grid State
-  const staged: (string | null)[] = Array(9).fill(null);
+  let staged: (string | null)[] = Array(9).fill(null);
   const activeCells = new Set(activeIndices(state.craftTableLevel));
 
   const body = document.createElement("div");
@@ -114,7 +114,9 @@ export function createCraftModal(
     cell.addEventListener("click", () => {
       if (!activeCells.has(i) || !staged[i]) return;
       // Return to available bag
-      staged[i] = null;
+      const next = stageRunCraftItem(state, staged, i, null);
+      if (!next) return;
+      staged = next;
       renderGrid();
       renderBag();
       updatePreview();
@@ -195,7 +197,9 @@ export function createCraftModal(
         // Place in first empty active slot
         for (let i = 0; i < 9; i++) {
           if (activeCells.has(i) && !staged[i]) {
-            staged[i] = item;
+            const next = stageRunCraftItem(state, staged, i, item);
+            if (!next) return;
+            staged = next;
             renderGrid();
             renderBag();
             updatePreview();
@@ -227,7 +231,7 @@ export function createCraftModal(
   setupButtonChrome(craftBtn, "wood");
 
   craftBtn.addEventListener("click", () => {
-    const res = craft(state, staged);
+    const res = craftRunItem(state, staged);
     if (res) {
       staged.fill(null);
       renderGrid();
