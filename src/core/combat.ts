@@ -101,11 +101,20 @@ export interface Placement {
   traits?: VariantTraitRef[];
 }
 
+export interface SkillTargetPlan {
+  /** Board/action target that caused this cast; may differ from semantic skill targeting. */
+  actionTarget: string | null;
+  /** Primary target chosen by the star-materialized semantic selector. */
+  skillTarget: string | null;
+  /** Stable-uid-deduplicated living units selected or actually affected by this cast. */
+  unitUids: string[];
+}
+
 export type CombatEvent =
   | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
-  | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
+  | { t: "cast"; src: string; targets: string[]; targetPlan: SkillTargetPlan; trigger?: "TANKER" | "SUPPORT" }
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
@@ -885,6 +894,14 @@ function standardHealTargets(c: Ctx, f: Fighter, sp: SkillSpec): Fighter[] {
   return injured.slice(0, Math.max(1, sp.count));
 }
 
+function addTargetPlanUnit(plan: SkillTargetPlan, unit: Fighter) {
+  if (unit.alive && !plan.unitUids.includes(unit.uid)) plan.unitUids.push(unit.uid);
+}
+
+function addTargetPlanUnits(plan: SkillTargetPlan, units: readonly Fighter[]) {
+  for (const unit of units) addTargetPlanUnit(plan, unit);
+}
+
 interface CastSkillOptions {
   consumeRage?: boolean;
   trigger?: AutoCastRole;
@@ -907,9 +924,23 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
     const targets = skillTargets(c, f, sp, preferred, supportSelfFallback);
     const fallbackSelfTarget = supportSelfFallback && targets.length === 1 && targets[0] === f;
-    const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
+    const targetPlan: SkillTargetPlan = {
+      actionTarget: preferred?.alive ? preferred.uid : targets[0]?.uid ?? null,
+      skillTarget: targets[0]?.uid ?? null,
+      unitUids: [],
+    };
+    addTargetPlanUnits(targetPlan, targets);
+    const castEvent: Extract<CombatEvent, { t: "cast" }> = {
+      t: "cast",
+      src: f.uid,
+      targets: targets.map((x) => x.uid),
+      targetPlan,
+    };
     if (options.trigger) castEvent.trigger = options.trigger;
     c.events.push(castEvent);
+    if (sp.reaction.reflect || sp.reaction.counter || (sp.reaction.phoenix && !f.phoenix.used) || sp.reaction.berserk) {
+      addTargetPlanUnit(targetPlan, f);
+    }
     if (sp.reaction.reflect) f.reflect = { ...sp.reaction.reflect };
     if (sp.reaction.counter) f.counterTurns = sp.reaction.counter.turns;
     if (sp.reaction.phoenix && !f.phoenix.used) {
@@ -938,7 +969,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
         drained += hit.hp;
         if (hit.hp > 0 || hit.absorbed > 0) enemyHit.add(t.uid);
       }
-      if (sp.lifestealPct && drained > 0) heal(c, f, f, drained * sp.lifestealPct);
+      if (sp.lifestealPct && drained > 0) {
+        addTargetPlanUnit(targetPlan, f);
+        heal(c, f, f, drained * sp.lifestealPct);
+      }
     }
     const dotMult = STAR_DOT[f.star] ?? 1;
     for (const t of enemies) {
@@ -957,16 +991,19 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
         dead.alive = true;
         dead.hp = Math.max(1, Math.round(dead.maxHp * sp.revivePct));
         dead.status = {}; dead.mods = []; dead.rage = 0;
+        addTargetPlanUnit(targetPlan, dead);
         c.events.push({ t: "revive", src: f.uid, dst: dead.uid, hp: dead.hp });
       }
     }
     const healTargets = standardHealTargets(c, f, sp);
+    addTargetPlanUnits(targetPlan, healTargets);
     for (const a of healTargets) {
       const raw = sp.heal!.formula
         ? (sp.heal!.formula.base + statValue(f, sp.heal!.formula.stat) * sp.heal!.formula.scale) * starSkill
         : a.maxHp * sp.heal!.pctMaxHp;
       heal(c, f, a, Math.floor(raw));
     }
+    if (sp.shield || (!teamDefBuff && sp.buffs.length > 0) || sp.rageGrant) addTargetPlanUnits(targetPlan, allies);
     for (const a of allies) {
       if (!a.alive) continue;
       if (sp.shield) {
@@ -981,11 +1018,16 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (sp.rageGrant && a !== f) addRage(a, sp.rageGrant);
     }
     if (teamDefBuff) {
-      for (const a of friends(c, f)) {
+      const teamBuffTargets = friends(c, f);
+      addTargetPlanUnits(targetPlan, teamBuffTargets);
+      for (const a of teamBuffTargets) {
         for (const m of sp.buffs) applyMod(a, m, `${family}:${m.stat}:${m.pct ? "pct" : "flat"}`);
       }
     }
-    if (sp.selfHealPctMaxHp) heal(c, f, f, f.maxHp * sp.selfHealPctMaxHp);
+    if (sp.selfHealPctMaxHp) {
+      addTargetPlanUnit(targetPlan, f);
+      heal(c, f, f, f.maxHp * sp.selfHealPctMaxHp);
+    }
     if (f.role === "MAGE") addRage(f, enemyHit.size);
   } finally {
     f.casting = false;

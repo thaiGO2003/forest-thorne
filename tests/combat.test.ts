@@ -298,6 +298,10 @@ describe("combat", () => {
       .flatMap((e) => e.t === "heal" && e.src === "healer" ? [e] : []);
     expect(heals).toHaveLength(1);
     expect(heals[0]!.dst).toBe(observed!.expected);
+    const healCast = observed!.result.events.find((e): e is Extract<CombatEvent, { t: "cast" }> => e.t === "cast" && e.src === "healer");
+    if (!healCast) throw new Error("missing healer cast target plan");
+    expect(healCast.targetPlan.skillTarget).toBe(observed!.expected);
+    expect(healCast.targetPlan.unitUids).toContain(observed!.expected);
 
     const full = simulate(
       [{ uid: "healer", baseId: "dove_peace", star: 1, row: 0, col: 4 }],
@@ -668,6 +672,103 @@ describe("combat", () => {
     expect(survivor!.rage).toBe(survivor!.rageMax);
     expect(survivor!.berserk?.turns).toBe(5);
     expect(survivor!.mods.find((m) => m.stackKey === "self_bersek:atk:pct")?.turns).toBe(5);
+  });
+
+  it("A89 reuses random-unique skill targets in one resolved target plan", () => {
+    const caster = makeFighter({ uid: "wasp", baseId: "wasp_sting", star: 1, row: 2, col: 4 }, "L");
+    caster.rage = caster.rageMax;
+    const enemies = ["a", "b", "c", "d"].map((uid, row) => {
+      const fighter = makeFighter({ uid, baseId: "titan_earth", star: 1, row, col: 5 }, "R");
+      fighter.maxHp = fighter.hp = 10_000;
+      return fighter;
+    });
+    const result = simulateMaterialized([caster, ...enemies], { seed: 19 });
+    const cast = result.events.find((e): e is Extract<CombatEvent, { t: "cast" }> => e.t === "cast" && e.src === "wasp");
+    if (!cast) throw new Error("missing wasp cast");
+    const hits = firstCastWindow(result.events, "wasp")
+      .flatMap((e) => e.t === "skill" && e.src === "wasp" ? [e.dst] : []);
+
+    expect(cast.targets).toHaveLength(2);
+    expect(hits).toEqual(cast.targets);
+    expect(cast.targetPlan.skillTarget).toBe(cast.targets[0]);
+    expect(cast.targetPlan.unitUids).toEqual(cast.targets);
+  });
+
+  it("A89 preserves star-aware chain-shock target count and highest-rage order", () => {
+    const run = (star: number) => {
+      const caster = makeFighter({ uid: "shock", baseId: "jellyfish_shock", star, row: 2, col: 4 }, "L");
+      caster.rage = caster.rageMax;
+      const enemies = [
+        { uid: "rage1", rage: 1 },
+        { uid: "rage4", rage: 4 },
+        { uid: "rage3", rage: 3 },
+        { uid: "rage2", rage: 2 },
+      ].map(({ uid, rage }, row) => {
+        const fighter = makeFighter({ uid, baseId: "titan_earth", star: 1, row, col: 5 }, "R");
+        fighter.rage = rage;
+        fighter.maxHp = fighter.hp = 10_000;
+        return fighter;
+      });
+      const result = simulateMaterialized([caster, ...enemies], { seed: 7 });
+      const cast = result.events.find((e): e is Extract<CombatEvent, { t: "cast" }> => e.t === "cast" && e.src === "shock");
+      if (!cast) throw new Error("missing chain-shock cast");
+      return cast;
+    };
+
+    const oneStar = run(1);
+    const twoStar = run(2);
+    expect(oneStar.targets).toEqual(["rage4", "rage3"]);
+    expect(oneStar.targetPlan.unitUids).toEqual(oneStar.targets);
+    expect(twoStar.targets).toEqual(["rage4", "rage3", "rage2"]);
+    expect(twoStar.targetPlan.unitUids).toEqual(twoStar.targets);
+  });
+
+  it("A89 resolves frost storm to the authored highest-total-ATK enemy column", () => {
+    const caster = makeFighter({ uid: "frost", baseId: "ice_mage", star: 1, row: 2, col: 4 }, "L");
+    caster.rage = caster.rageMax;
+    const lowA = makeFighter({ uid: "lowA", baseId: "titan_earth", star: 1, row: 0, col: 5 }, "R");
+    const highA = makeFighter({ uid: "highA", baseId: "titan_earth", star: 1, row: 1, col: 6 }, "R");
+    const lowB = makeFighter({ uid: "lowB", baseId: "titan_earth", star: 1, row: 2, col: 5 }, "R");
+    const highB = makeFighter({ uid: "highB", baseId: "titan_earth", star: 1, row: 3, col: 6 }, "R");
+    lowA.atk = lowB.atk = 10;
+    highA.atk = 220;
+    highB.atk = 180;
+    for (const fighter of [lowA, highA, lowB, highB]) fighter.maxHp = fighter.hp = 10_000;
+
+    const result = simulateMaterialized([caster, lowA, highA, lowB, highB], { seed: 5 });
+    const cast = result.events.find((e): e is Extract<CombatEvent, { t: "cast" }> => e.t === "cast" && e.src === "frost");
+    if (!cast) throw new Error("missing frost cast");
+    const hits = firstCastWindow(result.events, "frost")
+      .flatMap((e) => e.t === "skill" && e.src === "frost" ? [e.dst] : []);
+
+    expect(cast.targets).toEqual(["highA", "highB"]);
+    expect(cast.targetPlan.skillTarget).toBe("highA");
+    expect(cast.targetPlan.unitUids).toEqual(["highA", "highB"]);
+    expect(hits).toEqual(["highA", "highB"]);
+  });
+
+  it("A89 expands mixed team-defense targeting to every living ally and excludes dead units", () => {
+    const caster = makeFighter({ uid: "elder", baseId: "lizard_elder", star: 1, row: 2, col: 4 }, "L");
+    const low = makeFighter({ uid: "low", baseId: "firefly_light", star: 1, row: 1, col: 4 }, "L");
+    const healthy = makeFighter({ uid: "healthy", baseId: "salamander_flame", star: 1, row: 3, col: 4 }, "L");
+    const dead = makeFighter({ uid: "dead", baseId: "dove_peace", star: 1, row: 4, col: 4 }, "L");
+    const enemy = makeFighter({ uid: "enemy", baseId: "titan_earth", star: 1, row: 2, col: 5 }, "R");
+    caster.rage = caster.rageMax;
+    low.hp = Math.max(1, Math.floor(low.maxHp * 0.2));
+    healthy.hp = Math.max(1, Math.floor(healthy.maxHp * 0.8));
+    dead.hp = 0;
+    dead.alive = false;
+    enemy.maxHp = enemy.hp = 10_000;
+
+    const result = simulateMaterialized([caster, low, healthy, dead, enemy], { seed: 3 });
+    const cast = result.events.find((e): e is Extract<CombatEvent, { t: "cast" }> => e.t === "cast" && e.src === "elder");
+    if (!cast) throw new Error("missing team-defense cast");
+
+    expect(cast.targets).toEqual(["low"]);
+    expect(cast.targetPlan.actionTarget).toBe("enemy");
+    expect(cast.targetPlan.skillTarget).toBe("low");
+    expect(cast.targetPlan.unitUids).toEqual(["low", "elder", "healthy"]);
+    expect(cast.targetPlan.unitUids).not.toContain("dead");
   });
 
   it("dead units leave target selection: no event targets a unit after its death", () => {
