@@ -158,6 +158,10 @@ class FakeRtcPeer implements CoopRtcPeerLike {
     this.connectionState = "disconnected";
     this.onconnectionstatechange?.();
   }
+  receive(data: unknown): void {
+    this.outboundChannel?.onmessage?.({ data });
+  }
+
 
   close(): void {
     this.connectionState = "closed";
@@ -483,4 +487,121 @@ describe("co-op WebRTC host relay", () => {
     expect(clientStore.get()?.players.P1.connected).toBe(false);
     expect(clientStore.get()?.readyBySlot.P1).toBe(false);
   });
+  it("rejects answers whose session does not match the pending host offer", async () => {
+    const network = new FakeRtcNetwork();
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerId: "guest",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const offer = await host.createOffer("P2");
+    const answer = await client.acceptOffer(offer);
+    const wrongSession = {
+      ...answer,
+      metadata: { ...answer.metadata, sessionId: "WRONG1" },
+    };
+
+    await expect(host.acceptAnswer(wrongSession)).rejects.toThrow(
+      "Co-op answer session does not match the pending offer",
+    );
+    await expect(host.acceptAnswer(answer)).resolves.toBeUndefined();
+  });
+
+  it("fails closed when a guest sends before its host data channel is open", () => {
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      store: new CoopSessionStore(),
+      peerFactory: new FakeRtcNetwork().createPeer,
+    });
+
+    expect(() => client.sendCombatResult({ round: 1 })).toThrow(
+      "Guest data channel is not open",
+    );
+  });
+
+  it("treats ICE gathering timeout as signalling completion fallback", async () => {
+    const network = new FakeRtcNetwork();
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      signalTimeoutMs: 1,
+      store: new CoopSessionStore(),
+      peerFactory: () => {
+        const peer = network.createPeer() as FakeRtcPeer;
+        peer.iceGatheringState = "gathering";
+        return peer;
+      },
+    });
+
+    await expect(host.createOffer("P2")).resolves.toMatchObject({ kind: "coop_offer" });
+  });
+
+  it("surfaces malformed channel packets through the error callback and ignores them", async () => {
+    const network = new FakeRtcNetwork();
+    const errors: string[] = [];
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+      onError: (error) => errors.push(error.message),
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    await connect(host, client, "P2");
+
+    network.created[0]?.receive("{not-json");
+
+    expect(errors).toEqual(["Malformed co-op message from P2"]);
+  });
+
+  it("emits one metadata-rich host disconnect notification per physical failure", async () => {
+    const network = new FakeRtcNetwork();
+    const received: Array<{ type: string; payload: unknown }> = [];
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      playerId: "host",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+      onMessage: (message) => received.push({ type: message.type, payload: message.payload }),
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerId: "guest",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    await connect(host, client, "P2");
+
+    network.created[0]?.fail();
+    network.created[0]?.fail();
+
+    expect(received).toEqual([
+      {
+        type: "player_disconnected",
+        payload: {
+          slot: "P2",
+          slotIndex: 1,
+          playerId: "guest",
+          reason: "peer-disconnected",
+        },
+      },
+    ]);
+  });
+
 });
