@@ -207,6 +207,55 @@ describe("persistence A57", () => {
     expect(fallback.mode === "resume" && fallback.summary).toMatchObject({ playerCapacity: 2, localSlot: "P1" });
   });
 
+  it("co-op save canonicalizes and reloads host-owned shared round, phase, preview and budget", () => {
+    const s = mem();
+    const p1 = createRun(31);
+    const p2 = createRun(32);
+    p1.round = 4;
+    p2.round = 2;
+    p2.enemyPreview = [{ uid: "guest-stale", baseId: "deer_song", star: 1, row: 1, col: 6 }];
+    p2.enemyPreviewRound = 2;
+    p2.enemyBudget = 99;
+    const shared = {
+      round: 4,
+      phase: "PLANNING" as const,
+      enemyPreview: [{ uid: "host-e0", baseId: "ant_guard", star: 1 as const, row: 2, col: 5 }],
+      enemyPreviewRound: 4,
+      enemyBudget: 17,
+    };
+    saveCoopSlot(s, "SAVE_1", {
+      players: { P1: p1, P2: p2 },
+      localSlot: "P1",
+      hostSlot: "P1",
+      playerCapacity: 2,
+      shared,
+    });
+
+    const selected = selectCoopSlot(s, "SAVE_1");
+    expect(selected.mode).toBe("resume");
+    if (selected.mode !== "resume") throw new Error("expected co-op resume");
+    expect(selected.payload.shared).toMatchObject({
+      round: 4,
+      phase: "PLANNING",
+      enemyPreviewRound: 4,
+      enemyBudget: 17,
+      enemyPreview: [{ uid: "host-e0", baseId: "ant_guard", star: 1, row: 2, col: 5 }],
+    });
+    expect(selected.payload.players!.P1).toMatchObject({
+      round: 4,
+      phase: "PLANNING",
+      enemyPreviewRound: 4,
+      enemyBudget: 17,
+    });
+    expect(selected.payload.players!.P2).toMatchObject({
+      round: 4,
+      phase: "PLANNING",
+      enemyPreviewRound: 4,
+      enemyBudget: 17,
+    });
+    expect(selected.payload.players!.P2!.enemyPreview[0]?.uid).toBe("host-e0");
+  });
+
   it("two-player host swap keeps player-owned board/bench under the new local slot", () => {
     const a = createRun(1); a.gold = 77;
     const b = createRun(2); b.gold = 5;

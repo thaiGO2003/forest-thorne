@@ -44,9 +44,12 @@ describe("enemy preview A68/A103/A114", () => {
     expect(s.enemyBudget).toBe(0);
   });
 
-  it("co-op guest consumes shared preview and never silently generates when host data is absent", () => {
+  it("co-op guest consumes shared preview over conflicting local state and fails closed on a mismatched round", () => {
     const s = createRun(23);
     skipTutorial(s);
+    s.enemyPreview = [{ uid: "local-stale", baseId: "deer_song", star: 1, row: 1, col: 6 }];
+    s.enemyPreviewRound = 1;
+    s.enemyBudget = 999;
     expect(enemyPreview(s, { isHost: false })).toBeNull();
     const shared = [{ uid: "host-e0", baseId: "ant_guard", star: 1, row: 2, col: 5 }];
     const resolved = enemyPreview(s, {
@@ -57,6 +60,16 @@ describe("enemy preview A68/A103/A114", () => {
     })!;
     expect(resolved).toMatchObject({ source: "shared", round: 1, budget: 17 });
     expect(s.enemyPreview).toEqual([expect.objectContaining(shared[0]!)]);
+    expect(s.enemyPreview[0]?.uid).not.toBe("local-stale");
+
+    s.round = 2;
+    expect(enemyPreview(s, {
+      isHost: false,
+      sharedPreview: shared,
+      sharedPreviewRound: 1,
+      sharedEnemyBudget: 17,
+    })).toBeNull();
+    expect(s.enemyPreviewRound).toBe(1);
   });
 
   it("Fortress pending node budget multiplier is applied to generated preview", () => {

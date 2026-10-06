@@ -275,6 +275,9 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       s.buffs.push({ stat: "def", value: 15, pct: false, turns: 3 });
     }
   }
+  if (u.skill.family === "frost_storm" || u.skill.family === "ink_blast_debuff") {
+    s.area = "column";
+  }
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
     s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);

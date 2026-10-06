@@ -5,6 +5,17 @@ import {
   benchCap, creativeEnemyOverride, createModeRun, moveCreativeSandboxUnit, placeCreativeClone, sellCreativeSandboxUnit,
   type OwnedUnit,
 } from "../src/core/run";
+import { inspectSave, saveRun } from "../src/core/save";
+
+function mem() {
+  const m: Record<string, string> = {};
+  return {
+    m,
+    getItem: (key: string) => (key in m ? m[key]! : null),
+    setItem: (key: string, value: string) => { m[key] = value; },
+    removeItem: (key: string) => { delete m[key]; },
+  };
+}
 
 const source = (uid: string, baseId = NORMAL_UNITS[0]!.id): OwnedUnit => ({ uid, baseId, star: 1, equips: [], traits: [] });
 
@@ -71,5 +82,38 @@ describe("Creative sandbox A46", () => {
     expect(normalized).toHaveLength(1);
     expect(normalized[0]).toMatchObject({ uid: "r", side: "RIGHT", row: 4, col: 5 });
     expect(creativeRightEnemyOverride(normalized)?.[0]).toMatchObject({ uid: "r", row: 4, col: 5 });
+  });
+
+  it("round-trips sandbox side, coordinates, equipment, variants and source identity through canonical save", () => {
+    const store = mem();
+    const run = createModeRun(4, "EndlessCreative");
+    const tanker = NORMAL_UNITS.find((unit) => unit.role === "TANKER")!;
+    run.bench = [{
+      uid: "source-unit",
+      baseId: tanker.id,
+      star: 2,
+      equips: ["eq_blue_buff"],
+      traits: [{ id: "tanker_thick_armor", seed: 17 }],
+    }];
+    const cloneUid = placeCreativeClone(run, "bench", 0, 3, 8)!;
+
+    saveRun(store, { player: run });
+    const restored = inspectSave(store);
+    expect(restored.status).toBe("valid");
+    if (restored.status !== "valid") throw new Error(restored.status);
+    expect(restored.envelope.payload.player?.creativeSandboxUnits).toEqual([
+      expect.objectContaining({
+        uid: cloneUid,
+        baseId: tanker.id,
+        star: 2,
+        equips: ["eq_blue_buff"],
+        traits: [{ id: "tanker_thick_armor", seed: 17 }],
+        sandbox: true,
+        sourceUid: "source-unit",
+        side: "RIGHT",
+        row: 3,
+        col: 8,
+      }),
+    ]);
   });
 });
