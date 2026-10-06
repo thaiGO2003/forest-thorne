@@ -3,10 +3,10 @@
 import { getUnit, type Element, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
 import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
-import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
+import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER, type SynergyLine } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
-import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
-import { sumVariantBonuses, type VariantTraitRef } from "./variants";
+import { slotCapForUnit, sumEquipmentBonuses, type EquipmentBonuses } from "./equipment";
+import { sumVariantBonuses, type VariantBonuses, type VariantTraitRef } from "./variants";
 
 export type Side = "L" | "R";
 export const COLS = 10;
@@ -141,50 +141,247 @@ export interface CombatOptions {
   deterministicTargeting?: boolean;
 }
 
+export interface CombatSideScale {
+  hp?: number;
+  atk?: number;
+  matk?: number;
+  roundScale?: number;
+  tutorialHpHalf?: boolean;
+}
+
+export interface CombatMaterializeOptions {
+  /** Persistent team/tech/augment modifiers. Synergy is a later stage. */
+  bonus?: Partial<Record<Side, SideBonus>>;
+  /** Final-formation synergy lines, applied only to matching fighter identities. */
+  synergy?: Partial<Record<Side, readonly SynergyLine[]>>;
+  /** Pre-battle side scaling, normally only RIGHT/enemy. */
+  scale?: Partial<Record<Side, CombatSideScale>>;
+  /** One resolved environment identity shared by the formation. */
+  environment?: EnvironmentId;
+}
+
+export type MaterializedCombatOptions = Pick<
+  CombatOptions,
+  "seed" | "gold" | "rageGain" | "rightRandomTargetChance" | "deterministicTargeting"
+>;
+
 /** A13: 1.0 at ≤10 gold; +1% per 2 gold above 10; capped at 2.0. */
 export function goldMultiplier(gold: number): number {
   if (!(gold > 10)) return 1;
   return Math.min(2, 1 + (gold - 10) / 2 / 100);
 }
 
-export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environment?: EnvironmentId): Fighter {
+const clampStar = (star: number): 1 | 2 | 3 =>
+  Math.min(3, Math.max(1, Math.round(Number.isFinite(star) ? star : 1))) as 1 | 2 | 3;
+
+const finite = (value: number | undefined, fallback = 0): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const positiveScale = (value: number | undefined): number => {
+  const resolved = finite(value, 1);
+  return resolved > 0 ? resolved : 1;
+};
+
+function applySideScale(f: Fighter, scale: CombatSideScale | undefined): void {
+  if (!scale) return;
+  const scaleHp = (multiplier: number) => {
+    f.maxHp = Math.max(1, Math.round(f.maxHp * multiplier));
+    f.hp = f.maxHp;
+  };
+  scaleHp(positiveScale(scale.hp));
+  f.atk = Math.max(1, Math.round(f.atk * positiveScale(scale.atk)));
+  f.matk = Math.max(1, Math.round(f.matk * positiveScale(scale.matk)));
+  const roundScale = positiveScale(scale.roundScale);
+  if (roundScale !== 1) {
+    scaleHp(roundScale);
+    f.atk = Math.max(1, Math.round(f.atk * roundScale));
+    f.matk = Math.max(1, Math.round(f.matk * roundScale));
+  }
+  if (scale.tutorialHpHalf) scaleHp(0.5);
+}
+
+/** Apply one authored modifier stage to already-materialized stats. Opening rage/shield stay with their stage owner. */
+function applyStatBonus(f: Fighter, b: SideBonus): void {
+  const hpPct = finite(b.hpPct);
+  if (hpPct) {
+    const next = Math.max(1, Math.round(f.maxHp * (1 + hpPct / 100)));
+    f.hp = Math.max(0, f.hp + next - f.maxHp);
+    f.maxHp = next;
+  }
+  const atkPct = finite(b.atkPct);
+  if (atkPct) f.atk = Math.max(1, Math.round(f.atk * (1 + atkPct / 100)));
+  const matkPct = finite(b.matkPct);
+  if (matkPct) f.matk = Math.max(1, Math.round(f.matk * (1 + matkPct / 100)));
+  const defPct = finite(b.defPct);
+  if (defPct) f.def = Math.round(f.def * (1 + defPct / 100));
+  const mdefPct = finite(b.mdefPct);
+  if (mdefPct) f.mdef = Math.round(f.mdef * (1 + mdefPct / 100));
+  f.def += finite(b.def);
+  f.mdef += finite(b.mdef);
+  f.crit += finite(b.critPct) / 100;
+  f.evade += finite(b.evadePct) / 100;
+  f.lifesteal = Math.max(0, f.lifesteal + finite(b.lifestealPct) / 100);
+  f.rageGainPct += finite(b.rageGainPct) / 100;
+  f.healPct += finite(b.healPct) / 100;
+  f.onHitBurn += finite(b.burn);
+  f.onHitPoison += finite(b.poison);
+}
+
+function applyEnvironmentStage(f: Fighter, environment: EnvironmentId | undefined): { rage: number; shield: number } {
+  const env = environmentMods(environment, f.element);
+  f.env = env;
+  f.atk = Math.max(1, Math.round(f.atk * (1 + env.atkPct)));
+  f.matk = Math.max(1, Math.round(f.matk * (1 + env.matkPct)));
+  f.def += env.def;
+  f.mdef += env.mdef;
+  f.crit += env.critPct;
+  f.evade += env.evade;
+  f.lifesteal = Math.max(0, f.lifesteal + env.lifesteal);
+  f.rageGainPct += env.rageGainPct;
+  f.healPct += env.healPct;
+  f.onHitBurn += env.burnOnHit;
+  f.onHitPoison += env.poisonOnHit;
+  return { rage: env.startRage, shield: env.startShield };
+}
+
+const equipmentAsBonus = (equipment: EquipmentBonuses): SideBonus => ({
+  hpPct: equipment.hpPct,
+  atkPct: equipment.atkPct,
+  matkPct: equipment.matkPct,
+  def: equipment.def,
+  mdef: equipment.mdef,
+  healPct: equipment.healPct,
+  lifestealPct: equipment.lifestealPct,
+  evadePct: equipment.evadePct,
+  critPct: equipment.critPct,
+  burn: equipment.burnOnHit,
+  poison: equipment.poisonOnHit,
+});
+
+const traitsAsBonus = (traits: VariantBonuses): SideBonus => ({
+  hpPct: traits.hpPct,
+  atkPct: traits.atkPct,
+  matkPct: traits.matkPct,
+  def: traits.def,
+  mdef: traits.mdef,
+  healPct: traits.healPct,
+  critPct: traits.critPct,
+  evadePct: traits.evadePct,
+  lifestealPct: traits.lifestealPct,
+});
+
+function buildBaseFighter(p: Placement, side: Side, scale: CombatSideScale | undefined): Fighter {
   const u = getUnit(p.baseId);
-  const env = environmentMods(environment, u.element);
-  const m = STAR_STAT[p.star] ?? 1;
+  const star = clampStar(p.star);
+  const m = STAR_STAT[star] ?? 1;
   const st = u.stats;
-  const equipment = sumEquipmentBonuses(p.equips ?? [], p.star, slotCapForUnit(u, p.star));
-  const traits = sumVariantBonuses(u.role, p.traits ?? []);
-  const hpPct = (b.hpPct ?? 0) + (equipment.hpPct ?? 0) + (traits.hpPct ?? 0);
-  const atkPct = (b.atkPct ?? 0) + (equipment.atkPct ?? 0) + (traits.atkPct ?? 0);
-  const matkPct = (b.matkPct ?? 0) + (equipment.matkPct ?? 0) + (traits.matkPct ?? 0);
-  const maxHp = Math.round(st.hp * m * (1 + hpPct / 100));
-  // Scaled base-stat evasion: +5pp at 2★, +10pp at 3★, capped 60% (A12).
-  const evadePct = (b.evadePct ?? 0) + (equipment.evadePct ?? 0) + (traits.evadePct ?? 0);
-  const evade = Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (p.star - 1) * 0.05) + evadePct / 100 + env.evade;
-  const rageMax = Math.max(1, u.skill.rageCost[p.star - 1] ?? st.rageMax);
-  const equipmentRage = Math.min(4, Math.max(0, Math.round(equipment.startingRage ?? 0)));
-  const pendingRage = Math.min(4, Math.max(0, Math.round((b.startRage ?? 0) + (traits.startingRage ?? 0) + env.startRage)));
-  return {
-    uid: p.uid, baseId: p.baseId, star: p.star, side, row: p.row, col: p.col, role: u.role, element: u.element,
+  const authoredCost = u.skill.rageCost[star - 1];
+  const rageMax = Math.max(1, Math.round(finite(authoredCost, finite(st.rageMax, 3))));
+  const maxHp = Math.max(1, Math.round(st.hp * m));
+  const fighter: Fighter = {
+    uid: p.uid, baseId: p.baseId, star, side, row: p.row, col: p.col, role: u.role, element: u.element,
     maxHp, hp: maxHp,
-    atk: Math.max(1, Math.round(st.atk * m * (1 + atkPct / 100) * (1 + env.atkPct))),
-    def: Math.round(st.def * m * (1 + (b.defPct ?? 0) / 100) + (b.def ?? 0) + (equipment.def ?? 0) + (traits.def ?? 0) + env.def),
-    matk: Math.max(1, Math.round(st.matk * m * (1 + matkPct / 100) * (1 + env.matkPct))),
-    mdef: Math.round(st.mdef * m * (1 + (b.mdefPct ?? 0) / 100) + (b.mdef ?? 0) + (equipment.mdef ?? 0) + (traits.mdef ?? 0) + env.mdef),
-    range: st.range, rageMax,
-    rage: Math.min(rageMax, equipmentRage + pendingRage),
-    shield: (b.startShield ?? 0) + (equipment.startingShield ?? 0) + (traits.startingShield ?? 0) + env.startShield, alive: true,
-    crit: ROLE_CRIT[u.role] + (st.crit ?? 0) + ((b.critPct ?? 0) + (equipment.critPct ?? 0) + (traits.critPct ?? 0)) / 100 + env.critPct,
+    atk: Math.max(1, Math.round(st.atk * m)),
+    def: Math.round(st.def * m),
+    matk: Math.max(1, Math.round(st.matk * m)),
+    mdef: Math.round(st.mdef * m),
+    range: st.range, rageMax, rage: 0, shield: 0, alive: true,
+    crit: ROLE_CRIT[u.role] + (st.crit ?? 0),
     critDmg: st.critDmg ?? 1.5,
     accuracy: st.accuracy ?? 0.95,
-    evade, lifesteal: Math.max(0, ((b.lifestealPct ?? 0) + (equipment.lifestealPct ?? 0) + (traits.lifestealPct ?? 0)) / 100 + env.lifesteal),
-    rageGainPct: (b.rageGainPct ?? 0) / 100 + env.rageGainPct,
-    healPct: ((b.healPct ?? 0) + (equipment.healPct ?? 0) + (traits.healPct ?? 0)) / 100 + env.healPct,
-    onHitBurn: (b.burn ?? 0) + (equipment.burnOnHit ?? 0) + env.burnOnHit,
-    onHitPoison: (b.poison ?? 0) + (equipment.poisonOnHit ?? 0) + env.poisonOnHit,
+    evade: Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (star - 1) * 0.05),
+    lifesteal: 0, rageGainPct: 0, healPct: 0, onHitBurn: 0, onHitPoison: 0,
     status: {}, mods: [], tauntBy: null, casting: false,
-    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, env,
+    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null,
+    env: environmentMods(undefined, u.element),
   };
+  applySideScale(fighter, scale);
+  return fighter;
+}
+
+function synergyMatches(f: Fighter, line: SynergyLine): boolean {
+  if (line.kind === "class") return f.role === line.key;
+  if (line.kind === "element") return f.element === line.key;
+  return getUnit(f.baseId).faction === line.key;
+}
+
+function addBonuses(parts: readonly SideBonus[]): SideBonus {
+  const out: SideBonus = {};
+  for (const part of parts) {
+    for (const [rawKey, rawValue] of Object.entries(part)) {
+      if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) continue;
+      const key = rawKey as keyof SideBonus;
+      out[key] = (out[key] ?? 0) + rawValue;
+    }
+  }
+  return out;
+}
+
+/** A77 canonical one-shot battle materialization. Persistent placement inputs are never mutated. */
+export function materializeCombatFormation(
+  left: readonly Placement[],
+  right: readonly Placement[],
+  o: CombatMaterializeOptions = {},
+): Fighter[] {
+  const rows = [
+    ...left.map((placement) => ({ placement, fighter: buildBaseFighter(placement, "L", o.scale?.L) })),
+    ...right.map((placement) => ({ placement, fighter: buildBaseFighter(placement, "R", o.scale?.R) })),
+  ];
+  const all = rows.map((row) => row.fighter);
+  const pending = new Map<Fighter, { rage: number; shield: number }>();
+
+  for (const { fighter: f, placement: p } of rows) {
+    const persistent = o.bonus?.[f.side] ?? {};
+    applyStatBonus(f, persistent);
+    f.rage = Math.min(f.rageMax, Math.max(0, Math.round(finite(persistent.startRage))));
+    f.shield = Math.max(0, Math.round(finite(persistent.startShield)));
+
+    const u = getUnit(f.baseId);
+    const equipment = sumEquipmentBonuses(p.equips ?? [], f.star, slotCapForUnit(u, f.star));
+    applyStatBonus(f, equipmentAsBonus(equipment));
+    const equipmentRage = Math.min(4, Math.max(0, Math.round(finite(equipment.startingRage))));
+    f.rage = Math.min(f.rageMax, f.rage + equipmentRage);
+
+    const traits = sumVariantBonuses(f.role, p.traits ?? []);
+    applyStatBonus(f, traitsAsBonus(traits));
+    pending.set(f, {
+      rage: finite(traits.startingRage),
+      shield: finite(equipment.startingShield) + finite(traits.startingShield),
+    });
+  }
+
+  for (const f of all) {
+    const opening = pending.get(f)!;
+    const envOpening = applyEnvironmentStage(f, o.environment);
+    opening.rage += envOpening.rage;
+    opening.shield += envOpening.shield;
+  }
+
+  for (const f of all) {
+    const lines = o.synergy?.[f.side] ?? [];
+    const synergy = addBonuses(lines.filter((line) => synergyMatches(f, line)).map((line) => line.bonus));
+    applyStatBonus(f, synergy);
+    const opening = pending.get(f)!;
+    opening.rage += finite(synergy.startRage);
+    opening.shield += finite(synergy.startShield);
+  }
+
+  for (const f of all) {
+    const opening = pending.get(f)!;
+    const rage = Math.min(4, Math.max(0, Math.round(opening.rage)));
+    f.rage = Math.min(f.rageMax, f.rage + rage);
+    f.shield += Math.max(0, Math.round(opening.shield));
+  }
+  return all;
+}
+
+/** Compatibility helper for isolated callers that materialize one fighter. */
+export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environment?: EnvironmentId): Fighter {
+  const all = materializeCombatFormation(side === "L" ? [p] : [], side === "R" ? [p] : [], {
+    bonus: { [side]: b },
+    environment,
+  });
+  return all[0]!;
 }
 
 const dist = (a: Fighter, b: Fighter) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
@@ -892,14 +1089,19 @@ function mulberry(seed: number) {
 }
 
 /**
- * Run a full combat. LEFT placements use cols 0..4, RIGHT 5..9 (caller maps board → battlefield).
- * Deterministic for identical inputs + seed.
+ * Run combat from placements. Materialization happens exactly once here, then the simulator consumes fighters only.
+ * LEFT placements use cols 0..4, RIGHT 5..9 (caller maps board → battlefield).
  */
 export function simulate(left: Placement[], right: Placement[], o: CombatOptions): CombatResult {
-  const all = [
-    ...left.map((p) => makeFighter(p, "L", o.bonus?.L, o.environment)),
-    ...right.map((p) => makeFighter(p, "R", o.bonus?.R, o.environment)),
-  ];
+  const all = materializeCombatFormation(left, right, {
+    bonus: o.bonus,
+    environment: o.environment,
+  });
+  return simulateMaterialized(all, o);
+}
+
+/** Run the deterministic simulation loop over a previously materialized battle formation. */
+export function simulateMaterialized(all: Fighter[], o: MaterializedCombatOptions): CombatResult {
   const c: Ctx = {
     all, rng: mulberry(o.seed), events: [], globalMult: 1,
     gold: { L: o.gold?.L ?? 0, R: o.gold?.R ?? 0 },
@@ -912,6 +1114,10 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
     autoCastInFlight: new Set<Fighter>(),
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
+  const total = {
+    L: all.filter((f) => f.side === "L").length,
+    R: all.filter((f) => f.side === "R").length,
+  };
   let actions = 0;
   outer: for (let cycle = 0; cycle < CYCLE_CAP; cycle++) {
     for (const f of turnOrder(all)) {
@@ -927,7 +1133,7 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
   const alive = { L: count("L"), R: count("R") };
   return {
     winner: alive.L && !alive.R ? "L" : alive.R && !alive.L ? "R" : null,
-    alive, total: { L: left.length, R: right.length }, bounty: c.bounty, bountyKills: c.bountyKills, actions, events: c.events,
+    alive, total, bounty: c.bounty, bountyKills: c.bountyKills, actions, events: c.events,
     survivors: all.filter((f) => f.alive),
   };
 }

@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
-import { goldMultiplier, makeFighter, reflectOffenseStat, simulate, turnOrder, type CombatEvent, type CombatResult, type Placement } from "../src/core/combat";
+import {
+  goldMultiplier,
+  makeFighter,
+  materializeCombatFormation,
+  reflectOffenseStat,
+  simulate,
+  simulateMaterialized,
+  turnOrder,
+  type CombatEvent,
+  type CombatResult,
+  type Placement,
+} from "../src/core/combat";
 
 const team = (ids: string[], side: "L" | "R"): Placement[] =>
   ids.map((baseId, i) => ({ uid: `${side}${i}`, baseId, star: 1, row: i % 5, col: side === "L" ? 4 - Math.floor(i / 5) : 5 + Math.floor(i / 5) }));
@@ -38,6 +49,63 @@ describe("combat", () => {
     const b = simulate(l, r, { seed: 7 });
     expect(a.events).toEqual(b.events);
     expect(a.winner).toBe(b.winner);
+  });
+
+  it("materializes A77 stages once without mutating persistent placements", () => {
+    const placement: Placement = {
+      uid: "tank",
+      baseId: "titan_earth",
+      star: 1,
+      row: 0,
+      col: 4,
+      equips: ["eq_blue_buff"],
+      traits: [{ id: "tanker_thick_armor", seed: 17 }],
+    };
+    const before = structuredClone(placement);
+    const formation = materializeCombatFormation([placement], [], {
+      bonus: { L: { hpPct: 10, atkPct: 10, def: 2, startRage: 1, startShield: 3 } },
+      scale: { L: { hp: 2, atk: 2, matk: 2 } },
+      environment: "STONE",
+      synergy: {
+        L: [
+          { kind: "class", key: "TANKER", count: 2, active: 2, next: 4, bonus: { hpPct: 8, def: 8 } },
+          { kind: "element", key: "STONE", count: 2, active: 2, next: 4, bonus: { startShield: 18 } },
+        ],
+      },
+    });
+
+    expect(placement).toEqual(before);
+    expect(formation).toHaveLength(1);
+    expect(formation[0]).toMatchObject({
+      uid: "tank",
+      maxHp: 1508,
+      hp: 1508,
+      atk: 128,
+      def: 66,
+      rage: 1,
+      shield: 39,
+    });
+  });
+
+  it("simulateMaterialized consumes battle fighters without reapplying start modifiers", () => {
+    const formation = materializeCombatFormation(
+      [{ uid: "tank", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+      [],
+      { bonus: { L: { hpPct: 50, startRage: 2, startShield: 9 } }, environment: "STONE" },
+    );
+    const fighter = formation[0]!;
+    const before = {
+      maxHp: fighter.maxHp,
+      hp: fighter.hp,
+      rage: fighter.rage,
+      shield: fighter.shield,
+    };
+
+    const result = simulateMaterialized(formation, { seed: 9 });
+
+    expect(result.actions).toBe(0);
+    expect(result.total).toEqual({ L: 1, R: 0 });
+    expect(fighter).toMatchObject(before);
   });
 
   it("every unit fights to a valid resolution without throwing; HP never out of bounds", () => {

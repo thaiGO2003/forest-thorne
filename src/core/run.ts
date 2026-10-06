@@ -31,6 +31,9 @@ import {
 } from "./tutorial";
 import { resolveEnemyPreview, type EnemyPreviewOptions, type EnemyPreviewResult } from "./preview";
 import { computeSynergies, type SynergyLine } from "./synergy";
+import {
+  recordEndlessAchievementEvent, type AchievementProfile, type EndlessAchievementEvent,
+} from "./achievements";
 
 export type Phase = "PLANNING" | "AUGMENT" | "COMBAT" | "GAME_OVER";
 
@@ -119,6 +122,28 @@ export interface RunState {
 export const BOARD_SIZE = 5;
 const SHOP_SLOTS = 5;
 
+const achievementProfileByRun = new WeakMap<RunState, AchievementProfile>();
+
+function recordRunAchievement(s: RunState, event: EndlessAchievementEvent): boolean {
+  const profile = achievementProfileByRun.get(s);
+  return profile ? recordEndlessAchievementEvent(profile, s.mode, event) : false;
+}
+
+function recordRunAchievementSnapshot(s: RunState): void {
+  recordRunAchievement(s, {
+    type: "snapshot", round: s.round, gold: s.gold, level: s.level, winStreak: s.winStreak,
+  });
+}
+
+export function bindAchievementProfile(
+  s: RunState, profile: AchievementProfile, recordRunStarted = false,
+): RunState {
+  achievementProfileByRun.set(s, profile);
+  if (recordRunStarted) recordRunAchievement(s, { type: "run_started" });
+  recordRunAchievementSnapshot(s);
+  return s;
+}
+
 /** Mulberry32: deterministic, serializable via one integer seed. */
 function nextRandom(s: RunState): number {
   let t = (s.rngSeed = (s.rngSeed + 0x6d2b79f5) | 0);
@@ -167,13 +192,15 @@ function createModeRunInternal(seed: number, mode: GameMode): RunState {
 }
 
 /** Normal production fresh run. Current availability policy always yields Classic. */
-export function createRun(seed: number): RunState {
-  return createModeRunInternal(seed, "EndlessPvEClassic");
+export function createRun(seed: number, profile?: AchievementProfile): RunState {
+  const s = createModeRunInternal(seed, "EndlessPvEClassic");
+  return profile ? bindAchievementProfile(s, profile, true) : s;
 }
 
 /** Internal mode constructor: keeps gated mode logic executable without bypassing menu availability. */
-export function createModeRun(seed: number, mode: GameMode): RunState {
-  return createModeRunInternal(seed, mode);
+export function createModeRun(seed: number, mode: GameMode, profile?: AchievementProfile): RunState {
+  const s = createModeRunInternal(seed, mode);
+  return profile ? bindAchievementProfile(s, profile, true) : s;
 }
 
 function rollShop(s: RunState): void {
@@ -226,6 +253,8 @@ export function buyXp(s: RunState): boolean {
   if (!planning(s) || !tutorialActionAllowed(s, "buy_xp") || !canAfford(s, cost)) return false;
   spendGold(s, cost);
   Object.assign(s, addXp(s.level, s.xp, 4));
+  recordRunAchievement(s, { type: "xp_purchase" });
+  recordRunAchievementSnapshot(s);
   return true;
 }
 
@@ -236,6 +265,8 @@ export function refresh(s: RunState): boolean {
   if (isTutorialActive(s)) incrementTutorialShopVariant(s);
   rollShop(s);
   recordTutorialEvent(s, "roll_shop");
+  recordRunAchievement(s, { type: "shop_refresh" });
+  recordRunAchievementSnapshot(s);
   return true;
 }
 
@@ -276,6 +307,8 @@ export function buy(s: RunState, slot: number): boolean {
   s.bench.push({ uid: allocateUid(s), baseId: id, star: 1, equips: [], traits: [rollVariantTrait(role, seed)] });
   autoMerge(s);
   recordTutorialEvent(s, "buy_unit");
+  recordRunAchievement(s, { type: "unit_bought" });
+  recordRunAchievementSnapshot(s);
   return true;
 }
 
@@ -395,7 +428,13 @@ export function autoMerge(s: RunState): number {
       groups.set(key, g);
       if (g.length === 3) { picked = g; break; }
     }
-    if (!picked) return merges;
+    if (!picked) {
+      if (merges > 0) {
+        recordRunAchievement(s, { type: "merge", count: merges });
+        recordRunAchievementSnapshot(s);
+      }
+      return merges;
+    }
 
     const star = (picked[0]!.unit.star + 1) as 2 | 3;
     const baseId = picked
@@ -517,6 +556,12 @@ export interface RoundResultInput {
 export interface RoundResultSummary {
   winner: RoundWinner;
   goldEarned: number;
+  rewardBreakdown: {
+    baseWinGold: number;
+    starWinGold: number;
+    bountyGold: number;
+    winBonusGold: number;
+  };
   xpEarned: number;
   damageTaken: number;
   hpAfter: number;
@@ -567,6 +612,8 @@ export function chooseAugment(s: RunState, id: string): boolean {
   s.activeAugmentChoices = [];
   s.phase = "PLANNING";
   recordTutorialEvent(s, "choose_augment", ["lastAugmentName", id]);
+  recordRunAchievement(s, { type: "augment_chosen" });
+  recordRunAchievementSnapshot(s);
   return true;
 }
 
@@ -585,7 +632,11 @@ export function stageRunCraftItem(s: RunState, staged: (string | null)[], index:
 export function craftRunItem(s: RunState, staged: (string | null)[]): string | null {
   if (!planning(s) || !tutorialActionAllowed(s, "craft_item", { inspection: { craftGrid: staged } })) return null;
   const crafted = commitCraft(s, staged);
-  if (crafted) recordTutorialEvent(s, "craft_item", ["lastCraftedItem", crafted]);
+  if (crafted) {
+    recordTutorialEvent(s, "craft_item", ["lastCraftedItem", crafted]);
+    recordRunAchievement(s, { type: "crafted" });
+    recordRunAchievementSnapshot(s);
+  }
   return crafted;
 }
 
@@ -672,18 +723,27 @@ export function runSynergies(s: RunState): SynergyLine[] {
 export function applyRoundResult(s: RunState, input: RoundResultInput): RoundResultSummary | null {
   if (s.phase !== "COMBAT" || s.appliedCombats.includes(input.combatId)) return null;
   const cfg = modeConfig(s.mode);
+  const resolvedRound = s.round;
   s.appliedCombats.push(input.combatId);
 
   let goldEarned = 0;
+  const rewardBreakdown = {
+    baseWinGold: 0,
+    starWinGold: 0,
+    bountyGold: Math.max(0, input.bounty),
+    winBonusGold: 0,
+  };
   let xpEarned = 0;
   let damageTaken = 0;
   let gameOver = false;
   if (input.winner === "LEFT") {
     s.winStreak++;
     s.loseStreak = 0;
-    goldEarned = input.enemyStars.length
-      + input.enemyStars.reduce((sum, star) => sum + Math.max(0, star - 1), 0)
-      + input.bounty + s.winGoldBonus + (techModifiers(s.techLevels).winGold ?? 0);
+    rewardBreakdown.baseWinGold = input.enemyStars.length;
+    rewardBreakdown.starWinGold = input.enemyStars.reduce((sum, star) => sum + Math.max(0, star - 1), 0);
+    rewardBreakdown.winBonusGold = s.winGoldBonus + (techModifiers(s.techLevels).winGold ?? 0);
+    goldEarned = rewardBreakdown.baseWinGold + rewardBreakdown.starWinGold
+      + rewardBreakdown.bountyGold + rewardBreakdown.winBonusGold;
     if (!cfg.creative) {
       s.gold += goldEarned;
       xpEarned = 2;
@@ -692,7 +752,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   } else if (input.winner === "RIGHT") {
     s.winStreak = 0;
     s.loseStreak++;
-    goldEarned = input.bounty;
+    goldEarned = rewardBreakdown.bountyGold;
     if (!cfg.creative) s.gold += goldEarned;
     if (!cfg.creative && s.lossCondition === "NO_HEARTS") {
       damageTaken = lossDamage(cfg.damageRule, input.enemySurvivors);
@@ -702,7 +762,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   } else {
     s.winStreak = 0;
     s.loseStreak = 0;
-    goldEarned = input.bounty;
+    goldEarned = rewardBreakdown.bountyGold;
     if (!cfg.creative) s.gold += goldEarned;
   }
 
@@ -725,8 +785,18 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
     if (cfg.shop && !s.shopLocked) rollShop(s);
     offerAugmentsIfDue(s);
   }
+  recordRunAchievement(s, {
+    type: "round_result",
+    round: resolvedRound,
+    won: input.winner === "LEFT",
+    lost: input.winner === "RIGHT",
+    itemsLooted: acceptedDrops.length,
+    gold: s.gold,
+    level: s.level,
+    winStreak: s.winStreak,
+  });
   return {
-    winner: input.winner, goldEarned, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,
+    winner: input.winner, goldEarned, rewardBreakdown, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,
     gameOver, incomeEarned, acceptedDrops, rejectedDrops,
   };
 }

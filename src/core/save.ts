@@ -26,12 +26,22 @@ export const COLLECTION_KEY = "forest_throne_collection_profile_v1";
 export const ENVELOPE_VERSION = 4;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
 
+export interface CoopSharedState {
+  round: number;
+  phase: RunState["phase"];
+  enemyPreview: RunState["enemyPreview"];
+  enemyPreviewRound: number;
+  enemyBudget: number;
+  [key: string]: unknown;
+}
+
 /** Solo runs store `player`; multiplayer stores `players` keyed by slot. */
 export interface RunPayload {
   player?: RunState;
   players?: Record<string, RunState>;
   localSlot?: string; hostSlot?: string; roomCode?: string; playerCapacity?: number;
   aiMode?: string; selectedMode?: string;
+  shared?: CoopSharedState;
 }
 export interface Envelope {
   version: number; savedAt: number; payload: RunPayload;
@@ -202,6 +212,34 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
 
 const playersOf = (pl: RunPayload): RunState[] =>
   [pl.player, ...Object.values(pl.players ?? {})].filter((p): p is RunState => isObj(p));
+function normalizeCoopSharedState(payload: RunPayload): void {
+  if (!payload.players || Object.keys(payload.players).length === 0) return;
+  const source = (payload.hostSlot && payload.players[payload.hostSlot])
+    || (payload.localSlot && payload.players[payload.localSlot])
+    || Object.values(payload.players)[0];
+  if (!source) return;
+  const raw: Record<string, unknown> = isObj(payload.shared) ? payload.shared : {};
+  const phase = raw.phase === "AUGMENT" || raw.phase === "COMBAT" || raw.phase === "GAME_OVER"
+    ? raw.phase
+    : "PLANNING";
+  const shared: CoopSharedState = {
+    ...raw,
+    round: clampInt(raw.round, 1, Number.MAX_SAFE_INTEGER, source.round),
+    phase: raw.phase === undefined ? source.phase : phase,
+    enemyPreview: normalizeEnemyPreview(raw.enemyPreview === undefined ? source.enemyPreview : raw.enemyPreview),
+    enemyPreviewRound: clampInt(raw.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, source.enemyPreviewRound),
+    enemyBudget: clampInt(raw.enemyBudget, 0, Number.MAX_SAFE_INTEGER, source.enemyBudget),
+  };
+  payload.shared = shared;
+  for (const player of Object.values(payload.players)) {
+    player.round = shared.round;
+    player.phase = shared.phase;
+    player.enemyPreview = structuredClone(shared.enemyPreview);
+    player.enemyPreviewRound = shared.enemyPreviewRound;
+    player.enemyBudget = shared.enemyBudget;
+  }
+}
+
 
 export interface MigrateResult { envelope: Envelope; changed: boolean; log: string[] }
 
@@ -220,6 +258,7 @@ export function migrate(raw: unknown): MigrateResult | null {
     if (from < 2) for (const p of playersOf(payload)) p.level = clampInt(p.level, 1, 25, 1);
     const before = JSON.stringify(payload);
     for (const p of playersOf(payload)) sanitizePlayer(p, log);
+    normalizeCoopSharedState(payload);
     const changed = from < ENVELOPE_VERSION || JSON.stringify(payload) !== before;
     const envelope = createEnvelope(payload, {
       version: Math.max(from, ENVELOPE_VERSION),
@@ -379,7 +418,9 @@ export function coopSummary(e: CoopEntry): CoopSummary {
 export function saveCoopSlot(store: KV, slotId: CoopSlot, payload: RunPayload): CoopEntry {
   if (!isObj(payload.players) || !Object.keys(payload.players).length) throw new Error("co-op save requires players state");
   const slots = readCoopStore(store);
-  const entry: CoopEntry = { slotId, savedAt: Date.now(), envelope: createEnvelope(structuredClone(payload)) };
+  const canonical = structuredClone(payload);
+  normalizeCoopSharedState(canonical);
+  const entry: CoopEntry = { slotId, savedAt: Date.now(), envelope: createEnvelope(canonical) };
   slots[slotId] = entry;
   const doc: CoopStore = { version: COOP_STORE_VERSION, slots };
   store.setItem(COOP_KEY, JSON.stringify(doc));
