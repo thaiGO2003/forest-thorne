@@ -175,7 +175,7 @@ async function connect(
 ): Promise<void> {
   const offer = await host.createOffer(slot);
   const answer = await client.acceptOffer(offer);
-  await host.acceptAnswer(answer);
+  await host.acceptAnswer(slot, answer);
 }
 
 describe("co-op WebRTC host relay", () => {
@@ -509,10 +509,47 @@ describe("co-op WebRTC host relay", () => {
       metadata: { ...answer.metadata, sessionId: "WRONG1" },
     };
 
-    await expect(host.acceptAnswer(wrongSession)).rejects.toThrow(
+    await expect(host.acceptAnswer("P2", wrongSession)).rejects.toThrow(
       "Co-op answer session does not match the pending offer",
     );
-    await expect(host.acceptAnswer(answer)).resolves.toBeUndefined();
+    await expect(host.acceptAnswer("P2", answer)).resolves.toBeUndefined();
+  });
+
+  it("rejects an answer retargeted to another pending host slot", async () => {
+    const network = new FakeRtcNetwork();
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      playerCapacity: 4,
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const p2 = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerId: "guest-2",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const p3 = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P3",
+      playerId: "guest-3",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const p2Offer = await host.createOffer("P2");
+    const p3Offer = await host.createOffer("P3");
+    const p2Answer = await p2.acceptOffer(p2Offer);
+    await p3.acceptOffer(p3Offer);
+    const wrongTarget = {
+      ...p2Answer,
+      metadata: { ...p2Answer.metadata, targetSlot: "P3" as const, targetSlotIndex: 2 },
+    };
+
+    await expect(host.acceptAnswer("P2", wrongTarget)).rejects.toThrow(
+      "Co-op answer target does not match the pending offer",
+    );
   });
 
   it("fails closed when a guest sends before its host data channel is open", () => {

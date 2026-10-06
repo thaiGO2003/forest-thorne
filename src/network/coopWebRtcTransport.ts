@@ -310,13 +310,16 @@ export class CoopWebRtcTransport {
     return createCoopSignal("coop_answer", localDescription(binding.peer), this.signalMetadata(targetSlot, "client"));
   }
 
-  async acceptAnswer(signal: string | CoopSignalEnvelope): Promise<void> {
+  async acceptAnswer(targetSlot: CoopSlot, signal: string | CoopSignalEnvelope): Promise<void> {
     this.requireRole("host");
     const answer = toSignal(signal);
     if (answer.kind !== "coop_answer") throw new Error("Expected a co-op answer");
-    const binding = this.bindings.get(answer.metadata.targetSlot);
+    if (answer.metadata.targetSlot !== targetSlot) {
+      throw new Error("Co-op answer target does not match the pending offer");
+    }
+    const binding = this.bindings.get(targetSlot);
     if (!binding || !binding.awaitingAnswer) {
-      throw new Error(`No pending peer for ${answer.metadata.targetSlot}`);
+      throw new Error(`No pending peer for ${targetSlot}`);
     }
     if (answer.metadata.sessionId !== binding.expectedSessionId) {
       throw new Error("Co-op answer session does not match the pending offer");
@@ -325,7 +328,7 @@ export class CoopWebRtcTransport {
     await binding.peer.setRemoteDescription(answer.description);
     binding.awaitingAnswer = false;
     if (binding.channel?.readyState === "open") {
-      this.markConnected(answer.metadata.targetSlot, true, binding.remotePlayerId);
+      this.markConnected(targetSlot, true, binding.remotePlayerId);
     }
   }
 
