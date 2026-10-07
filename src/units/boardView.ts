@@ -61,7 +61,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     sync(run) {
       const seen = new Set<string>();
       const arena = stage.arena;
-      // Clear tile occupancy for the whole logical board, then mark occupied cells (11.7 no-grass).
+      // Clear occupancy, then mark deployed cells so only grass tufts hide under units.
       for (let r = 0; r < BOARD; r++) for (let c = 0; c < 10; c++) arena.setOccupied(c, r, false);
 
       run.board.forEach((u, i) => {
