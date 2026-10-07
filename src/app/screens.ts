@@ -13,6 +13,7 @@ import { applyLocale, registerPanel, registerScreen, registerUtility, type App }
 import { runView } from "./bridge";
 import { createBoardView } from "../units/boardView";
 import { createPortraits } from "../units/portraits";
+import { createPlanningDragController } from "./planningDrag";
 import { getUnit } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { STAR_STAT } from "../core/economy";
@@ -53,6 +54,14 @@ registerPanel("tech", (app) => {
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
   const board = createBoardView(stage);
+  let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
+  const drag = createPlanningDragController({
+    stage,
+    board,
+    getRun: () => bridge.run(),
+    move: (from, to) => bridge.move(from, to),
+    enabled: () => !combat && !app.modals.blocking() && bridge.run()?.phase === "PLANNING",
+  });
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
     buy: (slot) => bridge.buy(slot),
     details: (id) => app.openPanel("unit-detail", id),
@@ -68,16 +77,19 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
-    board.sync(run);
+    const preview = bridge.prepareEnemyPreview();
+    const renderRun = preview && preview.units !== run.enemyPreview ? { ...run, enemyPreview: preview.units } : run;
+    const locked = app.modals.blocking() || run.phase !== "PLANNING";
+    if (locked) drag.cancel();
+    board.sync(renderRun);
     hud.update({
       run, synergies: runView.synergies(run), benchCap: runView.benchCap(run),
       deployLimit: runView.deployLimit(run), deployed: boardCount(run),
-      locked: app.modals.blocking() || run.phase !== "PLANNING",
+      locked,
     });
   };
 
   // Combat: logic resolves the battle; presentation swaps HUDs, replays events, then shows the result.
-  let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
   const endCombat = () => {
     if (!combat) return;
     combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose();
@@ -157,7 +169,7 @@ registerScreen("planning", (app) => {
 
   const offs = [bridge.onChange(sync), app.modals.onChange(sync), onLocaleChange(() => hud.refreshCopy())];
   sync();
-  return { dispose() { window.removeEventListener("keydown", onKeyDown); endCombat(); for (const o of offs) o(); hud.dispose(); board.dispose(); } };
+  return { dispose() { window.removeEventListener("keydown", onKeyDown); drag.dispose(); endCombat(); for (const o of offs) o(); hud.dispose(); board.dispose(); } };
 });
 
 // Language: one control opens the list; selecting refreshes copy immediately (A98).

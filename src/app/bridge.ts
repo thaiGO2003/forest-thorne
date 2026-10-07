@@ -17,6 +17,7 @@ import { rollLoot } from "../core/loot";
 import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type PlanningHistoryState } from "../core/history";
 import { setLocale } from "../core/i18n";
 import { createSettingsStore, type SettingsStore, type KV } from "../core/settings";
+import type { EnemyPreviewResult } from "../core/preview";
 export type SaveSummary =
   | { kind: "none" | "corrupt" }
   | { kind: "valid"; mode: GameMode; round: number; level: number; hearts: number; gold: number; playable: boolean };
@@ -48,6 +49,8 @@ export interface Bridge {
   toggleLock(): void;
   sell(from: "bench" | "board", index: number): boolean;
   move(from: { kind: "bench" | "board"; index: number }, to: { kind: "bench" | "board"; index: number }): boolean;
+  /** Ensure the canonical Planning encounter preview exists and is persisted before presentation syncs. */
+  prepareEnemyPreview(): EnemyPreviewResult | null;
   /** Resolve a battle from the current formation; null when illegal (phase/tutorial/empty board). */
   startCombat(): CombatSession | null;
   /** Research a tech node through the canonical transaction (A8, A111.5); false = no change. */
@@ -205,6 +208,12 @@ export function createBridge(store: KV = localStorage): Bridge {
       if (!moved) return false;
       commit("EVENT", "Di chuyển đơn vị");
       return true;
+    },
+    prepareEnemyPreview() {
+      if (!state || state.phase !== "PLANNING") return null;
+      const preview = enemyPreview(state);
+      if (preview && preview.source !== "saved") persist();
+      return preview;
     },
     startCombat() {
       if (!state) return null;

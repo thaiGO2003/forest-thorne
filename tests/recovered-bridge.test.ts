@@ -67,6 +67,23 @@ describe("recovered application bridge", () => {
     expect(JSON.stringify(bridge.run())).toBe(before);
   });
 
+  it("prepares and persists the enemy preview while still in Planning", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    expect(run.enemyPreview).toEqual([]);
+
+    const preview = bridge.prepareEnemyPreview();
+    expect(preview?.units.length).toBeGreaterThan(0);
+    expect(run.phase).toBe("PLANNING");
+    expect(run.enemyPreview).toEqual(preview?.units);
+
+    const resumed = createBridge(store);
+    expect(resumed.continueRun()).toBe(true);
+    expect(resumed.run()?.enemyPreview).toEqual(preview?.units);
+    expect(resumed.prepareEnemyPreview()?.source).toBe("saved");
+  });
+
   it("rejects combat on an empty board without mutating the run", () => {
     const bridge = createBridge(storage());
     bridge.newRun("EndlessPvEClassic", "MEDIUM");
