@@ -181,6 +181,12 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     setHpRatio(r) {
       visible = visibleBodies(star, r);
       bodies.forEach((b, i) => { b.group.visible = i < visible; });
+      if (r > 0 && !alive) {
+        alive = true; dying = -1; onDeath = undefined;
+        state = "idle"; t = 0; impactFired = false; opts = {}; dur = durationOf("idle");
+        root.visible = true; root.scale.setScalar(1); anchor.visible = true;
+        for (const b of bodies) { b.group.rotation.z = 0; b.group.position.y = REST_Y[def.motion]; }
+      }
     },
     die(cb) { if (!alive) return; alive = false; dying = 0; onDeath = cb; },
     update(rawDt) {

@@ -3,12 +3,42 @@
 // NOT a creature, so an unfinished id can never pass as a generic animal (A90 acceptance).
 import { getUnit } from "../content/catalog";
 import { createUnitVisual, defineUnit, type Star, type UnitRigDef, type UnitVisual } from "./rig";
+import antGuard from "./roster/antGuard";
+import badgerStone from "./roster/badgerStone";
+import craneBlessing from "./roster/craneBlessing";
+import crowStorm from "./roster/crowStorm";
+import dovePeace from "./roster/dovePeace";
+import fireflyHeal from "./roster/fireflyHeal";
+import foxFlame from "./roster/foxFlame";
 import jaguarHunt from "./roster/jaguarHunt";
+import komodoBite from "./roster/komodoBite";
+import newtFire from "./roster/newtFire";
+import ramCharge from "./roster/ramCharge";
+import salamanderFlame from "./roster/salamanderFlame";
+import scorpionShadow from "./roster/scorpionShadow";
+import spiderVenom from "./roster/spiderVenom";
+import tigerFang from "./roster/tigerFang";
 import toadPoison from "./roster/toadPoison";
+import triceratopsCharge from "./roster/triceratopsCharge";
 
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
+  ant_guard: antGuard,
+  badger_stone: badgerStone,
+  crane_blessing: craneBlessing,
+  crow_storm: crowStorm,
+  dove_peace: dovePeace,
+  firefly_heal: fireflyHeal,
+  fox_flame: foxFlame,
   jaguar_hunt: jaguarHunt,
+  komodo_bite: komodoBite,
+  newt_fire: newtFire,
+  ram_charge: ramCharge,
+  salamander_flame: salamanderFlame,
+  scorpion_shadow: scorpionShadow,
+  spider_venom: spiderVenom,
+  tiger_fang: tigerFang,
   toad_poison: toadPoison,
+  triceratops_charge: triceratopsCharge,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

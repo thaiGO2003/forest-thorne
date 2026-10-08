@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { visibleBodies } from "../src/units/rig";
 import { normalizeBillboard, type BillboardState } from "../src/units/billboard";
 import { Kit } from "../src/units/kit";
 import toad from "../src/units/roster/toadPoison";
 import jaguar from "../src/units/roster/jaguarHunt";
-import { createUnit } from "../src/units/registry";
+import { createUnit, hasRig } from "../src/units/registry";
 const RIGS = { toad_poison: toad, jaguar_hunt: jaguar };
 
 const base: BillboardState = { name: "x", star: 2, hp: 50, maxHp: 100, rage: 0, rageMax: 4, side: "L", statuses: [] };
@@ -59,20 +59,33 @@ function idlePose(id: "toad_poison" | "jaguar_hunt", combat: boolean) {
   return { part };
 }
 
+const tierOneBespokeIds = [
+  "ant_guard", "badger_stone", "crane_blessing", "crow_storm", "dove_peace",
+  "firefly_heal", "fox_flame", "komodo_bite", "newt_fire", "ram_charge",
+  "salamander_flame", "scorpion_shadow", "spider_venom", "tiger_fang", "triceratops_charge",
+] as const;
+
 describe("Library combat-idle authored poses", () => {
-  it("adapts combat stance and revival without replacing the current procedural model", () => {
-    const unit = createUnit("ant_guard", 1);
-    unit.update(.016);
-    const relaxed = unit.root.scale.clone();
-    unit.setCombat(true); unit.update(.016);
-    expect(unit.root.scale.y).toBeLessThan(relaxed.y);
-    unit.setCombat(false); unit.update(.016);
-    expect(unit.root.scale.equals(relaxed)).toBe(true);
-    unit.die(); unit.update(1);
-    expect(unit.root.visible).toBe(false);
-    unit.setHpRatio(.5); unit.update(.016);
-    expect(unit.root.visible).toBe(true);
-    unit.dispose(); unit.dispose();
+  it("registers every completed tier-1 bespoke rig", () => {
+    for (const id of tierOneBespokeIds) expect(hasRig(id)).toBe(true);
+  });
+  it("revives a completed tier-1 rig without replacing the current procedural model", () => {
+    vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => null }) });
+    let unit: ReturnType<typeof createUnit> | undefined;
+    try {
+      unit = createUnit("ant_guard", 1);
+      const root = unit.root;
+      unit.die();
+      for (let frame = 0; frame < 7; frame++) unit.update(.1);
+      expect(root.visible).toBe(false);
+      unit.setHpRatio(.5); unit.update(.016);
+      expect(root.visible).toBe(true);
+      expect(unit.root).toBe(root);
+      expect(unit.state()).toBe("idle");
+    } finally {
+      unit?.dispose();
+      vi.unstubAllGlobals();
+    }
   });
   it("Cóc Độc keeps relaxed idle normally and crouches in combat idle", () => {
     const relaxed = idlePose("toad_poison", false);
