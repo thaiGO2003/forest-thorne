@@ -603,6 +603,10 @@ export function prepareTutorialRound(s: RunState): { prepared: boolean; clearCra
     s.itemBag.push(plan.grantItemId);
     recordTutorialEvent(s, "tutorial_reward_item", ["lastTutorialReward", plan.grantItemId]);
   }
+  if (plan.ensureBoardStar != null) {
+    const unit = s.board.find((candidate): candidate is OwnedUnit => !!candidate);
+    if (unit && unit.star < plan.ensureBoardStar) unit.star = plan.ensureBoardStar;
+  }
   if (plan.ensureMaterialId) {
     s.itemBag.push(plan.ensureMaterialId);
     recordTutorialEvent(s, "tutorial_reward_material", ["lastTutorialReward", plan.ensureMaterialId]);

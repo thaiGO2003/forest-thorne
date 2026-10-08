@@ -194,6 +194,7 @@ describe("Planning drag controller", () => {
     };
 
     const moves: Array<{ from: { kind: "bench" | "board"; index: number }; to: { kind: "bench" | "board"; index: number } }> = [];
+    const selections: Array<{ kind: "bench" | "board"; index: number }> = [];
     const controller = createPlanningDragController({
       stage: stage as never,
       board: boardView as never,
@@ -202,6 +203,7 @@ describe("Planning drag controller", () => {
         moves.push({ from, to });
         return bridge.move(from, to);
       },
+      select: (source) => { selections.push(source); },
       enabled: () => true,
     });
 
@@ -211,6 +213,11 @@ describe("Planning drag controller", () => {
       canvas.dispatchPointer("pointerdown", start.clientX, start.clientY, pointerId, pointerType);
       canvas.dispatchPointer("pointermove", end.clientX, end.clientY, pointerId, pointerType);
       canvas.dispatchPointer("pointerup", end.clientX, end.clientY, pointerId, pointerType);
+    };
+    const click = (point: THREE.Vector3, pointerId: number) => {
+      const target = clientPointForWorld(point, camera, rect);
+      canvas.dispatchPointer("pointerdown", target.clientX, target.clientY, pointerId);
+      canvas.dispatchPointer("pointerup", target.clientX, target.clientY, pointerId);
     };
 
     const boardA = { col: 1, row: 1 };
@@ -223,9 +230,12 @@ describe("Planning drag controller", () => {
     );
     const boardAIndex = boardA.row * 5 + boardA.col;
     expect(run.board[boardAIndex]?.uid).toBe(playerUid);
+    expect(selections).toEqual([]);
     expect(run.bench[0]?.uid).toBe(otherUid);
 
     placeRoot(playerRoot, boardAWorld.x, boardAWorld.z, scene);
+    click(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 6);
+    expect(selections).toEqual([{ kind: "board", index: boardAIndex }]);
     const boardB = { col: 3, row: 1 };
     const boardBWorld = cellToWorld(toVisual(boardB.col, boardB.row), "solo");
     drag(
@@ -236,6 +246,7 @@ describe("Planning drag controller", () => {
     const boardBIndex = boardB.row * 5 + boardB.col;
     expect(run.board[boardAIndex]).toBeNull();
     expect(run.board[boardBIndex]?.uid).toBe(playerUid);
+    expect(selections).toHaveLength(1);
 
     placeRoot(playerRoot, boardBWorld.x, boardBWorld.z, scene);
     drag(
@@ -247,6 +258,8 @@ describe("Planning drag controller", () => {
     expect(run.bench[1]?.uid).toBe(playerUid);
 
     placeRoot(playerRoot, bench[1]!.x, bench[1]!.z, scene);
+    click(new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z), 7);
+    expect(selections).toHaveLength(1);
     drag(
       new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z),
       new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z),
@@ -259,6 +272,8 @@ describe("Planning drag controller", () => {
     const enemyPoint = new THREE.Vector3(enemyWorld.x, TILE_HEIGHT, enemyWorld.z);
     drag(enemyPoint, new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 5);
     expect(moves).toHaveLength(moveCount);
+    click(enemyPoint, 8);
+    expect(selections).toHaveLength(1);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",
       "board->board",

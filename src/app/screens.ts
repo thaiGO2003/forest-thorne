@@ -1,6 +1,9 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
-import { LOCALES, t, getLocale, onLocaleChange } from "../core/i18n";
+import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { boardCount } from "../core/run";
+import { activeIndices, RECIPES } from "../core/craft";
+import { getEquipment } from "../core/equipment";
+import { AUGMENT_BY_ID } from "../core/augments";
 import { normalizeKey } from "../core/settings";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
@@ -32,6 +35,165 @@ function openPanelModal(app: App, o: ModalOptions, mount: (m: ModalHandle) => { 
   const off = app.modals.onChange((active) => { if (active !== o.id) { off(); view.dispose(); } });
 }
 
+const ITEM_COPY: Partial<Record<string, MsgKey>> = {
+  eq_warmog_armor: "item.eq_warmog_armor",
+  eq_blue_buff: "item.eq_blue_buff",
+  tear: "item.tear",
+};
+const itemName = (id: string) => ITEM_COPY[id] ? t(ITEM_COPY[id]!) : id;
+
+function mountInventory(app: App, m: ModalHandle) {
+  const render = () => {
+    const run = app.bridge.run();
+    m.body.replaceChildren();
+    if (!run) return;
+    const root = h("div", "stack");
+    const itemsTitle = h("strong");
+    itemsTitle.textContent = t("planning.items");
+    root.append(itemsTitle);
+    const bag = h("div", "row");
+    for (const id of run.itemBag) {
+      const item = h("div", "slot");
+      item.textContent = itemName(id);
+      bag.append(item);
+    }
+    if (!run.itemBag.length) {
+      const empty = h("div", "slot");
+      empty.textContent = t("planning.empty");
+      bag.append(empty);
+    }
+    root.append(bag);
+
+    const equipmentBag = [...new Set(run.itemBag.filter((id) => getEquipment(id) !== null))];
+    const groups = [
+      { title: t("planning.boardUnits"), where: "board" as const, units: run.board },
+      { title: t("planning.benchUnits"), where: "bench" as const, units: run.bench },
+    ];
+    for (const group of groups) {
+      const heading = h("strong");
+      heading.textContent = group.title;
+      root.append(heading);
+      for (let index = 0; index < group.units.length; index++) {
+        const unit = group.units[index];
+        if (!unit) continue;
+        const slot = h("div", "slot");
+        const title = h("div");
+        title.textContent = `${index + 1}. ${getUnit(unit.baseId).nameVi} ★${unit.star}`;
+        const actions = h("div", "row");
+        const sell = kitButton({
+          skin: "wood",
+          label: t("planning.sell"),
+          onClick: () => { app.bridge.sell(group.where, index); },
+        });
+        actions.append(sell.el);
+        unit.equips.forEach((itemId, equippedIndex) => {
+          const unequip = kitButton({
+            skin: "plum",
+            label: `${t("planning.unequip")} ${itemName(itemId)}`,
+            onClick: () => { app.bridge.unequip(group.where, index, equippedIndex); },
+          });
+          actions.append(unequip.el);
+        });
+        for (const itemId of equipmentBag) {
+          const item = getEquipment(itemId);
+          if (!item) continue;
+          const equip = kitButton({
+            skin: "green",
+            label: `${t("planning.equip")} ${itemName(itemId)}`,
+            onClick: () => { app.bridge.equip(itemId, group.where, index); },
+          });
+          equip.setDisabled(item.tier > unit.star);
+          actions.append(equip.el);
+        }
+        slot.append(title, actions);
+        root.append(slot);
+      }
+    }
+    m.body.append(root);
+  };
+  const off = app.bridge.onChange(render);
+  render();
+  return { dispose: off };
+}
+
+function mountCraft(app: App, m: ModalHandle) {
+  const render = () => {
+    const run = app.bridge.run();
+    m.body.replaceChildren();
+    if (!run) return;
+    const staged = app.bridge.craftStaging();
+    const root = h("div", "stack");
+    const materialsTitle = h("strong");
+    materialsTitle.textContent = t("planning.materials");
+    root.append(materialsTitle);
+    const materials = [...new Set(run.itemBag.filter((id) => getEquipment(id) === null))];
+    for (const index of activeIndices(run.craftTableLevel)) {
+      const slot = h("div", "slot");
+      const title = h("div");
+      title.textContent = `${t("planning.craftSlot", { slot: index + 1 })}: ${staged[index] ? itemName(staged[index]!) : t("planning.empty")}`;
+      const actions = h("div", "row");
+      for (const material of materials) {
+        const add = kitButton({
+          skin: "blue",
+          label: itemName(material),
+          onClick: () => { app.bridge.stageCraft(index, material); },
+        });
+        actions.append(add.el);
+      }
+      slot.append(title, actions);
+      root.append(slot);
+    }
+    const craft = kitButton({
+      skin: "green",
+      label: t("planning.craftNow"),
+      onClick: () => { app.bridge.craft(); },
+    });
+    craft.setDisabled(staged.every((item) => item === null));
+    root.append(craft.el);
+    m.body.append(root);
+  };
+  const off = app.bridge.onChange(render);
+  render();
+  return { dispose: off };
+}
+
+function mountRecipes(m: ModalHandle) {
+  const root = h("div", "choice-list");
+  for (const recipe of RECIPES) {
+    const row = h("div", "slot");
+    row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(`eq_${recipe.id}`)}`;
+    root.append(row);
+  }
+  m.body.append(root);
+  return { dispose() {} };
+}
+
+function mountAugments(app: App, m: ModalHandle) {
+  const render = () => {
+    const run = app.bridge.run();
+    m.body.replaceChildren();
+    if (!run || run.phase !== "AUGMENT") return;
+    const root = h("div", "choice-list");
+    for (const id of run.activeAugmentChoices) {
+      const def = AUGMENT_BY_ID.get(id);
+      const row = h("div", "slot");
+      const copy = h("div");
+      copy.textContent = def ? `${id} · ${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}` : id;
+      const choose = kitButton({
+        skin: "green",
+        label: t("planning.choose"),
+        onClick: () => { if (app.bridge.chooseAugment(id)) m.close(); },
+      });
+      row.append(copy, choose.el);
+      root.append(row);
+    }
+    m.body.append(root);
+  };
+  const off = app.bridge.onChange(render);
+  render();
+  return { dispose: off };
+}
+
 const openLibrary = (app: App, id?: string) =>
   openPanelModal(app, { id: "library", title: t("menu.library"), size: "full" }, (m) => mountLibrary(m, portraits, app.tooltip, id));
 registerPanel("library", (app) => openLibrary(app));
@@ -50,6 +212,14 @@ registerPanel("tech", (app) => {
     return { dispose() { off(); view.dispose(); } };
   });
 });
+registerPanel("inventory", (app) =>
+  openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "lg" }, (m) => mountInventory(app, m)));
+registerPanel("craft", (app) =>
+  openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "lg" }, (m) => mountCraft(app, m)));
+registerPanel("recipes", (app) =>
+  openPanelModal(app, { id: "recipes", title: t("planning.recipes"), size: "lg" }, mountRecipes));
+registerPanel("augment", (app) =>
+  openPanelModal(app, { id: "augment", title: t("planning.augment"), size: "lg", dismissible: false }, (m) => mountAugments(app, m)));
 
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
@@ -60,6 +230,14 @@ registerScreen("planning", (app) => {
     board,
     getRun: () => bridge.run(),
     move: (from, to) => bridge.move(from, to),
+    select: (source) => {
+      const unit = bridge.run()?.board[source.index];
+      if (!unit) return;
+      app.openPanel("unit-detail", unit.baseId);
+      bridge.tutorialEvent("show_attack_preview", "show_attack_preview", {
+        source: { where: "board", index: source.index },
+      });
+    },
     enabled: () => !combat && !app.modals.blocking() && bridge.run()?.phase === "PLANNING",
   });
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
@@ -70,6 +248,8 @@ registerScreen("planning", (app) => {
     toggleLock: () => bridge.toggleLock(),
     start: () => runCombat(),
     action: (id) => app.openPanel(id),
+    tutorialDismiss: (stepId) => bridge.dismissTutorial(stepId),
+    tutorialSkip: () => bridge.skipTutorial(),
     // LOGIC: A39 cortisol dance timer/state; visual hook only.
     cortisol: () => {},
     pan: (x, y) => stage.setPan(x, y),
@@ -82,11 +262,18 @@ registerScreen("planning", (app) => {
     const locked = app.modals.blocking() || run.phase !== "PLANNING";
     if (locked) drag.cancel();
     board.sync(renderRun);
+    const craftGrid = bridge.craftStaging();
     hud.update({
       run, synergies: runView.synergies(run), benchCap: runView.benchCap(run),
       deployLimit: runView.deployLimit(run), deployed: boardCount(run),
       locked,
+      tutorial: bridge.tutorialStep({
+        craftGrid,
+        settingsVisible: app.modals.active() === "settings",
+        historyVisible: app.modals.active() === "history",
+      }),
     });
+    if (!combat && run.phase === "AUGMENT" && !app.modals.blocking()) app.openPanel("augment");
   };
 
   // Combat: logic resolves the battle; presentation swaps HUDs, replays events, then shows the result.
@@ -138,6 +325,18 @@ registerScreen("planning", (app) => {
     });
   }
 
+  let previousModal = app.modals.active();
+  const onModalChange = (active: string | null) => {
+    const previous = previousModal;
+    previousModal = active;
+    let recorded = false;
+    if (previous === "history" && active !== "history") recorded = bridge.tutorialEvent("toggle_history", "close_history") || recorded;
+    if (previous === "settings" && active !== "settings") recorded = bridge.tutorialEvent("close_settings", "close_settings") || recorded;
+    if (active === "history" && previous !== "history") recorded = bridge.tutorialEvent("toggle_history", "open_history") || recorded;
+    if (active === "settings" && previous !== "settings") recorded = bridge.tutorialEvent("open_settings", "open_settings") || recorded;
+    if (!recorded) sync();
+  };
+
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.repeat || combat || app.modals.blocking()) return;
     const target = event.target;
@@ -167,7 +366,7 @@ registerScreen("planning", (app) => {
   };
   window.addEventListener("keydown", onKeyDown);
 
-  const offs = [bridge.onChange(sync), app.modals.onChange(sync), onLocaleChange(() => hud.refreshCopy())];
+  const offs = [bridge.onChange(sync), app.modals.onChange(onModalChange), onLocaleChange(() => hud.refreshCopy())];
   sync();
   return { dispose() { window.removeEventListener("keydown", onKeyDown); drag.dispose(); endCombat(); for (const o of offs) o(); hud.dispose(); board.dispose(); } };
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyRoundResult, benchToBoard, buy, chooseAugment, craftRunItem, createRun, prepareTutorialRound, refresh,
+  applyRoundResult, benchToBoard, buy, chooseAugment, craftRunItem, createRun, equipItem, prepareTutorialRound, refresh,
   stageRunCraftItem, startCombat, type OwnedUnit,
 } from "../src/core/run";
 import {
@@ -72,11 +72,14 @@ describe("tutorial A94/A108", () => {
 
     const round5 = createRun(10);
     round5.round = 5;
+    round5.board[0] = owned("round5");
     syncTutorialRound(round5);
     prepareTutorialRound(round5);
     expect(round5.itemBag.filter((id) => id === "eq_warmog_armor")).toHaveLength(1);
+    expect(round5.board[0]?.star).toBe(2);
     prepareTutorialRound(round5);
     expect(round5.itemBag.filter((id) => id === "eq_warmog_armor")).toHaveLength(1);
+    expect(round5.board[0]?.star).toBe(2);
 
     const round6 = createRun(11);
     round6.round = 6;
@@ -128,6 +131,11 @@ describe("tutorial A94/A108", () => {
     expect(currentTutorialStep(s, { craftGrid: staged })?.id).toBe("round6_craft_item");
     expect(craftRunItem(s, staged)).toBe("eq_blue_buff");
     expect(s.itemBag).toContain("eq_blue_buff");
+    const cleared = Array<string | null>(9).fill(null);
+    expect(currentTutorialStep(s, { craftGrid: cleared })?.id).toBe("round6_equip_crafted_item");
+    expect(equipItem(s, "eq_blue_buff", "board", 0)).toBe(true);
+    expect(s.itemBag).not.toContain("eq_blue_buff");
+    expect(currentTutorialStep(s, { craftGrid: cleared })?.id).toBe("round6_start_combat");
   });
 
   it("supports external settings/history events and skip without synthesizing completion", () => {

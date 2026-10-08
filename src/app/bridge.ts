@@ -3,16 +3,21 @@
 import { getUnit } from "../content/catalog";
 import {
   applyRoundResult, benchCap, benchToBench, benchToBoard, boardToBench, boardToBoard, buy as buyUnit,
-  buyXp as buyRunXp, createModeRun, deployLimit, enemyPreview, playerCombatBonus, refresh, research as researchTech,
-  runSynergies, sell as sellUnit, startCombat as beginCombat, toggleLock as toggleShopLock,
-  type RoundResultSummary, type RunState,
+  buyXp as buyRunXp, chooseAugment as chooseRunAugment, craftRunItem, createModeRun, deployLimit,
+  enemyPreview, equipItem, playerCombatBonus, refresh, research as researchTech, runSynergies,
+  sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
+  unequipItem, type RoundResultSummary, type RunState,
 } from "../core/run";
 import { inspectSave, clearRunProgress, saveRun } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor } from "../core/environment";
 import { makeFighter, simulate, type CombatEvent, type Placement, type SideBonus } from "../core/combat";
-import { tutorialActionAllowed } from "../core/tutorial";
+import {
+  currentTutorialStep, dismissTutorialStep, recordTutorialEvent, skipTutorial as skipTutorialState,
+  tutorialActionAllowed, type TutorialAction, type TutorialActionContext, type TutorialInspectionContext,
+  type TutorialStep,
+} from "../core/tutorial";
 import { rollLoot } from "../core/loot";
 import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type PlanningHistoryState } from "../core/history";
 import { setLocale } from "../core/i18n";
@@ -42,6 +47,16 @@ export interface Bridge {
   continueRun(): boolean;
   newRun(mode: GameMode, ai: string): RunState;
   clearBrokenRun(): void;
+  /** Current authored tutorial instruction; null when tutorial is inactive or this round is complete. */
+  tutorialStep(context?: TutorialInspectionContext): TutorialStep | null;
+  /** Canonical tutorial gate for presentation-only interactions. */
+  tutorialAllows(action: TutorialAction, context?: TutorialActionContext): boolean;
+  /** Advance an authored dismiss step and persist/repaint. */
+  dismissTutorial(stepId: string): boolean;
+  /** Leave Tutorial mode through the canonical handoff and persist/repaint. */
+  skipTutorial(): boolean;
+  /** Record a presentation-only tutorial event after its canonical action gate accepts it. */
+  tutorialEvent(action: TutorialAction, key: string, context?: TutorialActionContext): boolean;
   /** Planning intents; return false (and leave state untouched) when illegal. */
   buy(slot: number): boolean;
   reroll(): boolean;
@@ -49,6 +64,12 @@ export interface Bridge {
   toggleLock(): void;
   sell(from: "bench" | "board", index: number): boolean;
   move(from: { kind: "bench" | "board"; index: number }, to: { kind: "bench" | "board"; index: number }): boolean;
+  equip(itemId: string, where: "bench" | "board", index: number): boolean;
+  unequip(where: "bench" | "board", index: number, equippedIndex: number): boolean;
+  craftStaging(): readonly (string | null)[];
+  stageCraft(index: number, itemId: string | null): boolean;
+  craft(): string | null;
+  chooseAugment(id: string): boolean;
   /** Ensure the canonical Planning encounter preview exists and is persisted before presentation syncs. */
   prepareEnemyPreview(): EnemyPreviewResult | null;
   /** Resolve a battle from the current formation; null when illegal (phase/tutorial/empty board). */
@@ -97,6 +118,17 @@ export function createBridge(store: KV = localStorage): Bridge {
     record(category, message, details);
     persist();
     emit();
+  };
+  let craftStaging: (string | null)[] = Array<string | null>(9).fill(null);
+  let craftResetObserved = false;
+  const resetExternalPlanningState = () => {
+    craftStaging = Array<string | null>(9).fill(null);
+    craftResetObserved = Boolean(state?.tutorial.markers.clearCraftStaging);
+  };
+  const syncCraftStaging = () => {
+    const resetRequested = Boolean(state?.tutorial.markers.clearCraftStaging);
+    if (resetRequested && !craftResetObserved) craftStaging = Array<string | null>(9).fill(null);
+    craftResetObserved = resetRequested;
   };
 
   const addBonus = (...parts: SideBonus[]): SideBonus => {
@@ -148,6 +180,7 @@ export function createBridge(store: KV = localStorage): Bridge {
       if (!MODE_CONFIG[saved.mode].available || saved.phase === "GAME_OVER") return false;
       state = saved;
       if (state.phase === "COMBAT") state.phase = "PLANNING"; // Replay the persisted deterministic encounter after interruption.
+      resetExternalPlanningState();
       persist();
       resetHistory();
       emit();
@@ -159,12 +192,35 @@ export function createBridge(store: KV = localStorage): Bridge {
       const requestedAi = normalizeAiMode(ai, config.ai.def);
       state = createModeRun(Date.now() | 0, selectedMode);
       state.aiMode = config.ai.allowed.includes(requestedAi) ? requestedAi : config.ai.def;
+      resetExternalPlanningState();
       resetHistory();
       persist();
       emit();
       return state;
     },
     clearBrokenRun() { clearRunProgress(store); emit(); },
+    tutorialStep(context) {
+      return state ? currentTutorialStep(state, context) : null;
+    },
+    tutorialAllows(action, context) {
+      return state ? tutorialActionAllowed(state, action, context) : false;
+    },
+    dismissTutorial(stepId) {
+      if (!state || !dismissTutorialStep(state, stepId)) return false;
+      commit("EVENT", "Tiếp tục hướng dẫn");
+      return true;
+    },
+    skipTutorial() {
+      if (!state || !skipTutorialState(state)) return false;
+      commit("EVENT", "Bỏ qua hướng dẫn");
+      return true;
+    },
+    tutorialEvent(action, key, context) {
+      if (!state || !tutorialActionAllowed(state, action, context)) return false;
+      recordTutorialEvent(state, key);
+      commit("EVENT", `Hướng dẫn: ${key}`);
+      return true;
+    },
     buy(slot) {
       if (!state) return false;
       const id = state.shop[slot];
@@ -207,6 +263,46 @@ export function createBridge(store: KV = localStorage): Bridge {
             : benchToBench(state, from.index, to.index);
       if (!moved) return false;
       commit("EVENT", "Di chuyển đơn vị");
+      return true;
+    },
+    equip(itemId, where, index) {
+      if (!state || !equipItem(state, itemId, where, index)) return false;
+      commit("EVENT", `Trang bị ${itemId}`);
+      return true;
+    },
+    unequip(where, index, equippedIndex) {
+      if (!state) return false;
+      const unit = where === "bench" ? state.bench[index] : state.board[index];
+      const itemId = unit?.equips[equippedIndex];
+      if (!itemId || !unequipItem(state, where, index, equippedIndex)) return false;
+      commit("EVENT", `Tháo trang bị ${itemId}`);
+      return true;
+    },
+    craftStaging() {
+      syncCraftStaging();
+      return craftStaging.slice();
+    },
+    stageCraft(index, itemId) {
+      if (!state) return false;
+      syncCraftStaging();
+      const next = stageRunCraftItem(state, craftStaging, index, itemId);
+      if (!next) return false;
+      craftStaging = next;
+      commit("EVENT", itemId ? `Đặt ${itemId} vào bàn chế tạo` : `Dọn ô chế tạo ${index + 1}`);
+      return true;
+    },
+    craft() {
+      if (!state) return null;
+      syncCraftStaging();
+      const crafted = craftRunItem(state, craftStaging);
+      if (!crafted) return null;
+      craftStaging = Array<string | null>(9).fill(null);
+      commit("EVENT", `Chế tạo ${crafted}`);
+      return crafted;
+    },
+    chooseAugment(id) {
+      if (!state || !chooseRunAugment(state, id)) return false;
+      commit("EVENT", `Chọn nâng cấp ${id}`);
       return true;
     },
     prepareEnemyPreview() {
@@ -301,8 +397,8 @@ export function createBridge(store: KV = localStorage): Bridge {
     checkpoint: commit,
     history: () => history,
     settings,
-    forgetRun() { state = null; resetHistory(); emit(); },
-    clearRun() { clearRunProgress(store); state = null; emit(); },
+    forgetRun() { state = null; resetExternalPlanningState(); resetHistory(); emit(); },
+    clearRun() { clearRunProgress(store); state = null; resetExternalPlanningState(); emit(); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 }

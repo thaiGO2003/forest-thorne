@@ -18,6 +18,7 @@ interface PlanningDragOptions {
   board: BoardView;
   getRun(): RunState | null;
   move(from: PlanningSlot, to: PlanningSlot): boolean;
+  select?(source: PlanningSlot): void;
   enabled(): boolean;
   profile?: Profile;
 }
@@ -31,6 +32,7 @@ export function createPlanningDragController({
   board,
   getRun,
   move,
+  select,
   enabled,
   profile = "solo",
 }: PlanningDragOptions): PlanningDragController {
@@ -154,7 +156,6 @@ export function createPlanningDragController({
       captured = true;
     }
     const run = getRun();
-    if (run) pickTarget(event.clientX, event.clientY, run);
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -162,13 +163,18 @@ export function createPlanningDragController({
   const onPointerUp = (event: PointerEvent) => {
     if (!pressed || event.pointerId !== pressed.pointerId) return;
     const source = pressed.source;
-    const shouldCommit = dragging && enabled();
-    const run = shouldCommit ? getRun() : null;
+    const wasDragging = dragging;
+    const active = enabled();
+    const run = wasDragging && active ? getRun() : null;
     const target = run ? pickTarget(event.clientX, event.clientY, run) : null;
     clearState(true);
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (target) move(source, target);
+    if (target) {
+      move(source, target);
+      return;
+    }
+    if (!wasDragging && active && source.kind === "board") select?.(source);
   };
 
   const onPointerCancel = (event: PointerEvent) => {

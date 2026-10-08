@@ -596,3 +596,10 @@
 - WBS-090 therefore remains incomplete by definition: the full A31/A53 matrix includes co-op transport/sync, PvP Fortress and mods whose runtime owners do not exist. Existing deterministic slices are healthy but cannot substitute for absent production contracts.
 - Fresh focused verification on the unchanged gameplay tree: `corepack pnpm exec vitest --run tests/geometry.test.ts tests/persistence.test.ts tests/preview.test.ts tests/creative.test.ts tests/encounter-env.test.ts tests/combat.test.ts tests/fortress.test.ts tests/achievements-history.test.ts` → **8 files / 90 tests passed**; `corepack pnpm typecheck` → passed.
 - No gameplay implementation was added in this continuation because every newly re-checked gap lacked either an authoritative deterministic contract or a canonical production owner. No non-visual runtime smoke was required for this documentation-only continuation; prior significant gameplay changes retain their recorded production-module smoke evidence.
+
+## 2026-10-08 — Tutorial runtime repair and round-8 completion verification
+
+- Restored the authored Tutorial UI/control surfaces through rounds 1–8 without duplicating tutorial authority outside `src/core/tutorial.ts`; equipment, craft, augment and Tutorial mutations now route through Bridge/core ownership.
+- Fixed round-5 Warmog legality by deterministic 2★ preparation, made round-6 craft progression monotonic with durable canonical events, added non-drag board selection for the attack-preview step, and kept craft staging external to `RunState`.
+- Added compact portrait shop paging and corrected joystick placement from live BrowserPanel evidence; the Tutorial HUD now honors its `hidden` state after canonical completion, so round 9 / `aiMode: EASY` no longer displays stale guidance.
+- Removed temporary smoke diagnostics before delivery. Verification: targeted Vitest `3 files / 19 tests passed`; `corepack pnpm typecheck`; `corepack pnpm build`; `git diff --check`; real 1DevTool BrowserPanel playthrough exercised Tutorial rounds 1–8 and resumed the persisted round-9 run without Tutorial guidance.
