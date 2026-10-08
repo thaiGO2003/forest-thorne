@@ -603,3 +603,10 @@
 - Fixed round-5 Warmog legality by deterministic 2★ preparation, made round-6 craft progression monotonic with durable canonical events, added non-drag board selection for the attack-preview step, and kept craft staging external to `RunState`.
 - Added compact portrait shop paging and corrected joystick placement from live BrowserPanel evidence; the Tutorial HUD now honors its `hidden` state after canonical completion, so round 9 / `aiMode: EASY` no longer displays stale guidance.
 - Removed temporary smoke diagnostics before delivery. Verification: targeted Vitest `3 files / 19 tests passed`; `corepack pnpm typecheck`; `corepack pnpm build`; `git diff --check`; real 1DevTool BrowserPanel playthrough exercised Tutorial rounds 1–8 and resumed the persisted round-9 run without Tutorial guidance.
+
+## 2026-10-09 — Main-menu utility and Donate repair
+
+- Merged the latest `dev` runtime into `main`, restoring the full app shell before menu QA.
+- Added TPBank VietQR donation generation for `LUONG QUOC THAI` / `6039352614`, including the supplied 15 randomized transfer notes, rounded positive amounts, and amount omission when non-positive.
+- Wired Donate and Version menu utilities; Achievements, Mods, Tribute and Community now open explicit in-development modals instead of silently doing nothing.
+- Verification: `tests/donate.test.ts` → **3 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed; `git diff --check` → passed; local and public `/cho` returned HTTP 200. Real 1DevTool BrowserPanel verification remains unavailable in this connector turn because its browser MCP actions are not registered, and the generic browser-runtime documentation call was explicitly blocked by the platform safety classifier.

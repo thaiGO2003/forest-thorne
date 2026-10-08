@@ -81,6 +81,7 @@
 .field { display: grid; grid-template-columns: minmax(110px, 40%) 1fr; gap: 8px; align-items: center; min-height: 44px; }
 .field input[type="range"] { width: 100%; min-height: 32px; }
 .slot { position: relative; padding: 8px 10px; }
+.donate-qr { display: block; width: min(100%, 360px); height: auto; margin: 0 auto; }
 
 /* ---------- unit card ---------- */
 .unit-card { position: relative; width: 100%; aspect-ratio: 5 / 7; }

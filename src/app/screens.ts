@@ -5,6 +5,7 @@ import { activeIndices, RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { normalizeKey } from "../core/settings";
+import { DONATE_ACCOUNT_NAME, DONATE_ACCOUNT_NUMBER, DONATE_BANK, buildDonateQrUrl, pickRandomDonateQrAddInfo } from "../core/donate";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
@@ -387,3 +388,44 @@ registerUtility("language", (app) => {
   }
   m.body.append(list);
 });
+
+registerUtility("donate", (app) => {
+  const m = app.modals.open({ id: "donate", title: t("menu.donate"), size: "md", closeLabel: t("ui.close") });
+  const stack = h("div", "stack");
+  const account = h("div", "slot", `${DONATE_BANK} · ${DONATE_ACCOUNT_NUMBER} · ${DONATE_ACCOUNT_NAME}`);
+  const field = h("label", "field");
+  const amountLabel = h("span", "", t("menu.donateAmount"));
+  const amount = h("input");
+  amount.type = "number";
+  amount.inputMode = "numeric";
+  amount.min = "0";
+  amount.step = "1000";
+  amount.placeholder = t("menu.donateOptional");
+  field.append(amountLabel, amount);
+  const qr = h("img", "donate-qr");
+  qr.alt = t("menu.donateQrAlt");
+  qr.decoding = "async";
+  const message = h("div", "slot");
+  const refresh = () => {
+    const numericAmount = Number(amount.value);
+    const addInfo = pickRandomDonateQrAddInfo();
+    qr.src = buildDonateQrUrl(Number.isFinite(numericAmount) && numericAmount > 0 ? numericAmount : 0, addInfo);
+    message.textContent = t("menu.donateMessage", { message: addInfo });
+  };
+  const regenerate = kitButton({ skin: "green", label: t("menu.donateRefresh"), onClick: refresh });
+  stack.append(account, field, regenerate.el, qr, message);
+  m.body.append(stack);
+  refresh();
+});
+
+registerUtility("version", (app) => {
+  const m = app.modals.open({ id: "version", title: t("menu.version"), size: "sm", closeLabel: t("ui.close") });
+  m.body.append(h("div", "slot", `Forest Throne v${__APP_VERSION__}`));
+});
+
+for (const id of ["achievements", "mods", "tribute", "social"] as const) {
+  registerUtility(id, (app) => {
+    const m = app.modals.open({ id, title: t(`menu.${id}` as MsgKey), size: "sm", closeLabel: t("ui.close") });
+    m.body.append(h("div", "slot", t("menu.locked")));
+  });
+}
