@@ -192,3 +192,24 @@ export function disposeEmojiAtlas(): void {
   TEXTURE_CACHE.clear();
   isAtlasReady = false;
 }
+
+// Shared semantic glyphs complement the current emoji atlas.
+export const ICONS = {
+  empty: "",
+  gold: "🪙", xp: "✨", heart: "❤️", level: "⬆️", round: "🗓️", streakWin: "🔥", streakLoss: "🥶",
+  reroll: "🔄", lock: "🔒", unlock: "🔓", start: "⚔️", sell: "💰", info: "📜",
+  library: "📖", tech: "🌳", craft: "⚒️", recipe: "📕", inventory: "🎒", history: "🕰️", settings: "⚙️",
+  synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
+  social: "💬", donate: "☕", version: "🏷️", debug: "🐞", cortisol: "🧘",
+  rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨",
+  // Roles
+  TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",
+  // Factions
+  BEAST: "🐾", AVIAN: "🪶", INSECT: "🐞", REPTILE: "🦎", AQUATIC: "🐟", MYTHICAL: "🐉",
+  // Elements
+  STONE: "🪨", WIND: "🌪️", FIRE: "🔥", TIDE: "🌊", NIGHT: "🌙", SPIRIT: "👻", SWARM: "🐝", WOOD: "🌿",
+  // Statuses
+  burn: "🔥", poison: "☠️", bleed: "🩸", freeze: "❄️", stun: "💫", sleep: "💤", silence: "🤐",
+  shield: "🛡️", taunt: "📣", healBlock: "🚫", atkUp: "💪", atkDown: "🥀", defUp: "🧱", defDown: "🪓",
+  regen: "🌱", reflect: "🪞", immune: "✳️", disease: "🦠", slow: "🐌", haste: "⚡",
+} as const;

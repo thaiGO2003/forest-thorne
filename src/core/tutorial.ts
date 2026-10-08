@@ -244,8 +244,8 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 
   infoStep(6, "round6_intro"),
   actionStep(6, "round6_place_craft_item", target("inventoryItem", { itemId: "tear" }), ["start_item_drag", "add_craft_item"],
-    { kind: "craftSlotMatches", slotIndex: 4, itemId: "tear" }, [target("inventoryItem", { itemId: "tear" }), target("craftSlot", { slot: 4 })]),
-  actionStep(6, "round6_craft_item", target("craftOutput"), ["craft_item"], { kind: "itemInBag", itemId: "eq_blue_buff" }),
+    { kind: "eventAtLeast", key: "add_craft_item" }, [target("inventoryItem", { itemId: "tear" }), target("craftSlot", { slot: 4 })]),
+  actionStep(6, "round6_craft_item", target("craftOutput"), ["craft_item"], { kind: "eventAtLeast", key: "craft_item" }),
   actionStep(6, "round6_equip_crafted_item", target("inventoryItem", { itemId: "eq_blue_buff" }), ["start_item_drag", "equip_item"],
     { kind: "unitHasEquip", itemId: "eq_blue_buff" }, [target("inventoryItem", { itemId: "eq_blue_buff" }), target("boardAnyOccupied")]),
   actionStep(6, "round6_start_combat", target("button", { key: "start" }), ["begin_combat"], { kind: "eventAtLeast", key: "begin_combat" }),
@@ -474,6 +474,7 @@ export interface TutorialPreparationPlan {
   round: number;
   grantBenchBaseId?: string;
   grantItemId?: string;
+  ensureBoardStar?: 2;
   ensureMaterialId?: string;
   minCraftTableLevel?: number;
   clearCraftStaging: boolean;
@@ -488,7 +489,10 @@ export function tutorialPreparationPlan(s: RunState): TutorialPreparationPlan | 
     s.itemBag.includes(itemId) || [...s.bench, ...s.board.filter((u): u is OwnedUnit => !!u)].some((unit) => unit.equips.includes(itemId));
   const base: TutorialPreparationPlan = { round: s.round, clearCraftStaging: false };
   if (s.round === 3 && s.bench.length === 0) base.grantBenchBaseId = "falcon_dive";
-  if (s.round === 5 && !hasEquipmentAnywhere("eq_warmog_armor")) base.grantItemId = "eq_warmog_armor";
+  if (s.round === 5) {
+    if (!hasEquipmentAnywhere("eq_warmog_armor")) base.grantItemId = "eq_warmog_armor";
+    if (!s.board.some((unit) => Boolean(unit && unit.star >= 2))) base.ensureBoardStar = 2;
+  }
   if (s.round === 6) {
     base.minCraftTableLevel = 1;
     if (!s.itemBag.includes("tear")) base.ensureMaterialId = "tear";

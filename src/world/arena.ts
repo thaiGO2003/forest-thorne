@@ -67,8 +67,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   soil.receiveShadow = true;
   root.add(soil);
 
-  // Tactical top tiles: checker grass, switch to soil-top when occupied (11.7: no grass under units).
-  const grassA = new THREE.Color(0x6fbf4a), grassB = new THREE.Color(0x5fae3e), bare = new THREE.Color(0xa07a4e);
+  // Tactical top tiles: checker grass stays visible even while occupied.
+  const grassA = new THREE.Color(0x6fbf4a), grassB = new THREE.Color(0x5fae3e);
   const tiles = new THREE.InstancedMesh(tileGeo, mat(0xffffff), 10 * rows);
   const tileIndex: Record<string, number> = {};
   n = 0;
@@ -164,8 +164,6 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     setOccupied(col, row, occupied) {
       const i = tileIndex[`${col},${row}`];
       if (i === undefined) return;
-      tiles.setColorAt(i, occupied ? bare : (col + row) % 2 ? grassA : grassB);
-      tiles.instanceColor!.needsUpdate = true;
       tiles.getMatrixAt(i, m4);
       const pos = new THREE.Vector3().setFromMatrixPosition(m4);
       for (let k = 0; k < 3; k++) {
