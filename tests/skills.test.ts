@@ -12,9 +12,15 @@ describe("skill parser", () => {
     expect(s).toMatchObject({ area: "all", damage: { scale: 1, stat: "matk", type: "magic" }, dots: [{ kind: "burn", turns: 3 }] });
     expect(parseSkill("Mục tiêu đầu chịu (18 + 0.65 x MATK) x Hệ số sao.").damage?.type).toBe("magic");
   });
-  it("ally % heal targets lowest HP allies; self buff stays self", () => {
+  it("keeps authored gradual max-HP healing timed instead of applying it immediately", () => {
     expect(parseSkill("Hồi dần 15% HP tối đa trong 2 lượt cho 2 đồng minh có % máu thấp nhất."))
-      .toMatchObject({ side: "ally", count: 2, pickLowestHp: true, heal: { pctMaxHp: 0.15 } });
+      .toMatchObject({
+        side: "ally", count: 2, pickLowestHp: true, heal: null,
+        hot: { totalPctMaxHp: 0.15, turns: 2 },
+      });
+    expect(skillSpec("deer_song", 3)).toMatchObject({
+      count: 4, heal: null, hot: { totalPctMaxHp: 0.24, turns: 3 },
+    });
     expect(parseSkill("Cuộn tròn, tăng 20 DEF và 20 MDEF trong 2 lượt."))
       .toMatchObject({ side: "self", buffs: [{ stat: "def", value: 20, turns: 2 }, { stat: "mdef", value: 20, turns: 2 }] });
   });
@@ -36,14 +42,20 @@ describe("skill parser", () => {
   });
   it("materializes authored reaction payloads per star", () => {
     expect(skillSpec("badger_stone", 1).reaction.reflect).toEqual({
-      damageType: "physical", pct: 0.25, turns: 2,
+      pctByDamageType: { physical: 0.25 }, turns: 2,
     });
     expect(skillSpec("badger_stone", 3).reaction.reflect).toEqual({
-      damageType: "physical", pct: 0.35, turns: 3,
+      pctByDamageType: { physical: 0.35 }, turns: 3,
       offenseDebuff: { value: 20, turns: 2, mode: "autoByRole" },
     });
     expect(skillSpec("butterfly_mirror", 3).reaction.reflect).toEqual({
-      damageType: "magic", pct: 0.45, turns: 3,
+      pctByDamageType: { magic: 0.45 }, turns: 3,
+    });
+    expect(skillSpec("pangolin_plate", 2).reaction.reflect).toEqual({
+      pctByDamageType: { physical: 1.15 }, turns: 3,
+    });
+    expect(skillSpec("pangolin_plate", 3).reaction.reflect).toEqual({
+      pctByDamageType: { physical: 1.35, magic: 0.6 }, turns: 4,
     });
     expect(skillSpec("rhino_quake", 2).reaction.counter).toEqual({ turns: 4 });
     expect(skillSpec("phoenix_rebirth", 3).reaction.phoenix).toEqual({ revivePct: 0.5 });

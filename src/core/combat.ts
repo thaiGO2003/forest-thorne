@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -43,8 +43,7 @@ export interface TimedStatus {
 }
 
 export interface ReflectReactionState {
-  damageType: "physical" | "magic" | "all";
-  pct: number;
+  pctByDamageType: Partial<Record<DamageType, number>>;
   turns: number;
   offenseDebuff?: { value: number; turns: number; mode: "autoByRole" };
 }
@@ -390,13 +389,15 @@ function activeBerserk(f: Fighter): BerserkReactionState | null {
   return f.berserk?.turns && f.berserk.turns > 0 ? f.berserk : null;
 }
 
-function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType: "physical" | "magic" | "true", actualHpDamage: number) {
+function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType: DamageType, actualHpDamage: number): boolean {
   const reflect = defender.reflect;
-  if (!reflect || reflect.turns <= 0 || actualHpDamage <= 0) return;
-  if (reflect.damageType !== "all" && reflect.damageType !== incomingType) return;
-  const dmg = Math.max(1, Math.round(actualHpDamage * reflect.pct));
+  if (!reflect || reflect.turns <= 0 || actualHpDamage <= 0) return false;
+  const pct = reflect.pctByDamageType[incomingType] ?? 0;
+  if (!(pct > 0)) return false;
+  const dmg = Math.max(1, Math.round(actualHpDamage * pct));
   applyDamage(c, attacker, dmg, defender,
     (absorbed) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg, absorbed }), true);
+  return true;
 }
 
 function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualHpDamage: number) {
@@ -491,11 +492,11 @@ function strike(
   if (resolved.hp > 0) {
     if (src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn);
     if (src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison);
-    applyReflect(c, dst, src, type, resolved.hp);
-    applyReflectOffenseDebuff(dst, src, resolved.hp);
-    if (options.allowCounter ?? true) resolveCounter(c, dst, src);
+    const reflected = applyReflect(c, dst, src, type, resolved.hp);
+    if (reflected && src.hp > 0) applyReflectOffenseDebuff(dst, src, resolved.hp);
+    if (src.hp > 0 && dst.hp > 0 && (options.allowCounter ?? true)) resolveCounter(c, dst, src);
     const lifesteal = src.lifesteal + (activeBerserk(src)?.lifestealPct ?? 0);
-    if (lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
+    if (src.hp > 0 && lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
   }
 
   resolveLethal(c, src, dst);
@@ -713,7 +714,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
     if (options.trigger) castEvent.trigger = options.trigger;
     c.events.push(castEvent);
-    if (sp.reaction.reflect) f.reflect = { ...sp.reaction.reflect };
+    if (sp.reaction.reflect) f.reflect = {
+      ...sp.reaction.reflect,
+      pctByDamageType: { ...sp.reaction.reflect.pctByDamageType },
+    };
     if (sp.reaction.counter) f.counterTurns = sp.reaction.counter.turns;
     if (sp.reaction.phoenix && !f.phoenix.used) {
       f.phoenix.armed = true;
@@ -770,6 +774,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
         : a.maxHp * sp.heal!.pctMaxHp;
       heal(c, f, a, Math.floor(raw));
     }
+    if (sp.hot && sp.hot.turns > 0 && sp.hot.totalPctMaxHp > 0) {
+      const perTurnPct = sp.hot.totalPctMaxHp / sp.hot.turns;
+      for (const a of allies) if (a.alive) applyStatus(c, a, "hot", sp.hot.turns, perTurnPct, statusSource);
+    }
     for (const a of allies) {
       if (!a.alive) continue;
       if (sp.shield) {
@@ -823,6 +831,14 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
     if (--s.turns <= 0) delete f.status[k];
     if (!f.alive) return { canAct: false, silenced, disarmed };
   }
+  const hot = f.status.hot;
+  if (hot?.turns && f.alive) {
+    const healer = hot.source
+      ? c.all.find((candidate) => candidate.uid === hot.source!.unitUid) ?? f
+      : f;
+    heal(c, healer, f, f.maxHp * hot.value);
+    if (--hot.turns <= 0) delete f.status.hot;
+  }
   // A32 SWARM aura: non-matching units take 4 true damage per turn.
   if (f.env.poisonAura > 0) {
     const dmg = f.env.poisonAura;
@@ -835,6 +851,7 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   if (f.berserk && --f.berserk.turns <= 0) f.berserk = null;
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
+    if (k === "hot") continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
       delete f.status[k];

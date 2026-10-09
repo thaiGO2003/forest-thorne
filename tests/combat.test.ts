@@ -506,6 +506,8 @@ describe("combat", () => {
       { seed: 2, bonus: { L: { startRage: 4 }, R: { matkPct: 1_000, hpPct: 500 } } },
     );
     expect(physicalOnly.events.some((e) => e.t === "reflect" && e.src === "badger")).toBe(false);
+    const mage = physicalOnly.survivors.find((f) => f.uid === "mage");
+    expect(mage?.mods.some((m) => (m.stat === "atk" || m.stat === "matk") && m.value === -20)).toBe(false);
 
     const magicOnly = simulate(
       [{ uid: "butterfly", baseId: "butterfly_mirror", star: 1, row: 0, col: 4 }],
@@ -513,6 +515,24 @@ describe("combat", () => {
       { seed: 2, bonus: { L: { startRage: 2 }, R: { matkPct: 1_000, hpPct: 500 } } },
     );
     expect(magicOnly.events.some((e) => e.t === "reflect" && e.src === "butterfly" && e.dst === "mage")).toBe(true);
+  });
+
+  it("does not let lifesteal rescue an attacker made lethal by reflect", () => {
+    const result = simulate(
+      [{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
+      [{ uid: "attacker", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+      {
+        seed: 2,
+        bonus: {
+          L: { startRage: 4, hpPct: 10_000 },
+          R: { atkPct: 10_000, lifestealPct: 100 },
+        },
+      },
+    );
+    const reflectAt = result.events.findIndex((e) => e.t === "reflect" && e.src === "badger" && e.dst === "attacker");
+    expect(reflectAt).toBeGreaterThanOrEqual(0);
+    expect(result.events.slice(reflectAt + 1).find((e) => e.t === "heal" && e.src === "attacker")).toBeUndefined();
+    expect(result.events.slice(reflectAt + 1).find((e) => e.t === "death" && e.dst === "attacker")).toBeDefined();
   });
 
   it("counters only a surviving melee attacker and owns lethal counter death immediately", () => {
@@ -600,6 +620,28 @@ describe("combat", () => {
     expect(survivor!.rage).toBe(survivor!.rageMax);
     expect(survivor!.berserk?.turns).toBe(5);
     expect(survivor!.mods.find((m) => m.stackKey === "self_bersek:atk:pct")?.turns).toBe(5);
+  });
+
+  it("ticks authored HOT at start of the living target turn instead of healing on cast", () => {
+    const result = simulate(
+      [
+        { uid: "front", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "deer", baseId: "deer_song", star: 1, row: 0, col: 3 },
+      ],
+      [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+      { seed: 2, bonus: { L: { startRage: 1 }, R: { hpPct: 1_000 } } },
+    );
+    const castAt = result.events.findIndex((e) => e.t === "cast" && e.src === "deer");
+    const hotAt = result.events.findIndex((e, i) => i > castAt && e.t === "status" && e.kind === "hot" && e.dst === "deer");
+    const interveningHitAt = result.events.findIndex((e, i) => i > hotAt && e.t === "skill" && e.src === "enemy" && e.dst === "deer");
+    const healAt = result.events.findIndex((e, i) => i > hotAt && e.t === "heal" && e.src === "deer" && e.dst === "deer");
+    const nextDeerActionAt = result.events.findIndex((e, i) => i > hotAt
+      && (e.t === "basic" || e.t === "skill" || e.t === "miss" || e.t === "skip" || e.t === "cast") && e.src === "deer");
+    expect(castAt).toBeGreaterThanOrEqual(0);
+    expect(hotAt).toBeGreaterThan(castAt);
+    expect(interveningHitAt).toBeGreaterThan(hotAt);
+    expect(healAt).toBeGreaterThan(interveningHitAt);
+    expect(healAt).toBeLessThan(nextDeerActionAt);
   });
 
   it("dead units leave target selection: no event targets a unit after its death", () => {
