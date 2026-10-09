@@ -623,3 +623,10 @@
 - Verification: `corepack pnpm exec vitest --run tests/combat.test.ts tests/skills.test.ts` → **2 files / 37 tests passed**; `corepack pnpm typecheck` → passed; scoped `git diff --check` → passed.
 - WBS-100/A102 was re-checked against current authority: equipment cadence/chance/tier/slot/no-duplicate/injected-RNG constraints are authored, but deterministic candidate selection is not. `EQUIPMENT_BY_TIER` remains data, not picker policy, so WBS-100 stays unchecked.
 - 1DevTool BrowserPanel control remains blocked for this repair: `browser_list_tabs` reports the mounted automation tab ready at the live Vite server, but `browser_navigate` to the deterministic A120 smoke page times out and leaves the tab URL unchanged. No new BrowserPanel smoke is claimed; the prior production-module Vite SSR counter smoke remains the latest live A120 runtime proof.
+
+## 2026-10-09 — Restore GUI/UI/UX after visual-rig scope correction
+
+- Restored `src/app/screens.ts` and `src/core/i18n.ts` to their state immediately before `4f9eb5d`; those Main Menu/UI changes were outside the requested animal-visual rollback scope.
+- Kept the requested creature-visual rollback intact: the 15 rejected tier-one roster visual modules remain removed and their registry entries remain on canonical pending-art fallback; retained `jaguar_hunt`/`toad_poison` behavior is unchanged.
+- Verification after the scope correction: targeted Vitest `tests/platform-bootstrap.test.ts tests/donate.test.ts tests/recovered-bridge.test.ts tests/tutorial.test.ts tests/unit-visuals.test.ts` → **5 files / 31 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed (71 modules transformed).
+- Browser automation was not available through the active Codex tool registry for this continuation, so no new visual-browser claim is made.
