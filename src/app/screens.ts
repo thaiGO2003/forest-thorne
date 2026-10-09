@@ -6,6 +6,11 @@ import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { normalizeKey } from "../core/settings";
 import { DONATE_ACCOUNT_NAME, DONATE_ACCOUNT_NUMBER, DONATE_BANK, buildDonateQrUrl, pickRandomDonateQrAddInfo } from "../core/donate";
+import { achievementRows, ACHIEVEMENT_CATEGORIES, unlockedAchievementCount } from "../core/achievements";
+import { loadAchievementProfile, loadCollectionProfile } from "../core/save";
+import { APP_LAST_UPDATED, APP_VERSION_TAG } from "../core/appMeta";
+import { createModManager } from "../mods/ModRegistry";
+import { openExternalHttpUrl } from "../platform/discordActivity";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
@@ -401,31 +406,128 @@ registerUtility("donate", (app) => {
   amount.min = "0";
   amount.step = "1000";
   amount.placeholder = t("menu.donateOptional");
+  amount.value = "20000";
   field.append(amountLabel, amount);
   const qr = h("img", "donate-qr");
   qr.alt = t("menu.donateQrAlt");
   qr.decoding = "async";
   const message = h("div", "slot");
+  const presets = h("div", "choice-list");
+  const presetAmounts = [5_000, 10_000, 15_000, 20_000, 30_000, 50_000, 100_000, 200_000, 500_000] as const;
+  const presetButtons: Array<{ amount: number | null; button: ReturnType<typeof kitButton> }> = [];
+  const amountLabelFor = (value: number) => `${new Intl.NumberFormat(getLocale() === "vi" ? "vi-VN" : "en-US").format(value)} ₫`;
+  const syncPresetSelection = () => {
+    const value = Number(amount.value);
+    const preset = Number.isFinite(value) ? presetAmounts.find((candidate) => candidate === value) : undefined;
+    for (const entry of presetButtons) entry.button.setSelected(entry.amount === (preset ?? null));
+  };
   const refresh = () => {
     const numericAmount = Number(amount.value);
     const addInfo = pickRandomDonateQrAddInfo();
     qr.src = buildDonateQrUrl(Number.isFinite(numericAmount) && numericAmount > 0 ? numericAmount : 0, addInfo);
     message.textContent = t("menu.donateMessage", { message: addInfo });
+    syncPresetSelection();
   };
+  const selectPreset = (value: number | null) => {
+    amount.value = value === null ? "" : String(value);
+    refresh();
+    if (value === null) amount.focus();
+  };
+  for (const value of presetAmounts) {
+    const button = kitButton({ skin: "blue", label: amountLabelFor(value), onClick: () => selectPreset(value) });
+    presetButtons.push({ amount: value, button });
+    presets.append(button.el);
+  }
+  const custom = kitButton({ skin: "blue", label: t("menu.donateCustom"), onClick: () => selectPreset(null) });
+  presetButtons.push({ amount: null, button: custom });
+  presets.append(custom.el);
+  amount.addEventListener("input", syncPresetSelection);
   const regenerate = kitButton({ skin: "green", label: t("menu.donateRefresh"), onClick: refresh });
-  stack.append(account, field, regenerate.el, qr, message);
+  stack.append(account, presets, field, regenerate.el, qr, message);
   m.body.append(stack);
   refresh();
 });
 
 registerUtility("version", (app) => {
   const m = app.modals.open({ id: "version", title: t("menu.version"), size: "sm", closeLabel: t("ui.close") });
-  m.body.append(h("div", "slot", `Forest Throne v${__APP_VERSION__}`));
+  m.body.append(
+    h("div", "slot", `Forest Throne ${APP_VERSION_TAG}`),
+    h("div", "slot", t("menu.versionUpdated", { date: APP_LAST_UPDATED })),
+  );
 });
 
-for (const id of ["achievements", "mods", "tribute", "social"] as const) {
-  registerUtility(id, (app) => {
-    const m = app.modals.open({ id, title: t(`menu.${id}` as MsgKey), size: "sm", closeLabel: t("ui.close") });
-    m.body.append(h("div", "slot", t("menu.locked")));
+registerUtility("achievements", (app) => {
+  const m = app.modals.open({ id: "achievements", title: t("menu.achievements"), size: "md", closeLabel: t("ui.close") });
+  const profile = loadAchievementProfile(localStorage);
+  const collection = loadCollectionProfile(localStorage);
+  const rows = achievementRows(profile);
+  m.body.append(h("div", "slot", t("menu.achievementsSummary", {
+    unlocked: unlockedAchievementCount(profile),
+    total: rows.length,
+    claimed: collection.claimedAchievementIds.length,
+  })));
+  const list = h("div", "stack");
+  for (const category of ACHIEVEMENT_CATEGORIES) {
+    const categoryRows = rows.filter((row) => row.category === category);
+    const next = categoryRows.find((row) => !row.unlocked);
+    const categoryName = t(`achievement.${category}` as MsgKey);
+    list.append(h("div", "slot", next
+      ? t("menu.achievementProgress", { category: categoryName, current: next.current, target: next.threshold })
+      : t("menu.achievementComplete", { category: categoryName })));
+  }
+  m.body.append(list);
+});
+
+registerUtility("mods", (app) => {
+  const m = app.modals.open({ id: "mods", title: t("menu.mods"), size: "md", closeLabel: t("ui.close") });
+  const content = h("div", "stack");
+  content.append(h("div", "slot", t("menu.modsLoading")));
+  m.body.append(content);
+  void createModManager(localStorage).then((manager) => {
+    const index = manager.getIndex();
+    content.replaceChildren();
+    if (index.mods.length === 0) {
+      content.append(h("div", "slot", t("menu.modsEmpty")));
+    } else {
+      const profile = manager.getProfile();
+      content.append(h("div", "slot", t("menu.modsSummary", { enabled: profile.enabledIds.length, total: index.mods.length })));
+      for (const manifest of index.mods) {
+        const row = h("div", "stack");
+        row.append(h("div", "slot", `${manifest.name} · v${manifest.version} · ${manifest.author}`));
+        if (manifest.description) row.append(h("div", "slot", manifest.description));
+        const toggle = kitButton({
+          skin: "blue",
+          label: manager.isEnabled(manifest.id) ? t("menu.modsDisable") : t("menu.modsEnable"),
+          onClick: () => {
+            if (manager.isEnabled(manifest.id)) manager.disable(manifest.id);
+            else manager.enable(manifest.id);
+            const enabled = manager.isEnabled(manifest.id);
+            toggle.setSelected(enabled);
+            toggle.setLabel(enabled ? t("menu.modsDisable") : t("menu.modsEnable"));
+          },
+        });
+        toggle.setSelected(manager.isEnabled(manifest.id));
+        row.append(toggle.el);
+        content.append(row);
+      }
+    }
+    if (index.workshop.status === "placeholder") content.append(h("div", "slot", t("menu.modsWorkshopUnavailable")));
+    const warnings = manager.getRegistryWarnings();
+    if (warnings.length > 0) content.append(h("div", "slot", t("menu.modsWarnings", { count: warnings.length })));
   });
-}
+});
+
+registerUtility("tribute", (app) => {
+  const m = app.modals.open({ id: "tribute", title: t("menu.tribute"), size: "sm", closeLabel: t("ui.close") });
+  m.body.append(h("div", "slot", t("menu.tributeEmpty")));
+});
+
+registerUtility("social", (app) => {
+  const m = app.modals.open({ id: "social", title: t("menu.social"), size: "sm", closeLabel: t("ui.close") });
+  const github = kitButton({
+    skin: "blue",
+    label: t("menu.socialGithub"),
+    onClick: () => { void openExternalHttpUrl("https://github.com/thaiGO2003/forest-thorne", { window }); },
+  });
+  m.body.append(github.el, h("div", "slot", t("menu.socialUnavailable")));
+});

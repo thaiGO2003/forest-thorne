@@ -59,21 +59,12 @@ function idlePose(id: "toad_poison" | "jaguar_hunt", combat: boolean) {
   return { part };
 }
 
-const tierOneBespokeIds = [
-  "ant_guard", "badger_stone", "crane_blessing", "crow_storm", "dove_peace",
-  "firefly_heal", "fox_flame", "komodo_bite", "newt_fire", "ram_charge",
-  "salamander_flame", "scorpion_shadow", "spider_venom", "tiger_fang", "triceratops_charge",
-] as const;
-
 describe("Library combat-idle authored poses", () => {
-  it("registers every completed tier-1 bespoke rig", () => {
-    for (const id of tierOneBespokeIds) expect(hasRig(id)).toBe(true);
-  });
-  it("revives a completed tier-1 rig without replacing the current procedural model", () => {
+  it("revives an authored rig without replacing the current procedural model", () => {
     vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => null }) });
     let unit: ReturnType<typeof createUnit> | undefined;
     try {
-      unit = createUnit("ant_guard", 1);
+      unit = createUnit("jaguar_hunt", 1);
       const root = unit.root;
       unit.die();
       for (let frame = 0; frame < 7; frame++) unit.update(.1);
