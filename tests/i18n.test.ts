@@ -8,6 +8,14 @@ describe("i18n", () => {
     expect(Object.keys(DICTS.en).sort()).toEqual(Object.keys(DICTS.vi).sort());
     for (const k of Object.keys(DICTS.vi) as (keyof typeof DICTS.vi)[]) expect(tokens(DICTS.en[k])).toEqual(tokens(DICTS.vi[k]));
   });
+  it("localizes settings display values without changing their canonical ids", () => {
+    expect(t("settings.quality.low", {}, "vi")).toBe("Thấp");
+    expect(t("settings.quality.medium", {}, "en")).toBe("Medium");
+    expect(t("settings.tooltip.expanded", {}, "vi")).toBe("Đầy đủ");
+    expect(t("settings.tooltip.off", {}, "en")).toBe("Off");
+    expect(t("settings.resolution.adaptive", {}, "vi")).toBe("Tự động");
+  });
+
 
   it("substitutes params, keeps unknown tokens, switches live and notifies once", () => {
     expect(t("planning.deploy", { current: 3, max: 5 }, "vi")).toBe("Ra trận 3/5");

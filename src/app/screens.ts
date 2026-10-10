@@ -6,8 +6,11 @@ import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { normalizeKey } from "../core/settings";
 import { DONATE_ACCOUNT_NAME, DONATE_ACCOUNT_NUMBER, DONATE_BANK, buildDonateQrUrl, pickRandomDonateQrAddInfo } from "../core/donate";
-import { achievementRows, ACHIEVEMENT_CATEGORIES, unlockedAchievementCount } from "../core/achievements";
-import { loadAchievementProfile, loadCollectionProfile } from "../core/save";
+import {
+  buildAuthoredAchievementRewardCatalog, claimSkinReward, equipCollectionSkin,
+  rankAchievementRows, unlockedAchievementCount,
+} from "../core/achievements";
+import { loadAchievementProfile, loadCollectionProfile, saveCollectionProfile } from "../core/save";
 import { APP_LAST_UPDATED, APP_VERSION_TAG } from "../core/appMeta";
 import { createModManager } from "../mods/ModRegistry";
 import { openExternalHttpUrl } from "../platform/discordActivity";
@@ -396,7 +399,7 @@ registerUtility("language", (app) => {
 
 registerUtility("donate", (app) => {
   const m = app.modals.open({ id: "donate", title: t("menu.donate"), size: "md", closeLabel: t("ui.close") });
-  const stack = h("div", "stack");
+  const stack = h("div", "stack donate-stack");
   const account = h("div", "slot", `${DONATE_BANK} · ${DONATE_ACCOUNT_NUMBER} · ${DONATE_ACCOUNT_NAME}`);
   const field = h("label", "field");
   const amountLabel = h("span", "", t("menu.donateAmount"));
@@ -412,7 +415,7 @@ registerUtility("donate", (app) => {
   qr.alt = t("menu.donateQrAlt");
   qr.decoding = "async";
   const message = h("div", "slot");
-  const presets = h("div", "choice-list");
+  const presets = h("div", "choice-list donate-presets");
   const presetAmounts = [5_000, 10_000, 15_000, 20_000, 30_000, 50_000, 100_000, 200_000, 500_000] as const;
   const presetButtons: Array<{ amount: number | null; button: ReturnType<typeof kitButton> }> = [];
   const amountLabelFor = (value: number) => `${new Intl.NumberFormat(getLocale() === "vi" ? "vi-VN" : "en-US").format(value)} ₫`;
@@ -460,22 +463,75 @@ registerUtility("achievements", (app) => {
   const m = app.modals.open({ id: "achievements", title: t("menu.achievements"), size: "md", closeLabel: t("ui.close") });
   const profile = loadAchievementProfile(localStorage);
   const collection = loadCollectionProfile(localStorage);
-  const rows = achievementRows(profile);
-  m.body.append(h("div", "slot", t("menu.achievementsSummary", {
-    unlocked: unlockedAchievementCount(profile),
-    total: rows.length,
-    claimed: collection.claimedAchievementIds.length,
-  })));
-  const list = h("div", "stack");
-  for (const category of ACHIEVEMENT_CATEGORIES) {
-    const categoryRows = rows.filter((row) => row.category === category);
-    const next = categoryRows.find((row) => !row.unlocked);
-    const categoryName = t(`achievement.${category}` as MsgKey);
-    list.append(h("div", "slot", next
-      ? t("menu.achievementProgress", { category: categoryName, current: next.current, target: next.threshold })
-      : t("menu.achievementComplete", { category: categoryName })));
-  }
-  m.body.append(list);
+  const rewards = buildAuthoredAchievementRewardCatalog();
+  const rewardByAchievement = new Map(rewards.mappings.map((mapping) => [mapping.achievementId, mapping]));
+  const render = () => {
+    m.body.replaceChildren();
+    const ranked = rankAchievementRows(profile, collection, rewards.mappings);
+    m.body.append(
+      h("div", "slot", t("menu.achievementsSummary", {
+        unlocked: unlockedAchievementCount(profile),
+        total: ranked.length,
+        claimed: collection.claimedAchievementIds.length,
+      })),
+      h("div", "slot", t("menu.achievementsStats", {
+        bestRound: profile.stats.best_round,
+        roundsWon: profile.stats.rounds_won,
+        highestLevel: profile.stats.highest_level,
+      })),
+    );
+    const list = h("div", "stack");
+    for (const row of ranked) {
+      const card = h("div", "stack");
+      const categoryName = t(`achievement.${row.category}` as MsgKey);
+      card.append(h("div", "slot", t("menu.achievementRow", {
+        category: categoryName,
+        current: row.current,
+        target: row.threshold,
+      })));
+      const mapping = rewardByAchievement.get(row.id);
+      if (!mapping) {
+        card.append(h("div", "slot", t("menu.achievementMissingReward")));
+        list.append(card);
+        continue;
+      }
+      card.append(h("div", "slot", t("menu.achievementReward", {
+        skin: mapping.skinId,
+        unit: getUnit(mapping.unitId).nameVi,
+      })));
+      if (!row.unlocked) {
+        card.append(h("div", "slot", t("menu.achievementLocked")));
+      } else if (row.claimable) {
+        const claim = kitButton({
+          skin: "green",
+          label: t("menu.achievementClaim"),
+          onClick: () => {
+            if (!claimSkinReward(profile, collection, mapping)) return;
+            saveCollectionProfile(localStorage, collection);
+            render();
+          },
+        });
+        card.append(claim.el);
+      } else {
+        card.append(h("div", "slot", t("menu.achievementClaimed")));
+        const equipped = collection.equippedSkinByUnitId[mapping.unitId] === mapping.skinId;
+        const equip = kitButton({
+          skin: "blue",
+          label: t(equipped ? "menu.achievementEquipped" : "menu.achievementEquip"),
+          onClick: () => {
+            if (!equipCollectionSkin(collection, mapping.unitId, mapping.skinId)) return;
+            saveCollectionProfile(localStorage, collection);
+            render();
+          },
+        });
+        equip.setSelected(equipped);
+        card.append(equip.el);
+      }
+      list.append(card);
+    }
+    m.body.append(list);
+  };
+  render();
 });
 
 registerUtility("mods", (app) => {
@@ -484,36 +540,71 @@ registerUtility("mods", (app) => {
   content.append(h("div", "slot", t("menu.modsLoading")));
   m.body.append(content);
   void createModManager(localStorage).then((manager) => {
-    const index = manager.getIndex();
-    content.replaceChildren();
-    if (index.mods.length === 0) {
-      content.append(h("div", "slot", t("menu.modsEmpty")));
-    } else {
+    const fileInput = h("input");
+    fileInput.type = "file";
+    fileInput.accept = ".ftunit,.ftlogic,.ftmodpack";
+    fileInput.hidden = true;
+    let importStatus = "";
+    const importButton = kitButton({
+      skin: "green",
+      label: t("menu.modsImport"),
+      onClick: () => fileInput.click(),
+    });
+    const render = () => {
+      const index = manager.getIndex();
       const profile = manager.getProfile();
-      content.append(h("div", "slot", t("menu.modsSummary", { enabled: profile.enabledIds.length, total: index.mods.length })));
-      for (const manifest of index.mods) {
-        const row = h("div", "stack");
-        row.append(h("div", "slot", `${manifest.name} · v${manifest.version} · ${manifest.author}`));
-        if (manifest.description) row.append(h("div", "slot", manifest.description));
-        const toggle = kitButton({
-          skin: "blue",
-          label: manager.isEnabled(manifest.id) ? t("menu.modsDisable") : t("menu.modsEnable"),
-          onClick: () => {
-            if (manager.isEnabled(manifest.id)) manager.disable(manifest.id);
-            else manager.enable(manifest.id);
-            const enabled = manager.isEnabled(manifest.id);
-            toggle.setSelected(enabled);
-            toggle.setLabel(enabled ? t("menu.modsDisable") : t("menu.modsEnable"));
-          },
-        });
-        toggle.setSelected(manager.isEnabled(manifest.id));
-        row.append(toggle.el);
-        content.append(row);
+      content.replaceChildren(importButton.el, fileInput);
+      if (importStatus) content.append(h("div", "slot", importStatus));
+      if (index.mods.length === 0) {
+        content.append(h("div", "slot", t("menu.modsEmpty")));
+      } else {
+        content.append(h("div", "slot", t("menu.modsSummary", { enabled: profile.enabledIds.length, total: index.mods.length })));
+        for (const manifest of index.mods) {
+          const row = h("div", "stack");
+          row.append(h("div", "slot", `${manifest.name} · v${manifest.version} · ${manifest.author}`));
+          if (manifest.description) row.append(h("div", "slot", manifest.description));
+          const toggle = kitButton({
+            skin: "blue",
+            label: manager.isEnabled(manifest.id) ? t("menu.modsDisable") : t("menu.modsEnable"),
+            onClick: () => {
+              if (manager.isEnabled(manifest.id)) manager.disable(manifest.id);
+              else manager.enable(manifest.id);
+              render();
+            },
+          });
+          toggle.setSelected(manager.isEnabled(manifest.id));
+          row.append(toggle.el);
+          content.append(row);
+        }
       }
-    }
-    if (index.workshop.status === "placeholder") content.append(h("div", "slot", t("menu.modsWorkshopUnavailable")));
-    const warnings = manager.getRegistryWarnings();
-    if (warnings.length > 0) content.append(h("div", "slot", t("menu.modsWarnings", { count: warnings.length })));
+      if (index.workshop.status === "placeholder") content.append(h("div", "slot", t("menu.modsWorkshopUnavailable")));
+      const warnings = manager.getRegistryWarnings();
+      if (warnings.length > 0) content.append(h("div", "slot", t("menu.modsWarnings", { count: warnings.length })));
+    };
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      void file.text().then((text) => {
+        let payload: unknown;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          importStatus = t("menu.modsImportError", { error: "invalid JSON" });
+          render();
+          return;
+        }
+        const result = manager.importLocal(file.name, payload);
+        importStatus = result.ok
+          ? t("menu.modsImportSuccess", { name: result.manifest.name })
+          : t("menu.modsImportError", { error: result.error });
+        fileInput.value = "";
+        render();
+      }, (error: unknown) => {
+        importStatus = t("menu.modsImportError", { error: error instanceof Error ? error.message : String(error) });
+        render();
+      });
+    });
+    render();
   });
 });
 

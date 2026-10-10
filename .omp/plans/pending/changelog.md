@@ -630,3 +630,19 @@
 - Kept the requested creature-visual rollback intact: all 15 rejected tier-one roster visual modules remain absent/pending-art; no creature visual rig was recreated by this correction.
 - Focused verification on the corrected tree: `corepack pnpm exec vitest --run tests/platform-bootstrap.test.ts tests/donate.test.ts tests/achievements-history.test.ts tests/unit-visuals.test.ts` → **4 files / 22 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed (75 modules transformed).
 - Real 1DevTool BrowserPanel smoke exercised Achievements, Mod manager, Language VI→EN→VI, Tribute, Community, Donate preset/custom flows, Version, Settings, Library, and New Game. Donate visibly moved from the 20,000 VND default to the 50,000 VND preset with matching input/QR state, then Custom cleared the fixed amount. Console inspection after the flow showed no page/runtime errors; only the existing Three.js `Clock` deprecation and `PCFSoftShadowMap` removal warnings.
+## 2026-10-10T02:10:50.311Z
+
+- remaining-menu-utilities-plan.md created by plans-sync.
+
+## 2026-10-10 — Remaining menu utilities completion
+
+- Settings now localizes displayed quality, tooltip-mode and adaptive-resolution values in VI/EN while preserving canonical persisted IDs (`low|medium|high`, tooltip mode IDs, and resolution keys).
+- Mod Manager now accepts strict local `.ftunit`, `.ftlogic`, and `.ftmodpack` JSON manifests through the canonical `ModManager`; malformed/mismatched/duplicate imports fail atomically, successful imports are forced to `source: "local"`, and Workshop remains explicitly unavailable.
+- Donate keeps the existing presets/custom/VietQR behavior but uses scoped compact layout classes only; no shared chrome/color rules were changed.
+- Achievements now renders/ranks all 100 canonical rows, claims and equips through the existing collection persistence owner, and derives 99 authored reward mappings from the unit catalog. The sole unsupported canonical reward remains visible/non-claimable as `runs_started_10`; no reward was invented.
+- Focused gate: `corepack pnpm exec vitest --run tests/i18n.test.ts tests/mod-registry.test.ts tests/achievements-history.test.ts tests/donate.test.ts` → **4 files / 25 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed (75 modules transformed); `git diff --check` → passed.
+- Runtime smoke through Vite SSR confirmed localized Settings labels, strict local mod normalization, 100 achievement rows / 99 mappings with exactly `missing reward mapping for achievement runs_started_10`, and a 20,000 VND Donate QR amount. 1DevTool BrowserPanel itself could not reach the menu surface because its Chromium guest reported WebGL disabled and aborted at `THREE.WebGLRenderer: Error creating WebGL context`; no visual BrowserPanel success is claimed for this pass.
+- Rejected creature visual modules remain outside this scope and were not restored.
+## 2026-10-10T02:56:47.166Z
+
+- remaining-menu-utilities-plan.md moved out of pending via /plan-done.

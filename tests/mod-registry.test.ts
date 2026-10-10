@@ -9,6 +9,7 @@ import {
   normalizeModIndex,
   normalizeModManifest,
   normalizeModProfile,
+  parseLocalModManifest,
   validateEnabledMods,
   type ModIndex,
 } from "../src/mods/ModRegistry";
@@ -174,6 +175,57 @@ describe("mod registry A50", () => {
     expect(manager.enable("local-only").enabledIds).toEqual(["local-only"]);
     expect(manager.validateEnabled()).toEqual([{ kind: "unknown-enabled-mod", modId: "local-only" }]);
   });
+  it("strictly parses the three local package extensions and forces local source", () => {
+    for (const extension of [".ftunit", ".ftlogic", ".ftmodpack"] as const) {
+      expect(parseLocalModManifest(`demo${extension}`, {
+        id: `demo-${extension}`,
+        name: " Demo ",
+        source: "workshop",
+        packageType: extension,
+        requires: ["dep"],
+      })).toEqual({
+        ok: true,
+        manifest: expect.objectContaining({
+          id: `demo-${extension}`,
+          name: "Demo",
+          source: "local",
+          packageType: extension,
+          requires: ["dep"],
+        }),
+      });
+    }
+    expect(parseLocalModManifest("demo.zip", { id: "demo", name: "Demo" })).toMatchObject({ ok: false });
+    expect(parseLocalModManifest("demo.ftunit", { id: "demo", name: "Demo", packageType: ".ftlogic" })).toMatchObject({ ok: false });
+    expect(parseLocalModManifest("demo.ftunit", { id: "demo", name: "Demo", requires: "dep" })).toMatchObject({ ok: false });
+  });
+
+  it("imports atomically, rejects duplicate ids, and validates imported enabled mods through the canonical index", async () => {
+    const storage = memoryStorage();
+    const manager = await createModManager(storage, async () => ({ ok: true, json: async () => validIndex }));
+    const beforeIndex = manager.getIndex();
+    const beforeProfile = manager.getProfile();
+
+    expect(manager.importLocal("broken.zip", { id: "local-demo", name: "Local Demo" })).toMatchObject({ ok: false });
+    expect(manager.getIndex()).toEqual(beforeIndex);
+    expect(manager.getProfile()).toEqual(beforeProfile);
+
+    expect(manager.importLocal("local-demo.ftlogic", {
+      id: "local-demo",
+      name: "Local Demo",
+      source: "workshop",
+      packageType: ".ftlogic",
+    })).toMatchObject({
+      ok: true,
+      manifest: expect.objectContaining({ id: "local-demo", source: "local", packageType: ".ftlogic" }),
+    });
+    expect(manager.getIndex().mods.map((mod) => mod.id)).toContain("local-demo");
+    expect(manager.importLocal("duplicate.ftlogic", { id: "local-demo", name: "Duplicate" })).toMatchObject({ ok: false });
+    expect(manager.getIndex().mods.filter((mod) => mod.id === "local-demo")).toHaveLength(1);
+
+    manager.enable("local-demo");
+    expect(manager.validateEnabled()).toEqual([]);
+  });
+
 
   it("isolates dependency/conflict problems as validation issues instead of throwing", () => {
     const profile = normalizeModProfile({ schemaVersion: 1, enabledIds: ["logic-plus", "legacy-rules"], loadOrder: [] });

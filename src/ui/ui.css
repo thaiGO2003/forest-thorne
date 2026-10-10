@@ -82,6 +82,10 @@
 .field input[type="range"] { width: 100%; min-height: 32px; }
 .slot { position: relative; padding: 8px 10px; }
 .donate-qr { display: block; width: min(100%, 360px); height: auto; margin: 0 auto; }
+.donate-stack { gap: 6px; }
+.donate-presets { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
+.donate-presets .kit-btn { height: 44px; }
+.donate-stack .donate-qr { width: min(100%, 260px); }
 
 /* ---------- unit card ---------- */
 .unit-card { position: relative; width: 100%; aspect-ratio: 5 / 7; }

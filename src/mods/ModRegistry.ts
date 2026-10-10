@@ -69,6 +69,10 @@ export interface ModIndexLoadResult {
   index: ModIndex;
   warnings: ModRegistryWarning[];
 }
+export type LocalModImportResult =
+  | { ok: true; manifest: ModManifest }
+  | { ok: false; error: string };
+
 
 export interface ModManager {
   getIndex(): ModIndex;
@@ -79,6 +83,7 @@ export interface ModManager {
   disable(id: string): ModProfile;
   move(id: string, direction: -1 | 1): ModProfile;
   validateEnabled(): ModValidationIssue[];
+  importLocal(filename: string, payload: unknown): LocalModImportResult;
 }
 
 const EMPTY_WORKSHOP: WorkshopCapability = { status: "placeholder", appId: null };
@@ -154,6 +159,47 @@ export function normalizeModManifest(value: unknown): ModManifest | null {
     tags: stringList(raw.tags),
   };
 }
+function packageTypeFromFilename(filename: string): ModPackageType | null {
+  const dot = filename.lastIndexOf(".");
+  if (dot < 0) return null;
+  const extension = filename.slice(dot) as ModPackageType;
+  return MOD_PACKAGE_TYPES.includes(extension) ? extension : null;
+}
+
+function validOptionalString(raw: Record<string, unknown>, key: string): boolean {
+  return raw[key] === undefined || typeof raw[key] === "string";
+}
+
+function validOptionalStringList(raw: Record<string, unknown>, key: string): boolean {
+  const value = raw[key];
+  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === "string"));
+}
+
+export function parseLocalModManifest(filename: string, payload: unknown): LocalModImportResult {
+  const packageType = packageTypeFromFilename(filename);
+  if (!packageType) {
+    return { ok: false, error: `Unsupported mod package extension for ${filename}.` };
+  }
+
+  const raw = record(payload);
+  if (!raw || !trimmed(raw.id) || !trimmed(raw.name)) {
+    return { ok: false, error: "Local mod manifest must contain non-empty id and name fields." };
+  }
+  if (raw.packageType !== undefined && raw.packageType !== packageType) {
+    return { ok: false, error: `Manifest packageType must match ${packageType}.` };
+  }
+  for (const key of ["version", "description", "author", "entry", "workshopId"] as const) {
+    if (!validOptionalString(raw, key)) return { ok: false, error: `Manifest field ${key} must be a string.` };
+  }
+  for (const key of ["requires", "conflicts", "tags"] as const) {
+    if (!validOptionalStringList(raw, key)) return { ok: false, error: `Manifest field ${key} must be an array of strings.` };
+  }
+
+  const manifest = normalizeModManifest({ ...raw, source: "local", packageType });
+  if (!manifest) return { ok: false, error: "Local mod manifest is invalid." };
+  return { ok: true, manifest };
+}
+
 
 function normalizeWorkshop(value: unknown): WorkshopCapability {
   const raw = record(value);
@@ -301,7 +347,7 @@ export async function createModManager(
   url = DEFAULT_MOD_INDEX_URL,
 ): Promise<ModManager> {
   const loaded = await loadModIndexWithWarnings(fetchImpl, url);
-  const index = loaded.index;
+  let index = loaded.index;
   let profile = loadModProfile(storage);
 
   const commit = (next: ModProfile): ModProfile => {
@@ -343,6 +389,21 @@ export async function createModManager(
       const loadOrder = [...profile.loadOrder];
       [loadOrder[position], loadOrder[target]] = [loadOrder[target]!, loadOrder[position]!];
       return commit({ ...profile, loadOrder });
+    },
+    importLocal(filename, payload) {
+      const parsed = parseLocalModManifest(filename, payload);
+      if (!parsed.ok) return parsed;
+      if (index.mods.some((manifest) => manifest.id === parsed.manifest.id)) {
+        return { ok: false, error: `A mod with id ${parsed.manifest.id} is already registered.` };
+      }
+      const manifest = {
+        ...parsed.manifest,
+        requires: [...parsed.manifest.requires],
+        conflicts: [...parsed.manifest.conflicts],
+        tags: [...parsed.manifest.tags],
+      };
+      index = { ...index, mods: [...index.mods, manifest] };
+      return { ok: true, manifest: { ...manifest, requires: [...manifest.requires], conflicts: [...manifest.conflicts], tags: [...manifest.tags] } };
     },
     validateEnabled: () => validateEnabledMods(index, profile),
   };

@@ -84,8 +84,8 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         field("settings.volume", stepper([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.volumeLevel, (v) => `${v}/10`, (v) => store.save({ volumeLevel: v })));
         break;
       case "display":
-        field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v, (v) => store.save({ resolutionKey: v })));
-        field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => v, (v) => store.save({ tooltipMode: v })));
+        field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v === "adaptive" ? t("settings.resolution.adaptive") : v, (v) => store.save({ resolutionKey: v })));
+        field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => t(`settings.tooltip.${v}` as MsgKey), (v) => store.save({ tooltipMode: v })));
         field("menu.language", stepper(["vi", "en"] as const, s.language, (v) => (v === "vi" ? "Tiếng Việt" : "English"), (v) => store.save({ language: v })));
         break;
       case "gameplay":
@@ -108,7 +108,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         }
         break;
       case "device":
-        field("settings.quality", stepper(QUALITY, s.quality, (v) => v, (v) => store.save({ quality: v })));
+        field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`settings.quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
         field("settings.renderScale", stepper(RENDER_SCALES, (RENDER_SCALES as readonly number[]).includes(s.renderScale) ? (s.renderScale as (typeof RENDER_SCALES)[number]) : 1, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
         field("settings.battery", toggle(s.batterySaver, (v) => store.save({ batterySaver: v })));
         break;

@@ -8,3 +8,6 @@
 ## 2026-09-22 17:00 +07:00
 
 - No plan moved into `done/` in this tranche. Git history remains the archive for fully superseded plans; active plans with runtime gates remain under `pending/`.
+## 2026-10-10T02:56:47.166Z
+
+- remaining-menu-utilities-plan.md moved into done via /plan-done.
