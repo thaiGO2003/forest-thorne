@@ -10,7 +10,7 @@ import type { Tooltip } from "./tooltip";
 export type SaveSummary =
   | { kind: "none" }
   | { kind: "corrupt" }
-  | { kind: "valid"; mode: GameMode; round: number; level: number; hearts: number; gold: number; playable: boolean };
+  | { kind: "valid"; mode: GameMode; round: number; level: number; hearts: number; gold: number; playable: boolean; resumable: boolean };
 
 export interface MenuModel { save: SaveSummary; version: string }
 
@@ -129,8 +129,9 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   function update(nm: MenuModel) {
     m = nm;
     const s = m.save;
-    cont.setDisabled(!(s.kind === "valid" && s.playable));
-    cont.el.hidden = s.kind === "corrupt";
+    const canContinue = s.kind === "valid" && s.playable && s.resumable;
+    cont.setDisabled(!canContinue);
+    cont.el.hidden = !canContinue;
     broken.el.hidden = s.kind !== "corrupt";
     refreshCopy();
   }

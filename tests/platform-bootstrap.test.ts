@@ -15,13 +15,13 @@ import {
 } from "../src/platform/discordActivity";
 
 describe("app metadata", () => {
-  it("uses package.json as version authority and formats only x.y.0", () => {
-    expect(APP_VERSION).toBe("0.1.0");
-    expect(APP_DISPLAY_VERSION).toBe("0.1");
-    expect(APP_VERSION_TAG).toBe("v0.1");
-    expect(APP_LAST_UPDATED).toBe("N/A");
-    expect(normalizeAppVersion(" ")).toBe("0.0.0");
-    expect(formatAppVersion("2.5.0")).toBe("2.5");
+  it("uses Git-derived config-time version metadata", () => {
+    expect(APP_VERSION).toBe("0.1.0080-10/10");
+    expect(APP_DISPLAY_VERSION).toBe("0.1.0080-10/10");
+    expect(APP_VERSION_TAG).toBe("v0.1.0080-10/10");
+    expect(APP_LAST_UPDATED).toBe("2026-10-10");
+    expect(normalizeAppVersion(" ")).toBe("0.0.0000-00/00");
+    expect(formatAppVersion("2.5.0")).toBe("2.5.0");
     expect(formatAppVersion("2.5.1")).toBe("2.5.1");
     expect(formatAppVersion("2.5.0-beta.1")).toBe("2.5.0-beta.1");
   });

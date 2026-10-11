@@ -4,6 +4,9 @@ import type { GameMode } from "./modes";
 
 export const ACHIEVEMENT_PROFILE_VERSION = 1;
 export const COLLECTION_PROFILE_VERSION = 2;
+export const ACHIEVEMENT_COMPLETION_CLAIM_ID = "meta_all_achievements_100";
+export const ACHIEVEMENT_COMPLETION_SKIN_ID = "gaMaiNguNuong";
+
 
 export const ACHIEVEMENT_THRESHOLDS = {
   best_round: [2, 3, 5, 8, 12, 16, 20, 25, 30, 40],
@@ -251,6 +254,18 @@ export function claimAchievementSkin(
   }
   return changed;
 }
+/** Meta reward: all 100 standard threshold achievements, not a synthetic 101st row. */
+export function claimAchievementCompletionSkin(
+  profile: AchievementProfile, collection: CollectionProfile,
+): boolean {
+  if (unlockedAchievementCount(profile) !== 100) return false;
+  return claimAchievementSkin(
+    collection,
+    ACHIEVEMENT_COMPLETION_CLAIM_ID,
+    ACHIEVEMENT_COMPLETION_SKIN_ID,
+  );
+}
+
 
 export function equipUnitSkin(collection: CollectionProfile, unitId: string, skinId: unknown): boolean {
   if (!UNIT_BY_ID.has(unitId)) return false;

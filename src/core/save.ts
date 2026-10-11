@@ -13,7 +13,7 @@ import { BASE_MATERIALS } from "./craft";
 import { AUGMENT_BY_ID } from "./augments";
 import { TECH_BY_ID, maxLevel } from "./tech";
 import {
-  normalizeAchievementProfile, normalizeCollectionProfile,
+  claimAchievementCompletionSkin, normalizeAchievementProfile, normalizeCollectionProfile,
   type AchievementProfile, type CollectionProfile,
 } from "./achievements";
 import type { KV } from "./settings";
@@ -102,6 +102,7 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.xp = clampInt(p.xp, 0, Number.MAX_SAFE_INTEGER, 0);
   p.gold = clampInt(p.gold, 0, Number.MAX_SAFE_INTEGER, 0);
   p.hp = clampInt(p.hp, 0, Number.MAX_SAFE_INTEGER, cfg.startHp);
+  p.heartEscrow = (p.phase === "COMBAT" || p.phase === "PLANNING") && !cfg.creative && p.heartEscrow === 1 ? 1 : 0;
   p.shopLocked = p.shopLocked === true;
   p.benchUpgradeLevel = clampInt(p.benchUpgradeLevel, 0, 4, 0);
   p.craftTableLevel = clampInt(p.craftTableLevel, 0, 3, 0);
@@ -252,10 +253,12 @@ export function inspectSave(store: KV): ContinueState {
 }
 
 export function saveRun(store: KV, payload: RunPayload): Envelope {
-  const env = createEnvelope(structuredClone(payload), {
-    achievementsProfile: loadAchievementProfile(store),
-    collectionProfile: loadCollectionProfile(store),
-  });
+  const achievementsProfile = loadAchievementProfile(store);
+  const collectionProfile = loadCollectionProfile(store);
+  if (claimAchievementCompletionSkin(achievementsProfile, collectionProfile)) {
+    saveCollectionProfile(store, collectionProfile);
+  }
+  const env = createEnvelope(structuredClone(payload), { achievementsProfile, collectionProfile });
   store.setItem(PROGRESS_KEY, JSON.stringify(env));
   return env;
 }
@@ -275,6 +278,8 @@ export function loadAchievementProfile(store: KV): AchievementProfile {
 export function saveAchievementProfile(store: KV, value: unknown): AchievementProfile {
   const normalized = normalizeAchievementProfile(value);
   store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(normalized));
+  const collection = loadCollectionProfile(store);
+  if (claimAchievementCompletionSkin(normalized, collection)) saveCollectionProfile(store, collection);
   return normalized;
 }
 
@@ -308,7 +313,11 @@ export function importProgress(store: KV, text: string, persist: boolean): RunPa
   if (persist) {
     store.setItem(PROGRESS_KEY, JSON.stringify(m.envelope));
     if (isObj(raw) && isObj(raw.achievementsProfile)) saveAchievementProfile(store, m.envelope.achievementsProfile);
-    if (isObj(raw) && isObj(raw.collectionProfile)) saveCollectionProfile(store, m.envelope.collectionProfile);
+    if (isObj(raw) && isObj(raw.collectionProfile)) {
+      const collection = normalizeCollectionProfile(m.envelope.collectionProfile);
+      claimAchievementCompletionSkin(m.envelope.achievementsProfile, collection);
+      saveCollectionProfile(store, collection);
+    }
   }
   return m.envelope.payload;
 }

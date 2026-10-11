@@ -200,7 +200,11 @@ registerPanel("library", (app) => openLibrary(app));
 registerPanel("unit-detail", (app, id) => openLibrary(app, id));
 registerPanel("settings", (app) =>
   openPanelModal(app, { id: "settings", title: t("menu.settings"), size: "lg" }, (m) =>
-    mountSettings(m, app.bridge.settings, { hasRun: app.bridge.saveSummary().kind !== "none", clearRun: () => app.bridge.clearRun() })));
+    mountSettings(m, app.bridge.settings, {
+      hasRun: app.bridge.saveSummary().kind !== "none",
+      exportRun: () => app.bridge.exportRun(),
+      clearRun: () => { app.bridge.clearRun(); m.close(); app.go("menu"); },
+    })));
 registerPanel("history", (app) =>
   openPanelModal(app, { id: "history", title: t("planning.history"), size: "lg" }, (m) => mountHistory(m, app.bridge.history())));
 registerPanel("tech", (app) => {
@@ -343,7 +347,7 @@ registerScreen("planning", (app) => {
     if (target instanceof HTMLElement && (
       target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
     )) return;
-    const key = normalizeKey(event.key === " " ? "SPACE" : event.key);
+    const key = normalizeKey(event.code === "ShiftRight" ? "SHIFT_RIGHT" : event.key === " " ? "SPACE" : event.key);
     if (!key) return;
     const bindings = bridge.settings.get().keys.planning;
     if (key === bindings.startCombat) {
@@ -355,6 +359,10 @@ registerScreen("planning", (app) => {
     } else if (key === bindings.buyXp) {
       event.preventDefault();
       bridge.buyXp();
+    } else if (key === bindings.newRun) {
+      event.preventDefault();
+      const current = bridge.run();
+      if (current) bridge.newRun(current.mode, current.aiMode);
     } else if (key === bindings.settings) {
       event.preventDefault();
       app.openPanel("settings");

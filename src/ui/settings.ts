@@ -40,7 +40,7 @@ function toggle(on: boolean, set: (v: boolean) => void): HTMLElement {
 
 export interface SettingsView { dispose(): void }
 
-export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { clearRun(): void; hasRun: boolean }): SettingsView {
+export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { clearRun(): void; exportRun(): { filename: string; text: string } | null; hasRun: boolean }): SettingsView {
   let tab: Tab = "audio", listening: { ctx: KeyContext; action: string } | null = null, note = "";
   let confirmUntil = 0, confirmTimer = 0;
   const root = h("div", "settings");
@@ -64,7 +64,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
     if (!listening) return;
     e.preventDefault();
     e.stopPropagation(); // capture must not leak to Escape-close or board shortcuts (A95.3)
-    const raw = e.key === " " ? "SPACE" : e.key;
+    const raw = e.code === "ShiftRight" ? "SHIFT_RIGHT" : e.key === " " ? "SPACE" : e.key;
     const k = normalizeKey(raw);
     if (!k || k === "ESCAPE") { note = t("settings.reserved"); listening = null; render(); return; }
     const s = store.get(), { ctx, action } = listening;
@@ -108,15 +108,27 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         }
         break;
       case "device":
-        field("settings.quality", stepper(QUALITY, s.quality, (v) => v, (v) => store.save({ quality: v })));
+        field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
         field("settings.renderScale", stepper(RENDER_SCALES, (RENDER_SCALES as readonly number[]).includes(s.renderScale) ? (s.renderScale as (typeof RENDER_SCALES)[number]) : 1, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
         field("settings.battery", toggle(s.batterySaver, (v) => store.save({ batterySaver: v })));
         break;
       case "data": {
+        const exported = kitButton({ skin: "wood", label: t("settings.exportSave"), cls: "wide-btn", onClick: () => {
+          const file = o.exportRun();
+          if (!file) return;
+          const url = URL.createObjectURL(new Blob([file.text], { type: "application/json" }));
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = file.filename;
+          a.click();
+          URL.revokeObjectURL(url);
+        } });
+        exported.setDisabled(!o.hasRun);
+        body.append(exported.el);
         const armed = performance.now() < confirmUntil;
         const b = kitButton({ skin: "red", label: armed ? t("settings.confirm") : t("settings.clearRun"), cls: "wide-btn", onClick: () => {
           if (performance.now() < confirmUntil) {
-            clearTimeout(confirmTimer); confirmUntil = 0; o.clearRun(); note = t("settings.cleared"); render(); return;
+            clearTimeout(confirmTimer); confirmUntil = 0; o.clearRun(); return;
           }
           confirmUntil = performance.now() + CONFIRM_MS;
           confirmTimer = window.setTimeout(() => { confirmUntil = 0; render(); }, CONFIRM_MS);

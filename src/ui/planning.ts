@@ -252,7 +252,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const r = nm.run;
     reroll.setLabel(`${refreshCost(r.level, r.rollCostDelta)}`);
     xp.setLabel(`${xpBuyCost(r.xpCostDelta)}`);
-    start.setLabel(t("planning.start"));
+    start.setLabel(`${t("planning.start")} · -1 ${ICONS.heart}`);
     reroll.setAria(t("planning.reroll", { cost: refreshCost(r.level, r.rollCostDelta) }));
     xp.setAria(t("planning.buyXp", { cost: xpBuyCost(r.xpCostDelta) }));
     lock.setIcon(r.shopLocked ? ICONS.lock : ICONS.unlock);

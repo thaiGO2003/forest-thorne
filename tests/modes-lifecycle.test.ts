@@ -18,10 +18,11 @@ describe("game modes and run lifecycle", () => {
     expect(createRun(1)).toMatchObject({ mode: "EndlessPvEClassic", hp: 3, gold: 10, lossCondition: "NO_HEARTS" });
   });
 
-  it("Classic loss is one heart, result id is idempotent, and round income pays once", () => {
+  it("Classic reserves one heart at combat start, consumes survivor damage on loss, and stays idempotent", () => {
     const s = normalRun(2);
     s.board[0] = owned("a");
     expect(startCombat(s)).toBeNull();
+    expect([s.hp, s.heartEscrow]).toEqual([2, 1]);
     const beforePreview = JSON.stringify(s);
     expect(nextRoundIncomePreview(s)).toBeGreaterThan(0);
     expect(JSON.stringify(s)).toBe(beforePreview);
@@ -29,12 +30,38 @@ describe("game modes and run lifecycle", () => {
       combatId: "c1", winner: "RIGHT", enemySurvivors: 5, enemyStars: [1, 1], bounty: 0, drops: [],
     })!;
     expect(result.damageTaken).toBe(1);
-    expect([s.hp, s.round, result.incomeEarned]).toEqual([2, 2, 11]);
+    expect([s.hp, s.heartEscrow, s.round, result.incomeEarned]).toEqual([1, 0, 2, 11]);
     const after = JSON.stringify(s);
     expect(applyRoundResult(s, {
       combatId: "c1", winner: "RIGHT", enemySurvivors: 5, enemyStars: [1], bounty: 0, drops: [],
     })).toBeNull();
     expect(JSON.stringify(s)).toBe(after);
+  });
+
+  it("Classic refunds exactly the reserved heart on victory", () => {
+    const s = normalRun(12);
+    s.board[0] = owned("refund");
+    const before = s.hp;
+    expect(startCombat(s)).toBeNull();
+    expect([s.hp, s.heartEscrow]).toEqual([before - 1, 1]);
+    const result = applyRoundResult(s, {
+      combatId: "refund", winner: "LEFT", enemySurvivors: 0, enemyStars: [], bounty: 0, drops: [],
+    });
+    expect(result?.winner).toBe("LEFT");
+    expect([s.hp, s.heartEscrow]).toEqual([before, 0]);
+  });
+
+  it("Classic loss can reach GAME_OVER after the reserved heart and survivor damage", () => {
+    const s = normalRun(13);
+    s.hp = 1;
+    s.board[0] = owned("last-heart");
+    expect(startCombat(s)).toBeNull();
+    expect([s.hp, s.heartEscrow]).toEqual([0, 1]);
+    const result = applyRoundResult(s, {
+      combatId: "last-heart", winner: "RIGHT", enemySurvivors: 1, enemyStars: [], bounty: 0, drops: [],
+    });
+    expect(result?.gameOver).toBe(true);
+    expect([s.hp, s.heartEscrow, s.phase]).toEqual([0, 0, "GAME_OVER"]);
   });
 
   it("win applies canonical gold/XP, capacity-bounded loot and round-3 augment gate", () => {
@@ -67,7 +94,7 @@ describe("game modes and run lifecycle", () => {
     fortress.board[0] = owned("f");
     startCombat(fortress);
     applyRoundResult(fortress, { combatId: "f1", winner: "RIGHT", enemySurvivors: 6, enemyStars: [], bounty: 0, drops: [] });
-    expect([fortress.hp, fortress.phase]).toEqual([94, "PLANNING"]);
+    expect([fortress.hp, fortress.phase]).toEqual([93, "PLANNING"]);
 
     const creative = createModeRun(5, "EndlessCreative");
     skipTutorial(creative);

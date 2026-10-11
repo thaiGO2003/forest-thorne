@@ -52,6 +52,8 @@ export interface RunState {
   xp: number;
   gold: number;
   hp: number;
+  /** One heart charged when combat starts; refunded only after a player victory. */
+  heartEscrow: 0 | 1;
   /** 5×5 allied board, row-major index r*5+c. */
   board: (OwnedUnit | null)[];
   /** Compact ordered bench, never sparse. */
@@ -145,7 +147,7 @@ function createModeRunInternal(seed: number, mode: GameMode): RunState {
   const cfg = modeConfig(mode);
   const s: RunState = {
     phase: "PLANNING", mode, aiMode: cfg.ai.def, lossCondition: cfg.lossCondition,
-    round: 1, level: 1, xp: 0, gold: cfg.startGold, hp: cfg.startHp,
+    round: 1, level: 1, xp: 0, gold: cfg.startGold, hp: cfg.startHp, heartEscrow: 0,
     board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), bench: [], itemBag: [],
     shop: [], shopSlotCount: SHOP_SLOTS, shopLocked: false, benchUpgradeLevel: 0, benchBonus: 0, deployCapBonus: 0,
     xpCostDelta: 0, rollCostDelta: 0, interestCapBonus: 0, interestRateBonus: 0, startingRage: 0, startingShield: 0,
@@ -498,6 +500,14 @@ export function startCombat(s: RunState): string | null {
   if (!planning(s)) return "not_planning";
   if (!tutorialActionAllowed(s, "begin_combat")) return "tutorial_blocked";
   if (boardCount(s) === 0) return "no_units";
+  const cfg = modeConfig(s.mode);
+  if (!cfg.creative && s.heartEscrow === 0) {
+    if (s.hp <= 0) return "no_hearts";
+    s.hp--;
+    s.heartEscrow = 1;
+  } else if (cfg.creative) {
+    s.heartEscrow = 0;
+  }
   recordTutorialEvent(s, "begin_combat");
   s.phase = "COMBAT";
   return null;
@@ -677,6 +687,9 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   if (s.phase !== "COMBAT" || s.appliedCombats.includes(input.combatId)) return null;
   const cfg = modeConfig(s.mode);
   s.appliedCombats.push(input.combatId);
+  const escrowedHeart = s.heartEscrow === 1;
+  s.heartEscrow = 0;
+  if (input.winner === "LEFT" && escrowedHeart) s.hp += 1;
 
   let goldEarned = 0;
   let xpEarned = 0;

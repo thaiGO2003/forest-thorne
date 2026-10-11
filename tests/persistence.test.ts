@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRun } from "../src/core/run";
+import { createRun, type RunState } from "../src/core/run";
 import {
   ACHIEVEMENTS_KEY, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope,
   importProgress, inspectSave, loadAchievementProfile, loadCollectionProfile, migrate, PROGRESS_KEY, remapCoopHost,
@@ -42,6 +42,26 @@ describe("persistence A57", () => {
     const writes = s.setItem.mock.calls.length;
     inspectSave(s);
     expect(s.setItem.mock.calls.length).toBe(writes);
+  });
+
+  it("legacy saves without heartEscrow normalize to zero while persisted combat preserves a reserved heart", () => {
+    const legacyStore = mem();
+    const legacy = createRun(21) as RunState & { heartEscrow?: 0 | 1 };
+    delete legacy.heartEscrow;
+    legacyStore.m[PROGRESS_KEY] = JSON.stringify(createEnvelope({ player: legacy as RunState }));
+    const legacyInspection = inspectSave(legacyStore);
+    if (legacyInspection.status !== "valid") throw new Error(legacyInspection.status);
+    expect(legacyInspection.envelope.payload.player?.heartEscrow).toBe(0);
+
+    const combatStore = mem();
+    const combat = createRun(22);
+    combat.phase = "COMBAT";
+    combat.heartEscrow = 1;
+    saveRun(combatStore, { player: combat });
+    const combatInspection = inspectSave(combatStore);
+    if (combatInspection.status !== "valid") throw new Error(combatInspection.status);
+    expect([combatInspection.envelope.payload.player?.phase, combatInspection.envelope.payload.player?.heartEscrow])
+      .toEqual(["COMBAT", 1]);
   });
 
   it("import persist=false never writes; persist=true restores normalized canonical profiles", () => {
@@ -119,7 +139,7 @@ describe("persistence A57", () => {
   });
 
   it("hydrates additive run bonuses and migrates legacy deployBonus safely", () => {
-    const r = createRun(10) as ReturnType<typeof createRun> & { deployBonus?: number };
+    const r = createRun(10) as RunState & { deployBonus?: number };
     r.deployBonus = 3;
     r.deployCapBonus = Number.NaN;
     r.teamAtkPct = 7;
@@ -132,7 +152,7 @@ describe("persistence A57", () => {
   });
 
   it("backfills newly materialized bonus fields from legacy augmentMods", () => {
-    const r = createRun(11) as ReturnType<typeof createRun> & Record<string, unknown>;
+    const r = createRun(11) as RunState & Record<string, unknown>;
     r.augmentMods = {
       team_atk_pct: 0.09,
       lifesteal_pct: 0.06,
@@ -144,7 +164,7 @@ describe("persistence A57", () => {
     for (const key of ["teamAtkPct", "lifestealPct", "interestRateBonus", "extraClassCount", "inventoryBonus", "winGoldBonus"]) {
       delete r[key];
     }
-    const migrated = migrate(createEnvelope({ player: r as ReturnType<typeof createRun> }))!;
+    const migrated = migrate(createEnvelope({ player: r as RunState }))!;
     expect(migrated.envelope.payload.player).toMatchObject({
       teamAtkPct: 9,
       lifestealPct: 6,
@@ -156,7 +176,7 @@ describe("persistence A57", () => {
   });
 
   it("defensively hydrates phase, bag, tech, augments and active augment choices", () => {
-    const r = createRun(12) as ReturnType<typeof createRun> & Record<string, unknown>;
+    const r = createRun(12) as RunState & Record<string, unknown>;
     const raw = r as unknown as Record<string, unknown>;
     raw.phase = "BROKEN";
     raw.shopLocked = "yes";
@@ -165,7 +185,7 @@ describe("persistence A57", () => {
     r.augments = ["gold_cache_1", "gold_cache_1", "missing_augment"];
     r.activeAugmentChoices = ["gold_cache_1", "team_atk_1", "missing_augment", "team_atk_1"];
     r.unequipDiscount = -99;
-    const migrated = migrate(createEnvelope({ player: r as ReturnType<typeof createRun> }))!;
+    const migrated = migrate(createEnvelope({ player: r as RunState }))!;
     expect(migrated.envelope.payload.player).toMatchObject({
       phase: "PLANNING",
       shopLocked: false,
@@ -236,9 +256,11 @@ describe("settings A35/A44", () => {
     });
   });
 
-  it("keys: invalid → default, ESCAPE reserved, lower-case normalized", () => {
-    const k = normalizeSettings({ keys: { planning: { reroll: "q", buyXp: "ESCAPE", sell: "F1" } } }).keys.planning;
-    expect([k.reroll, k.buyXp, k.sell, k.startCombat]).toEqual(["Q", "F", "E", "SPACE"]);
+  it("keys: defaults use R and Right Shift; invalid → default, ESCAPE reserved, lower-case normalized", () => {
+    const defaults = normalizeSettings(null).keys.planning;
+    expect([defaults.reroll, defaults.newRun, defaults.reroll === "D"]).toEqual(["R", "SHIFT_RIGHT", false]);
+    const k = normalizeSettings({ keys: { planning: { reroll: "q", buyXp: "ESCAPE", sell: "F1", newRun: "SHIFT_LEFT" } } }).keys.planning;
+    expect([k.reroll, k.buyXp, k.sell, k.startCombat, k.newRun]).toEqual(["Q", "F", "E", "SPACE", "SHIFT_RIGHT"]);
   });
 
   it("corrupt storage boots with defaults; preview notifies now, writes after 200 ms; resetKeys per context", () => {

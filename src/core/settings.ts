@@ -15,13 +15,13 @@ export { GAME_MODES, type GameMode } from "./modes";
 
 export type KeyContext = "planning" | "combat" | "menu";
 export const DEFAULT_KEYS = {
-  planning: { startCombat: "SPACE", reroll: "D", buyXp: "F", sell: "E", newRun: "R", settings: "ESCAPE", toggleAudio: "M" },
+  planning: { startCombat: "SPACE", reroll: "R", buyXp: "F", sell: "E", newRun: "SHIFT_RIGHT", settings: "ESCAPE", toggleAudio: "M" },
   combat: { step: "SPACE", settings: "ESCAPE", toggleAudio: "M" },
   menu: { back: "ESCAPE" },
 } as const satisfies Record<KeyContext, Record<string, string>>;
 export type KeyBindings = { [C in KeyContext]: Record<keyof (typeof DEFAULT_KEYS)[C], string> };
 
-const NAMED_KEYS = ["SPACE", "DELETE", "BACKSPACE", "ENTER", "TAB", "ESCAPE"];
+const NAMED_KEYS = ["SPACE", "DELETE", "BACKSPACE", "ENTER", "TAB", "ESCAPE", "SHIFT_RIGHT"];
 /** Single letter/digit or a named key; anything else → null. */
 export function normalizeKey(v: unknown): string | null {
   if (typeof v !== "string") return null;

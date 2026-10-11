@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  ACHIEVEMENT_CATEGORIES, achievementRows, claimAchievementSkin, claimSkinReward, createAchievementProfile,
-  createCollectionProfile, equipCollectionSkin, equipUnitSkin, normalizeCollectionProfile, rankAchievementRows,
+  ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_THRESHOLDS, achievementRows, claimAchievementCompletionSkin,
+  claimAchievementSkin, claimSkinReward, createAchievementProfile, createCollectionProfile,
+  equipCollectionSkin, equipUnitSkin, normalizeCollectionProfile, rankAchievementRows,
   recordEndlessAchievementEvent, unlockedAchievementCount, validateAchievementRewards,
 } from "../src/core/achievements";
 import {
@@ -23,6 +24,28 @@ describe("achievement + collection profile", () => {
     });
     expect(p.stats).toMatchObject({ runs_started: 1, rounds_won: 1, best_round: 8, items_looted: 3, highest_gold: 42, highest_level: 5, best_win_streak: 4 });
     expect(unlockedAchievementCount(p)).toBeGreaterThan(0);
+  });
+
+  it("unlocks the existing completion skin only after all 100 standard achievements", () => {
+    const p = createAchievementProfile();
+    for (const category of ACHIEVEMENT_CATEGORIES) {
+      const thresholds = ACHIEVEMENT_THRESHOLDS[category];
+      p.stats[category] = thresholds[thresholds.length - 1]!;
+    }
+    p.stats.runs_started = 49;
+    expect(achievementRows(p)).toHaveLength(100);
+    expect(unlockedAchievementCount(p)).toBe(99);
+    const c = createCollectionProfile();
+    expect(claimAchievementCompletionSkin(p, c)).toBe(false);
+    expect(c.unlockedSkinIds).toEqual([]);
+    expect(c.claimedAchievementIds).toEqual([]);
+
+    p.stats.runs_started = 50;
+    expect(unlockedAchievementCount(p)).toBe(100);
+    expect(claimAchievementCompletionSkin(p, c)).toBe(true);
+    expect(claimAchievementCompletionSkin(p, c)).toBe(false);
+    expect(c.unlockedSkinIds).toEqual(["gaMaiNguNuong"]);
+    expect(c.claimedAchievementIds).toEqual(["meta_all_achievements_100"]);
   });
 
   it("claims a reward once, equips only unlocked skins and ranks claimable rows first", () => {

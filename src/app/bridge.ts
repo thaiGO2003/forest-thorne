@@ -8,7 +8,7 @@ import {
   sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
   unequipItem, type RoundResultSummary, type RunState,
 } from "../core/run";
-import { inspectSave, clearRunProgress, saveRun } from "../core/save";
+import { EXPORT_FILENAME, exportSaveJson, inspectSave, clearRunProgress, saveRun } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor } from "../core/environment";
@@ -25,7 +25,7 @@ import { createSettingsStore, type SettingsStore, type KV } from "../core/settin
 import type { EnemyPreviewResult } from "../core/preview";
 export type SaveSummary =
   | { kind: "none" | "corrupt" }
-  | { kind: "valid"; mode: GameMode; round: number; level: number; hearts: number; gold: number; playable: boolean };
+  | { kind: "valid"; mode: GameMode; round: number; level: number; hearts: number; gold: number; playable: boolean; resumable: boolean };
 import type { RosterEntry } from "../units/combatPlayer";
 
 /**
@@ -86,6 +86,8 @@ export interface Bridge {
   forgetRun(): void;
   /** Run-only clear (A57/A60.5); never touches settings, collection or achievements. */
   clearRun(): void;
+  /** Export the persisted canonical envelope without exposing storage to UI code. */
+  exportRun(): { filename: string; text: string } | null;
   /** Fires after any state change so HUDs repaint. */
   onChange(fn: () => void): () => void;
 }
@@ -171,7 +173,7 @@ export function createBridge(store: KV = localStorage): Bridge {
       if (s.status !== "valid") return { kind: "corrupt" };
       const p = s.envelope.payload.player;
       if (!p) return { kind: "none" };
-      return { kind: "valid", mode: p.mode, round: p.round, level: p.level, hearts: p.hp, gold: p.gold, playable: MODE_CONFIG[p.mode].available };
+      return { kind: "valid", mode: p.mode, round: p.round, level: p.level, hearts: p.hp, gold: p.gold, playable: MODE_CONFIG[p.mode].available, resumable: p.phase !== "GAME_OVER" };
     },
     continueRun() {
       const s = inspectSave(store);
@@ -340,6 +342,8 @@ export function createBridge(store: KV = localStorage): Bridge {
       };
 
       if (beginCombat(s) !== null) return null;
+      // The charged heart must survive a reload even if simulation/presentation is interrupted.
+      persist();
       const roster: RosterEntry[] = [
         ...left.map((placement) => makeFighter(placement, "L", playerBonus, environment)),
         ...right.map((placement) => makeFighter(placement, "R", enemyBonus, environment)),
@@ -399,6 +403,10 @@ export function createBridge(store: KV = localStorage): Bridge {
     settings,
     forgetRun() { state = null; resetExternalPlanningState(); resetHistory(); emit(); },
     clearRun() { clearRunProgress(store); state = null; resetExternalPlanningState(); emit(); },
+    exportRun() {
+      const saved = inspectSave(store);
+      return saved.status === "valid" ? { filename: EXPORT_FILENAME, text: exportSaveJson(saved.envelope) } : null;
+    },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
   };
 }

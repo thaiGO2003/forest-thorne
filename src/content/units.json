@@ -3303,7 +3303,7 @@
   "tier": 3,
   "role": "ASSASSIN",
   "faction": "INSECT",
-  "element": "SWARM",
+  "element": "WOOD",
   "boss": false,
   "stats": {
    "hp": 310,
