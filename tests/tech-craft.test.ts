@@ -34,6 +34,23 @@ describe("tech A8", () => {
     research(s, "bench_up");
     expect([s.benchBonus, s.benchUpgradeLevel]).toEqual([2, 1]);
   });
+  it("purchases canonical speed levels for exactly 3 gold and caps at 10", () => {
+    const s = createRun(3);
+    skipTutorial(s);
+    s.gold = 40;
+    const startingGold = s.gold;
+
+    for (let level = 1; level <= 10; level++) {
+      expect(research(s, "speed")).toBe(true);
+      expect(s.speedLevel).toBe(level);
+      expect(s.gold).toBe(startingGold - level * 3);
+    }
+
+    const capped = { gold: s.gold, speedLevel: s.speedLevel, techLevel: s.techLevels.speed };
+    expect(research(s, "speed")).toBe(false);
+    expect({ gold: s.gold, speedLevel: s.speedLevel, techLevel: s.techLevels.speed }).toEqual(capped);
+    expect(s.techLevels.speed).toBe(10);
+  });
 });
 
 describe("craft A7", () => {

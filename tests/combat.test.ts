@@ -31,6 +31,47 @@ describe("combat", () => {
     expect(turnOrder(fs).map((f) => f.uid)).toEqual(["b", "d", "a", "c"]);
   });
 
+  it("keeps empty-cell timing entries presentation-only for sparse scan positions", () => {
+    const frontLeft: Placement[] = [{ uid: "left", baseId: "salamander_flame", star: 1, row: 0, col: 4 }];
+    const frontRight: Placement[] = [{ uid: "right", baseId: "salamander_flame", star: 1, row: 0, col: 5 }];
+    const sparseLeft: Placement[] = [{ ...frontLeft[0]!, col: 0 }];
+    const sparseRight: Placement[] = [{ ...frontRight[0]!, col: 9 }];
+    const front = simulate(frontLeft, frontRight, { seed: 17 });
+    const sparse = simulate(sparseLeft, sparseRight, { seed: 17 });
+    const frontFirstAction = front.events.findIndex((event) =>
+      event.t === "basic" || event.t === "skill" || event.t === "miss" || event.t === "skip");
+    const sparseFirstAction = sparse.events.findIndex((event) =>
+      event.t === "basic" || event.t === "skill" || event.t === "miss" || event.t === "skip");
+    const frontSemantic = {
+      winner: front.winner,
+      alive: front.alive,
+      total: front.total,
+      bounty: front.bounty,
+      bountyKills: front.bountyKills,
+      actions: front.actions,
+      events: front.events.filter((event) => event.t !== "empty"),
+      survivors: front.survivors.map(({ uid, hp, maxHp, rage, shield, alive }) => ({
+        uid, hp, maxHp, rage, shield, alive,
+      })),
+    };
+    const sparseSemantic = {
+      winner: sparse.winner,
+      alive: sparse.alive,
+      total: sparse.total,
+      bounty: sparse.bounty,
+      bountyKills: sparse.bountyKills,
+      actions: sparse.actions,
+      events: sparse.events.filter((event) => event.t !== "empty"),
+      survivors: sparse.survivors.map(({ uid, hp, maxHp, rage, shield, alive }) => ({
+        uid, hp, maxHp, rage, shield, alive,
+      })),
+    };
+
+    expect(sparseFirstAction).toBeGreaterThan(frontFirstAction);
+    expect(sparse.events.some((event) => event.t === "empty")).toBe(true);
+    expect(sparseSemantic).toEqual(frontSemantic);
+  });
+
   it("is deterministic for identical input + seed", () => {
     const l = team(ids.slice(0, 5), "L");
     const r = team(ids.slice(5, 10), "R");

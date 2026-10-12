@@ -59,8 +59,8 @@ describe("recovered application bridge", () => {
     expect(resumed.run()?.round).toBe(2);
   });
 
-  it("Finish Fast commits one canonical bridge result and stale natural finish cannot reapply it", () => {
-    const { bridge, run } = deployed();
+  it("Finish Fast commits one canonical bridge result, persists it, and stale natural finish cannot reapply it", () => {
+    const { store, bridge, run } = deployed();
     run.gold = 50;
     bridge.checkpoint("EVENT", "Chuẩn bị Finish Fast");
     const session = bridge.startCombat();
@@ -69,13 +69,42 @@ describe("recovered application bridge", () => {
     const summary = session?.finishFast();
     expect(summary).not.toBeNull();
     if (!summary) throw new Error("Finish Fast unexpectedly rejected");
-    expect(run.gold).toBe(combatGold + summary.goldEarned + summary.incomeEarned - 10);
+    const expectedGold = combatGold + summary.goldEarned + summary.incomeEarned - 10;
+    expect(run.gold).toBe(expectedGold);
     expect(run.round).toBe(2);
     const after = JSON.stringify(run);
     expect(session?.finish()).toBeNull();
     expect(session?.finishFast()).toBeNull();
     expect(JSON.stringify(run)).toBe(after);
     expect(bridge.history().entries.filter((entry) => entry.message.includes("Kết thúc giao tranh"))).toHaveLength(1);
+
+    const resumed = createBridge(store);
+    expect(resumed.continueRun()).toBe(true);
+    expect(resumed.run()?.round).toBe(2);
+    expect(resumed.run()?.gold).toBe(expectedGold);
+  });
+
+  it("Finish Fast rejects insufficient gold without mutating the resolved combat state", () => {
+    const { bridge, run } = deployed();
+    run.gold = 9;
+    bridge.checkpoint("EVENT", "Chuẩn bị Finish Fast thiếu vàng");
+    const session = bridge.startCombat();
+    expect(session).not.toBeNull();
+    const before = JSON.stringify(run);
+    expect(session?.finishFast()).toBeNull();
+    expect(JSON.stringify(run)).toBe(before);
+  });
+
+  it("natural finish prevents a later Finish Fast charge or second result application", () => {
+    const { bridge, run } = deployed();
+    run.gold = 50;
+    bridge.checkpoint("EVENT", "Chuẩn bị kết thúc thường");
+    const session = bridge.startCombat();
+    expect(session).not.toBeNull();
+    expect(session?.finish()).not.toBeNull();
+    const after = JSON.stringify(run);
+    expect(session?.finishFast()).toBeNull();
+    expect(JSON.stringify(run)).toBe(after);
   });
 
   it("does not publish a completed session after the player starts a different run", () => {
@@ -84,6 +113,7 @@ describe("recovered application bridge", () => {
     const replacement = bridge.newRun("EndlessPvEClassic", "EASY");
     const before = JSON.stringify(replacement);
     expect(session?.finish()).toBeNull();
+    expect(session?.finishFast()).toBeNull();
     expect(JSON.stringify(bridge.run())).toBe(before);
   });
 

@@ -11,6 +11,7 @@ import {
 } from "../src/core/combatStaging";
 import {
   getCombatDurationMultiplier,
+  getEmptyQueueDelayMs,
   getGameSpeedDisplayMultiplier,
   normalizeGameSpeedLevel,
 } from "../src/core/gameSpeed";
@@ -49,6 +50,7 @@ describe("combat action staging (A56/A119)", () => {
 
     expect([0, 1, 2, 10].map(getGameSpeedDisplayMultiplier)).toEqual([1, 1.5, 2, 6]);
     expect([0, 1, 2, 10].map(getCombatDurationMultiplier)).toEqual([3, 2, 1.5, 0.5]);
+    expect([0, 10, -5, 99, Number.NaN].map(getEmptyQueueDelayMs)).toEqual([50, 8, 50, 8, 50]);
   });
 
   it("keeps authored melee phases distinct and scales all four with game speed", () => {
