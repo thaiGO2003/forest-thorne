@@ -57,3 +57,10 @@
 
 - Added a three-level static transitive closure audit for Planning attack preview, unit info and tooltip paths; no live Phaser edge was found in the audited source graph.
 - Kept Phase 10.2 partial because the authoritative generated AST closure cannot be regenerated in this session.
+
+## 2026-10-12 17:37 +07:00
+
+- Wave 4 lighting added a warm additive sun-ray shader owned by `src/world/arena.ts`; shader time advances through the existing Stage render loop rather than a second timer.
+- Existing `Settings.quality` now owns both the directional shadow pass and sun-ray cost: low disables both, medium uses a 1024 shadow map with reduced ray gain, high uses 2048 with full ray gain.
+- The directional shadow camera now refreshes its projection matrix after bounds changes; targeted `arena-mapping` coverage proves the largest `coop4` board stays inside the frustum.
+- `NODE_OPTIONS='--localstorage-file=.vitest-ls.json' pnpm exec vitest --run tests/arena-mapping.test.ts` passed 1 file / 6 tests. Headed screenshot verification remains unverified because the current OMP shared Chromium daemon cannot launch; no browser PASS is claimed.
