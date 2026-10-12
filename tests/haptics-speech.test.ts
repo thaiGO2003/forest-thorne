@@ -48,6 +48,7 @@ class FakeUtterance {
 
 function speechEnvironment(
   initialVoices: SpeechSynthesisVoice[],
+  languages: readonly string[] = ["vi-VN"],
 ): {
   environment: BrowserSpeechEnvironment;
   spoken: FakeUtterance[];
@@ -85,6 +86,7 @@ function speechEnvironment(
     environment: {
       synthesis,
       Utterance: FakeUtterance as unknown as typeof SpeechSynthesisUtterance,
+      languages,
     },
     spoken,
     cancelled: () => cancelCount,
@@ -137,11 +139,11 @@ describe("haptics", () => {
 
 describe("browser speech", () => {
   it("normalizes language and applies deterministic voice preference", () => {
-    expect(normalizeSpeechLanguage("")).toBe("vi-VN");
+    expect(normalizeSpeechLanguage("")).toBe("en-US");
     expect(normalizeSpeechLanguage("vi")).toBe("vi-VN");
     expect(normalizeSpeechLanguage("en-GB")).toBe("en-US");
     expect(normalizeSpeechLanguage("fr-FR")).toBe("fr-FR");
-    expect(normalizeSpeechLanguage("jp")).toBe("vi-VN");
+    expect(normalizeSpeechLanguage("jp")).toBe("jp");
 
     const remoteExact = makeVoice("Remote Vietnamese", "vi-VN", false);
     const localExact = makeVoice("Local Vietnamese", "vi-VN", true);
@@ -150,6 +152,18 @@ describe("browser speech", () => {
     expect(selectBrowserVoice([remoteExact, prefix], "vi")).toBe(remoteExact);
     expect(selectBrowserVoice([prefix], "vi")).toBe(prefix);
     expect(selectBrowserVoice([makeVoice("Mai", "zz-ZZ")], "vi")).toMatchObject({ name: "Mai" });
+  });
+
+  it("falls back from selected text language to browser language, then English", () => {
+    const vi = makeVoice("Local Vietnamese", "vi-VN", true);
+    const en = makeVoice("Local English", "en-US", true);
+    const browserFallback = speechEnvironment([vi, en], ["vi-VN"]);
+    expect(speakWithBrowserVoice("bonjour", { lang: "fr-FR" }, browserFallback.environment)).toBe(true);
+    expect(browserFallback.spoken[0]?.voice?.name).toBe("Local Vietnamese");
+
+    const englishFallback = speechEnvironment([en], ["de-DE"]);
+    expect(speakWithBrowserVoice("bonjour", { lang: "fr-FR" }, englishFallback.environment)).toBe(true);
+    expect(englishFallback.spoken[0]?.voice?.name).toBe("Local English");
   });
 
   it("uses defaults, sanitizes non-finite options and cancels by default", () => {

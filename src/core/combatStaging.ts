@@ -1,4 +1,5 @@
 // Renderer-neutral combat action staging (A119). Simulation stays authoritative; consumers apply hit events at impact.
+import { LOGICAL_COLS } from "../board/geometry";
 import { getUnit } from "../content/catalog";
 import type { CombatEvent, Placement } from "./combat";
 import { scaleCombatPresentationMs } from "./gameSpeed";
@@ -11,6 +12,22 @@ export const MELEE_STAGE_BASE_MS = {
 } as const;
 
 export type CombatActionPattern = "RANGED_STATIC" | "MELEE_FRONT" | "ASSASSIN_BACK";
+export interface CombatContactCell { col: number; row: number }
+
+/** Canonical logical contact cell. Logical coordinates never contain the visual river lane. */
+export function basicContactCell(
+  pattern: CombatActionPattern,
+  actor: { side: "L" | "R" },
+  target: { col: number; row: number },
+): CombatContactCell {
+  if (pattern === "RANGED_STATIC") return { col: target.col, row: target.row };
+  const forward = actor.side === "L" ? 1 : -1;
+  const offset = pattern === "ASSASSIN_BACK" ? forward : -forward;
+  return {
+    col: Math.max(0, Math.min(LOGICAL_COLS - 1, target.col + offset)),
+    row: target.row,
+  };
+}
 type DamageCombatEvent = Extract<CombatEvent, { t: "basic" | "skill" }>;
 export type BasicCombatEvent =
   | (Omit<DamageCombatEvent, "t"> & { t: "basic" })

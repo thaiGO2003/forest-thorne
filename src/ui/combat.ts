@@ -1,7 +1,10 @@
 // Combat HUD + result overlay (§16.16, §16.17, §40, §50.3, A95, A121). Observes canonical combat
 // state only: repainting, density changes or opening History never step combat or apply rewards.
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, resolveEmojiChar } from "../core/emojiIcon";
 import { t } from "../core/i18n";
+import { FINISH_FAST_BASE_COST } from "../core/combatFast";
+import { itemDisplayName, itemSemanticIcon } from "../core/itemPresentation";
+import { groupDrops } from "../core/loot";
 import type { TeamStrength } from "../core/inspection";
 import type { RoundResultSummary } from "../core/run";
 import { h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
@@ -21,7 +24,7 @@ export interface CombatHudModel {
   log: string[];
 }
 
-export interface CombatHudIntents { speed(): void; history(): void }
+export interface CombatHudIntents { speed(): void; finishFast(): void; history(): void; information(): void; settings(): void }
 export interface CombatHudView { update(m: CombatHudModel): void; dispose(): void }
 
 /** A95 density: normal 8 queue / 4 log, compact 3 / 3 below this panel width. */
@@ -60,8 +63,11 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
   const side = panelEl("panel_wood", "cb-side");
   const sideHead = h("div", "cb-side-head");
   const speed = kitButton({ skin: "plum", icon: "⏩", cls: "cb-speed", onClick: () => it.speed() });
+  const finishFast = kitButton({ skin: "red", label: t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }), cls: "cb-fast", onClick: () => it.finishFast() });
   const hist = kitButton({ skin: "icon", icon: ICONS.history, cls: "cb-hist", onClick: () => it.history() });
-  sideHead.append(speed.el, hist.el);
+  const information = kitButton({ skin: "icon", icon: ICONS.info, cls: "cb-info-btn", onClick: () => it.information() });
+  const settings = kitButton({ skin: "icon", icon: ICONS.settings, cls: "cb-settings", onClick: () => it.settings() });
+  sideHead.append(speed.el, finishFast.el, hist.el, information.el, settings.el);
   const info = h("div", "cb-info");
   const infoS = surface(info, (g, w, hh) => {
     if (!m) return;
@@ -89,7 +95,11 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
       m = nm;
       speed.setLabel(`×${nm.speed}`);
       speed.setAria(t("combat.speed", { speed: nm.speed }));
+      finishFast.setLabel(t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }));
+      finishFast.setAria(t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }));
       hist.setAria(t("planning.history"));
+      information.setAria(t("menu.information"));
+      settings.setAria(t("menu.settings"));
       topS.paint(); infoS.paint();
     },
     dispose() { root.remove(); },
@@ -118,7 +128,13 @@ export function openResult(modals: ModalHost, round: number, r: RoundResultSumma
     row(ICONS.gold, t("combat.gold"), `+${r.goldEarned + r.incomeEarned}`),
     row(ICONS.xp, t("combat.xp"), `+${r.xpEarned}`),
     row(ICONS.heart, t("combat.damage"), r.damageTaken ? `-${r.damageTaken} → ${r.hpAfter}` : "0"));
-  if (r.acceptedDrops.length) body.append(row("🎁", t("combat.loot"), `${r.acceptedDrops.length}`));
+  const loot = groupDrops(r.acceptedDrops);
+  if (loot.total) {
+    body.append(row(ICONS.inventory, t("combat.loot"), `${loot.total}`));
+    for (const group of loot.groups) {
+      body.append(row(resolveEmojiChar(itemSemanticIcon(group.item)), itemDisplayName(group.item), `×${group.quantity}`));
+    }
+  }
   const next = kitButton({ skin: r.gameOver ? "red" : "green", label: r.gameOver ? t("combat.toMenu") : t("combat.next"), cls: "cb-next", onClick: () => { m.close(); onContinue(); } });
   body.append(next.el);
   m.body.append(body);

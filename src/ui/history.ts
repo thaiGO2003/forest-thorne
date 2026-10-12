@@ -31,8 +31,12 @@ export function mountHistory(modal: ModalHandle, history: PlanningHistoryState):
       const row = panelEl("panel_tooltip", "history-row");
       row.setAttribute("role", "listitem");
       const head = h("div", "history-head");
+      const when = new Date(e.timestamp);
+      const time = h("time", "history-time", when.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }));
+      time.dateTime = when.toISOString();
       head.append(h("span", "history-icon", ICON[e.category]), h("span", "history-msg", e.title ?? e.message));
       if (e.round !== undefined) head.append(h("span", "history-round", t("combat.round", { round: e.round })));
+      head.append(time);
       row.append(head);
       if (e.title && e.message !== e.title) row.append(h("p", "lib-p", e.message));
       for (const d of e.details ?? []) row.append(h("p", "lib-p", `• ${d}`));

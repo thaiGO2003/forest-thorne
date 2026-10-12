@@ -198,7 +198,7 @@ export const ICONS = {
   empty: "",
   gold: "🪙", xp: "✨", heart: "❤️", level: "⬆️", round: "🗓️", streakWin: "🔥", streakLoss: "🥶",
   reroll: "🔄", lock: "🔒", unlock: "🔓", start: "⚔️", sell: "💰", info: "📜",
-  library: "📖", tech: "🌳", craft: "⚒️", recipe: "📕", inventory: "🎒", history: "🕰️", settings: "⚙️",
+  library: "📖", tech: "🌳", craft: "⚒️", recipe: "📕", inventory: "🎒", history: "🕰️", settings: "⚙️", home: "🏠",
   synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
   social: "💬", donate: "☕", version: "🏷️", debug: "🐞", cortisol: "🧘",
   rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨",

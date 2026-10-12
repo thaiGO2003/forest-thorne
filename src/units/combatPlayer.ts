@@ -2,8 +2,8 @@
 import * as THREE from "three";
 import { getUnit } from "../content/catalog";
 import type { CombatEvent } from "../core/combat";
-import { stageBasicCombatEvent } from "../core/combatStaging";
-import { normalizeGameSpeedLevel, scaleCombatPresentationMs } from "../core/gameSpeed";
+import { basicContactCell, stageBasicCombatEvent } from "../core/combatStaging";
+import { getEmptyQueueDelayMs, normalizeGameSpeedLevel, scaleCombatPresentationMs } from "../core/gameSpeed";
 import { ICONS } from "../core/emojiIcon";
 import type { BillboardStatus } from "./billboard";
 import type { BoardView } from "./boardView";
@@ -12,6 +12,8 @@ export interface RosterEntry { uid: string; baseId: string; star: number; side: 
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
+const PROJECTILE_BASE_MS = 240;
+const PROJECTILE_COLOR = 0xffd36a;
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
   onFrame: (fn: (dt: number) => void) => () => void; onTick: (tick: PlaybackTick) => void;
@@ -22,9 +24,19 @@ export function playCombat(o: {
   const log: string[] = [];
   const timers: { remaining: number; run: () => void }[] = [];
   const moves: { root: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number }[] = [];
-  let speedLevel = 0, wait = 0, index = 0, disposed = false, complete = false;
+  let speedLevel = 0, wait = 0, index = 0, pendingImpacts = 0, cycle = 1, disposed = false, complete = false;
   const { promise, resolve } = Promise.withResolvers<void>();
   const after = (ms: number, run: () => void) => { if (ms <= 0) run(); else timers.push({ remaining: ms, run }); };
+  const exactImpact = (run: () => void) => {
+    let fired = false;
+    pendingImpacts++;
+    return () => {
+      if (fired) return;
+      fired = true;
+      pendingImpacts = Math.max(0, pendingImpacts - 1);
+      if (!disposed) run();
+    };
+  };
   const position = (uid: string) => {
     const result = new THREE.Vector3(); board.visual(uid)?.anchor.getWorldPosition(result); return result;
   };
@@ -36,7 +48,7 @@ export function playCombat(o: {
   const tick = () => {
     const all = [...units.values()];
     const queue = o.events.slice(index).flatMap((event) => "src" in event ? [event.src] : []).filter((uid, i, all) => all.indexOf(uid) === i).slice(0, 8);
-    o.onTick({ cycle: 1, queue, log: [...log], all, alive: { L: all.filter((unit) => unit.side === "L" && unit.hp > 0), R: all.filter((unit) => unit.side === "R" && unit.hp > 0) } });
+    o.onTick({ cycle, queue, log: [...log], all, alive: { L: all.filter((unit) => unit.side === "L" && unit.hp > 0), R: all.filter((unit) => unit.side === "R" && unit.hp > 0) } });
   };
   const land = (src: string, dst: string, damage: number, absorbed: number, crit = false) => {
     const target = units.get(dst); if (!target) return;
@@ -52,6 +64,12 @@ export function playCombat(o: {
   };
   const present = (event: CombatEvent): number => {
     o.onEvent?.(event);
+    if (event.t === "cycle") {
+      cycle = event.cycle;
+      tick();
+      return 0;
+    }
+    if (event.t === "empty") return getEmptyQueueDelayMs(speedLevel);
     if (event.t === "basic" || event.t === "miss") {
       const actor = units.get(event.src), visual = board.visual(event.src);
       if (!actor) return scaleCombatPresentationMs(100, speedLevel);
@@ -59,21 +77,54 @@ export function playCombat(o: {
         ? stageBasicCombatEvent(event, actor, speedLevel)
         : stageBasicCombatEvent({ ...event, t: "basic" }, actor, speedLevel);
       const { timing } = staged;
-      if (visual && staged.pattern !== "RANGED_STATIC") {
-        const home = visual.root.position.clone(), target = board.visual(event.dst)?.root.position.clone() ?? home;
-        const contact = home.clone().lerp(target, staged.pattern === "ASSASSIN_BACK" ? .85 : .72);
-        visual.play("move"); move(visual.root, home, contact, timing.approachMs);
-        after(timing.approachMs, () => visual.play("attack", { duration: (timing.preImpactMs + timing.postImpactMs) / 1000 }));
-        after(timing.approachMs + timing.preImpactMs + timing.postImpactMs, () => {
-          visual.play("move"); move(visual.root, contact, home, timing.retreatMs);
-        });
-        after(timing.totalMs, () => visual.play("idle"));
-      } else visual?.play("attack");
-      after(timing.impactOffsetMs, () => {
+      const semanticImpact = () => {
         if (event.t === "basic") land(event.src, event.dst, event.dmg, event.absorbed, event.crit);
         else fx.float(position(event.dst), "MISS", "miss");
+      };
+
+      if (staged.pattern === "RANGED_STATIC") {
+        visual?.play("attack");
+        const targetVisual = board.visual(event.dst);
+        if (visual && targetVisual) {
+          const impact = exactImpact(semanticImpact);
+          fx.shot(
+            position(event.src),
+            position(event.dst),
+            PROJECTILE_COLOR,
+            scaleCombatPresentationMs(PROJECTILE_BASE_MS, speedLevel) / 1000,
+            impact,
+          );
+        } else semanticImpact();
+        return scaleCombatPresentationMs(100, speedLevel);
+      }
+
+      if (!visual) {
+        semanticImpact();
+        return scaleCombatPresentationMs(100, speedLevel);
+      }
+
+      const home = visual.root.position.clone();
+      const actorSlot = board.slot(event.src), targetSlot = board.slot(event.dst);
+      const contact = actorSlot && targetSlot && actorSlot.kind !== "bench" && targetSlot.kind !== "bench"
+        ? (() => {
+            const cell = basicContactCell(staged.pattern, actor, targetSlot);
+            const center = board.cellCenter(cell.col, cell.row);
+            return new THREE.Vector3(center.x, home.y, center.z);
+          })()
+        : home.clone();
+      const retreat = () => {
+        visual.play("move");
+        move(visual.root, contact, home, timing.retreatMs);
+        after(timing.retreatMs, () => visual.play("idle"));
+      };
+      const impact = exactImpact(() => {
+        semanticImpact();
+        after(timing.postImpactMs, retreat);
       });
-      return Math.max(timing.totalMs, scaleCombatPresentationMs(100, speedLevel));
+      visual.play("move");
+      move(visual.root, home, contact, timing.approachMs);
+      after(timing.approachMs, () => visual.play("attack", { onImpact: impact }));
+      return scaleCombatPresentationMs(100, speedLevel);
     }
     switch (event.t) {
       case "skill": case "reflect": land(event.src, event.dst, event.dmg, event.absorbed, event.t === "skill" && event.crit); break;
@@ -115,11 +166,11 @@ export function playCombat(o: {
       if (timer.remaining <= 0) { timers.splice(timers.indexOf(timer), 1); timer.run(); }
     }
     wait -= ms;
-    if (wait > 0 || timers.length || moves.length) return;
+    if (wait > 0 || timers.length || moves.length || pendingImpacts > 0) return;
     if (index >= o.events.length) { if (!complete) { complete = true; resolve(); } return; }
     wait = present(o.events[index++]); tick();
   });
   tick();
   return { setSpeed(level) { speedLevel = normalizeGameSpeedLevel(level); }, done: promise,
-    dispose() { if (disposed) return; disposed = true; off(); timers.length = 0; moves.length = 0; resolve(); } };
+    dispose() { if (disposed) return; disposed = true; off(); timers.length = 0; moves.length = 0; pendingImpacts = 0; resolve(); } };
 }

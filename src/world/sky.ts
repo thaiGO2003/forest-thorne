@@ -1,6 +1,7 @@
 // A25 sky art: pixel-cartoon sun + rainbow, painted once to small canvases (nearest filter),
 // placed at fixed world spots behind the enemy side so they stay spatially stable under orbit.
 import * as THREE from "three";
+import type { EnvironmentId } from "../core/environment";
 
 type Own = <T extends { dispose(): void }>(x: T) => T;
 
@@ -21,7 +22,7 @@ function pixelTexture(own: Own, w: number, h: number, px: (x: number, y: number)
   return t;
 }
 
-export function createSky(root: THREE.Group, own: Own): { update(dt: number): void } {
+export function createSky(root: THREE.Group, own: Own): { setEnvironment(environment: EnvironmentId): void; update(dt: number): void } {
   // Sun: round core, lighter rim highlight, 8 stubby rays, cheeky face.
   const S = 32, C = 15.5;
   const sunTex = pixelTexture(own, S, S, (x, y) => {
@@ -58,8 +59,15 @@ export function createSky(root: THREE.Group, own: Own): { update(dt: number): vo
 
   for (const o of [sun, bow]) { o.raycast = () => {}; o.renderOrder = -1; root.add(o); }
 
+  const setEnvironment = (environment: EnvironmentId) => {
+    const night = environment === "NIGHT";
+    sun.visible = !night;
+    bowMat.opacity = night ? 0.08 : environment === "TIDE" ? 0.52 : environment === "SPIRIT" ? 0.6 : 0.78;
+  };
+
   let t = 0;
   return {
+    setEnvironment,
     // Gentle sun "breathing"; position never moves.
     update(dt) {
       t += dt;

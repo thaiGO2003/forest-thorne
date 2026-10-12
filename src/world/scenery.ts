@@ -3,6 +3,7 @@
 // deterministic (hash of cell), every GPU resource is registered with the caller's `own`.
 import * as THREE from "three";
 import { RIVER_X, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
+import type { EnvironmentId } from "../core/environment";
 
 /** Rings of terrain beyond the bench slab. */
 const REACH = 34;
@@ -28,7 +29,7 @@ export function createScenery(
   own: Own,
   toWorld: (c: Cell) => { x: number; z: number },
   waterMat: THREE.Material,
-): { update(dt: number): void } {
+): { setEnvironment(environment: EnvironmentId): void; update(dt: number): void } {
   const rows = totalRows(p);
   // Bench slab in visual-cell space (see arena foundation).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
@@ -140,6 +141,25 @@ export function createScenery(
     }
   });
 
+  // Four bounded outdoor lamps around the tactical slab. Decorative meshes never participate in picking.
+  const lampPostMat = white({ color: 0x5f4632, roughness: 0.8 });
+  const lampGlowMat = white({ color: 0xffd27a, emissive: 0xffc35a, emissiveIntensity: 0.45, roughness: 0.45 });
+  const lampCells = [
+    { x: -1, z: -1 }, { x: VISUAL_COLS, z: -1 },
+    { x: -1, z: rows }, { x: VISUAL_COLS, z: rows },
+  ] as const;
+  const lampPosts = instanced(lampCells.length, lampPostMat, "scenery-lamp-posts");
+  const lampBulbs = instanced(lampCells.length, lampGlowMat, "scenery-lamp-bulbs");
+  const lampLights = lampCells.map((cell, i) => {
+    const w = toWorld(cell);
+    put(lampPosts, i, w.x, 1.05, w.z, 0.16, 2.1, 0.16);
+    put(lampBulbs, i, w.x, 2.18, w.z, 0.34, 0.34, 0.34);
+    const light = new THREE.PointLight(0xffd27a, 0.3, 6, 2);
+    light.position.set(w.x, 2.2, w.z);
+    root.add(light);
+    return light;
+  });
+
   // --- Clouds: few voxel clusters drifting along +x, wrapping across the sky. ------------------
   const SPAN = 110;
   const PUFFS = [[0, 0, 0, 3.2, 1.1, 2], [1.8, 0.5, 0.3, 2.2, 1.2, 1.6], [-1.7, 0.2, -0.2, 2, 0.9, 1.5]] as const;
@@ -159,7 +179,19 @@ export function createScenery(
 
   for (const mesh of [bodies, caps, trunks, leaves, rocks, flowers]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
+  const setEnvironment = (environment: EnvironmentId) => {
+    const night = environment === "NIGHT";
+    const lampColor = environment === "FIRE" ? 0xff8a42 : environment === "SPIRIT" ? 0xc9dcff : 0xffd27a;
+    lampGlowMat.emissive.setHex(lampColor);
+    lampGlowMat.emissiveIntensity = night ? 3.2 : 0.45;
+    for (const light of lampLights) {
+      light.color.setHex(lampColor);
+      light.intensity = night ? 7 : 0.3;
+    }
+  };
+
   return {
+    setEnvironment,
     update(dt) {
       for (const c of cloudSeeds) c.x = ((c.x + dt * 0.6 + SPAN / 2) % SPAN + SPAN) % SPAN - SPAN / 2;
       placeClouds();

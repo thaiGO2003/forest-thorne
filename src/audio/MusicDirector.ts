@@ -10,6 +10,7 @@ export const MUSIC_CROSSFADE_MS = 900;
 export interface MusicTrack {
   key: string;
   src: string;
+  source?: Settings["musicSource"];
   longPlay?: boolean;
 }
 
@@ -71,7 +72,7 @@ type DesiredRequest =
   | null;
 
 function musicVolume(settings: Settings): number {
-  return 0.45 * normalizedMasterVolume(settings);
+  return normalizedMasterVolume(settings) * Math.max(0, Math.min(1, settings.musicVolume / 10));
 }
 
 function defaultCreateAudioElement(): MusicAudioElement | null {
@@ -173,6 +174,14 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
       }
     }
     return order;
+  };
+
+  const playlistForContext = (context: MusicContext): MusicPlaylistDefinition | undefined => {
+    const base = options.playlists[context];
+    if (!base) return undefined;
+    const hasSourceMetadata = base.tracks.some((track) => track.source !== undefined);
+    if (!hasSourceMetadata) return base;
+    return { ...base, tracks: base.tracks.filter((track) => track.source === settings.musicSource) };
   };
 
   const chooseWeightedTrack = (
@@ -291,42 +300,60 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
     }
   };
 
+  const playContext = (context: MusicContext, force = false) => {
+    if (disposed) return;
+    if (!force && desired?.kind === "context" && desired.context === context) return;
+    desired = { kind: "context", context };
+    const playlist = playlistForContext(context);
+    if (!playlist || playlist.tracks.length === 0) {
+      stopOwnedPlayback();
+      return;
+    }
+    const selected = playlist.tracks.find((track) => track.key === settings.musicTrack);
+    let order: MusicTrack[];
+    let index: number;
+    let seek: number;
+    if (selected) {
+      order = [selected, ...playlist.tracks.filter((track) => track.key !== selected.key)];
+      index = 0;
+      seek = 0;
+    } else {
+      const restored = continuity.restore(playlist);
+      order = restored.fresh ? freshRuntimeOrder(playlist, lastTrackKey) : restored.order;
+      index = restored.fresh ? 0 : restored.index;
+      seek = restored.fresh ? 0 : restored.seek;
+    }
+    const track = order[index];
+    if (!track) {
+      stopOwnedPlayback();
+      return;
+    }
+    const previous = active;
+    if (previous) lastTrackKey = previous.track.key;
+    startTrack(context, playlist, track, order, index, seek, previous);
+  };
+
   function resumeFromGesture() {
     removeGestureResume();
     if (disposed || !desired) return;
     const request = desired;
     desired = null;
-    if (request.kind === "context") director.play(request.context);
+    if (request.kind === "context") playContext(request.context);
     else director.playWeighted(request.id, request.tracks, request.weights);
   }
 
   const unsubscribe = options.settings.subscribe((next) => {
+    const previous = settings;
     settings = next;
     updateVolumes();
+    if ((previous.musicSource !== next.musicSource || previous.musicTrack !== next.musicTrack) && desired?.kind === "context") {
+      playContext(desired.context, true);
+    }
   });
 
   const director: MusicDirector = {
     play(context) {
-      if (disposed) return;
-      if (desired?.kind === "context" && desired.context === context) return;
-      desired = { kind: "context", context };
-      const playlist = options.playlists[context];
-      if (!playlist || playlist.tracks.length === 0) {
-        stopOwnedPlayback();
-        return;
-      }
-      const restored = continuity.restore(playlist);
-      const order = restored.fresh ? freshRuntimeOrder(playlist, lastTrackKey) : restored.order;
-      const index = restored.fresh ? 0 : restored.index;
-      const seek = restored.fresh ? 0 : restored.seek;
-      const track = order[index];
-      if (!track) {
-        stopOwnedPlayback();
-        return;
-      }
-      const previous = active;
-      if (previous) lastTrackKey = previous.track.key;
-      startTrack(context, playlist, track, order, index, seek, previous);
+      playContext(context);
     },
     playWeighted(id, tracks, weights) {
       if (disposed) return;

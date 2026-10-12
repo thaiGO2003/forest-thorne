@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as THREE from "three";
 import { toVisual } from "../src/board/geometry";
-import { cellToWorld, worldToLogical } from "../src/world/arena";
+vi.mock("../src/world/scenery", () => ({
+  createScenery: () => ({ setEnvironment() {}, update() {} }),
+}));
+vi.mock("../src/world/sky", () => ({
+  createSky: () => ({ setEnvironment() {}, update() {} }),
+}));
+import { cellToWorld, createArena, worldToLogical } from "../src/world/arena";
 
 describe("arena world mapping (A91.2)", () => {
   it("round-trips every logical cell through world space", () => {
@@ -23,5 +30,45 @@ describe("arena world mapping (A91.2)", () => {
   it("off-board points resolve to null", () => {
     expect(worldToLogical(9, 0, "solo")).toBeNull();
     expect(worldToLogical(1, 4, "solo")).toBeNull();
+  });
+
+  it("applies semantic highlights only to playable tiles and restores the exact checker color", () => {
+    const scene = new THREE.Scene();
+    const arena = createArena(scene, "solo");
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const color = new THREE.Color();
+    const tileIndex = (col: number, row: number) => {
+      const expected = cellToWorld(toVisual(col, row), "solo");
+      for (let i = 0; i < arena.tiles.count; i++) {
+        arena.tiles.getMatrixAt(i, matrix);
+        position.setFromMatrixPosition(matrix);
+        if (Math.abs(position.x - expected.x) < 1e-6 && Math.abs(position.z - expected.z) < 1e-6) return i;
+      }
+      return -1;
+    };
+    const index = tileIndex(2, 1);
+    expect(index).toBeGreaterThanOrEqual(0);
+    arena.tiles.getColorAt(index, color);
+    const checker = color.getHex();
+
+    arena.setHighlights([
+      { col: 2, row: 1, role: "direct" },
+      { col: 99, row: 99, role: "invalid" },
+      { col: -1, row: 2, role: "hover" },
+    ]);
+    arena.tiles.getColorAt(index, color);
+    expect(color.getHex()).not.toBe(checker);
+    expect(arena.tiles.count).toBe(50);
+    for (let i = 0; i < arena.tiles.count; i++) {
+      arena.tiles.getMatrixAt(i, matrix);
+      position.setFromMatrixPosition(matrix);
+      expect(Math.abs(position.x)).toBeGreaterThanOrEqual(0.5);
+    }
+
+    arena.clearHighlights();
+    arena.tiles.getColorAt(index, color);
+    expect(color.getHex()).toBe(checker);
+    arena.dispose();
   });
 });

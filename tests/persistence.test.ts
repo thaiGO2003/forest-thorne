@@ -249,11 +249,21 @@ describe("persistence A57", () => {
 
 describe("settings A35/A44", () => {
   it("defaults, clamps and per-mode AI legality", () => {
-    const d = normalizeSettings({ volumeLevel: 99, resolutionKey: "800x600", renderScale: 0.2, tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" } });
-    expect([d.volumeLevel, d.resolutionKey, d.renderScale, d.expandedTooltip, d.language, d.guiScale]).toEqual([10, "1600x900", 0.5, true, "vi", 2]);
+    const d = normalizeSettings({
+      volumeLevel: 99, musicVolume: 99, resolutionKey: "800x600", guiScale: 2,
+      fpsLimit: 144, tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" },
+    });
+    expect([
+      d.volumeLevel, d.musicVolume, d.resolutionKey, d.expandedTooltip, d.language, d.guiScale, d.fpsLimit,
+    ]).toEqual([10, 10, "1600x900", true, "vi", 1, 60]);
     expect(d.aiModeByGameMode).toEqual({
       EndlessPvEClassic: "TUTORIAL", EndlessPvEFortress: "MEDIUM", EndlessCreative: "TUTORIAL", FortressPvP4: "COOP4_MEDIUM",
     });
+  });
+
+  it("migrates legacy battery saver and subtitle preferences", () => {
+    const migrated = normalizeSettings({ batterySaver: true, subtitleEnabled: false });
+    expect([migrated.fpsLimit, migrated.narrationEnabled]).toEqual([30, false]);
   });
 
   it("keys: defaults use R and Right Shift; invalid → default, ESCAPE reserved, lower-case normalized", () => {

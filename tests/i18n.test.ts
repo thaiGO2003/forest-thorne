@@ -21,4 +21,14 @@ describe("i18n", () => {
     setLocale("vi");
     expect(fn).toHaveBeenCalledTimes(1);
   });
+
+  it("localizes player-facing remediation copy without raw validation tokens", () => {
+    expect(t("settings.musicPrevious", {}, "vi")).toBe("Bản nhạc trước");
+    expect(t("settings.musicNext", {}, "en")).toBe("Next music track");
+    expect(t("mods.issueUnknown", { modId: "ghost" }, "vi")).toBe("Mod đã bật không tồn tại: ghost");
+    expect(t("mods.issueMissingDependency", { modId: "alpha", dependencyId: "core" }, "en")).toBe("Missing dependency: alpha → core");
+    expect(t("mods.issueConflict", { modId: "alpha", conflictId: "beta" }, "vi")).toBe("Xung đột: alpha ↔ beta");
+    expect(t("info.synergyClass", {}, "vi")).toBe("Vai trò");
+    expect(t("info.synergyElement", {}, "en")).toBe("Element");
+  });
 });

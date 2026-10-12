@@ -6,8 +6,9 @@ import {
   buyXp as buyRunXp, chooseAugment as chooseRunAugment, craftRunItem, createModeRun, deployLimit,
   enemyPreview, equipItem, playerCombatBonus, refresh, research as researchTech, runSynergies,
   sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
-  unequipItem, type RoundResultSummary, type RunState,
+  unequipItem, type RoundResultInput, type RoundResultSummary, type RunState,
 } from "../core/run";
+import { applyFinishFast } from "../core/combatFast";
 import { EXPORT_FILENAME, exportSaveJson, inspectSave, clearRunProgress, saveRun } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
@@ -18,7 +19,7 @@ import {
   tutorialActionAllowed, type TutorialAction, type TutorialActionContext, type TutorialInspectionContext,
   type TutorialStep,
 } from "../core/tutorial";
-import { rollLoot } from "../core/loot";
+import { rollEquipmentLoot, rollMaterialLoot } from "../core/loot";
 import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type PlanningHistoryState } from "../core/history";
 import { setLocale } from "../core/i18n";
 import { createSettingsStore, type SettingsStore, type KV } from "../core/settings";
@@ -30,7 +31,8 @@ import type { RosterEntry } from "../units/combatPlayer";
 
 /**
  * One resolved battle handed to presentation (A16, A121). Logic resolves canonically up front;
- * presentation replays `events` in order, then calls `finish()` exactly once to apply the result.
+ * presentation either replays `events` then calls `finish()`, or skips presentation through
+ * `finishFast()`. Both paths commit the same canonical round result exactly once.
  */
 export interface CombatSession {
   /** Every combatant at battle start (both sides), with starting HP/rage/shield. */
@@ -38,6 +40,8 @@ export interface CombatSession {
   events: CombatEvent[];
   /** Applies the result once (idempotent by combat id) and returns the normalized summary. */
   finish(): RoundResultSummary | null;
+  /** Charges Finish Fast and applies the same canonical result; null when unavailable or already applied. */
+  finishFast(): RoundResultSummary | null;
 }
 
 export interface Bridge {
@@ -370,26 +374,36 @@ export function createBridge(store: KV = localStorage): Bridge {
       const lootRng = seededRng(combatSeed ^ 0x51ed270b);
       const drops = right
         .filter((unit) => !survivors.has(unit.uid))
-        .flatMap((unit) => rollLoot(unit.baseId, unit.star, lootRng));
+        .flatMap((unit) => [
+          ...rollMaterialLoot(unit.baseId, lootRng),
+          ...rollEquipmentLoot(unit.star, lootRng),
+        ]);
       const winner = result.winner === "L" ? "LEFT" : result.winner === "R" ? "RIGHT" : "DRAW";
+      const roundResultInput: RoundResultInput = {
+        combatId,
+        winner,
+        enemySurvivors: result.alive.R,
+        enemyStars: right.map((unit) => unit.star),
+        bounty: result.bounty.L,
+        drops,
+      };
       commit("COMBAT", `Bắt đầu giao tranh vòng ${round}`);
 
+      const publishResult = (summary: RoundResultSummary | null) => {
+        if (!summary) return null;
+        commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`);
+        return summary;
+      };
       return {
         roster,
         events: result.events,
         finish() {
           if (state !== s) return null;
-          const summary = applyRoundResult(s, {
-            combatId,
-            winner,
-            enemySurvivors: result.alive.R,
-            enemyStars: right.map((unit) => unit.star),
-            bounty: result.bounty.L,
-            drops,
-          });
-          if (!summary) return null;
-          commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`);
-          return summary;
+          return publishResult(applyRoundResult(s, roundResultInput));
+        },
+        finishFast() {
+          if (state !== s) return null;
+          return publishResult(applyFinishFast(s, roundResultInput));
         },
       };
     },

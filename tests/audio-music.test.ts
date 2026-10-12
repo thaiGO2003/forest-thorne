@@ -109,18 +109,20 @@ describe("music director A45", () => {
 
   it("crossfades for 900 ms and releases the outgoing element", () => {
     const settings = createSettingsStore(memoryStorage());
-    settings.save({ volumeLevel: 10 });
+    settings.save({ volumeLevel: 10, musicVolume: 5 });
     const audio = audioFactory();
     const director = createMusicDirector({ settings, playlists, createAudioElement: audio.factory });
     director.play("planning");
-    expect(audio.created[0]?.volume).toBe(0.45);
+    expect(audio.created[0]?.volume).toBe(0.5);
     director.play("combat");
     expect(audio.created).toHaveLength(2);
     expect(audio.created[1]?.volume).toBe(0);
     vi.advanceTimersByTime(MUSIC_CROSSFADE_MS);
-    expect(audio.created[1]?.volume).toBeCloseTo(0.45);
+    expect(audio.created[1]?.volume).toBeCloseTo(0.5);
     expect(audio.created[0]?.paused).toBe(true);
     expect(audio.created[0]?.src).toBe("");
+    settings.save({ musicVolume: 2 });
+    expect(audio.created[1]?.volume).toBeCloseTo(0.2);
     director.dispose();
   });
 

@@ -33,9 +33,22 @@ export interface LibraryView { showDetail(id: string): void; dispose(): void }
 
 export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tooltip, startId?: string): LibraryView {
   const f: Filter = { q: "", role: null, faction: null, tier: null };
-  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null;
+  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null;
   const root = h("div", "lib");
   modal.body.append(root);
+  const clearIdleTimer = () => {
+    if (idleTimer !== null) window.clearTimeout(idleTimer);
+    idleTimer = null;
+  };
+  const scheduleIdle = () => {
+    clearIdleTimer();
+    if (!viewer) return;
+    const delay = 4_000 + Math.floor(Math.random() * 5_001);
+    idleTimer = window.setTimeout(() => {
+      viewer?.play("idle");
+      scheduleIdle();
+    }, delay);
+  };
 
   const chipRow = <T>(values: T[], icon: (v: T) => string, name: (v: T) => string, get: () => T | null, set: (v: T | null) => void) => {
     const row = h("div", "lib-chips");
@@ -49,6 +62,7 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
   };
 
   function renderBrowse() {
+    clearIdleTimer();
     viewer?.dispose(); viewer = null;
     for (const c of cards) c.dispose();
     root.replaceChildren();
@@ -128,25 +142,40 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
     gridRo?.disconnect(); gridRo = null;
     root.replaceChildren();
     modal.setTitle(u.nameVi);
-    let star: Star = 1;
+    let star: Star = 1, skinId: string | null = null;
     const wrap = h("div", "lib-detail");
     const stagePanel = panelEl("slot_well", "lib-stage");
     const view = h("div", "lib-view");
     stagePanel.append(view);
+    clearIdleTimer();
     viewer?.dispose();
     viewer = portraits.createViewer(view);
-    viewer.setUnit(u.id, star);
+    viewer.setUnit(u.id, star, skinId);
+    scheduleIdle();
     if (!hasRig(u.id)) stagePanel.append(h("div", "lib-pending", t("library.artPending")));
 
     const actions = h("div", "lib-actions");
-    const stateBtns = ACTION_STATES.map((s) => {
-      const b = kitButton({ skin: s === "idle" ? "green" : "wood", label: t(STATE_KEY[s]), onClick: () => { viewer?.play(s); for (const x of stateBtns) x.setSelected(x === b); } });
+    const stateBtns: KitButton[] = [];
+    for (const s of ACTION_STATES) {
+      const b = kitButton({ skin: s === "idle" ? "green" : "wood", label: t(STATE_KEY[s]), onClick: () => {
+        viewer?.play(s);
+        for (const x of stateBtns) x.setSelected(x === b);
+        scheduleIdle();
+      } });
       actions.append(b.el);
-      return b;
-    });
+      stateBtns.push(b);
+      if (s === "idle") {
+        const replay = kitButton({ skin: "icon", label: "↻", aria: t("library.idleReplay"), onClick: () => {
+          viewer?.play("idle");
+          scheduleIdle();
+        } });
+        tip.bind(replay.el, () => ({ title: t("library.idleReplay") }));
+        actions.append(replay.el);
+      }
+    }
     const stars = h("div", "lib-stars");
     const starBtns = ([1, 2, 3] as const).map((n) => {
-      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
+      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
       stars.append(b.el);
       return b;
     });
@@ -189,11 +218,39 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
         s.shapeVi && `▦ ${t("library.shape")}: ${s.shapeVi}`,
         s.countVi && `# ${t("library.targets")}: ${s.countVi}`,
         s.durationVi && `⏳ ${t("library.duration")}: ${s.durationVi}`);
-      if (u.skin) sec(`🎨 ${t("library.skins")}`, ...u.skin.stagesVi);
+      const skin = u.skin;
+      if (skin) {
+        const skinSec = panelEl("panel_tooltip", "lib-sec");
+        skinSec.append(h("h3", "lib-h", `🎨 ${t("library.skins")}`));
+        const skinActions = h("div", "lib-skin-actions");
+        const base = kitButton({ skin: "wood", label: t("library.baseLook"), onClick: () => {
+          skinId = null;
+          viewer?.setUnit(u.id, star, skinId);
+          scheduleIdle();
+          renderInfo();
+        } });
+        base.setSelected(skinId === null);
+        skinActions.append(base.el);
+        skin.stagesVi.forEach((label, index) => {
+          const stage = Math.min(3, index + 1) as Star;
+          const b = kitButton({ skin: "wood", label, onClick: () => {
+            star = stage;
+            skinId = skin.id;
+            viewer?.setUnit(u.id, star, skinId);
+            scheduleIdle();
+            for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === star);
+            renderInfo();
+          } });
+          b.setSelected(skinId === skin.id && star === stage);
+          skinActions.append(b.el);
+        });
+        skinSec.append(skinActions);
+        info.append(skinSec);
+      }
     }
     renderInfo();
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); root.remove(); } };
+  return { showDetail, dispose() { clearIdleTimer(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); root.remove(); } };
 }

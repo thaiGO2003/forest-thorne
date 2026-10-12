@@ -11,6 +11,7 @@ export interface BrowserSpeechOptions {
 export interface BrowserSpeechEnvironment {
   synthesis?: Pick<SpeechSynthesis, "getVoices" | "speak" | "cancel" | "addEventListener" | "removeEventListener"> | null;
   Utterance?: typeof SpeechSynthesisUtterance | null;
+  languages?: readonly string[];
 }
 
 const finiteOrOne = (value: unknown): number => {
@@ -19,13 +20,12 @@ const finiteOrOne = (value: unknown): number => {
 };
 
 export function normalizeSpeechLanguage(value: unknown): string {
-  if (typeof value !== "string" || !value.trim()) return "vi-VN";
-  const lang = value.trim();
+  if (typeof value !== "string" || !value.trim()) return "en-US";
+  const lang = value.trim().replaceAll("_", "-");
   const lower = lang.toLowerCase();
   if (lower.startsWith("vi")) return "vi-VN";
   if (lower.startsWith("en")) return "en-US";
-  if (lang.includes("-")) return lang;
-  return "vi-VN";
+  return /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(lang) ? lang : "en-US";
 }
 
 function normalizedVoiceLang(voice: SpeechSynthesisVoice): string {
@@ -47,12 +47,8 @@ function englishNameFallback(name: string): boolean {
   return /(english|us english|american)/i.test(name);
 }
 
-export function selectBrowserVoice(
-  voices: readonly SpeechSynthesisVoice[],
-  language: unknown,
-): SpeechSynthesisVoice | null {
-  const lang = normalizeSpeechLanguage(language);
-  const exact = lang.toLowerCase();
+function voiceForLanguage(voices: readonly SpeechSynthesisVoice[], language: string): SpeechSynthesisVoice | null {
+  const exact = language.toLowerCase();
   const prefix = exact.split("-")[0]!;
   const exactLocal = voices.find((voice) => normalizedVoiceLang(voice) === exact && voice.localService);
   if (exactLocal) return exactLocal;
@@ -65,10 +61,27 @@ export function selectBrowserVoice(
   return null;
 }
 
+export function selectBrowserVoice(
+  voices: readonly SpeechSynthesisVoice[],
+  language: unknown,
+  fallbackLanguages: readonly string[] = [],
+): SpeechSynthesisVoice | null {
+  const candidates = [language, ...fallbackLanguages].map(normalizeSpeechLanguage);
+  for (const candidate of candidates) {
+    const voice = voiceForLanguage(voices, candidate);
+    if (voice) return voice;
+  }
+  return null;
+}
+
 function defaultSpeechEnvironment(): BrowserSpeechEnvironment {
+  const languages = typeof navigator === "undefined"
+    ? ["en-US"]
+    : navigator.languages.length ? [...navigator.languages] : [navigator.language || "en-US"];
   return {
     synthesis: typeof speechSynthesis !== "undefined" ? speechSynthesis : null,
     Utterance: typeof SpeechSynthesisUtterance !== "undefined" ? SpeechSynthesisUtterance : null,
+    languages,
   };
 }
 
@@ -77,14 +90,19 @@ function buildUtterance(
   options: BrowserSpeechOptions,
   synthesis: BrowserSpeechEnvironment["synthesis"],
   Utterance: NonNullable<BrowserSpeechEnvironment["Utterance"]>,
+  browserLanguages: readonly string[],
 ): SpeechSynthesisUtterance {
   const utterance = new Utterance(text);
-  utterance.lang = normalizeSpeechLanguage(options.lang);
+  const candidates = [options.lang, ...browserLanguages, "en-US"]
+    .filter((lang): lang is string => typeof lang === "string" && lang.trim().length > 0)
+    .map(normalizeSpeechLanguage)
+    .filter((lang, index, all) => all.indexOf(lang) === index);
+  utterance.lang = candidates[0] ?? "en-US";
   utterance.rate = finiteOrOne(options.rate);
   utterance.pitch = finiteOrOne(options.pitch);
   utterance.volume = finiteOrOne(options.volume);
-  const voice = synthesis ? selectBrowserVoice(synthesis.getVoices(), utterance.lang) : null;
-  if (voice) utterance.voice = voice;
+  const voice = synthesis ? selectBrowserVoice(synthesis.getVoices(), utterance.lang, candidates.slice(1)) : null;
+  if (voice) { utterance.voice = voice; utterance.lang = normalizeSpeechLanguage(voice.lang); }
   return utterance;
 }
 
@@ -99,7 +117,7 @@ export function speakWithBrowserVoice(
   if (!normalizedText || !synthesis || typeof synthesis.speak !== "function" || !Utterance) return false;
 
   const resolved: BrowserSpeechOptions = {
-    lang: options.lang ?? "vi-VN",
+    ...(options.lang ? { lang: options.lang } : {}),
     rate: options.rate ?? 1,
     pitch: options.pitch ?? 1,
     volume: options.volume ?? 1,
@@ -108,14 +126,14 @@ export function speakWithBrowserVoice(
 
   try {
     if (resolved.cancelCurrent !== false) synthesis.cancel();
-    const utterance = buildUtterance(normalizedText, resolved, synthesis, Utterance);
+    const utterance = buildUtterance(normalizedText, resolved, synthesis, Utterance, environment.languages ?? []);
     synthesis.speak(utterance);
 
     if (synthesis.getVoices().length === 0 && typeof synthesis.addEventListener === "function") {
       const retry = () => {
         synthesis.removeEventListener?.("voiceschanged", retry);
         try {
-          const retryUtterance = buildUtterance(normalizedText, resolved, synthesis, Utterance);
+          const retryUtterance = buildUtterance(normalizedText, resolved, synthesis, Utterance, environment.languages ?? []);
           synthesis.speak(retryUtterance);
         } catch {
           // Immediate utterance already succeeded; asynchronous voice retry is best-effort.

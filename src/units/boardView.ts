@@ -14,30 +14,74 @@ import type { Star, UnitVisual } from "./rig";
 /** Tile top: units stand on the thin tactical tiles. */
 const TILE_TOP = 0.12;
 const BOARD = 5;
+export const LOW_CORTISOL_DURATION_MS = 120_000;
+
 
 interface Slot { v: UnitVisual; bb: Billboard; key: string; kind: "board" | "bench" | "enemy"; col: number; row: number; base: BillboardState }
+export interface BoardSlotLocation {
+  kind: Slot["kind"];
+  col: number;
+  row: number;
+}
 
 export interface BoardView {
   sync(run: RunState): void;
   /** Lookup for picking/billboards/combat staging. */
   visual(uid: string): UnitVisual | undefined;
+  slot(uid: string): BoardSlotLocation | undefined;
+  cellCenter(col: number, row: number): { x: number; z: number };
   forEach(fn: (uid: string, v: UnitVisual, kind: Slot["kind"]) => void): void;
   /** Combat pushes live HP/rage/statuses; also drives star multiplicity (A90.3). */
   setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses">>): void;
   setCombat(v: boolean): void;
+  startLowCortisol(): void;
+  stopLowCortisol(): void;
   dispose(): void;
 }
 
 export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardView {
   const slots = new Map<string, Slot>();
+  const cortisolBase = new Map<string, { y: number; yaw: number; phase: number }>();
   let combat = false;
-  const off = stage.onFrame((dt) => { for (const s of slots.values()) s.v.update(dt); });
+  let cortisolRemainingMs = 0;
+  let cortisolElapsedMs = 0;
+
+  const restoreCortisolUnit = (uid: string, s: Slot) => {
+    const base = cortisolBase.get(uid);
+    if (!base) return;
+    s.v.root.position.y = base.y;
+    s.v.root.rotation.y = base.yaw;
+    cortisolBase.delete(uid);
+  };
+  const stopLowCortisol = () => {
+    for (const [uid, s] of slots) restoreCortisolUnit(uid, s);
+    cortisolRemainingMs = 0;
+    cortisolElapsedMs = 0;
+  };
+  const updateCortisol = (dt: number) => {
+    if (cortisolRemainingMs <= 0) return;
+    const elapsedMs = Math.max(0, dt) * 1000;
+    cortisolElapsedMs += elapsedMs;
+    cortisolRemainingMs = Math.max(0, cortisolRemainingMs - elapsedMs);
+    for (const [uid, base] of cortisolBase) {
+      const s = slots.get(uid);
+      if (!s || s.kind === "enemy") continue;
+      const wave = cortisolElapsedMs * 0.009 + base.phase;
+      s.v.root.position.y = base.y + Math.sin(wave) * 0.08;
+      s.v.root.rotation.y = base.yaw + Math.sin(wave * 0.72) * 0.12;
+    }
+    if (cortisolRemainingMs === 0) stopLowCortisol();
+  };
+  const off = stage.onFrame((dt) => {
+    for (const s of slots.values()) s.v.update(dt);
+    updateCortisol(dt);
+  });
 
   const place = (uid: string, baseId: string, star: number, kind: Slot["kind"], col: number, row: number, x: number, z: number) => {
     const st = Math.min(3, Math.max(1, Math.round(star))) as Star;
     const key = `${baseId}@${st}`;
     let s = slots.get(uid);
-    if (s && s.key !== key) { s.v.dispose(); s.bb.dispose(); slots.delete(uid); s = undefined; }
+    if (s && s.key !== key) { restoreCortisolUnit(uid, s); s.v.dispose(); s.bb.dispose(); slots.delete(uid); s = undefined; }
     if (!s) {
       const v = createUnit(baseId, st);
       v.root.userData.uid = uid;
@@ -51,7 +95,12 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     s.kind = kind; s.col = col; s.row = row;
     s.v.root.position.set(x, TILE_TOP, z);
-    s.v.setFacing(kind === "enemy" ? "R" : "L");
+    s.v.setFacing(kind === "bench" ? Math.atan2(-x, -z) : kind === "enemy" ? "R" : "L");
+    const cortisol = cortisolBase.get(uid);
+    if (cortisol) {
+      cortisol.y = s.v.root.position.y;
+      cortisol.yaw = s.v.root.rotation.y;
+    }
     s.v.setCombat(combat);
     // Bench units stay compact: billboard only for deployed/enemy units (A23 "where relevant").
     s.bb.setVisible(kind !== "bench");
@@ -91,9 +140,14 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         seen.add(e.uid);
       }
 
-      for (const [uid, s] of slots) if (!seen.has(uid)) { s.v.dispose(); s.bb.dispose(); slots.delete(uid); }
+      for (const [uid, s] of slots) if (!seen.has(uid)) { restoreCortisolUnit(uid, s); s.v.dispose(); s.bb.dispose(); slots.delete(uid); }
     },
     visual: (uid) => slots.get(uid)?.v,
+    slot(uid) {
+      const s = slots.get(uid);
+      return s ? { kind: s.kind, col: s.col, row: s.row } : undefined;
+    },
+    cellCenter: (col, row) => cellToWorld(toVisual(col, row), profile),
     forEach(fn) { for (const [uid, s] of slots) fn(uid, s.v, s.kind); },
     setLive(uid, live) {
       const s = slots.get(uid);
@@ -102,8 +156,21 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       s.bb.set(s.base);
       s.v.setHpRatio(s.base.hp / Math.max(1, s.base.maxHp));
     },
+    startLowCortisol() {
+      stopLowCortisol();
+      let phase = 0;
+      for (const [uid, s] of slots) {
+        if (s.kind === "enemy") continue;
+        cortisolBase.set(uid, { y: s.v.root.position.y, yaw: s.v.root.rotation.y, phase });
+        phase += 1.37;
+      }
+      cortisolRemainingMs = LOW_CORTISOL_DURATION_MS;
+    },
+    stopLowCortisol,
     setCombat(v) {
+      const entering = !combat && v;
       const leaving = combat && !v;
+      if (entering || leaving) stopLowCortisol();
       combat = v;
       if (leaving) {
         // A77: temporary combat state (HP, deaths, staging offsets) is discarded; next sync rebuilds fresh rigs.
@@ -114,6 +181,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       for (const s of slots.values()) s.v.setCombat(v);
     },
     dispose() {
+      stopLowCortisol();
       off();
       for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
       slots.clear();

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getUnit, UNITS } from "../src/content/catalog";
+import { UNITS } from "../src/content/catalog";
 import { BASE_MATERIALS } from "../src/core/craft";
-import { applyOutcome, lossDamage, materialCandidates, rollLoot, type RewardTarget } from "../src/core/loot";
+import { itemDisplayName, itemSemanticIcon } from "../src/core/itemPresentation";
+import {
+  applyOutcome, groupDrops, lossDamage, materialCandidates, rollEquipmentLoot, rollMaterialLoot, type RewardTarget,
+} from "../src/core/loot";
 
 const seq = (...v: number[]) => () => v.shift() ?? 0.99;
 const target = (): RewardTarget => ({ gold: 0, hp: 10, xpGain: 0, itemBag: [], winStreak: 0, loseStreak: 0, winGoldBonus: 1, appliedCombats: [] });
@@ -16,19 +19,50 @@ describe("loot", () => {
     }
   });
 
-  it("first candidate always drops; extras gated by tier chance; no fabricated extras", () => {
+  it("first material candidate always drops; extras stay tier-gated", () => {
     const id = UNITS.find((u) => materialCandidates(u).length === 1)!.id;
-    expect(rollLoot(id, 1, seq(0.99)).map((d) => d.rule)).toEqual(["material"]);
+    expect(rollMaterialLoot(id, seq(0.99)).map((d) => d.rule)).toEqual(["material"]);
     const multi = UNITS.find((u) => materialCandidates(u).length >= 2)!.id;
-    expect(rollLoot(multi, 1, seq(0, 0.99, 0.99)).filter((d) => d.rule === "material").length).toBe(2);
+    expect(rollMaterialLoot(multi, seq(0, 0.99)).length).toBe(2);
   });
 
-  it("equipment tier = clamp(star,1,3); empty pool drops nothing", () => {
-    const id = UNITS[0]!.id;
-    const pool = { 1: ["a1"], 2: ["b2"], 3: [] };
-    const extra = materialCandidates(getUnit(id)).length - 1;
-    const r = (star: number) => rollLoot(id, star, seq(...Array(extra).fill(0.99), 0.01, 0), pool).filter((d) => d.rule === "equipment").map((d) => d.item);
-    expect([r(1), r(2), r(3)]).toEqual([["a1"], ["b2"], []]);
+  it("equipment roll uses a strict 5% boundary and uniform exact-tier selection", () => {
+    const pool = [{ id: "first", tier: 1 }, { id: "second", tier: 1 }] as const;
+    expect(rollEquipmentLoot(1, seq(0.049, 0), pool)).toEqual([
+      { item: "first", source: "1", rule: "equipment" },
+    ]);
+    expect(rollEquipmentLoot(1, seq(0.05, 0), pool)).toEqual([]);
+    expect(rollEquipmentLoot(1, seq(0.049, 0.75), pool)[0]?.item).toBe("second");
+  });
+
+  it("equipment tier clamps to 1..3, never downgrades, and records the enemy star", () => {
+    const pool = [{ id: "a1", tier: 1 }, { id: "b2", tier: 2 }] as const;
+    expect(rollEquipmentLoot(0, seq(0.01, 0), pool)).toEqual([
+      { item: "a1", source: "0", rule: "equipment" },
+    ]);
+    expect(rollEquipmentLoot(2, seq(0.01, 0), pool)[0]?.item).toBe("b2");
+    expect(rollEquipmentLoot(4, seq(0.01, 0), pool)).toEqual([]);
+  });
+
+  it("groups accepted loot by item while preserving the total quantity", () => {
+    const drops = [
+      { item: "tear", source: "a", rule: "material" as const },
+      { item: "eq_blue_buff", source: "1", rule: "equipment" as const },
+      { item: "tear", source: "b", rule: "material" as const },
+    ];
+    expect(groupDrops(drops)).toEqual({
+      total: 3,
+      groups: [
+        { item: "tear", quantity: 2 },
+        { item: "eq_blue_buff", quantity: 1 },
+      ],
+    });
+  });
+  it("resolves canonical localized names and semantic icon hooks for loot items", () => {
+    expect(itemDisplayName("bark")).toBe("Vỏ Cây");
+    expect(itemDisplayName("eq_blue_buff")).toBe("Bùa Xanh");
+    expect(itemSemanticIcon("bark")).toBe("leaf");
+    expect(itemSemanticIcon("eq_warmog_armor")).toBe("shield");
   });
 
   it("damage rules", () => {

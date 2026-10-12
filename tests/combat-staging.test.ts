@@ -3,6 +3,7 @@ import { NORMAL_UNITS } from "../src/content/catalog";
 import type { CombatEvent, Placement } from "../src/core/combat";
 import {
   type BasicCombatEvent,
+  basicContactCell,
   basicActionPattern,
   combatActionTiming,
   stageBasicCombatEvent,
@@ -81,6 +82,16 @@ describe("combat action staging (A56/A119)", () => {
     expect(basicActionPattern(placement("m", melee.id))).toBe("MELEE_FRONT");
     expect(basicActionPattern(placement("a", assassin.id))).toBe("ASSASSIN_BACK");
     expect(basicActionPattern(placement("r", ranged.id))).toBe("RANGED_STATIC");
+  });
+
+  it("derives canonical melee and assassin contact cells with edge clamping", () => {
+    expect(basicContactCell("MELEE_FRONT", { side: "L" }, { col: 5, row: 2 })).toEqual({ col: 4, row: 2 });
+    expect(basicContactCell("MELEE_FRONT", { side: "R" }, { col: 4, row: 2 })).toEqual({ col: 5, row: 2 });
+    expect(basicContactCell("ASSASSIN_BACK", { side: "L" }, { col: 5, row: 2 })).toEqual({ col: 6, row: 2 });
+    expect(basicContactCell("ASSASSIN_BACK", { side: "R" }, { col: 4, row: 2 })).toEqual({ col: 3, row: 2 });
+    expect(basicContactCell("MELEE_FRONT", { side: "L" }, { col: 0, row: 1 })).toEqual({ col: 0, row: 1 });
+    expect(basicContactCell("MELEE_FRONT", { side: "R" }, { col: 9, row: 3 })).toEqual({ col: 9, row: 3 });
+    expect(basicContactCell("RANGED_STATIC", { side: "L" }, { col: 5, row: 4 })).toEqual({ col: 5, row: 4 });
   });
 
   it("places damage exactly at melee impact and never stages miss damage", () => {

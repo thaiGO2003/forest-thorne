@@ -22,13 +22,14 @@ export interface MenuIntents {
   openUtility(id: UtilityId): void;
 }
 
-export type UtilityId = "settings" | "library" | "language" | "achievements" | "mods" | "tribute" | "social" | "donate" | "version" | "debug";
+export type UtilityId = "settings" | "library" | "language" | "achievements" | "mods" | "information" | "tribute" | "social" | "donate" | "version" | "debug";
 
 const UTILITIES: { id: UtilityId; icon: string; key: MsgKey }[] = [
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
   { id: "library", icon: ICONS.library, key: "menu.library" },
   { id: "achievements", icon: ICONS.achievements, key: "menu.achievements" },
   { id: "mods", icon: ICONS.mods, key: "menu.mods" },
+  { id: "information", icon: ICONS.info, key: "menu.information" },
   { id: "language", icon: ICONS.language, key: "menu.language" },
   { id: "tribute", icon: ICONS.tribute, key: "menu.tribute" },
   { id: "social", icon: ICONS.social, key: "menu.social" },
@@ -67,9 +68,12 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   const util = panelEl("panel_wood", "menu-utility");
   const utilButtons = UTILITIES.map((u) => {
     const b = kitButton({ skin: "icon", icon: u.icon, onClick: () => intents.openUtility(u.id) });
+    const copy = h("span", "menu-utility-label", t(u.key));
+    const item = h("div", "menu-utility-item");
     tip.bind(b.el, () => ({ title: t(u.key) }));
-    util.append(b.el);
-    return { b, u };
+    item.append(b.el, copy);
+    util.append(item);
+    return { b, u, copy };
   });
 
   const verEl = h("div", "menu-version");
@@ -122,7 +126,11 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
     cont.setLabel(t("menu.continue"));
     fresh.setLabel(t("menu.newGame"));
     broken.setLabel(t("menu.clearBroken"));
-    for (const { b, u } of utilButtons) b.setAria(t(u.key));
+    for (const { b, u, copy } of utilButtons) {
+      const text = t(u.key);
+      b.setAria(text);
+      copy.textContent = text;
+    }
     title.paint(); save.paint(); ver.paint();
   }
 

@@ -10,7 +10,9 @@ export const RESOLUTIONS = [
 ] as const;
 export const TOOLTIP_MODES = ["off", "compact", "summary", "expanded"] as const;
 export const QUALITY = ["low", "medium", "high"] as const;
-export const RENDER_SCALES = [0.5, 0.67, 0.75, 1] as const;
+export const GUI_SCALES = [0.8, 1, 1.2, 1.4] as const;
+export const FPS_LIMITS = [30, 45, 60, 90, 120] as const;
+export const MUSIC_SOURCES = ["local", "online"] as const;
 export { GAME_MODES, type GameMode } from "./modes";
 
 export type KeyContext = "planning" | "combat" | "menu";
@@ -52,13 +54,14 @@ export const MODE_AI: Record<GameMode, { allowed: readonly AiMode[]; def: AiMode
 };
 
 export interface Settings {
-  audioEnabled: boolean; audioMuted: boolean; volumeLevel: number;
+  audioEnabled: boolean; audioMuted: boolean; volumeLevel: number; musicVolume: number;
+  musicSource: (typeof MUSIC_SOURCES)[number]; musicTrack: string;
   aiMode: AiMode; aiModeByGameMode: Record<GameMode, AiMode>;
   loseCondition: "NO_HEARTS" | "NO_UNITS";
-  resolutionKey: (typeof RESOLUTIONS)[number]; guiScale: 2;
+  resolutionKey: (typeof RESOLUTIONS)[number]; guiScale: (typeof GUI_SCALES)[number];
   language: "vi" | "en"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
-  subtitleEnabled: boolean; keys: KeyBindings;
-  quality: (typeof QUALITY)[number]; renderScale: number; batterySaver: boolean;
+  narrationEnabled: boolean; keys: KeyBindings;
+  quality: (typeof QUALITY)[number]; fpsLimit: (typeof FPS_LIMITS)[number];
 }
 
 const pick = <T>(list: readonly T[], v: unknown, def: T): T => (list.includes(v as T) ? (v as T) : def);
@@ -68,12 +71,24 @@ export function normalizeSettings(raw: unknown): Settings {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const byMode = (r.aiModeByGameMode ?? {}) as Record<string, unknown>;
   const vol = Math.round(Number(r.volumeLevel));
-  const scale = Number(r.renderScale);
+  const musicVol = Math.round(Number(r.musicVolume));
+  const rawGuiScale = Number(r.guiScale);
+  const rawFpsLimit = Number(r.fpsLimit);
+  const legacyFps = bool(r.batterySaver, false) ? 30 : 60;
   const tooltipMode = pick(TOOLTIP_MODES, r.tooltipMode, "summary");
+  const guiScale = (GUI_SCALES as readonly number[]).includes(rawGuiScale)
+    ? rawGuiScale as Settings["guiScale"]
+    : 1;
+  const fpsLimit = (FPS_LIMITS as readonly number[]).includes(rawFpsLimit)
+    ? rawFpsLimit as Settings["fpsLimit"]
+    : legacyFps;
   return {
     audioEnabled: bool(r.audioEnabled, true),
     audioMuted: bool(r.audioMuted, false),
     volumeLevel: Number.isFinite(vol) ? Math.min(10, Math.max(1, vol)) : 5,
+    musicVolume: Number.isFinite(musicVol) ? Math.min(10, Math.max(0, musicVol)) : 5,
+    musicSource: pick(MUSIC_SOURCES, r.musicSource, "local"),
+    musicTrack: typeof r.musicTrack === "string" ? r.musicTrack : "",
     aiMode: normalizeAiMode(r.aiMode, "TUTORIAL"),
     aiModeByGameMode: Object.fromEntries(GAME_MODES.map((m) => {
       const v = normalizeAiMode(byMode[m], MODE_AI[m].def);
@@ -83,15 +98,14 @@ export function normalizeSettings(raw: unknown): Settings {
       ? "NO_UNITS"
       : pick(["NO_HEARTS", "NO_UNITS"] as const, r.loseCondition, "NO_HEARTS"),
     resolutionKey: pick(RESOLUTIONS, r.resolutionKey, "1600x900"),
-    guiScale: 2,
+    guiScale,
     language: pick(["vi", "en"] as const, r.language, "vi"),
     tooltipMode,
     expandedTooltip: tooltipMode === "expanded",
-    subtitleEnabled: bool(r.subtitleEnabled, true),
+    narrationEnabled: bool(r.narrationEnabled, bool(r.subtitleEnabled, true)),
     keys: normalizeKeys(r.keys),
     quality: pick(QUALITY, r.quality, "high"),
-    renderScale: Number.isFinite(scale) ? Math.min(1, Math.max(0.5, scale)) : 1,
-    batterySaver: bool(r.batterySaver, false),
+    fpsLimit,
   };
 }
 

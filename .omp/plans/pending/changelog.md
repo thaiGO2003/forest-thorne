@@ -603,3 +603,24 @@
 - Fixed round-5 Warmog legality by deterministic 2★ preparation, made round-6 craft progression monotonic with durable canonical events, added non-drag board selection for the attack-preview step, and kept craft staging external to `RunState`.
 - Added compact portrait shop paging and corrected joystick placement from live BrowserPanel evidence; the Tutorial HUD now honors its `hidden` state after canonical completion, so round 9 / `aiMode: EASY` no longer displays stale guidance.
 - Removed temporary smoke diagnostics before delivery. Verification: targeted Vitest `3 files / 19 tests passed`; `corepack pnpm typecheck`; `corepack pnpm build`; `git diff --check`; real 1DevTool BrowserPanel playthrough exercised Tutorial rounds 1–8 and resumed the persisted round-9 run without Tutorial guidance.
+## 2026-10-10T12:27:42.608Z
+
+- forest-throne-2026-10-10-backlog-plan.md created by plans-sync.
+
+## 2026-10-12 — Wave 3B enemy equipment rewards and loot summary
+
+- `src/app/bridge.ts` now composes material drops with one independent equipment roll per defeated enemy before canonical round-result application. Equipment chance is exactly 5%, tier is clamped to enemy star `1..3`, selection is uniform within the exact authored tier, empty exact-tier pools produce no equipment, and equipment drop source metadata records the enemy star.
+- `src/core/loot.ts` separates material and equipment reward rolls so existing material behavior is preserved without double equipment rolls; grouped accepted-drop presentation data is derived by item id.
+- `src/ui/combat.ts` upgrades the victory loot summary from a count-only row to total accepted quantity plus grouped `×N` rows using localized canonical item names and existing semantic emoji-icon hooks. Rejected overflow drops remain excluded from acquired-loot presentation.
+- Focused verification: `pnpm exec vitest --run tests/loot.test.ts tests/recovered-bridge.test.ts` → **2 files / 20 tests passed**. A temporary Vitest smoke through real `createBridge(...) → startCombat() → finish()` observed a LEFT result, a real material acceptance, equipment/material overflow, round advancement to 2, and `finish()` returning `null` on the second call; the temporary smoke file was removed afterward.
+- `pnpm exec tsc --noEmit` is currently blocked by unrelated existing errors in `tests/persistence.test.ts:50` (`delete` operand must be optional) and `vite.config.ts:1` (missing `node:child_process` types); no Wave 3B TypeScript diagnostics were reported before those failures.
+
+
+## 2026-10-12 — UI/UX remediation touch, copy, and unavailable-state pass
+
+- Raised the requested planning shop/header/offer/tutorial/action controls and shared modal close/header actions to 44px touch geometry or larger without adding CSS-drawn chrome; narrow planning and main-menu icon-only utility surfaces now expose persistent localized labels.
+- Localized Settings previous/next music ARIA with locale-change rerendering; Information now localizes role/element/faction/weather/synergy presentation and explicitly labels ally/enemy comparison direction; mod validation issue kinds render localized player copy instead of raw identifiers.
+- Donate unavailable-state now renders only the missing-account/missing-QR copy, with no active-looking amount/memo/randomization controls. Mobile mod actions wrap with a 132px flex basis; the final narrow cascade was corrected so a later rule no longer collapses that basis to zero.
+- Focused verification: `pnpm exec vitest --run tests/i18n.test.ts` → **1 file / 3 tests passed**; `pnpm exec vite build` → passed (76 modules transformed). DOM-level unit coverage was not added because the configured Vitest environment is Node and no existing Settings/modal DOM harness was found.
+- Current `pnpm exec tsc --noEmit` is blocked by unrelated existing diagnostics in `tests/persistence.test.ts:50` (`delete` operand must be optional) and `vite.config.ts:1` (cannot find `node:child_process` types). The chained command stopped before build, so the production bundle was run separately and passed.
+- Permitted headed runtime smoke could not open a tab in this continuation: the exact direct `browser.open({ headed: true, viewport: { width: 760, height: 900 }, url: "http://127.0.0.1:4175/" })` path returned `Shared browser daemon unavailable (broker start or Chromium launch failed)`. No alternate browser/runtime route was used and no visual claims are made from that failed attempt.

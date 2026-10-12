@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { benchPerimeter, brownRing, riverCells, toLogical, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
 import { createScenery } from "./scenery";
 import { createSky } from "./sky";
+import type { EnvironmentId } from "../core/environment";
 
 export const BLOCK = 1;
 const TILE_H = 0.12;
@@ -14,6 +15,33 @@ const LIGHT_PRESETS: Record<LightPhase, { hemi: number; sun: number; rim: number
   menu: { hemi: 0.9, sun: 1.6, rim: 0.3, fog: [40, 110], sky: 0x9fd3ff },
   planning: { hemi: 1.0, sun: 2.0, rim: 0.25, fog: [45, 120], sky: 0xa8dcff },
   combat: { hemi: 0.65, sun: 2.4, rim: 0.7, fog: [35, 95], sky: 0x8cb8e0 },
+};
+
+export type TacticalHighlightRole = "hover" | "source" | "valid" | "invalid" | "direct" | "area";
+export interface TacticalHighlightCell {
+  col: number;
+  row: number;
+  role: TacticalHighlightRole;
+}
+
+const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
+  hover: 0xb9e978,
+  source: 0xffe176,
+  valid: 0x7fe39a,
+  invalid: 0xe66c65,
+  direct: 0xff935c,
+  area: 0xc08cff,
+};
+
+const ENVIRONMENT_LIGHT: Record<EnvironmentId, { sky: number; hemi: number; sun: number; rim: number; gain: number }> = {
+  FIRE: { sky: 0xd6a27c, hemi: 0xffddbd, sun: 0xffad66, rim: 0xff7447, gain: 0.95 },
+  TIDE: { sky: 0x82bddb, hemi: 0xdff5ff, sun: 0xe7f6ff, rim: 0x70b8e8, gain: 0.95 },
+  WIND: { sky: 0xa8d9d1, hemi: 0xe9fff9, sun: 0xf6fff1, rim: 0x8bd8c5, gain: 1 },
+  STONE: { sky: 0xb7b4a4, hemi: 0xf0ead8, sun: 0xffefd1, rim: 0xb4aa93, gain: 0.9 },
+  NIGHT: { sky: 0x17233e, hemi: 0x7187bd, sun: 0x8fa6d8, rim: 0xa9bdff, gain: 0.45 },
+  SWARM: { sky: 0xb9c889, hemi: 0xf1f4c9, sun: 0xe9e3a8, rim: 0xa9bf63, gain: 0.9 },
+  SPIRIT: { sky: 0x8f9ed0, hemi: 0xe7e4ff, sun: 0xf0e8ff, rim: 0xc7b5ff, gain: 0.8 },
+  WOOD: { sky: 0x9fcfa7, hemi: 0xe3f4d6, sun: 0xf2e4b8, rim: 0x8dbb78, gain: 0.95 },
 };
 
 /** Visual grid cell → world centre (x,z). */
@@ -34,6 +62,9 @@ export interface Arena {
   /** Raycast-only tactical tiles; river is intentionally excluded. */
   tiles: THREE.InstancedMesh;
   setPhase(phase: LightPhase): void;
+  setEnvironment(environment: EnvironmentId): void;
+  setHighlights(cells: readonly TacticalHighlightCell[]): void;
+  clearHighlights(): void;
   setOccupied(col: number, row: number, occupied: boolean): void;
   setShadowQuality(q: "low" | "medium" | "high"): void;
   update(dt: number): void;
@@ -71,6 +102,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const grassA = new THREE.Color(0x6fbf4a), grassB = new THREE.Color(0x5fae3e);
   const tiles = new THREE.InstancedMesh(tileGeo, mat(0xffffff), 10 * rows);
   const tileIndex: Record<string, number> = {};
+  const logicalByIndex: Array<{ col: number; row: number }> = [];
   n = 0;
   for (let x = 0; x < VISUAL_COLS; x++) for (let z = 0; z < rows; z++) {
     const l = toLogical(x, z, p);
@@ -79,6 +111,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     tiles.setMatrixAt(n, m4.makeTranslation(w.x, TILE_H / 2, w.z));
     tiles.setColorAt(n, (l.col + l.row) % 2 ? grassA : grassB);
     tileIndex[`${l.col},${l.row}`] = n++;
+    logicalByIndex[n - 1] = { col: l.col, row: l.row };
   }
   tiles.receiveShadow = true;
   tiles.name = "tactical-tiles";
@@ -147,19 +180,70 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const rim = new THREE.DirectionalLight(0xbfd8ff, 0.3);
   rim.position.set(10, 6, -12);
   root.add(hemi, sun, rim);
-  scene.fog = new THREE.Fog(0xa8dcff, 45, 120);
+  const fog = new THREE.Fog(0xa8dcff, 45, 120);
+  const background = new THREE.Color(0xa8dcff);
+  scene.fog = fog;
+  scene.background = background;
+
+  let currentPhase: LightPhase = "planning";
+  let currentEnvironment: EnvironmentId = "FIRE";
+  const applyLighting = () => {
+    const phase = LIGHT_PRESETS[currentPhase];
+    const environment = ENVIRONMENT_LIGHT[currentEnvironment];
+    hemi.intensity = phase.hemi * environment.gain;
+    sun.intensity = phase.sun * environment.gain;
+    rim.intensity = phase.rim * (currentEnvironment === "NIGHT" ? 1.6 : environment.gain);
+    hemi.color.setHex(environment.hemi);
+    sun.color.setHex(environment.sun);
+    rim.color.setHex(environment.rim);
+    [fog.near, fog.far] = phase.fog;
+    fog.color.setHex(environment.sky);
+    background.setHex(environment.sky);
+  };
+
+  const highlighted = new Set<number>();
+  const highlightColor = new THREE.Color();
+  const restoreHighlights = () => {
+    if (highlighted.size === 0) return false;
+    for (const i of highlighted) {
+      const cell = logicalByIndex[i];
+      if (cell) tiles.setColorAt(i, (cell.col + cell.row) % 2 ? grassA : grassB);
+    }
+    highlighted.clear();
+    return true;
+  };
+
+  scenery.setEnvironment(currentEnvironment);
+  sky.setEnvironment(currentEnvironment);
+  applyLighting();
 
   let flowT = 0;
   return {
     root,
     tiles,
     setPhase(phase) {
-      const L = LIGHT_PRESETS[phase];
-      hemi.intensity = L.hemi; sun.intensity = L.sun; rim.intensity = L.rim;
-      const fog = scene.fog as THREE.Fog;
-      [fog.near, fog.far] = L.fog;
-      fog.color.setHex(L.sky);
-      scene.background = new THREE.Color(L.sky);
+      currentPhase = phase;
+      applyLighting();
+    },
+    setEnvironment(environment) {
+      currentEnvironment = environment;
+      scenery.setEnvironment(environment);
+      sky.setEnvironment(environment);
+      applyLighting();
+    },
+    setHighlights(cells) {
+      let changed = restoreHighlights();
+      for (const cell of cells) {
+        const i = tileIndex[`${cell.col},${cell.row}`];
+        if (i === undefined) continue;
+        tiles.setColorAt(i, highlightColor.setHex(HIGHLIGHT_COLORS[cell.role]));
+        highlighted.add(i);
+        changed = true;
+      }
+      if (changed && tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
+    },
+    clearHighlights() {
+      if (restoreHighlights() && tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
     },
     setOccupied(col, row, occupied) {
       const i = tileIndex[`${col},${row}`];
@@ -190,6 +274,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       });
     },
     dispose() {
+      restoreHighlights();
       sun.shadow.map?.dispose();
       for (const d of disposables) d.dispose();
       for (const o of [soil, tiles, tufts, bench]) o.dispose();

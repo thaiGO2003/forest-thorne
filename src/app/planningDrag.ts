@@ -19,6 +19,8 @@ interface PlanningDragOptions {
   getRun(): RunState | null;
   move(from: PlanningSlot, to: PlanningSlot): boolean;
   select?(source: PlanningSlot): void;
+  preview?(source: PlanningSlot, anchor: DOMRect): void;
+  previewEnd?(): void;
   enabled(): boolean;
   profile?: Profile;
 }
@@ -26,6 +28,8 @@ interface PlanningDragOptions {
 const DRAG_THRESHOLD_SQ = 36;
 const BENCH_HALF = 0.48;
 const PLAYER_COLS = 5;
+const LONG_PRESS_MS = 420;
+const MOVE_FEEDBACK_MS = 360;
 
 export function createPlanningDragController({
   stage,
@@ -33,6 +37,8 @@ export function createPlanningDragController({
   getRun,
   move,
   select,
+  preview,
+  previewEnd,
   enabled,
   profile = "solo",
 }: PlanningDragOptions): PlanningDragController {
@@ -52,6 +58,52 @@ export function createPlanningDragController({
   let pressed: { pointerId: number; startX: number; startY: number; source: PlanningSlot } | null = null;
   let dragging = false;
   let captured = false;
+  let previewed: PlanningSlot | null = null;
+  let tooltipTimer = 0;
+  let feedbackTimer = 0;
+  const clearPreview = () => {
+    clearTimeout(tooltipTimer);
+    tooltipTimer = 0;
+    if (previewed) previewEnd?.();
+    previewed = null;
+  };
+  const showPreview = (source: PlanningSlot | null, clientX: number, clientY: number) => {
+    if (!source) {
+      clearPreview();
+      return;
+    }
+    if (previewed && (previewed.kind !== source.kind || previewed.index !== source.index)) previewEnd?.();
+    previewed = source;
+    preview?.(source, new DOMRect(clientX - 1, clientY - 1, 2, 2));
+  };
+  const sourceCell = (source: PlanningSlot) => source.kind === "board"
+    ? { col: source.index % PLAYER_COLS, row: Math.floor(source.index / PLAYER_COLS) }
+    : null;
+  const paintPointerCell = (clientX: number, clientY: number, source: PlanningSlot | null = null) => {
+    const highlights: Array<{ col: number; row: number; role: "hover" | "source" }> = [];
+    const from = source ? sourceCell(source) : null;
+    if (from) highlights.push({ ...from, role: "source" });
+    const hit = boardPicker.pick(clientX, clientY);
+    if (hit.kind === "cell") highlights.push({ ...hit.cell, role: "hover" });
+    stage.arena.setHighlights(highlights);
+  };
+  const showMoveFeedback = (target: PlanningSlot, valid: boolean) => {
+    clearTimeout(feedbackTimer);
+    feedbackTimer = 0;
+    if (target.kind !== "board") {
+      stage.arena.clearHighlights();
+      return;
+    }
+    stage.arena.setHighlights([{
+      col: target.index % PLAYER_COLS,
+      row: Math.floor(target.index / PLAYER_COLS),
+      role: valid ? "valid" : "invalid",
+    }]);
+    feedbackTimer = window.setTimeout(() => {
+      feedbackTimer = 0;
+      stage.arena.clearHighlights();
+    }, MOVE_FEEDBACK_MS);
+  };
 
   const sourceForUid = (run: RunState, uid: string): PlanningSlot | null => {
     for (let i = 0; i < run.board.length; i++) {
@@ -121,6 +173,10 @@ export function createPlanningDragController({
     pressed = null;
     dragging = false;
     boardPicker.clear();
+    stage.arena.clearHighlights();
+    clearPreview();
+    clearTimeout(feedbackTimer);
+    feedbackTimer = 0;
     if (releaseCapture && captured && pointerId !== undefined && canvas.hasPointerCapture(pointerId)) {
       canvas.releasePointerCapture(pointerId);
     }
@@ -137,12 +193,34 @@ export function createPlanningDragController({
     if (!source) return;
     pressed = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, source };
     dragging = false;
+    if (event.pointerType !== "mouse") {
+      clearTimeout(tooltipTimer);
+      tooltipTimer = window.setTimeout(() => {
+        tooltipTimer = 0;
+        if (pressed?.pointerId === event.pointerId && !dragging) showPreview(source, event.clientX, event.clientY);
+      }, LONG_PRESS_MS);
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
   };
 
   const onPointerMove = (event: PointerEvent) => {
-    if (!pressed || event.pointerId !== pressed.pointerId) return;
+    if (!pressed || event.pointerId !== pressed.pointerId) {
+      if (event.pointerType !== "mouse" || !enabled()) {
+        stage.arena.clearHighlights();
+        clearPreview();
+        return;
+      }
+      const run = getRun();
+      if (!run || run.phase !== "PLANNING") {
+        stage.arena.clearHighlights();
+        clearPreview();
+        return;
+      }
+      paintPointerCell(event.clientX, event.clientY);
+      showPreview(pickSource(event.clientX, event.clientY, run), event.clientX, event.clientY);
+      return;
+    }
     if (!enabled()) {
       cancel();
       return;
@@ -152,10 +230,12 @@ export function createPlanningDragController({
       const dy = event.clientY - pressed.startY;
       if (dx * dx + dy * dy < DRAG_THRESHOLD_SQ) return;
       dragging = true;
+      clearPreview();
       canvas.setPointerCapture(event.pointerId);
       captured = true;
     }
     const run = getRun();
+    if (run) paintPointerCell(event.clientX, event.clientY, pressed.source);
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -171,10 +251,11 @@ export function createPlanningDragController({
     event.preventDefault();
     event.stopImmediatePropagation();
     if (target) {
-      move(source, target);
+      const valid = move(source, target);
+      showMoveFeedback(target, valid);
       return;
     }
-    if (!wasDragging && active && source.kind === "board") select?.(source);
+    if (!wasDragging && active) select?.(source);
   };
 
   const onPointerCancel = (event: PointerEvent) => {
@@ -182,7 +263,8 @@ export function createPlanningDragController({
   };
 
   const onPointerLeave = (event: PointerEvent) => {
-    if (pressed?.pointerId === event.pointerId && !dragging) cancel();
+    if (pressed?.pointerId === event.pointerId && dragging) return;
+    cancel();
   };
 
   const onLostPointerCapture = (event: PointerEvent) => {

@@ -3,6 +3,8 @@ export const MIN_GAME_SPEED_LEVEL = 0;
 export const MAX_GAME_SPEED_LEVEL = 10;
 export const GAME_SPEED_STEP = 0.5;
 export const BASE_COMBAT_DURATION_MULTIPLIER = 3;
+export const BASE_EMPTY_QUEUE_DELAY_MS = 50;
+export const MIN_EMPTY_QUEUE_DELAY_MS = 1;
 
 export function normalizeGameSpeedLevel(speedLevel: number): number {
   const whole = Math.trunc(speedLevel);
@@ -16,6 +18,12 @@ export function getGameSpeedDisplayMultiplier(speedLevel: number): number {
 
 export function getCombatDurationMultiplier(speedLevel: number): number {
   return BASE_COMBAT_DURATION_MULTIPLIER / getGameSpeedDisplayMultiplier(speedLevel);
+}
+export function getEmptyQueueDelayMs(speedLevel: number): number {
+  return Math.max(
+    MIN_EMPTY_QUEUE_DELAY_MS,
+    Math.round(BASE_EMPTY_QUEUE_DELAY_MS / getGameSpeedDisplayMultiplier(speedLevel)),
+  );
 }
 
 export function scaleCombatPresentationMs(baseMs: number, speedLevel: number): number {

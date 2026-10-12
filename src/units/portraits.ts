@@ -33,7 +33,7 @@ function frame(camera: THREE.PerspectiveCamera, obj: THREE.Object3D, zoom = 1) {
 }
 
 export interface PortraitViewer {
-  setUnit(baseId: string, star: Star): void;
+  setUnit(baseId: string, star: Star, skin?: string | null): void;
   setCombat(v: boolean): void;
   play(state: ActionState): void;
   dispose(): void;
@@ -153,10 +153,10 @@ export function createPortraits(): Portraits {
       });
 
       return {
-        setUnit(id, star) {
+        setUnit(id, star, skin = null) {
           if (currentId !== null && currentId !== id) combat = false;
           unit?.dispose();
-          unit = createUnit(id, star);
+          unit = createUnit(id, star, skin);
           currentId = id;
           unit.setCombat(combat);
           unit.update(0.016);

@@ -102,6 +102,8 @@ export interface Placement {
 }
 
 export type CombatEvent =
+  | { t: "cycle"; cycle: number }
+  | { t: "empty"; side: Side; row: number; col: number }
   | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
@@ -881,6 +883,43 @@ export function turnOrder(all: Fighter[]): Fighter[] {
   return out;
 }
 
+type TurnTimelineEntry =
+  | { kind: "empty"; side: Side; row: number; col: number }
+  | { kind: "unit"; fighter: Fighter };
+
+function turnChunks(all: Fighter[], side: Side): TurnTimelineEntry[][] {
+  const chunks: TurnTimelineEntry[][] = [];
+  let chunk: TurnTimelineEntry[] = [];
+  const firstCol = side === "L" ? 4 : 5;
+  const endCol = side === "L" ? -1 : 10;
+  const step = side === "L" ? -1 : 1;
+  for (let col = firstCol; col !== endCol; col += step) {
+    for (let row = 0; row < ROWS; row++) {
+      const fighter = all.find((candidate) => candidate.side === side && candidate.col === col && candidate.row === row && candidate.alive);
+      if (!fighter) {
+        chunk.push({ kind: "empty", side, row, col });
+        continue;
+      }
+      chunk.push({ kind: "unit", fighter });
+      chunks.push(chunk);
+      chunk = [];
+    }
+  }
+  if (chunk.length) chunks.push(chunk);
+  return chunks;
+}
+
+function turnTimeline(all: Fighter[]): TurnTimelineEntry[] {
+  const left = turnChunks(all, "L");
+  const right = turnChunks(all, "R");
+  const timeline: TurnTimelineEntry[] = [];
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    if (left[i]) timeline.push(...left[i]!);
+    if (right[i]) timeline.push(...right[i]!);
+  }
+  return timeline;
+}
+
 function mulberry(seed: number) {
   let a = seed | 0;
   return () => {
@@ -914,10 +953,17 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
   outer: for (let cycle = 0; cycle < CYCLE_CAP; cycle++) {
-    for (const f of turnOrder(all)) {
+    if (!count("L") || !count("R")) break outer;
+    c.events.push({ t: "cycle", cycle: cycle + 1 });
+    for (const entry of turnTimeline(all)) {
       if (!count("L") || !count("R")) break outer;
-      if (!f.alive) continue;
-      act(c, f);
+      if (entry.kind === "empty" || !entry.fighter.alive) {
+        c.events.push(entry.kind === "empty"
+          ? { t: "empty", side: entry.side, row: entry.row, col: entry.col }
+          : { t: "empty", side: entry.fighter.side, row: entry.fighter.row, col: entry.fighter.col });
+        continue;
+      }
+      act(c, entry.fighter);
       flushDeferredAutoCasts(c);
       actions++;
       // A17 anti-stall: after action 100, every 5th action +0.2 global damage.

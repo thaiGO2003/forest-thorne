@@ -6,6 +6,7 @@ import {
   type OwnedUnit,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
+import { applyFinishFast, FINISH_FAST_BASE_COST } from "../src/core/combatFast";
 
 const owned = (uid: string): OwnedUnit => ({ uid, baseId: NORMAL_UNITS[0]!.id, star: 1, equips: [] });
 const normalRun = (seed: number) => { const s = createRun(seed); skipTutorial(s); return s; };
@@ -50,6 +51,46 @@ describe("game modes and run lifecycle", () => {
     expect(result?.winner).toBe("LEFT");
     expect([s.hp, s.heartEscrow]).toEqual([before, 0]);
   });
+
+  it("Finish Fast charges exactly 10 gold without changing canonical round-result math", () => {
+    const normal = normalRun(14);
+    const fast = normalRun(14);
+    for (const s of [normal, fast]) {
+      s.board[0] = owned("fast");
+      s.gold = 20;
+      expect(startCombat(s)).toBeNull();
+    }
+    const input = {
+      combatId: "finish-fast",
+      winner: "DRAW" as const,
+      enemySurvivors: 0,
+      enemyStars: [],
+      bounty: 0,
+      drops: [],
+    };
+    const normalResult = applyRoundResult(normal, input);
+    const fastResult = applyFinishFast(fast, input);
+    expect(fastResult).toEqual(normalResult);
+    expect(fast.gold).toBe(normal.gold - FINISH_FAST_BASE_COST);
+    expect([fast.round, fast.phase, fast.heartEscrow]).toEqual([normal.round, normal.phase, normal.heartEscrow]);
+    const after = JSON.stringify(fast);
+    expect(applyFinishFast(fast, input)).toBeNull();
+    expect(JSON.stringify(fast)).toBe(after);
+  });
+
+  it("Finish Fast rejects insufficient gold atomically and ignores unrelated unequip discount", () => {
+    const s = normalRun(15);
+    s.board[0] = owned("poor");
+    s.gold = FINISH_FAST_BASE_COST - 1;
+    s.unequipDiscount = 999;
+    expect(startCombat(s)).toBeNull();
+    const before = JSON.stringify(s);
+    expect(applyFinishFast(s, {
+      combatId: "finish-fast-poor", winner: "DRAW", enemySurvivors: 0, enemyStars: [], bounty: 0, drops: [],
+    })).toBeNull();
+    expect(JSON.stringify(s)).toBe(before);
+  });
+
 
   it("Classic loss can reach GAME_OVER after the reserved heart and survivor damage", () => {
     const s = normalRun(13);

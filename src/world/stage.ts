@@ -13,6 +13,8 @@ export interface Stage {
   setPhase(phase: LightPhase): void;
   /** Joystick/gamepad pan vector in [-1,1]² (A91.1); keyboard WASD/arrows add to it. */
   setPan(x: number, y: number): void;
+  /** Cap rendered frames without creating a second timer/render loop. */
+  setFpsLimit(fps: number): void;
   renderer: THREE.WebGLRenderer;
   /** Per-frame callback (dt seconds) for presentation layers such as unit rigs; returns unsubscribe. */
   onFrame(fn: (dt: number) => void): () => void;
@@ -80,9 +82,14 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   addEventListener("blur", blur);
   const panOffset = new THREE.Vector3(), fwd = new THREE.Vector3();
   const frameFns = new Set<(dt: number) => void>();
+  let fpsLimit = 60;
+  let lastRenderMs = Number.NEGATIVE_INFINITY;
 
   const clock = new THREE.Clock();
-  renderer.setAnimationLoop(() => {
+  renderer.setAnimationLoop((now) => {
+    const minFrameMs = 1000 / fpsLimit;
+    if (now - lastRenderMs < minFrameMs - 0.5) return;
+    lastRenderMs = now;
     const dt = Math.max(0, clock.getDelta());
     let px = stick.x, py = stick.y;
     for (const k of held) { px += PAN_KEYS[k]![0]; py += PAN_KEYS[k]![1]; }
@@ -123,6 +130,11 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
     },
     setPhase: (phase) => arena.setPhase(phase),
     setPan(x, y) { stick.x = x; stick.y = y; },
+    setFpsLimit(fps) {
+      fpsLimit = Number.isFinite(fps) ? Math.max(1, fps) : 60;
+      lastRenderMs = Number.NEGATIVE_INFINITY;
+      clock.getDelta();
+    },
     onFrame(fn) { frameFns.add(fn); return () => frameFns.delete(fn); },
     dispose() {
       renderer.setAnimationLoop(null);

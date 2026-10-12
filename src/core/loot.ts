@@ -1,11 +1,9 @@
 // Loot generation (A40) + combat result application (A18). Pure; RNG injected.
 import { getUnit, type UnitDef } from "../content/catalog";
+import { EQUIPMENT, type EquipmentDef } from "./equipment";
 
 export type Rng = () => number;
 
-/** Authored equipment by tier. ponytail: spec names only these two ids; tiers inferred
- * (blue_buff = 1×1 recipe → T1, warmog = tutorial "completed" item → T2). Load full table when data ships. */
-export const EQUIPMENT_BY_TIER: Record<number, string[]> = { 1: ["eq_blue_buff"], 2: ["eq_warmog_armor"], 3: [] };
 
 const SPECIES_MATERIAL: [string, RegExp][] = [
   ["feather", /eagle|crow|owl|parrot|peacock|swan|phoenix|wasp|butterfly|dragonfly|falcon|hawk|heron|dove|bird/],
@@ -32,7 +30,7 @@ export function materialCandidates(u: UnitDef): string[] {
 
 export interface Drop { item: string; source: string; rule: "material" | "equipment" }
 
-export function rollLoot(baseId: string, star: number, rng: Rng, equipment = EQUIPMENT_BY_TIER): Drop[] {
+export function rollMaterialLoot(baseId: string, rng: Rng): Drop[] {
   const u = getUnit(baseId);
   const tier = Math.min(5, Math.max(1, u.tier));
   const cands = materialCandidates(u);
@@ -40,11 +38,39 @@ export function rollLoot(baseId: string, star: number, rng: Rng, equipment = EQU
   const drops: Drop[] = [{ item: cands[0]!, source: baseId, rule: "material" }];
   if (cands[1] && rng() < c2) drops.push({ item: cands[1], source: baseId, rule: "material" });
   if (cands[2] && rng() < c3) drops.push({ item: cands[2], source: baseId, rule: "material" });
-  if (rng() < EQUIP_DROP_CHANCE) {
-    const pool = equipment[Math.min(3, Math.max(1, star))] ?? [];
-    if (pool.length) drops.push({ item: pool[Math.floor(rng() * pool.length)]!, source: baseId, rule: "equipment" });
-  }
   return drops;
+}
+
+export function rollEquipmentLoot(
+  star: number,
+  rng: Rng,
+  equipment: readonly Pick<EquipmentDef, "id" | "tier">[] = EQUIPMENT,
+): Drop[] {
+  if (rng() >= EQUIP_DROP_CHANCE) return [];
+  const tier = Math.min(3, Math.max(1, star));
+  let poolSize = 0;
+  for (const item of equipment) if (item.tier === tier) poolSize++;
+  if (!poolSize) return [];
+  let selected = Math.floor(rng() * poolSize);
+  for (const item of equipment) {
+    if (item.tier !== tier) continue;
+    if (selected-- === 0) return [{ item: item.id, source: String(star), rule: "equipment" }];
+  }
+  return [];
+}
+
+export interface GroupedDrops {
+  total: number;
+  groups: { item: string; quantity: number }[];
+}
+
+export function groupDrops(drops: readonly Drop[]): GroupedDrops {
+  const quantities = new Map<string, number>();
+  for (const drop of drops) quantities.set(drop.item, (quantities.get(drop.item) ?? 0) + 1);
+  return {
+    total: drops.length,
+    groups: [...quantities].map(([item, quantity]) => ({ item, quantity })),
+  };
 }
 
 export type DamageRule = "onePerLoss" | "survivorCount" | "clamped";

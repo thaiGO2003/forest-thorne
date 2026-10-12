@@ -9,11 +9,13 @@ import { createTooltip, type Tooltip } from "../ui/tooltip";
 import { createLoading } from "../ui/loading";
 import { createMenu, type UtilityId } from "../ui/menu";
 import { createBridge, type Bridge } from "./bridge";
+import { createMusicDirector, type MusicDirector, type MusicPlaylists } from "../audio/MusicDirector";
+import { MUSIC_PLAYLISTS, MUSIC_TRACKS } from "../data/musicPlaylists";
 
 export type Route = "loading" | "menu" | "planning";
 
 export interface App {
-  stage: Stage; modals: ModalHost; tooltip: Tooltip; bridge: Bridge;
+  stage: Stage; modals: ModalHost; tooltip: Tooltip; bridge: Bridge; music: MusicDirector;
   route(): Route;
   go(r: Route): void;
   /** Open a registered panel (planning action, unit detail…); unknown ids are ignored. */
@@ -46,11 +48,37 @@ export async function boot(root: HTMLElement): Promise<App> {
   const modals = createModalHost(layers.modal);
   const tooltip = createTooltip(layers.tooltip);
   const bridge = createBridge();
+  const musicPlaylists = Object.fromEntries(Object.entries(MUSIC_PLAYLISTS).map(([context, playlist]) => [
+    context,
+    {
+      id: playlist.id,
+      shuffle: playlist.shuffle,
+      tracks: playlist.tracks.flatMap((key) => {
+        const track = MUSIC_TRACKS[key];
+        const src = track?.sources[0];
+        return track && src ? [{ key: track.key, src, source: track.source, longPlay: track.longPlay }] : [];
+      }),
+    },
+  ])) as MusicPlaylists;
+  const music = createMusicDirector({
+    settings: bridge.settings,
+    playlists: musicPlaylists,
+    continuityStorage: typeof localStorage === "undefined" ? null : localStorage,
+  });
+  const applySettings = () => {
+    const settings = bridge.settings.get();
+    ui.style.zoom = String(settings.guiScale);
+    stage.setFpsLimit(settings.fpsLimit);
+    tooltip.setMode(settings.tooltipMode);
+    document.documentElement.lang = settings.language;
+  };
+  bridge.settings.subscribe(applySettings);
+  applySettings();
   let current: Route = "loading";
   let active: { dispose(): void } | null = null;
 
   const app: App = {
-    stage, modals, tooltip, bridge, layers,
+    stage, modals, tooltip, bridge, music, layers,
     route: () => current,
     openPanel(id, arg) { panels[id]?.(app, arg); },
     go(r) {
@@ -61,6 +89,7 @@ export async function boot(root: HTMLElement): Promise<App> {
       current = r;
       root.dataset.route = r;
       stage.setPhase(r === "planning" ? "planning" : "menu");
+      music.play(r === "planning" ? "planning" : "menu");
       if (r === "menu") active = mountMenu();
       else active = screens[r]?.(app) ?? null;
     },

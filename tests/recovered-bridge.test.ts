@@ -59,6 +59,25 @@ describe("recovered application bridge", () => {
     expect(resumed.run()?.round).toBe(2);
   });
 
+  it("Finish Fast commits one canonical bridge result and stale natural finish cannot reapply it", () => {
+    const { bridge, run } = deployed();
+    run.gold = 50;
+    bridge.checkpoint("EVENT", "Chuẩn bị Finish Fast");
+    const session = bridge.startCombat();
+    expect(session).not.toBeNull();
+    const combatGold = run.gold;
+    const summary = session?.finishFast();
+    expect(summary).not.toBeNull();
+    if (!summary) throw new Error("Finish Fast unexpectedly rejected");
+    expect(run.gold).toBe(combatGold + summary.goldEarned + summary.incomeEarned - 10);
+    expect(run.round).toBe(2);
+    const after = JSON.stringify(run);
+    expect(session?.finish()).toBeNull();
+    expect(session?.finishFast()).toBeNull();
+    expect(JSON.stringify(run)).toBe(after);
+    expect(bridge.history().entries.filter((entry) => entry.message.includes("Kết thúc giao tranh"))).toHaveLength(1);
+  });
+
   it("does not publish a completed session after the player starts a different run", () => {
     const { bridge } = deployed();
     const session = bridge.startCombat();

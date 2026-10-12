@@ -1,6 +1,6 @@
 // Coordinated modal stack (§40, §52, A22, A60). Exactly one major modal owns input: opening a new
 // one closes the previous; the shade blocks click-through; Escape and the minus control close.
-import { closeButton, drawFit, h, nineSlice, label, SLICE, surface } from "./kit";
+import { closeButton, drawFit, h, kitButton, nineSlice, label, SLICE, surface } from "./kit";
 
 export interface ModalHandle { id: string; body: HTMLDivElement; close(): void; setTitle(t: string): void }
 
@@ -13,6 +13,7 @@ export interface ModalOptions {
   /** Result/augment overlays may forbid dismissal until a choice is made. */
   dismissible?: boolean;
   onClose?: () => void;
+  headerAction?: { icon: string; label: string; onClick(): void };
 }
 
 export interface ModalHost {
@@ -73,6 +74,10 @@ export function createModalHost(layer: HTMLElement): ModalHost {
         const x = closeButton(close, o.closeLabel ?? "Đóng");
         x.classList.add("modal-close");
         frame.append(x);
+      }
+      if (o.headerAction) {
+        const action = kitButton({ skin: "icon", icon: o.headerAction.icon, aria: o.headerAction.label, cls: "modal-header-action", onClick: o.headerAction.onClick });
+        frame.append(action.el);
       }
       root.append(shade, frame);
       layer.append(root);

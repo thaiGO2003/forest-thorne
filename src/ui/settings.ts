@@ -1,19 +1,19 @@
 // Settings modal (§6, A35, A110): one canonical surface over SettingsStore. Every control writes
-// straight to the store (no second temporary truth) and repaints from it. Tabs: Âm thanh, Hiển thị,
-// Lối chơi, Phím tắt, Thiết bị, Dữ liệu. Destructive clear needs a second press within 3000 ms.
-import { t, type MsgKey } from "../core/i18n";
+// straight to the store (no second temporary truth). Device controls live under Display; narration
+// and music selection live under Audio.
+import { onLocaleChange, t, type MsgKey } from "../core/i18n";
 import {
-  DEFAULT_KEYS, normalizeKey, QUALITY, RENDER_SCALES, RESOLUTIONS, TOOLTIP_MODES,
+  DEFAULT_KEYS, FPS_LIMITS, GUI_SCALES, normalizeKey, QUALITY, RESOLUTIONS, TOOLTIP_MODES,
   type KeyContext, type Settings, type SettingsStore,
 } from "../core/settings";
+import { MUSIC_TRACKS } from "../data/musicPlaylists";
 import { h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
 
-type Tab = "audio" | "display" | "gameplay" | "keys" | "device" | "data";
+type Tab = "audio" | "display" | "keys" | "data";
 const TABS: { id: Tab; key: MsgKey }[] = [
   { id: "audio", key: "settings.audio" }, { id: "display", key: "settings.display" },
-  { id: "gameplay", key: "settings.gameplay" }, { id: "keys", key: "settings.keys" },
-  { id: "device", key: "settings.device" }, { id: "data", key: "settings.data" },
+  { id: "keys", key: "settings.keys" }, { id: "data", key: "settings.data" },
 ];
 const CONFIRM_MS = 3000;
 
@@ -73,23 +73,50 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
   };
   addEventListener("keydown", onKey, true);
   const off = store.subscribe(() => render());
+  const offLocale = onLocaleChange(() => render());
 
   function render() {
     const s: Settings = store.get();
     for (const [id, b] of tabBtns) b.setSelected(id === tab);
     body.replaceChildren();
     switch (tab) {
-      case "audio":
+      case "audio": {
         field("settings.sound", toggle(s.audioEnabled && !s.audioMuted, (v) => store.save({ audioEnabled: true, audioMuted: !v })));
         field("settings.volume", stepper([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.volumeLevel, (v) => `${v}/10`, (v) => store.save({ volumeLevel: v })));
+        field("settings.narration", toggle(s.narrationEnabled, (v) => store.save({ narrationEnabled: v })));
+        field("settings.musicVolume", stepper([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.musicVolume, (v) => `${v}/10`, (v) => store.save({ musicVolume: v })));
+        field("settings.musicSource", stepper(["local", "online"] as const, s.musicSource, (v) => t(v === "local" ? "settings.musicLocal" : "settings.musicOnline"), (v) => {
+          const first = Object.values(MUSIC_TRACKS).find((track) => track.source === v)?.key ?? "";
+          store.save({ musicSource: v, musicTrack: first });
+        }));
+        const tracks = Object.values(MUSIC_TRACKS).filter((track) => track.source === s.musicSource);
+        if (tracks.length) {
+          const currentIndex = Math.max(0, tracks.findIndex((track) => track.key === s.musicTrack));
+          const row = h("div", "stepper music-track-nav");
+          const previous = kitButton({ skin: "wood", label: "‹", cls: "step-btn", onClick: () => {
+            const index = (currentIndex - 1 + tracks.length) % tracks.length;
+            store.save({ musicTrack: tracks[index]!.key });
+          } });
+          const next = kitButton({ skin: "wood", label: "›", cls: "step-btn", onClick: () => {
+            const index = (currentIndex + 1) % tracks.length;
+            store.save({ musicTrack: tracks[index]!.key });
+          } });
+          previous.setAria(t("settings.musicPrevious"));
+          next.setAria(t("settings.musicNext"));
+          const value = panelEl("slot_well", "step-val");
+          value.append(h("span", "step-text", tracks[currentIndex]?.title ?? tracks[0]!.title));
+          row.append(previous.el, value, next.el);
+          field("settings.musicTrack", row);
+        }
         break;
+      }
       case "display":
         field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v, (v) => store.save({ resolutionKey: v })));
         field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => v, (v) => store.save({ tooltipMode: v })));
         field("menu.language", stepper(["vi", "en"] as const, s.language, (v) => (v === "vi" ? "Tiếng Việt" : "English"), (v) => store.save({ language: v })));
-        break;
-      case "gameplay":
-        field("settings.subtitle", toggle(s.subtitleEnabled, (v) => store.save({ subtitleEnabled: v })));
+        field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
+        field("settings.fpsLimit", stepper(FPS_LIMITS, s.fpsLimit, (v) => `${v} FPS`, (v) => store.save({ fpsLimit: v })));
+        field("settings.guiScale", stepper(GUI_SCALES, s.guiScale, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ guiScale: v })));
         break;
       case "keys":
         for (const ctx of Object.keys(DEFAULT_KEYS) as KeyContext[]) {
@@ -106,11 +133,6 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
           const reset = kitButton({ skin: "red", label: `${t("settings.resetKeys")} · ${t(`ctx.${ctx}` as MsgKey)}`, cls: "wide-btn", onClick: () => { listening = null; store.resetKeys(ctx); } });
           body.append(reset.el);
         }
-        break;
-      case "device":
-        field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
-        field("settings.renderScale", stepper(RENDER_SCALES, (RENDER_SCALES as readonly number[]).includes(s.renderScale) ? (s.renderScale as (typeof RENDER_SCALES)[number]) : 1, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
-        field("settings.battery", toggle(s.batterySaver, (v) => store.save({ batterySaver: v })));
         break;
       case "data": {
         const exported = kitButton({ skin: "wood", label: t("settings.exportSave"), cls: "wide-btn", onClick: () => {
@@ -150,6 +172,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
       removeEventListener("keydown", onKey, true);
       clearTimeout(confirmTimer);
       off();
+      offLocale();
       root.remove();
     },
   };

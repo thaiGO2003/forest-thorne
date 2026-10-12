@@ -68,10 +68,12 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
     if (data.cost !== undefined) {
       label(g, `${ICONS.gold}${data.cost}`, pad, by, { size: fs, align: "left", fill: data.affordable === false ? "#b23a2e" : TEXT, stroke: null, weight: 900 });
     }
-    const stat = data.detail === "library"
-      ? `${ICONS.hp}${unit.stats.hp} ${ICONS.atk}${Math.max(unit.stats.atk, unit.stats.matk)}`
-      : `${ICONS.range}${unit.stats.range}`;
-    label(g, stat, w - pad, by, { size: fs * 0.9, align: "right", fill: TEXT, stroke: null, maxW: data.cost !== undefined ? pw * 0.6 : pw });
+    if (data.detail === "library") {
+      const stat = `${ICONS.hp}${unit.stats.hp} ${ICONS.atk}${Math.max(unit.stats.atk, unit.stats.matk)}`;
+      label(g, stat, pad, by, { size: fs * 0.9, align: "left", fill: TEXT, stroke: null, maxW: pw });
+    } else {
+      label(g, `${ICONS.range}${unit.stats.range}`, w - pad, by, { size: fs * 0.9, align: "right", fill: TEXT, stroke: null, maxW: data.cost !== undefined ? pw * 0.6 : pw });
+    }
     if (data.owned) label(g, `×${data.owned}`, w / 2, by, { size: fs * 0.9, fill: INK, stroke: null });
   });
 

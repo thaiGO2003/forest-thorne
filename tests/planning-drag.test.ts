@@ -143,12 +143,13 @@ function placeRoot(root: THREE.Object3D, x: number, z: number, scene: THREE.Scen
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("Planning drag controller", () => {
   it("moves player units across bench/board paths and never starts a drag from enemy preview units", () => {
-    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, setTimeout: globalThis.setTimeout.bind(globalThis) });
 
     const bridge = createBridge(storage());
     const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
@@ -186,10 +187,12 @@ describe("Planning drag controller", () => {
       },
     };
 
+    const setHighlights = vi.fn();
+    const clearHighlights = vi.fn();
     const stage = {
       renderer: { domElement: canvas },
       camera,
-      arena: { tiles },
+      arena: { tiles, setHighlights, clearHighlights },
       scene,
     };
 
@@ -230,6 +233,11 @@ describe("Planning drag controller", () => {
     );
     const boardAIndex = boardA.row * 5 + boardA.col;
     expect(run.board[boardAIndex]?.uid).toBe(playerUid);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([{
+      col: boardA.col,
+      row: boardA.row,
+      role: "valid",
+    }]);
     expect(selections).toEqual([]);
     expect(run.bench[0]?.uid).toBe(otherUid);
 
@@ -259,7 +267,10 @@ describe("Planning drag controller", () => {
 
     placeRoot(playerRoot, bench[1]!.x, bench[1]!.z, scene);
     click(new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z), 7);
-    expect(selections).toHaveLength(1);
+    expect(selections).toEqual([
+      { kind: "board", index: boardAIndex },
+      { kind: "bench", index: 1 },
+    ]);
     drag(
       new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z),
       new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z),
@@ -273,7 +284,7 @@ describe("Planning drag controller", () => {
     drag(enemyPoint, new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 5);
     expect(moves).toHaveLength(moveCount);
     click(enemyPoint, 8);
-    expect(selections).toHaveLength(1);
+    expect(selections).toHaveLength(2);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",
       "board->board",
@@ -282,6 +293,7 @@ describe("Planning drag controller", () => {
     ]);
 
     controller.dispose();
+    expect(clearHighlights).toHaveBeenCalled();
     tiles.geometry.dispose();
     (tiles.material as THREE.Material).dispose();
     playerRoot.geometry.dispose();
@@ -290,5 +302,112 @@ describe("Planning drag controller", () => {
     (otherRoot.material as THREE.Material).dispose();
     enemyRoot.geometry.dispose();
     (enemyRoot.material as THREE.Material).dispose();
+  });
+
+  it("clears previews/highlights across pointer lifecycle and paints invalid move feedback from move()", () => {
+    vi.useFakeTimers();
+    const windowListeners = new Map<string, Set<EventListener>>();
+    vi.stubGlobal("window", {
+      addEventListener(type: string, listener: EventListener) {
+        const listeners = windowListeners.get(type) ?? new Set<EventListener>();
+        listeners.add(listener);
+        windowListeners.set(type, listeners);
+      },
+      removeEventListener(type: string, listener: EventListener) {
+        windowListeners.get(type)?.delete(listener);
+      },
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+    });
+    vi.stubGlobal("DOMRect", class {
+      left: number; top: number; right: number; bottom: number; width: number; height: number; x: number; y: number;
+      constructor(x = 0, y = 0, width = 0, height = 0) {
+        this.x = this.left = x;
+        this.y = this.top = y;
+        this.width = width;
+        this.height = height;
+        this.right = x + width;
+        this.bottom = y + height;
+      }
+    });
+
+    const bridge = createBridge(storage());
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    expect(bridge.buy(0)).toBe(true);
+    const uid = run.bench[0]!.uid;
+    const rect = makeRect(80, 45, 980, 720);
+    const canvas = new FakeCanvas(rect);
+    const camera = makeCamera(rect);
+    const tiles = makeLogicalTiles();
+    const scene = new THREE.Scene();
+    const root = new THREE.Mesh(new THREE.BoxGeometry(0.72, 1, 0.72), new THREE.MeshBasicMaterial());
+    root.userData.uid = uid;
+    scene.add(root);
+    const bench = benchPerimeter("solo").map((cell) => cellToWorld(cell, "solo"));
+    placeRoot(root, bench[0]!.x, bench[0]!.z, scene);
+    const boardView = {
+      forEach(fn: (id: string, visual: { root: THREE.Object3D }, kind: "board" | "bench" | "enemy") => void) {
+        fn(uid, { root }, "bench");
+      },
+    };
+    const setHighlights = vi.fn();
+    const clearHighlights = vi.fn();
+    const stage = {
+      renderer: { domElement: canvas },
+      camera,
+      arena: { tiles, setHighlights, clearHighlights },
+      scene,
+    };
+    const preview = vi.fn();
+    const previewEnd = vi.fn();
+    const move = vi.fn(() => false);
+    const controller = createPlanningDragController({
+      stage: stage as never,
+      board: boardView as never,
+      getRun: () => run,
+      move,
+      preview,
+      previewEnd,
+      enabled: () => true,
+    });
+
+    const benchPoint = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
+    canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
+    expect(preview).toHaveBeenCalledWith({ kind: "bench", index: 0 }, expect.anything());
+    canvas.dispatchPointer("pointerleave", benchPoint.clientX, benchPoint.clientY);
+    expect(previewEnd).toHaveBeenCalledTimes(1);
+
+    canvas.dispatchPointer("pointerdown", benchPoint.clientX, benchPoint.clientY, 7, "touch");
+    vi.advanceTimersByTime(420);
+    expect(preview).toHaveBeenCalledTimes(2);
+    const target = { col: 2, row: 1 };
+    const targetWorld = cellToWorld(toVisual(target.col, target.row), "solo");
+    const targetPoint = clientPointForWorld(new THREE.Vector3(targetWorld.x, TILE_HEIGHT, targetWorld.z), camera, rect);
+    canvas.dispatchPointer("pointermove", targetPoint.clientX, targetPoint.clientY, 7, "touch");
+    canvas.dispatchPointer("pointerup", targetPoint.clientX, targetPoint.clientY, 7, "touch");
+    expect(move).toHaveBeenCalledWith(
+      { kind: "bench", index: 0 },
+      { kind: "board", index: target.row * 5 + target.col },
+    );
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([{
+      col: target.col,
+      row: target.row,
+      role: "invalid",
+    }]);
+
+    placeRoot(root, bench[0]!.x, bench[0]!.z, scene);
+    canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
+    expect(preview).toHaveBeenCalledTimes(3);
+    for (const listener of windowListeners.get("blur") ?? []) listener(new Event("blur"));
+    expect(previewEnd).toHaveBeenCalledTimes(3);
+    expect(clearHighlights).toHaveBeenCalled();
+
+    const highlightCalls = setHighlights.mock.calls.length;
+    controller.dispose();
+    vi.advanceTimersByTime(1000);
+    expect(setHighlights).toHaveBeenCalledTimes(highlightCalls);
+    tiles.geometry.dispose();
+    (tiles.material as THREE.Material).dispose();
+    root.geometry.dispose();
+    (root.material as THREE.Material).dispose();
   });
 });

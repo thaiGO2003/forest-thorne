@@ -181,6 +181,14 @@ export function kitButton(o: {
     const st: ButtonState = disabled ? "disabled" : pressed ? "pressed" : selected ? "selected" : hover ? "hover" : "normal";
     if (skin === "icon") nineSlice(g, `btn_icon_${st}`, SLICE.btn_icon, 0, 0, w, hh);
     else nineSlice(g, `btn_${skin}_${st}`, SLICE.btn, 0, 0, w, hh);
+    if (st === "selected") {
+      const mark = Math.max(3, Math.min(6, Math.round(Math.min(w, hh) * 0.12)));
+      g.fillStyle = "#58b957";
+      g.fillRect(2, 2, mark, 2); g.fillRect(2, 2, 2, mark);
+      g.fillRect(w - mark - 2, 2, mark, 2); g.fillRect(w - 4, 2, 2, mark);
+      g.fillRect(2, hh - 4, mark, 2); g.fillRect(2, hh - mark - 2, 2, mark);
+      g.fillRect(w - mark - 2, hh - 4, mark, 2); g.fillRect(w - 4, hh - mark - 2, 2, mark);
+    }
     const dy = st === "pressed" ? 1 : -1;
     const fill = st === "disabled" ? "#d8d0c4" : LABEL;
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));

@@ -12,7 +12,7 @@ import { createCard, type CardView, type PortraitProvider } from "./card";
 import { drawFit, h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { Tooltip } from "./tooltip";
 
-export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "settings";
+export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
 const ACTIONS: { id: PlanningAction; icon: string; key: MsgKey }[] = [
   { id: "library", icon: ICONS.library, key: "menu.library" },
   { id: "tech", icon: ICONS.tech, key: "planning.tech" },
@@ -20,6 +20,7 @@ const ACTIONS: { id: PlanningAction; icon: string; key: MsgKey }[] = [
   { id: "recipes", icon: ICONS.recipe, key: "planning.recipes" },
   { id: "inventory", icon: ICONS.inventory, key: "planning.inventory" },
   { id: "history", icon: ICONS.history, key: "planning.history" },
+  { id: "information", icon: ICONS.info, key: "menu.information" },
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
 ];
 
@@ -87,22 +88,27 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
   });
 
-  // ---- top battle controls: reroll · START · xp, lock beside ----
+  // ---- top battle controls: START · xp · Low Cortisol; shop controls live in the dock header ----
   const battle = panelEl("panel_wood", "pl-battle");
-  const reroll = kitButton({ skin: "blue", icon: ICONS.reroll, onClick: () => it.reroll() });
+  const reroll = kitButton({ skin: "blue", icon: ICONS.reroll, cls: "pl-reroll", onClick: () => it.reroll() });
   const start = kitButton({ skin: "green", icon: ICONS.start, cls: "pl-start", onClick: () => it.start() });
   const xp = kitButton({ skin: "plum", icon: ICONS.xp, onClick: () => it.buyXp() });
   const lock = kitButton({ skin: "icon", icon: ICONS.unlock, aria: t("planning.lock"), cls: "pl-lock", onClick: () => it.toggleLock() });
-  battle.append(reroll.el, start.el, xp.el, lock.el);
+  const cortisol = kitButton({ skin: "plum", icon: ICONS.cortisol, cls: "pl-cortisol", onClick: () => it.cortisol() });
+  battle.append(start.el, xp.el, cortisol.el);
   tip.bind(lock.el, () => ({ title: t("planning.lock") }));
+  tip.bind(cortisol.el, () => ({ title: t("planning.cortisol") }));
 
   // ---- right action stack ----
   const rail = panelEl("panel_wood", "pl-actions");
   const actionBtns = ACTIONS.map((a) => {
     const b = kitButton({ skin: "icon", icon: a.icon, aria: t(a.key), onClick: () => it.action(a.id) });
+    const copy = h("span", "pl-action-label", t(a.key));
+    const item = h("div", "pl-action-item");
     tip.bind(b.el, () => ({ title: t(a.key) }));
-    rail.append(b.el);
-    return { a, b };
+    item.append(copy, b.el);
+    rail.append(item);
+    return { a, b, copy };
   });
 
   // ---- left synergy rail ----
@@ -192,9 +198,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   });
   const prev = kitButton({ skin: "wood", label: "‹", cls: "pl-page", onClick: () => { page = Math.max(0, page - 1); renderShop(); } });
   const next = kitButton({ skin: "wood", label: "›", cls: "pl-page", onClick: () => { page++; renderShop(); } });
-  const cortisol = kitButton({ skin: "plum", icon: ICONS.cortisol, cls: "pl-cortisol", onClick: () => it.cortisol() });
-  tip.bind(cortisol.el, () => ({ title: t("planning.cortisol") }));
-  dockHead.append(prev.el, next.el, cortisol.el);
+  dockHead.append(reroll.el, lock.el, prev.el, next.el);
   const grid = h("div", "pl-shop-grid");
   dock.append(dockHead, grid);
 
@@ -207,7 +211,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       buy: kitButton({ skin: "green", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
       info: kitButton({ skin: "icon", icon: ICONS.info, onClick: () => { const id = m?.run.shop[slot.index]; if (id) it.details(id); } }),
     };
-    row.append(slot.buy.el, slot.info.el);
+    row.append(slot.info.el, slot.buy.el);
     wrap.append(card.el, row);
     grid.append(wrap);
     return slot;
@@ -240,7 +244,11 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   host.append(root);
 
   function refreshCopy() {
-    for (const { a, b } of actionBtns) b.setAria(t(a.key));
+    for (const { a, b, copy } of actionBtns) {
+      const text = t(a.key);
+      b.setAria(text);
+      copy.textContent = text;
+    }
     tutorialNext.setLabel(t("tutorial.continue"));
     tutorialSkip.setLabel(t("tutorial.skip"));
     lock.setAria(t("planning.lock"));

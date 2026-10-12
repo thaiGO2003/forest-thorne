@@ -10,30 +10,58 @@ import type { ModalHandle } from "./modal";
 const FOCUS_KEY = "forest-throne:planning:last-tech-focus";
 const BRANCHES: Exclude<Branch, "ROOT">[] = ["VET", "EXPLORE", "ECON", "MIL", "CRAFT"];
 const BRANCH_ICON: Record<Exclude<Branch, "ROOT">, string> = { VET: "🩺", EXPLORE: "🧭", ECON: ICONS.gold, MIL: ICONS.atk, CRAFT: ICONS.craft };
-const RING = 120, NODE_R = 26;
+const RING = 120, NODE_R = 26, NODE_GAP = 12, SECTOR_FILL = 0.82;
 const ZOOM = { focus: 1.08, focusMin: 0.7, focusMax: 1.35, fitMin: 0.35, fitMax: 1.25, wheelMin: 0.35, wheelMax: 1.8 };
 
 interface Pos { x: number; y: number; depth: number }
 
-/** Deterministic radial layout: one sector per branch, children spread by leaf count, radius by depth. */
+/** Deterministic radial layout with equal angular slots and collision-safe ring spacing. */
 export function layoutTech(nodes: readonly TechNode[]): Map<string, Pos> {
-  const kids = new Map<string, string[]>();
-  const parentOf = (n: TechNode) => n.requires[0] ?? "root";
-  for (const n of nodes) { const p = parentOf(n); kids.set(p, [...(kids.get(p) ?? []), n.id]); }
-  const leaves = (id: string): number => { const c = kids.get(id); return c?.length ? c.reduce((s, k) => s + leaves(k), 0) : 1; };
-  const out = new Map<string, Pos>([["root", { x: 0, y: 0, depth: 0 }]]);
-  const place = (id: string, a0: number, a1: number, depth: number) => {
-    const a = (a0 + a1) / 2;
-    if (!out.has(id)) out.set(id, { x: Math.cos(a) * RING * depth, y: Math.sin(a) * RING * depth, depth });
-    const c = kids.get(id) ?? [], total = c.reduce((s, k) => s + leaves(k), 0) || 1;
-    let at = a0;
-    for (const k of c) { const span = ((a1 - a0) * leaves(k)) / total; place(k, at, at + span, depth + 1); at += span; }
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const depthMemo = new Map<string, number>([["root", 0]]);
+  const depthOf = (id: string): number => {
+    const cached = depthMemo.get(id);
+    if (cached !== undefined) return cached;
+    const node = byId.get(id);
+    if (!node) return 0;
+    const parents = node.requires.length ? node.requires : ["root"];
+    const depth = 1 + Math.max(...parents.map(depthOf));
+    depthMemo.set(id, depth);
+    return depth;
   };
-  const heads = nodes.filter((n) => n.requires.length === 0);
-  BRANCHES.forEach((b, i) => {
-    const sector = (Math.PI * 2) / BRANCHES.length, a0 = -Math.PI / 2 + i * sector;
-    const bh = heads.filter((n) => n.branch === b), span = sector / Math.max(1, bh.length);
-    bh.forEach((n, j) => place(n.id, a0 + j * span, a0 + (j + 1) * span, 1));
+  const groups = new Map<string, TechNode[]>();
+  let maxDepth = 0;
+  for (const node of nodes) {
+    const depth = depthOf(node.id);
+    maxDepth = Math.max(maxDepth, depth);
+    const key = `${node.branch}:${depth}`;
+    groups.set(key, [...(groups.get(key) ?? []), node]);
+  }
+  const sector = (Math.PI * 2) / BRANCHES.length;
+  const fillAngle = sector * SECTOR_FILL;
+  const radii = new Map<number, number>();
+  let previousRadius = 0;
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    const crowded = Math.max(1, ...BRANCHES.map((branch) => groups.get(`${branch}:${depth}`)?.length ?? 0));
+    const delta = crowded > 1 ? fillAngle / (crowded - 1) : fillAngle;
+    const collisionSafe = crowded > 1 ? (NODE_R * 2 + NODE_GAP) / (2 * Math.sin(delta / 2)) : 0;
+    const radius = Math.max(RING * depth, collisionSafe, previousRadius + (depth > 1 ? NODE_R * 2 + NODE_GAP : 0));
+    radii.set(depth, radius);
+    previousRadius = radius;
+  }
+  const out = new Map<string, Pos>([["root", { x: 0, y: 0, depth: 0 }]]);
+  BRANCHES.forEach((branch, branchIndex) => {
+    const center = -Math.PI / 2 + branchIndex * sector + sector / 2;
+    for (let depth = 1; depth <= maxDepth; depth++) {
+      const level = groups.get(`${branch}:${depth}`) ?? [];
+      const radius = radii.get(depth)!;
+      level.forEach((node, slot) => {
+        const angle = level.length <= 1
+          ? center
+          : center - fillAngle / 2 + (fillAngle * slot) / (level.length - 1);
+        out.set(node.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius, depth });
+      });
+    }
   });
   return out;
 }
