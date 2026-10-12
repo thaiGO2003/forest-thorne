@@ -46,6 +46,12 @@ function runWithBench(uid = "bench-1"): RunState {
   } as unknown as RunState;
 }
 
+function runWithBoard(uid = "board-1", index = 0): RunState {
+  const board = Array.from({ length: 25 }, () => null) as RunState["board"];
+  board[index] = { uid, baseId: NORMAL_UNITS[0]!.id, star: 1, equips: [] };
+  return { board, bench: [], enemyPreview: [] } as unknown as RunState;
+}
+
 function stageHarness() {
   let frame: (dt: number) => void = () => {};
   const stage = {
@@ -84,7 +90,7 @@ describe("BoardView presentation", () => {
 
     board.startLowCortisol();
     advance(1 / 60);
-    expect(visual.root.position.y).not.toBe(baseY);
+    expect(visual.root.position.y).toBeGreaterThanOrEqual(baseY);
     expect(visual.root.rotation.y).not.toBe(baseYaw);
 
     advance(LOW_CORTISOL_DURATION_MS / 1000 - 1 / 60);
@@ -103,6 +109,31 @@ describe("BoardView presentation", () => {
     board.dispose();
   });
 
+  it("animates a committed board-cell move instead of teleporting the rendered rig", () => {
+    const { stage, advance } = stageHarness();
+    const board = createBoardView(stage);
+    const source = runWithBoard();
+    board.sync(source);
+
+    const visual = board.visual("board-1")!;
+    const start = { x: visual.root.position.x, z: visual.root.position.z };
+    const moved = runWithBoard("board-1", 1);
+    const target = board.cellCenter(1, 0);
+    board.sync(moved);
+
+    expect({ x: visual.root.position.x, z: visual.root.position.z }).toEqual(start);
+    expect(visual.root.position.x).not.toBe(target.x);
+    advance(0.11);
+    expect(visual.root.position.x).toBeGreaterThan(Math.min(start.x, target.x));
+    expect(visual.root.position.x).toBeLessThan(Math.max(start.x, target.x));
+    advance(0.11);
+    expect(visual.root.position.x).toBeCloseTo(target.x, 12);
+    expect(visual.root.position.z).toBeCloseTo(target.z, 12);
+    expect(visual.root.position.y).toBeGreaterThanOrEqual(0.12);
+
+    board.dispose();
+  });
+
   it("restores Low Cortisol before entering combat", () => {
     const { stage, advance } = stageHarness();
     const board = createBoardView(stage);
@@ -114,8 +145,8 @@ describe("BoardView presentation", () => {
     const baseYaw = visual.root.rotation.y;
     board.startLowCortisol();
     advance(0.5);
-    expect(visual.root.position.y).not.toBe(baseY);
-
+    expect(visual.root.position.y).toBeGreaterThanOrEqual(baseY);
+    expect(visual.root.rotation.y).not.toBe(baseYaw);
     board.setCombat(true);
     expect(visual.root.position.y).toBe(baseY);
     expect(visual.root.rotation.y).toBe(baseYaw);

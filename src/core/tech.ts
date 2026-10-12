@@ -3,7 +3,7 @@ export type Branch = "ROOT" | "VET" | "EXPLORE" | "ECON" | "MIL" | "CRAFT";
 export type TechStat =
   | "hpPct" | "atkPct" | "defPct" | "matkPct" | "mdefPct" | "critPct" | "lifestealPct" | "rageGainPct"
   | "startShield" | "startRage" | "deployCap" | "bench" | "benchUpgrade" | "interestCap" | "interestRate"
-  | "fixedIncome" | "winGold" | "xpCost" | "rerollCost" | "unequipDiscount" | "craftTable" | "speed";
+  | "fixedIncome" | "winGold" | "xpCost" | "rerollCost" | "unequipDiscount" | "craftTable" | "speed" | "finishFastDiscount";
 type Effect = Partial<Record<TechStat, number>>;
 
 export interface TechNode {
@@ -42,7 +42,7 @@ const CORE: TechNode[] = [
   n("beast", "MIL", ["train"], [4, 6, 8, 10, 12], rep({ atkPct: 2, critPct: 1 }, 5)),
   n("warlord", "MIL", ["beast"], [10, 3, "inf"], [{ atkPct: 3 }]),
   n("craft_t", "CRAFT", [], [5, 10, 15], rep({ craftTable: 1 }, 3)),
-  n("speed", "CRAFT", [], rep({}, 10).map(() => 3), rep({ speed: 1 }, 10)),
+  n("speed", "CRAFT", [], rep({}, 10).map(() => 3), rep({ speed: 1, finishFastDiscount: 1 }, 10)),
   n("metal", "CRAFT", ["craft_t"], [4, 7, 10], rep({ unequipDiscount: 1 }, 3)),
   n("arcane", "CRAFT", ["metal"], [6, 10], [{ matkPct: 8 }, { mdefPct: 8 }]),
   n("alpha_doctrine", "VET", ["survive", "beast"], [18], [{ hpPct: 5, lifestealPct: 3 }]),

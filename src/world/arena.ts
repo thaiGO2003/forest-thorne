@@ -5,6 +5,7 @@ import { benchPerimeter, brownRing, riverCells, toLogical, totalRows, VISUAL_COL
 import { createScenery } from "./scenery";
 import { createSky } from "./sky";
 import type { EnvironmentId } from "../core/environment";
+import type { DayNightPhase } from "../core/dayNight";
 
 export const BLOCK = 1;
 const TILE_H = 0.12;
@@ -24,14 +25,18 @@ export interface TacticalHighlightCell {
   row: number;
   role: TacticalHighlightRole;
 }
+export interface BenchHighlightSlot {
+  index: number;
+  role: TacticalHighlightRole;
+}
 
 const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
   hover: 0xb9e978,
   source: 0xffe176,
   valid: 0x7fe39a,
   invalid: 0xe66c65,
-  direct: 0xff935c,
-  area: 0xc08cff,
+  direct: 0xff3b30,
+  area: 0xffd43b,
 };
 
 const ENVIRONMENT_LIGHT: Record<EnvironmentId, { sky: number; hemi: number; sun: number; rim: number; gain: number }> = {
@@ -64,8 +69,11 @@ export interface Arena {
   tiles: THREE.InstancedMesh;
   setPhase(phase: LightPhase): void;
   setEnvironment(environment: EnvironmentId): void;
+  setDayNight(phase: DayNightPhase): void;
   setHighlights(cells: readonly TacticalHighlightCell[]): void;
   clearHighlights(): void;
+  setBenchHighlights(slots: readonly BenchHighlightSlot[]): void;
+  clearBenchHighlights(): void;
   setOccupied(col: number, row: number, occupied: boolean): void;
   setShadowQuality(q: ShadowQuality): void;
   update(dt: number): void;
@@ -141,8 +149,19 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     return mesh;
   };
   ringTiles(brownRing(p), 0x8a5a34, TILE_H / 2);
-  const bench = ringTiles(benchPerimeter(p), 0xb48a5c, TILE_H / 2 + 0.02);
+  const benchCells = benchPerimeter(p);
+  const bench = ringTiles(benchCells, 0xb48a5c, TILE_H / 2 + 0.02);
   bench.name = "bench-perimeter";
+  const benchHighlightGeo = own(new THREE.BoxGeometry(BLOCK * 0.88, 0.035, BLOCK * 0.88));
+  const benchHighlights = new THREE.InstancedMesh(
+    benchHighlightGeo,
+    mat(0xffffff, { transparent: true, opacity: 0.76, depthWrite: false }),
+    benchCells.length,
+  );
+  benchHighlights.count = 0;
+  benchHighlights.name = "bench-highlights";
+  benchHighlights.raycast = () => {};
+  root.add(benchHighlights);
 
   // River: water strip, 7 flow markers, 3 lily pads. Not raycastable.
   const riverLen = riverCells(p).length * BLOCK;
@@ -175,7 +194,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     strength: { value: 0.18 },
     tint: { value: new THREE.Color(0xffd39a) },
   };
-  const rayGeo = own(new THREE.PlaneGeometry(Math.max(14, rows * 0.8), Math.max(14, rows + 4)));
+  const rayGeo = own(new THREE.PlaneGeometry(Math.max(40, rows * 2), Math.max(28, (rows + 4) * 2)));
   const rayMat = own(new THREE.ShaderMaterial({
     uniforms: rayUniforms,
     transparent: true,
@@ -209,7 +228,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   for (const yaw of [-0.38, 0.62]) {
     const ray = new THREE.Mesh(rayGeo, rayMat);
     ray.rotation.set(-0.72, yaw, -0.18);
-    ray.position.set(-2.5, 5.5, 0);
+    ray.position.set(-2.5, 10.5, 0);
     ray.raycast = () => {};
     sunRays.add(ray);
   }
@@ -233,21 +252,24 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   let currentPhase: LightPhase = "planning";
   let currentEnvironment: EnvironmentId = "FIRE";
+  let currentDayNight: DayNightPhase = "day";
   let rayQualityGain = 1;
   const applyLighting = () => {
     const phase = LIGHT_PRESETS[currentPhase];
     const environment = ENVIRONMENT_LIGHT[currentEnvironment];
-    hemi.intensity = phase.hemi * environment.gain;
-    sun.intensity = phase.sun * environment.gain;
-    rim.intensity = phase.rim * (currentEnvironment === "NIGHT" ? 1.6 : environment.gain);
+    const night = currentDayNight === "night";
+    const dayGain = night ? 0.58 : 1;
+    hemi.intensity = phase.hemi * environment.gain * dayGain;
+    sun.intensity = phase.sun * environment.gain * (night ? 0.42 : 1);
+    rim.intensity = phase.rim * environment.gain * (night ? 1.6 : 1);
     hemi.color.setHex(environment.hemi);
     sun.color.setHex(environment.sun);
     rim.color.setHex(environment.rim);
-    rayUniforms.tint.value.setHex(currentEnvironment === "NIGHT" ? 0x9fb6e8 : 0xffd39a);
-    rayUniforms.strength.value = 0.18 * rayQualityGain * environment.gain * (currentEnvironment === "NIGHT" ? 0.22 : 1);
+    rayUniforms.tint.value.setHex(night ? 0x9fb6e8 : 0xffd39a);
+    rayUniforms.strength.value = 0.18 * rayQualityGain * environment.gain * (night ? 0.22 : 1);
     [fog.near, fog.far] = phase.fog;
-    fog.color.setHex(environment.sky);
-    background.setHex(environment.sky);
+    fog.color.setHex(environment.sky).multiplyScalar(night ? 0.46 : 1);
+    background.setHex(environment.sky).multiplyScalar(night ? 0.46 : 1);
   };
 
   const highlighted = new Set<number>();
@@ -280,6 +302,12 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       sky.setEnvironment(environment);
       applyLighting();
     },
+    setDayNight(phase) {
+      currentDayNight = phase;
+      scenery.setDayNight(phase);
+      sky.setDayNight(phase);
+      applyLighting();
+    },
     setHighlights(cells) {
       let changed = restoreHighlights();
       for (const cell of cells) {
@@ -293,6 +321,25 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     },
     clearHighlights() {
       if (restoreHighlights() && tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
+    },
+    setBenchHighlights(slots) {
+      let count = 0;
+      for (const slot of slots) {
+        const cell = benchCells[slot.index];
+        if (!cell) continue;
+        const w = cellToWorld(cell, p);
+        benchHighlights.setMatrixAt(count, m4.makeTranslation(w.x, TILE_H + 0.075, w.z));
+        benchHighlights.setColorAt(count, highlightColor.setHex(HIGHLIGHT_COLORS[slot.role]));
+        count++;
+      }
+      benchHighlights.count = count;
+      benchHighlights.instanceMatrix.needsUpdate = true;
+      if (benchHighlights.instanceColor) benchHighlights.instanceColor.needsUpdate = true;
+    },
+    clearBenchHighlights() {
+      if (benchHighlights.count === 0) return;
+      benchHighlights.count = 0;
+      benchHighlights.instanceMatrix.needsUpdate = true;
     },
     setOccupied(col, row, occupied) {
       const i = tileIndex[`${col},${row}`];
@@ -330,7 +377,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       restoreHighlights();
       sun.shadow.map?.dispose();
       for (const d of disposables) d.dispose();
-      for (const o of [soil, tiles, tufts, bench]) o.dispose();
+      for (const o of [soil, tiles, tufts, bench, benchHighlights]) o.dispose();
       scene.remove(root);
       scene.fog = null;
     },

@@ -19,7 +19,7 @@ export interface PoseCtx {
   state: ActionState;
   /** Seconds since the state started. */
   t: number;
-  /** One-shot states: 0..1 progress. Looping states (idle/move): t / duration, unbounded. */
+  /** One-shot states: 0..1 progress. Move loops with t / duration, unbounded. Idle plays once when requested, then settles at p=1. */
   p: number;
   /** Global seconds, offset by the unit's motion signature. */
   time: number;
@@ -54,7 +54,7 @@ export const VOXEL = 0.1;
 const DUR: Record<ActionState, number> = { idle: 4, attack: 0.9, skill: 1.5, hit: 0.5, move: 0.8 };
 const IMPACT = { attack: 0.55, skill: 0.6 };
 const REST_Y: Record<Motion, number> = { ground: 0, hover: 0.22, fly: 0.42, water: -0.03 };
-const LOOPING: Record<ActionState, boolean> = { idle: true, move: true, attack: false, skill: false, hit: false };
+const LOOPING: Record<ActionState, boolean> = { idle: false, move: true, attack: false, skill: false, hit: false };
 /** A90.3 canonical local formations: [x, z, scale]. */
 const FORMATION: Record<Star, [number, number, number][]> = {
   1: [[0, 0, 1]],
@@ -165,6 +165,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
 
   let state: ActionState = "idle", t = 0, time = sig * 10, combat = false, alive = true;
   let visible = bodies.length, impactFired = false, opts: PlayOpts = {}, dur = DUR.idle;
+  let idlePlayback = false;
   let dying = -1, onDeath: (() => void) | undefined;
 
   const durationOf = (s: ActionState) => def.durations?.[s] ?? DUR[s];
@@ -173,7 +174,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     id: def.id, star, root, anchor,
     play(s, o = {}) {
       if (!alive) return;
-      state = s; t = 0; impactFired = false; opts = o;
+      state = s; t = 0; impactFired = false; opts = o; idlePlayback = s === "idle";
       dur = o.duration ?? durationOf(s);
     },
     state: () => state,
@@ -186,7 +187,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     revive() {
       if (alive) return;
       alive = true; dying = -1; onDeath = undefined;
-      state = "idle"; t = 0; dur = durationOf("idle"); impactFired = false; opts = {};
+      state = "idle"; dur = durationOf("idle"); t = dur; idlePlayback = false; impactFired = false; opts = {};
       root.visible = true; root.scale.setScalar(1); anchor.visible = true;
       bubble.visible = false; bubbleLeft = 0;
       bodies.forEach((b, i) => {
@@ -210,13 +211,13 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
       }
       t += dt;
       const looping = LOOPING[state];
-      const p = looping ? t / dur : Math.min(1, t / dur);
+      const p = state === "idle" && !idlePlayback ? 1 : looping ? t / dur : Math.min(1, t / dur);
       if (!looping) {
         const at = state === "attack" || state === "skill" ? def.impact?.[state] ?? IMPACT[state] : 1;
         if (!impactFired && p >= at) { impactFired = true; opts.onImpact?.(); }
-        if (p >= 1) {
+        if (p >= 1 && (state !== "idle" || idlePlayback)) {
           const done = opts.onDone;
-          state = "idle"; t = 0; dur = durationOf("idle"); opts = {};
+          state = "idle"; dur = durationOf("idle"); t = dur; idlePlayback = false; opts = {};
           done?.();
         }
       }

@@ -6,7 +6,7 @@ import {
   type OwnedUnit,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
-import { applyFinishFast, FINISH_FAST_BASE_COST } from "../src/core/combatFast";
+import { applyFinishFast, finishFastCost, FINISH_FAST_BASE_COST } from "../src/core/combatFast";
 
 const owned = (uid: string): OwnedUnit => ({ uid, baseId: NORMAL_UNITS[0]!.id, star: 1, equips: [] });
 const normalRun = (seed: number) => { const s = createRun(seed); skipTutorial(s); return s; };
@@ -89,6 +89,34 @@ describe("game modes and run lifecycle", () => {
       combatId: "finish-fast-poor", winner: "DRAW", enemySurvivors: 0, enemyStars: [], bounty: 0, drops: [],
     })).toBeNull();
     expect(JSON.stringify(s)).toBe(before);
+  });
+
+  it("Finish Fast applies only its dedicated tech discount and checks the discounted balance atomically", () => {
+    const s = normalRun(16);
+    s.board[0] = owned("discounted");
+    s.techLevels.speed = 3;
+    s.speedLevel = 3;
+    expect(finishFastCost(s)).toBe(7);
+    s.gold = 6;
+    expect(startCombat(s)).toBeNull();
+    const before = JSON.stringify(s);
+    expect(applyFinishFast(s, {
+      combatId: "finish-fast-discount-poor", winner: "DRAW", enemySurvivors: 0, enemyStars: [], bounty: 0, drops: [],
+    })).toBeNull();
+    expect(JSON.stringify(s)).toBe(before);
+
+    s.gold = 7;
+    const normal = normalRun(17);
+    normal.board[0] = owned("discount-control");
+    normal.gold = 7;
+    expect(startCombat(normal)).toBeNull();
+    const input = {
+      combatId: "finish-fast-discount", winner: "DRAW" as const, enemySurvivors: 0, enemyStars: [], bounty: 0, drops: [],
+    };
+    const baseline = applyRoundResult(normal, input);
+    const discounted = applyFinishFast(s, input);
+    expect(discounted).toEqual(baseline);
+    expect(s.gold).toBe(normal.gold - 7);
   });
 
 

@@ -197,10 +197,11 @@ export function disposeEmojiAtlas(): void {
 export const ICONS = {
   empty: "",
   gold: "🪙", xp: "✨", heart: "❤️", level: "⬆️", round: "🗓️", streakWin: "🔥", streakLoss: "🥶",
-  reroll: "🔄", lock: "🔒", unlock: "🔓", start: "⚔️", sell: "💰", info: "📜",
+  reroll: "🔄", lock: "🔒", unlock: "🔓", start: "⚔️", sell: "💰", info: "📜", question: SEMANTIC_EMOJIS.question.char,
   library: "📖", tech: "🌳", craft: "⚒️", recipe: "📕", inventory: "🎒", history: "🕰️", settings: "⚙️", home: "🏠",
+  shop: "🛒", event: "✨", vet: "🩺", explore: "🧭",
   synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
-  social: "💬", donate: "☕", version: "🏷️", debug: "🐞", cortisol: "🧘",
+  social: "👥", donate: "💝", cortisol: "🧘",
   rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨",
   // Roles
   TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",

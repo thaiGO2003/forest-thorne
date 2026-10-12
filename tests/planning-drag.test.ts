@@ -189,10 +189,12 @@ describe("Planning drag controller", () => {
 
     const setHighlights = vi.fn();
     const clearHighlights = vi.fn();
+    const setBenchHighlights = vi.fn();
+    const clearBenchHighlights = vi.fn();
     const stage = {
       renderer: { domElement: canvas },
       camera,
-      arena: { tiles, setHighlights, clearHighlights },
+      arena: { tiles, setHighlights, clearHighlights, setBenchHighlights, clearBenchHighlights },
       scene,
     };
 
@@ -351,10 +353,12 @@ describe("Planning drag controller", () => {
     };
     const setHighlights = vi.fn();
     const clearHighlights = vi.fn();
+    const setBenchHighlights = vi.fn();
+    const clearBenchHighlights = vi.fn();
     const stage = {
       renderer: { domElement: canvas },
       camera,
-      arena: { tiles, setHighlights, clearHighlights },
+      arena: { tiles, setHighlights, clearHighlights, setBenchHighlights, clearBenchHighlights },
       scene,
     };
     const preview = vi.fn();
@@ -373,8 +377,10 @@ describe("Planning drag controller", () => {
     const benchPoint = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
     canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
     expect(preview).toHaveBeenCalledWith({ kind: "bench", index: 0 }, expect.anything());
+    expect(setBenchHighlights.mock.calls.at(-1)?.[0]).toEqual([{ index: 0, role: "hover" }]);
     canvas.dispatchPointer("pointerleave", benchPoint.clientX, benchPoint.clientY);
     expect(previewEnd).toHaveBeenCalledTimes(1);
+    expect(clearBenchHighlights).toHaveBeenCalled();
 
     canvas.dispatchPointer("pointerdown", benchPoint.clientX, benchPoint.clientY, 7, "touch");
     vi.advanceTimersByTime(420);
@@ -400,6 +406,7 @@ describe("Planning drag controller", () => {
     for (const listener of windowListeners.get("blur") ?? []) listener(new Event("blur"));
     expect(previewEnd).toHaveBeenCalledTimes(3);
     expect(clearHighlights).toHaveBeenCalled();
+    expect(clearBenchHighlights).toHaveBeenCalled();
 
     const highlightCalls = setHighlights.mock.calls.length;
     controller.dispose();

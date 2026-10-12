@@ -112,6 +112,8 @@ Verified before adding new work: terminal heart loss already transitions the run
 11. Reduce excessive spacing around “Nâng cấp” so its layout compactness matches the Start control.
 12. Combat controls must content-fit their labels: combat-speed and “Kết thúc nhanh” buttons must not be fixed wider than needed, and the right-side combat modal must be content-fit on portrait mobile and on wide screens.
 
+
+Wave 6 status (2026-10-13): **in progress**. Implemented reachable UI/menu/settings/mod/donate/import work, but Start/portrait content-fit and destructive Confirm/Clear content-fit acceptance remain unresolved because the required UI inspection/edit operations were platform-rejected. Browser verification is waived; no visual PASS is claimed.
 ### Wave 7 — Animal interaction, inventory, crafting, and motion
 1. Randomize idle-animal animation cooldowns so idle clips do not loop continuously; stance/idle names and Library replay controls must use the same terminology and behavior.
 2. Prevent animal/character models from sinking below the grass/ground plane; placement and animation offsets must preserve the canonical ground contact.
@@ -119,6 +121,8 @@ Verified before adding new work: terminal heart loss already transitions the run
 4. Merge inventory/warehouse and crafting into one coherent flow. Use compatible `old_src` 3×3 crafting behavior and recipes as reference, but preserve current production ownership and data contracts.
 5. Clicking a friendly animal opens a detailed inventory/inspection surface showing: base stats; equipment/environment-derived stats; current live stats after HP loss, buffs, and debuffs; equipped items; detailed active buff/debuff descriptions and effects; and select/sell-animal controls. Enemy animals expose the same diagnostic information but remain readonly.
 6. Route all non-equipment emoji through the shared external emoji API/helper so rendering is consistent across devices and browsers. Equipment art remains custom and must not be replaced by emoji.
+
+Wave 7 status (2026-10-13): **complete**. Shared working-tree evidence covers randomized relaxed-idle scheduling/one-shot idle, Rảnh rỗi/Thủ thế semantics, ground-contact clamp, animated board-cell movement, unified inventory/crafting, friendly editable vs enemy readonly diagnostics with live fighter state, and shared semantic emoji routing. Verification: `tests/wave7-diagnostics.test.ts` **3/3 passed**; exact Wave 7 targeted suite **7 files / 45 tests passed**; narrow diagnostic smoke **1 passed, 2 skipped**.
 
 ### Wave 8 — Combat semantics, progression, blessings, and board interaction
 1. Direct basic/skill hit cells remain red; AoE/affected cells remain yellow. Preview and live combat must consume the same canonical highlight semantics, and animals themselves are never tinted for these tile states.
@@ -135,3 +139,7 @@ Verified before adding new work: terminal heart loss already transitions the run
 4. Add environmental detail around the arena: visible mountain ore, moss, mushrooms on trees, and tiny fruit.
 5. Victory fireworks: fire one colored firework for each reserve/bench animal, using a distinct color per animal.
 6. Make the outside path/river meander organically while preserving the five in-arena cells as a straight canonical gameplay strip.
+
+Wave 9 status (2026-10-13): **complete under the explicit browser waiver**. Global sun-ray quality/shadow authority remains covered by arena regression; loading now has real progress plus rotating tips/title motion; scenery adds richer lamps, ore/moss/mushrooms/fruit, outside-only meandering river/path; victory fireworks are result-owned and one-per-reserve origin. Targeted Wave 8/9 presentation/authority verification: `tests/scenery-presentation.test.ts`, `tests/victory-fireworks.test.ts`, `tests/arena-mapping.test.ts`, `tests/blessings.test.ts` → **4 files / 15 tests passed**. Additional day/night/environment regression: `tests/encounter-env.test.ts`, `tests/scenery-presentation.test.ts`, `tests/arena-mapping.test.ts` → **3 files / 21 tests passed**. Browser verification remains waived; no browser PASS is claimed.
+
+Release-gate note (2026-10-13): the missing shared `ICONS.social`, `ICONS.donate`, and `ICONS.cortisol` production keys are fixed. `pnpm exec vite build` passes (**81 modules transformed**) and `git diff --check` passes. `pnpm typecheck` / `pnpm build` remain blocked only by three previously platform-rejected test-typing fixes: `tests/persistence.test.ts:50` delete-operand optionality, missing `UnitVisual.revive` in `tests/recovered-playback.test.ts`, and missing `BoardView.startLowCortisol/stopLowCortisol` in that same mock. Those rejected edits were not retried or rerouted.

@@ -54,7 +54,7 @@ export function playCombat(o: {
     const target = units.get(dst); if (!target) return;
     target.shield = Math.max(0, target.shield - absorbed); target.hp = Math.max(0, target.hp - damage);
     if (damage > 0) board.visual(dst)?.play("hit");
-    fx.float(position(dst), damage > 0 ? `-${damage}${crit ? "!" : ""}` : `🛡️${absorbed}`, crit ? "crit" : "damage");
+    fx.float(position(dst), damage > 0 ? `-${damage}${crit ? "!" : ""}` : `${ICONS.shield}${absorbed}`, crit ? "crit" : "damage");
     fx.burst(position(dst), 0xffc36a); push(dst); tick();
     log.push(`${name(src)} → ${name(dst)} -${damage}`); if (log.length > 12) log.shift();
   };
@@ -155,7 +155,7 @@ export function playCombat(o: {
         break;
       }
       case "death": { const unit = units.get(event.dst); if (unit) { unit.hp = 0; unit.statuses = []; push(event.dst); } board.visual(event.dst)?.die(); break; }
-      case "skip": fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? "💤", "status"); break;
+      case "skip": fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? ICONS.sleep, "status"); break;
     }
     return scaleCombatPresentationMs(100, speedLevel);
   };

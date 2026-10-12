@@ -123,7 +123,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     for (let i = 0; i < shown; i++) {
       const l = lines[i]!, y = 34 + i * rowH;
       nineSlice(g, l.active ? "tile_status" : "slot_well", SLICE.tile_status, 8, y, w - 16, rowH - 4);
-      const ic = ICONS[l.key as keyof typeof ICONS] ?? "❔";
+      const ic = ICONS[l.key as keyof typeof ICONS] ?? ICONS.question;
       label(g, ic, 24, y + rowH / 2 - 2, { size: 15, stroke: null });
       const tier = l.next ? `${l.count}/${l.next}` : `${l.count} ★`;
       label(g, tier, w - 14, y + rowH / 2 - 2, { size: 13, align: "right", fill: l.active ? "#ffe08a" : "#3b2414", stroke: l.active ? undefined : null });

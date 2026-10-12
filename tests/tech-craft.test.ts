@@ -18,6 +18,7 @@ describe("tech A8", () => {
     expect(techModifiers({ fitness: 3, beast: 2 })).toEqual({ hpPct: 9, atkPct: 4, critPct: 2 });
     expect(techModifiers({ arcane: 2 })).toEqual({ matkPct: 8, mdefPct: 8 });
     expect(techModifiers({ survive: 3 }).startShield).toBe(45);
+    expect(techModifiers({ speed: 3 })).toMatchObject({ speed: 3, finishFastDiscount: 3 });
   });
   it("research on run is atomic and raises craft table", () => {
     const s = createRun(1);

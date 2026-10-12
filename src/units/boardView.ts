@@ -18,6 +18,14 @@ export const LOW_CORTISOL_DURATION_MS = 120_000;
 
 
 interface Slot { v: UnitVisual; bb: Billboard; key: string; kind: "board" | "bench" | "enemy"; col: number; row: number; base: BillboardState }
+interface MoveTween {
+  fromX: number;
+  fromZ: number;
+  toX: number;
+  toZ: number;
+  elapsed: number;
+  duration: number;
+}
 export interface BoardSlotLocation {
   kind: Slot["kind"];
   col: number;
@@ -45,6 +53,8 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   let combat = false;
   let cortisolRemainingMs = 0;
   let cortisolElapsedMs = 0;
+  const moveTweens = new Map<string, MoveTween>();
+  const MOVE_DURATION_S = 0.22;
 
   const restoreCortisolUnit = (uid: string, s: Slot) => {
     const base = cortisolBase.get(uid);
@@ -67,12 +77,26 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const s = slots.get(uid);
       if (!s || s.kind === "enemy") continue;
       const wave = cortisolElapsedMs * 0.009 + base.phase;
-      s.v.root.position.y = base.y + Math.sin(wave) * 0.08;
+      s.v.root.position.y = Math.max(base.y, base.y + Math.sin(wave) * 0.08);
       s.v.root.rotation.y = base.yaw + Math.sin(wave * 0.72) * 0.12;
     }
     if (cortisolRemainingMs === 0) stopLowCortisol();
   };
   const off = stage.onFrame((dt) => {
+    for (const [uid, move] of moveTweens) {
+      const s = slots.get(uid);
+      if (!s) { moveTweens.delete(uid); continue; }
+      move.elapsed += Math.max(0, dt);
+      const p = Math.min(1, move.elapsed / move.duration);
+      const eased = p * p * (3 - 2 * p);
+      s.v.root.position.x = move.fromX + (move.toX - move.fromX) * eased;
+      s.v.root.position.z = move.fromZ + (move.toZ - move.fromZ) * eased;
+      s.v.root.position.y = Math.max(TILE_TOP, s.v.root.position.y);
+      if (p >= 1) {
+        moveTweens.delete(uid);
+        s.v.play("idle");
+      }
+    }
     for (const s of slots.values()) s.v.update(dt);
     updateCortisol(dt);
   });
@@ -81,7 +105,14 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     const st = Math.min(3, Math.max(1, Math.round(star))) as Star;
     const key = `${baseId}@${st}`;
     let s = slots.get(uid);
-    if (s && s.key !== key) { restoreCortisolUnit(uid, s); s.v.dispose(); s.bb.dispose(); slots.delete(uid); s = undefined; }
+    if (s && s.key !== key) {
+      restoreCortisolUnit(uid, s);
+      moveTweens.delete(uid);
+      s.v.dispose();
+      s.bb.dispose();
+      slots.delete(uid);
+      s = undefined;
+    }
     if (!s) {
       const v = createUnit(baseId, st);
       v.root.userData.uid = uid;
@@ -92,13 +123,32 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       bb.set(base);
       s = { v, bb, key, kind, col, row, base };
       slots.set(uid, s);
+      s.v.root.position.set(x, TILE_TOP, z);
+    } else {
+      const boardCellMove = !combat && s.kind === "board" && kind === "board" && (s.col !== col || s.row !== row);
+      if (boardCellMove) {
+        const existing = moveTweens.get(uid);
+        if (!existing || existing.toX !== x || existing.toZ !== z) {
+          moveTweens.set(uid, {
+            fromX: s.v.root.position.x,
+            fromZ: s.v.root.position.z,
+            toX: x,
+            toZ: z,
+            elapsed: 0,
+            duration: MOVE_DURATION_S,
+          });
+          s.v.play("move");
+        }
+      } else if (!moveTweens.has(uid)) {
+        s.v.root.position.set(x, TILE_TOP, z);
+      }
     }
     s.kind = kind; s.col = col; s.row = row;
-    s.v.root.position.set(x, TILE_TOP, z);
+    s.v.root.position.y = Math.max(TILE_TOP, s.v.root.position.y);
     s.v.setFacing(kind === "bench" ? Math.atan2(-x, -z) : kind === "enemy" ? "R" : "L");
     const cortisol = cortisolBase.get(uid);
     if (cortisol) {
-      cortisol.y = s.v.root.position.y;
+      cortisol.y = Math.max(TILE_TOP, s.v.root.position.y);
       cortisol.yaw = s.v.root.rotation.y;
     }
     s.v.setCombat(combat);
@@ -140,7 +190,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         seen.add(e.uid);
       }
 
-      for (const [uid, s] of slots) if (!seen.has(uid)) { restoreCortisolUnit(uid, s); s.v.dispose(); s.bb.dispose(); slots.delete(uid); }
+      for (const [uid, s] of slots) if (!seen.has(uid)) { restoreCortisolUnit(uid, s); moveTweens.delete(uid); s.v.dispose(); s.bb.dispose(); slots.delete(uid); }
     },
     visual: (uid) => slots.get(uid)?.v,
     slot(uid) {
@@ -173,6 +223,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       if (entering || leaving) stopLowCortisol();
       combat = v;
       if (leaving) {
+        moveTweens.clear();
         // A77: temporary combat state (HP, deaths, staging offsets) is discarded; next sync rebuilds fresh rigs.
         for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
         slots.clear();
@@ -182,6 +233,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     },
     dispose() {
       stopLowCortisol();
+      moveTweens.clear();
       off();
       for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
       slots.clear();

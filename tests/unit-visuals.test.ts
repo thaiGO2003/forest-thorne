@@ -82,6 +82,30 @@ describe("Library combat-idle authored poses", () => {
       vi.unstubAllGlobals();
     }
   });
+  it("plays relaxed idle once, then holds the settled idle pose", () => {
+    vi.stubGlobal("document", {
+      createElement(tag: string) {
+        expect(tag).toBe("canvas");
+        return { width: 0, height: 0, getContext: () => null };
+      },
+    });
+    try {
+      const unit = createUnit("ant_guard", 1);
+      const onDone = vi.fn();
+      unit.play("idle", { duration: 0.1, onDone });
+      unit.update(0.05);
+      expect(onDone).not.toHaveBeenCalled();
+      unit.update(0.05);
+      expect(onDone).toHaveBeenCalledTimes(1);
+      expect(unit.state()).toBe("idle");
+      unit.update(1);
+      expect(onDone).toHaveBeenCalledTimes(1);
+      unit.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("Cóc Độc keeps relaxed idle normally and crouches in combat idle", () => {
     const relaxed = idlePose("toad_poison", false);
     const combat = idlePose("toad_poison", true);

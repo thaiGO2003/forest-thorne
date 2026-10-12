@@ -9,7 +9,7 @@ import type { ModalHandle } from "./modal";
 
 const FOCUS_KEY = "forest-throne:planning:last-tech-focus";
 const BRANCHES: Exclude<Branch, "ROOT">[] = ["VET", "EXPLORE", "ECON", "MIL", "CRAFT"];
-const BRANCH_ICON: Record<Exclude<Branch, "ROOT">, string> = { VET: "🩺", EXPLORE: "🧭", ECON: ICONS.gold, MIL: ICONS.atk, CRAFT: ICONS.craft };
+const BRANCH_ICON: Record<Exclude<Branch, "ROOT">, string> = { VET: ICONS.vet, EXPLORE: ICONS.explore, ECON: ICONS.gold, MIL: ICONS.atk, CRAFT: ICONS.craft };
 const RING = 120, NODE_R = 26, NODE_GAP = 12, SECTOR_FILL = 0.82;
 const ZOOM = { focus: 1.08, focusMin: 0.7, focusMax: 1.35, fitMin: 0.35, fitMax: 1.25, wheelMin: 0.35, wheelMax: 1.8 };
 
@@ -127,12 +127,12 @@ export function mountTechTree(modal: ModalHandle, model: TechModel, research: (i
       label(g, glyph, p.x, p.y - 2, { size: r * 0.8, stroke: null });
       label(g, lvText, p.x, p.y + r + 10, { size: 12 });
     };
-    nodeAt("root", "btn_icon_selected", "🌳", t("tech.root"));
+    nodeAt("root", "btn_icon_selected", ICONS.tech, t("tech.root"));
     for (const n of TECH_NODES) {
       const st = state(n);
       const skin = st === "maxed" ? "btn_icon_selected" : st === "locked" ? "btn_icon_disabled" : st === "affordable" ? "btn_icon_hover" : "btn_icon_normal";
       const max = maxLevel(n);
-      nodeAt(n.id, skin, st === "locked" ? ICONS.lock : BRANCH_ICON[n.branch as Exclude<Branch, "ROOT">] ?? "❔", `${lvl(n.id)}/${max === Infinity ? "∞" : max}`);
+      nodeAt(n.id, skin, st === "locked" ? ICONS.lock : BRANCH_ICON[n.branch as Exclude<Branch, "ROOT">] ?? ICONS.question, `${lvl(n.id)}/${max === Infinity ? "∞" : max}`);
     }
     g.restore();
   };

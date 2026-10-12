@@ -23,6 +23,7 @@ import {
   normalizeCreativeSandboxUnits, sandboxSideForCol, validSandboxCell, type CreativeSandboxUnit,
 } from "./creative";
 import type { Placement, SideBonus } from "./combat";
+import { isWeatherBlessingId, type WeatherBlessingId } from "./blessings";
 import type { AiMode } from "./encounter";
 import {
   createTutorialState, finishTutorialIfPastEnd, incrementTutorialShopVariant, isTutorialActive,
@@ -54,6 +55,8 @@ export interface RunState {
   hp: number;
   /** One heart charged when combat starts; refunded only after a player victory. */
   heartEscrow: 0 | 1;
+  /** Player-authored weather blessing order; combat consumes only this prefix order. */
+  blessingQueue: WeatherBlessingId[];
   /** 5×5 allied board, row-major index r*5+c. */
   board: (OwnedUnit | null)[];
   /** Compact ordered bench, never sparse. */
@@ -147,7 +150,7 @@ function createModeRunInternal(seed: number, mode: GameMode): RunState {
   const cfg = modeConfig(mode);
   const s: RunState = {
     phase: "PLANNING", mode, aiMode: cfg.ai.def, lossCondition: cfg.lossCondition,
-    round: 1, level: 1, xp: 0, gold: cfg.startGold, hp: cfg.startHp, heartEscrow: 0,
+    round: 1, level: 1, xp: 0, gold: cfg.startGold, hp: cfg.startHp, heartEscrow: 0, blessingQueue: [],
     board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), bench: [], itemBag: [],
     shop: [], shopSlotCount: SHOP_SLOTS, shopLocked: false, benchUpgradeLevel: 0, benchBonus: 0, deployCapBonus: 0,
     xpCostDelta: 0, rollCostDelta: 0, interestCapBonus: 0, interestRateBonus: 0, startingRage: 0, startingShield: 0,
@@ -222,6 +225,39 @@ export const deployLimit = (s: RunState) => deployCap(s.level, s.deployCapBonus)
 export const inventoryCapacity = (s: RunState) =>
   Math.max(0, boardCount(s) + s.bench.length + Math.round(s.inventoryBonus));
 export const inventoryDisplaySlots = (s: RunState) => Math.max(inventoryCapacity(s), s.itemBag.length);
+
+export function enqueueWeatherBlessing(s: RunState, id: string): boolean {
+  if (!planning(s) || !isWeatherBlessingId(id)) return false;
+  s.blessingQueue.push(id);
+  return true;
+}
+
+export function reorderWeatherBlessing(s: RunState, from: number, to: number): boolean {
+  if (!planning(s) || !Number.isInteger(from) || !Number.isInteger(to)) return false;
+  if (from < 0 || to < 0 || from >= s.blessingQueue.length || to >= s.blessingQueue.length || from === to) return false;
+  const [blessing] = s.blessingQueue.splice(from, 1);
+  if (!blessing) return false;
+  s.blessingQueue.splice(to, 0, blessing);
+  return true;
+}
+
+export function consumeWeatherBlessings(s: RunState, consumed: readonly WeatherBlessingId[]): boolean {
+  if (consumed.length > s.blessingQueue.length) return false;
+  for (let index = 0; index < consumed.length; index++) {
+    if (s.blessingQueue[index] !== consumed[index]) return false;
+  }
+  s.blessingQueue.splice(0, consumed.length);
+  return true;
+}
+
+export function restoreHeartBlessing(s: RunState, amount = 1): number {
+  if (s.phase === "GAME_OVER") return 0;
+  const restored = Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0;
+  if (!restored) return 0;
+  const before = s.hp;
+  s.hp = Math.min(modeConfig(s.mode).startHp, Math.max(0, s.hp + restored));
+  return s.hp - before;
+}
 
 export function buyXp(s: RunState): boolean {
   const cost = xpBuyCost(s.xpCostDelta);

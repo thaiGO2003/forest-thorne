@@ -2,11 +2,12 @@
 // view over PlanningHistoryState; filtering uses the canonical filterPlanningHistory.
 import { filterPlanningHistory, HISTORY_CATEGORIES, type HistoryFilter, type PlanningHistoryState } from "../core/history";
 import { t, type MsgKey } from "../core/i18n";
+import { ICONS } from "../core/emojiIcon";
 import { h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
 
 const FILTERS: HistoryFilter[] = ["ALL", ...HISTORY_CATEGORIES];
-const ICON: Record<HistoryFilter, string> = { ALL: "📜", COMBAT: "⚔️", SHOP: "🛒", CRAFT: "⚒️", EVENT: "✨" };
+const ICON: Record<HistoryFilter, string> = { ALL: ICONS.info, COMBAT: ICONS.start, SHOP: ICONS.shop, CRAFT: ICONS.craft, EVENT: ICONS.event };
 
 export function mountHistory(modal: ModalHandle, history: PlanningHistoryState): { dispose(): void } {
   let filter: HistoryFilter = "ALL";

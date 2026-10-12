@@ -3,7 +3,7 @@
 import { getUnit } from "../content/catalog";
 import {
   applyRoundResult, benchCap, benchToBench, benchToBoard, boardToBench, boardToBoard, buy as buyUnit,
-  buyXp as buyRunXp, chooseAugment as chooseRunAugment, craftRunItem, createModeRun, deployLimit,
+  buyXp as buyRunXp, chooseAugment as chooseRunAugment, consumeWeatherBlessings, craftRunItem, createModeRun, deployLimit,
   enemyPreview, equipItem, playerCombatBonus, refresh, research as researchTech, runSynergies,
   sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
   unequipItem, type RoundResultInput, type RoundResultSummary, type RunState,
@@ -12,8 +12,8 @@ import { applyFinishFast } from "../core/combatFast";
 import { EXPORT_FILENAME, exportSaveJson, importSaveJson, inspectSave, clearRunProgress, saveRun, type RunPayload } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
-import { environmentFor } from "../core/environment";
-import { makeFighter, simulate, type CombatEvent, type Placement, type SideBonus } from "../core/combat";
+import { environmentFor, type EnvironmentId } from "../core/environment";
+import { cloneFighter, makeFighter, simulate, sumSideBonuses, type CombatEvent, type Fighter, type Placement, type SideBonus } from "../core/combat";
 import {
   currentTutorialStep, dismissTutorialStep, recordTutorialEvent, skipTutorial as skipTutorialState,
   tutorialActionAllowed, type TutorialAction, type TutorialActionContext, type TutorialInspectionContext,
@@ -38,11 +38,19 @@ export interface CombatSession {
   /** Every combatant at battle start (both sides), with starting HP/rage/shield. */
   roster: RosterEntry[];
   events: CombatEvent[];
+  /** Full resolved snapshots for every combatant, including dead units; detached from simulator-owned objects. */
+  fighters: readonly Fighter[];
   /** Applies the result once (idempotent by combat id) and returns the normalized summary. */
   finish(): RoundResultSummary | null;
   /** Charges Finish Fast and applies the same canonical result; null when unavailable or already applied. */
   finishFast(): RoundResultSummary | null;
 }
+export interface CombatDiagnosticSnapshot {
+  environment: EnvironmentId;
+  enemySource: EnemyPreviewResult["source"];
+  fighters: readonly Fighter[];
+}
+
 
 export interface Bridge {
   /** Current canonical run. Planning screens mutate only through core transactions. */
@@ -79,6 +87,8 @@ export interface Bridge {
   prepareEnemyPreview(): EnemyPreviewResult | null;
   /** Resolve a battle from the current formation; null when illegal (phase/tutorial/empty board). */
   startCombat(): CombatSession | null;
+  /** Read-only diagnostic projection for the currently presented combat, if one exists. */
+  combatSnapshot(): CombatDiagnosticSnapshot | null;
   /** Research a tech node through the canonical transaction (A8, A111.5); false = no change. */
   research(id: string): boolean;
   /** Planning history (A38); views filter/read only. */
@@ -97,8 +107,26 @@ export interface Bridge {
   onChange(fn: () => void): () => void;
 }
 
+const synergyCombatBonus = (s: RunState): SideBonus =>
+  sumSideBonuses(...runSynergies(s).map((line) => line.bonus));
+
+const playerSideBonus = (s: RunState): SideBonus =>
+  sumSideBonuses(playerCombatBonus(s), synergyCombatBonus(s));
+
+const enemySideBonus = (s: RunState, source: EnemyPreviewResult["source"]): SideBonus => {
+  const ai = AI_PROFILE[s.aiMode];
+  const configuredScale = source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(s.round);
+  const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
+  return {
+    hpPct: (ai.hp * scale - 1) * 100,
+    atkPct: (ai.atk * scale - 1) * 100,
+    matkPct: (ai.matk * scale - 1) * 100,
+  };
+};
+
 export function createBridge(store: KV = localStorage): Bridge {
   let state: RunState | null = null;
+  let combatDiagnostics: CombatDiagnosticSnapshot | null = null;
   const listeners = new Set<() => void>();
   const emit = () => { for (const fn of listeners) fn(); };
   const settings = createSettingsStore(store, (lang) => setLocale(lang));
@@ -129,6 +157,7 @@ export function createBridge(store: KV = localStorage): Bridge {
   let craftStaging: (string | null)[] = Array<string | null>(9).fill(null);
   let craftResetObserved = false;
   const resetExternalPlanningState = () => {
+    combatDiagnostics = null;
     craftStaging = Array<string | null>(9).fill(null);
     craftResetObserved = Boolean(state?.tutorial.markers.clearCraftStaging);
   };
@@ -138,19 +167,7 @@ export function createBridge(store: KV = localStorage): Bridge {
     craftResetObserved = resetRequested;
   };
 
-  const addBonus = (...parts: SideBonus[]): SideBonus => {
-    const out: SideBonus = {};
-    for (const part of parts) {
-      for (const [rawKey, rawValue] of Object.entries(part)) {
-        if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) continue;
-        const key = rawKey as keyof SideBonus;
-        out[key] = (out[key] ?? 0) + rawValue;
-      }
-    }
-    return out;
-  };
-  const synergyBonus = (s: RunState): SideBonus =>
-    addBonus(...runSynergies(s).map((line) => line.bonus));
+
   const boardPlacements = (s: RunState): Placement[] => s.board.flatMap((unit, index) => unit ? [{
     uid: unit.uid,
     baseId: unit.baseId,
@@ -328,6 +345,14 @@ export function createBridge(store: KV = localStorage): Bridge {
       if (preview && preview.source !== "saved") persist();
       return preview;
     },
+    combatSnapshot() {
+      if (!combatDiagnostics) return null;
+      return {
+        environment: combatDiagnostics.environment,
+        enemySource: combatDiagnostics.enemySource,
+        fighters: combatDiagnostics.fighters.map(cloneFighter),
+      };
+    },
     startCombat() {
       if (!state) return null;
       const s = state;
@@ -346,15 +371,9 @@ export function createBridge(store: KV = localStorage): Bridge {
       const combatSeed = (baseSeed ^ Math.imul(round, 0x45d9f3b)) | 0;
       const combatId = `solo:${round}:${combatSeed >>> 0}`;
       const environment = environmentFor(round);
-      const playerBonus = addBonus(playerCombatBonus(s), synergyBonus(s));
+      const playerBonus = playerSideBonus(s);
       const ai = AI_PROFILE[s.aiMode];
-      const configuredScale = preview.source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(round);
-      const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
-      const enemyBonus: SideBonus = {
-        hpPct: (ai.hp * scale - 1) * 100,
-        atkPct: (ai.atk * scale - 1) * 100,
-        matkPct: (ai.matk * scale - 1) * 100,
-      };
+      const enemyBonus = enemySideBonus(s, preview.source);
 
       if (beginCombat(s) !== null) return null;
       // The charged heart must survive a reload even if simulation/presentation is interrupted.
@@ -379,8 +398,19 @@ export function createBridge(store: KV = localStorage): Bridge {
         bonus: { L: playerBonus, R: enemyBonus },
         rageGain: { R: ai.rageGain },
         environment,
+        orderedBlessings: [...s.blessingQueue],
         rightRandomTargetChance: ai.randomTarget,
       });
+      if (result.consumedBlessings.length) {
+        if (!consumeWeatherBlessings(s, result.consumedBlessings)) throw new Error("combat blessing queue diverged");
+        persist();
+      }
+      const sessionFighters = result.fighters.map(cloneFighter);
+      combatDiagnostics = {
+        environment,
+        enemySource: preview.source,
+        fighters: sessionFighters.map(cloneFighter),
+      };
       const survivors = new Set(result.survivors.filter((fighter) => fighter.side === "R").map((fighter) => fighter.uid));
       const lootRng = seededRng(combatSeed ^ 0x51ed270b);
       const drops = right
@@ -403,10 +433,12 @@ export function createBridge(store: KV = localStorage): Bridge {
       const publishResult = (summary: RoundResultSummary | null) => {
         if (!summary) return null;
         commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`);
+        combatDiagnostics = null;
         return summary;
       };
       return {
         roster,
+        fighters: sessionFighters.map(cloneFighter),
         events: result.events,
         finish() {
           if (state !== s) return null;
@@ -440,4 +472,6 @@ export function createBridge(store: KV = localStorage): Bridge {
 export const runView = {
   benchCap, deployLimit, synergies: runSynergies,
   unit: getUnit,
+  playerSideBonus,
+  enemySideBonus,
 };

@@ -33,7 +33,7 @@ export interface LibraryView { showDetail(id: string): void; dispose(): void }
 
 export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tooltip, startId?: string): LibraryView {
   const f: Filter = { q: "", role: null, faction: null, tier: null };
-  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null;
+  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
   const root = h("div", "lib");
   modal.body.append(root);
   const clearIdleTimer = () => {
@@ -42,9 +42,10 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
   };
   const scheduleIdle = () => {
     clearIdleTimer();
-    if (!viewer) return;
+    if (!viewer || !relaxedIdle) return;
     const delay = 4_000 + Math.floor(Math.random() * 5_001);
     idleTimer = window.setTimeout(() => {
+      if (!relaxedIdle) return;
       viewer?.play("idle");
       scheduleIdle();
     }, delay);
@@ -158,6 +159,7 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
     const stateBtns: KitButton[] = [];
     for (const s of ACTION_STATES) {
       const b = kitButton({ skin: s === "idle" ? "green" : "wood", label: t(STATE_KEY[s]), onClick: () => {
+        relaxedIdle = s === "idle";
         viewer?.setCombat(false);
         viewer?.play(s);
         for (const x of stateBtns) x.setSelected(x === b);
@@ -167,10 +169,11 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
       stateBtns.push(b);
       if (s === "idle") {
         const stance = kitButton({ skin: "wood", label: t("unit.combatIdle"), onClick: () => {
+          relaxedIdle = false;
           viewer?.setCombat(true);
           viewer?.play("idle");
           for (const x of stateBtns) x.setSelected(false);
-          scheduleIdle();
+          clearIdleTimer();
         } });
         tip.bind(stance.el, () => ({ title: t("unit.combatIdle") }));
         actions.append(stance.el);

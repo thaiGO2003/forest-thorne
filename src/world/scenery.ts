@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import { RIVER_X, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
 import type { EnvironmentId } from "../core/environment";
+import type { DayNightPhase } from "../core/dayNight";
 
 /** Rings of terrain beyond the bench slab. */
 const REACH = 34;
@@ -29,10 +30,17 @@ export function createScenery(
   own: Own,
   toWorld: (c: Cell) => { x: number; z: number },
   waterMat: THREE.Material,
-): { setEnvironment(environment: EnvironmentId): void; update(dt: number): void } {
+): { setEnvironment(environment: EnvironmentId): void; setDayNight(phase: DayNightPhase): void; update(dt: number): void } {
   const rows = totalRows(p);
   // Bench slab in visual-cell space (see arena foundation).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
+  const riverColumnForScenery = (cz: number) => {
+    if (cz >= minZ && cz <= maxZ) return RIVER_X;
+    const edge = cz < minZ ? minZ : maxZ;
+    const distance = Math.abs(cz - edge);
+    const phase = cz < minZ ? 0.45 : 1.75;
+    return RIVER_X + Math.round(Math.sin(distance * 0.52 + phase) * 1.35);
+  };
 
   const box = own(new THREE.BoxGeometry(1, 1, 1));
   const white = (extra: THREE.MeshStandardMaterialParameters = {}) =>
@@ -61,7 +69,7 @@ export function createScenery(
     const d = Math.max(dx, dz);
     if (d === 0) continue;
     const w = toWorld({ x: cx, z: cz });
-    if (cx === RIVER_X && dx === 0) { bed.push(w); continue; } // river channel
+    if (dx === 0 && cx === riverColumnForScenery(cz)) { bed.push(w); continue; } // outside-only meandering river channel
     const flat = cz > maxZ ? APRON_CAMERA_SIDE : APRON;
     const valley = dx === 0 ? Math.min(1, Math.max(0, (Math.abs(cx - RIVER_X) - 1) / 5)) : 1;
     const wave = Math.sin(cx * 0.35) + Math.sin(cz * 0.29 + 1.3) + Math.sin((cx + cz) * 0.17);
@@ -87,15 +95,29 @@ export function createScenery(
     bodies.setColorAt(columns.length + i, col.setHex(0x5e4027));
   });
 
-  // Water continues past both ends of the board through the valley.
-  for (const [from, to] of [[minZ - REACH, minZ - 1], [maxZ + 1, maxZ + REACH]] as const) {
-    const a = toWorld({ x: RIVER_X, z: from }), b = toWorld({ x: RIVER_X, z: to });
-    const len = Math.abs(b.z - a.z) + 1;
-    const water = new THREE.Mesh(own(new THREE.BoxGeometry(1, WATER_H, len)), waterMat);
-    water.position.set(a.x, WATER_Y, (a.z + b.z) / 2);
-    water.raycast = () => {};
-    root.add(water);
-  }
+  // Only the decorative river beyond the board meanders; the five in-arena river cells stay canonical/straight.
+  const riverRows: number[] = [];
+  for (let cz = minZ - REACH; cz < minZ; cz++) riverRows.push(cz);
+  for (let cz = maxZ + REACH; cz > maxZ; cz--) riverRows.push(cz);
+  const riverWater = instanced(riverRows.length, waterMat, "scenery-river-meanders");
+  riverRows.forEach((cz, i) => {
+    const nextZ = cz < minZ ? Math.min(minZ, cz + 1) : Math.max(maxZ, cz - 1);
+    const a = toWorld({ x: riverColumnForScenery(cz), z: cz });
+    const b = toWorld({ x: riverColumnForScenery(nextZ), z: nextZ });
+    const dx = b.x - a.x, dz = b.z - a.z;
+    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, (a.z + b.z) / 2, 1.08, WATER_H, Math.hypot(dx, dz) + 0.18, Math.atan2(dx, dz));
+  });
+
+  const pathCells = columns.filter((c) => {
+    if ((c.cz >= minZ && c.cz <= maxZ) || c.d < 2 || c.d > 18 || c.h > 4) return false;
+    const edge = c.cz < minZ ? minZ : maxZ;
+    const distance = Math.abs(c.cz - edge);
+    const side = c.cz < minZ ? -1 : 1;
+    const targetX = RIVER_X + side * 5 + Math.round(Math.sin(distance * 0.44 + (side < 0 ? 0.2 : 1.1)) * 1.5);
+    return c.cx === targetX;
+  });
+  const paths = instanced(pathCells.length, white({ color: 0xb08a5d, roughness: 1 }), "scenery-path-meanders");
+  pathCells.forEach((c, i) => put(paths, i, c.x, c.h + 0.045, c.z, 0.82, 0.09, 0.96, (hash(c.cx, c.cz, 30) - 0.5) * 0.16));
 
   // --- Props -----------------------------------------------------------------------------------
   const forest = columns.filter((c) => {
@@ -107,11 +129,14 @@ export function createScenery(
   const trunks = instanced(forest.length, white(), "scenery-trunks");
   const leaves = instanced(forest.length * 2, white(), "scenery-leaves");
   trunks.castShadow = leaves.castShadow = true;
-  forest.forEach((c, i) => {
+  const treePlacement = (c: Column) => {
     const k = 0.8 + hash(c.cx, c.cz, 2) * 0.5;
-    const ox = (hash(c.cx, c.cz, 3) - 0.5) * 0.4, oz = (hash(c.cx, c.cz, 4) - 0.5) * 0.4;
-    const rot = hash(c.cx, c.cz, 5) * Math.PI;
-    const x = c.x + ox, z = c.z + oz;
+    const ox = (hash(c.cx, c.cz, 3) - 0.5) * 0.4;
+    const oz = (hash(c.cx, c.cz, 4) - 0.5) * 0.4;
+    return { k, x: c.x + ox, z: c.z + oz, rot: hash(c.cx, c.cz, 5) * Math.PI };
+  };
+  forest.forEach((c, i) => {
+    const { k, x, z, rot } = treePlacement(c);
     put(trunks, i, x, c.h + 0.4 * k, z, 0.24 * k, 0.8 * k, 0.24 * k, rot);
     trunks.setColorAt(i, col.setHex(0x6b4426));
     put(leaves, i * 2, x, c.h + 1.15 * k, z, 0.95 * k, 0.75 * k, 0.95 * k, rot);
@@ -121,6 +146,35 @@ export function createScenery(
     leaves.setColorAt(i * 2 + 1, col.offsetHSL(0, 0, 0.05));
   });
 
+  const mossTrees = forest.filter((c) => hash(c.cx, c.cz, 31) < 0.42);
+  const treeMoss = instanced(mossTrees.length, white({ color: 0x4f7f37, roughness: 1 }), "scenery-tree-moss");
+  mossTrees.forEach((c, i) => {
+    const { k, x, z, rot } = treePlacement(c);
+    put(treeMoss, i, x, c.h + 0.08, z, 0.46 * k, 0.16, 0.42 * k, rot);
+  });
+
+  const mushroomTrees = forest.filter((c) => hash(c.cx, c.cz, 32) < 0.24);
+  const mushrooms = instanced(mushroomTrees.length * 2, white({ roughness: 0.82 }), "scenery-tree-mushrooms");
+  mushroomTrees.forEach((c, i) => {
+    const { k, x, z } = treePlacement(c);
+    for (let j = 0; j < 2; j++) {
+      const side = j ? -1 : 1;
+      put(mushrooms, i * 2 + j, x + side * 0.22 * k, c.h + (0.26 + j * 0.14) * k, z + 0.08 * side, 0.17, 0.1, 0.13);
+      mushrooms.setColorAt(i * 2 + j, col.setHex(j ? 0xf3e2b2 : 0xd86d45));
+    }
+  });
+
+  const fruitTrees = forest.filter((c) => hash(c.cx, c.cz, 33) < 0.2);
+  const fruits = instanced(fruitTrees.length * 3, white({ roughness: 0.6 }), "scenery-tree-fruit");
+  fruitTrees.forEach((c, i) => {
+    const { k, x, z } = treePlacement(c);
+    for (let j = 0; j < 3; j++) {
+      const a = (j / 3) * Math.PI * 2 + hash(c.cx, c.cz, 34) * 0.8;
+      put(fruits, i * 3 + j, x + Math.cos(a) * 0.42 * k, c.h + (1.2 + j * 0.16) * k, z + Math.sin(a) * 0.42 * k, 0.11, 0.12, 0.11);
+      fruits.setColorAt(i * 3 + j, col.setHex(j === 1 ? 0xf2b134 : 0xcf3d36));
+    }
+  });
+
   const rockCells = columns.filter((c) => c.d >= 2 && c.h <= 6 && Math.abs(c.cx - RIVER_X) > 1 && hash(c.cx, c.cz, 8) < 0.05);
   const rocks = instanced(rockCells.length, white(), "scenery-rocks");
   rocks.castShadow = true;
@@ -128,6 +182,18 @@ export function createScenery(
     const k = 0.3 + hash(c.cx, c.cz, 10) * 0.35;
     put(rocks, i, c.x + 0.2, c.h + k * 0.35, c.z - 0.15, k * 1.2, k * 0.7, k, hash(c.cx, c.cz, 11) * Math.PI);
     rocks.setColorAt(i, col.setHex(0x9a9b94).offsetHSL(0, 0, (hash(c.cx, c.cz, 12) - 0.5) * 0.1));
+  });
+
+  const oreCells = columns.filter((c) => c.h >= 5 && c.d >= 8 && hash(c.cx, c.cz, 35) < 0.14);
+  const ore = instanced(oreCells.length * 2, white({ roughness: 0.58, metalness: 0.25 }), "scenery-mountain-ore");
+  const ORE = [0xd8a83d, 0x72b7c9, 0xc87045] as const;
+  oreCells.forEach((c, i) => {
+    for (let j = 0; j < 2; j++) {
+      const ox = (hash(c.cx, c.cz, 36 + j) - 0.5) * 0.56;
+      const oz = (hash(c.cx, c.cz, 38 + j) - 0.5) * 0.56;
+      put(ore, i * 2 + j, c.x + ox, c.h + 0.06 + j * 0.02, c.z + oz, 0.18 + j * 0.05, 0.12, 0.14 + j * 0.04, hash(c.cx, c.cz, 40 + j) * Math.PI);
+      ore.setColorAt(i * 2 + j, col.setHex(ORE[Math.floor(hash(c.cx, c.cz, 42 + j) * ORE.length)]!));
+    }
   });
 
   const FLOWER = [0xffd84a, 0xff8fb8, 0xffffff, 0xb59cff] as const;
@@ -144,16 +210,23 @@ export function createScenery(
   // Four bounded outdoor lamps around the tactical slab. Decorative meshes never participate in picking.
   const lampPostMat = white({ color: 0x5f4632, roughness: 0.8 });
   const lampGlowMat = white({ color: 0xffd27a, emissive: 0xffc35a, emissiveIntensity: 0.45, roughness: 0.45 });
+  const lampMossMat = white({ color: 0x50743b, roughness: 1 });
   const lampCells = [
     { x: -1, z: -1 }, { x: VISUAL_COLS, z: -1 },
     { x: -1, z: rows }, { x: VISUAL_COLS, z: rows },
   ] as const;
   const lampPosts = instanced(lampCells.length, lampPostMat, "scenery-lamp-posts");
-  const lampBulbs = instanced(lampCells.length, lampGlowMat, "scenery-lamp-bulbs");
+  const lampBranches = instanced(lampCells.length * 2, lampPostMat, "scenery-lamp-branches");
+  const lampBulbs = instanced(lampCells.length * 5, lampGlowMat, "scenery-lamp-bulbs");
+  const lampMoss = instanced(lampCells.length, lampMossMat, "scenery-lamp-moss");
+  const bulbOffsets = [[0, 0], [0.42, 0], [-0.42, 0], [0, 0.42], [0, -0.42]] as const;
   const lampLights = lampCells.map((cell, i) => {
     const w = toWorld(cell);
     put(lampPosts, i, w.x, 1.05, w.z, 0.16, 2.1, 0.16);
-    put(lampBulbs, i, w.x, 2.18, w.z, 0.34, 0.34, 0.34);
+    put(lampBranches, i * 2, w.x, 2.0, w.z, 1.05, 0.12, 0.12);
+    put(lampBranches, i * 2 + 1, w.x, 2.0, w.z, 0.12, 0.12, 1.05);
+    put(lampMoss, i, w.x, 0.08, w.z, 0.5, 0.16, 0.5, i * 0.37);
+    bulbOffsets.forEach(([ox, oz], j) => put(lampBulbs, i * bulbOffsets.length + j, w.x + ox, 2.18, w.z + oz, 0.22, 0.22, 0.22));
     const light = new THREE.PointLight(0xffd27a, 0.3, 6, 2);
     light.position.set(w.x, 2.2, w.z);
     root.add(light);
@@ -177,11 +250,13 @@ export function createScenery(
   };
   placeClouds();
 
-  for (const mesh of [bodies, caps, trunks, leaves, rocks, flowers]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  for (const mesh of [bodies, caps, trunks, leaves, mushrooms, fruits, rocks, ore, flowers]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
-  const setEnvironment = (environment: EnvironmentId) => {
-    const night = environment === "NIGHT";
-    const lampColor = environment === "FIRE" ? 0xff8a42 : environment === "SPIRIT" ? 0xc9dcff : 0xffd27a;
+  let currentEnvironment: EnvironmentId = "FIRE";
+  let currentDayNight: DayNightPhase = "day";
+  const applyLampState = () => {
+    const lampColor = currentEnvironment === "FIRE" ? 0xff8a42 : currentEnvironment === "SPIRIT" ? 0xc9dcff : 0xffd27a;
+    const night = currentDayNight === "night";
     lampGlowMat.emissive.setHex(lampColor);
     lampGlowMat.emissiveIntensity = night ? 3.2 : 0.45;
     for (const light of lampLights) {
@@ -189,9 +264,18 @@ export function createScenery(
       light.intensity = night ? 7 : 0.3;
     }
   };
+  const setEnvironment = (environment: EnvironmentId) => {
+    currentEnvironment = environment;
+    applyLampState();
+  };
+  const setDayNight = (phase: DayNightPhase) => {
+    currentDayNight = phase;
+    applyLampState();
+  };
 
   return {
     setEnvironment,
+    setDayNight,
     update(dt) {
       for (const c of cloudSeeds) c.x = ((c.x + dt * 0.6 + SPAN / 2) % SPAN + SPAN) % SPAN - SPAN / 2;
       placeClouds();

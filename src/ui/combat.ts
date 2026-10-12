@@ -16,6 +16,7 @@ export interface CombatHudModel {
   round: number;
   cycle: number;
   speed: number;
+  finishFastCost: number;
   /** Anti-stall global damage multiplier (A17); shown only when > 1. */
   escalation: number;
   left: TeamStrength;
@@ -54,7 +55,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
     const bw = (w - 60) / 2, by = 38;
     teamBar(g, 14, by, bw, 18, m.left.hpRatio, "#5fd04a", false);
     teamBar(g, w - 14 - bw, by, bw, 18, m.right.hpRatio, "#e0503a", true);
-    label(g, "⚔️", w / 2, by + 9, { size: 16, stroke: null });
+    label(g, ICONS.start, w / 2, by + 9, { size: 16, stroke: null });
     label(g, `${m.left.units} · ${ICONS.atk}${m.left.power}`, 18, by + 30, { size: 12, align: "left" });
     label(g, `${ICONS.atk}${m.right.power} · ${m.right.units}`, w - 18, by + 30, { size: 12, align: "right" });
   });
@@ -101,7 +102,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
       speed.setLabel(speedLabel);
       speedMeasure.textContent = speedLabel;
       speed.setAria(t("combat.speed", { speed: nm.speed }));
-      const finishLabel = t("combat.finishFast", { cost: FINISH_FAST_BASE_COST });
+      const finishLabel = t("combat.finishFast", { cost: nm.finishFastCost });
       finishFast.setLabel(finishLabel);
       fastMeasure.textContent = finishLabel;
       finishFast.setAria(finishLabel);

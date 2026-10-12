@@ -114,7 +114,11 @@ export async function boot(root: HTMLElement): Promise<App> {
 
   // Loading: real progress = kit images (90%) + first stage frame (10%).
   root.dataset.route = "loading";
-  const loading = createLoading(layers.screen, { title: t("loading.title"), hint: t("loading.hint") });
+  const loading = createLoading(layers.screen, {
+    title: t("loading.title"),
+    hint: t("loading.hint"),
+    tips: [t("loading.tip1"), t("loading.tip2"), t("loading.tip3"), t("loading.tip4")],
+  });
   const nextFrames = () => {
     const { promise, resolve } = Promise.withResolvers<void>();
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));

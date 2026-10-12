@@ -11,7 +11,7 @@ export interface LoadingView {
   dispose(): void;
 }
 
-export function createLoading(host: HTMLElement, o: { title: string; hint: string }): LoadingView {
+export function createLoading(host: HTMLElement, o: { title: string; hint: string; tips?: string[] }): LoadingView {
   const root = h("div", "loading");
   root.dataset.screen = "loading";
   const titleEl = h("div", "loading-title");
@@ -24,11 +24,13 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
   host.append(root);
 
   let title = o.title, hint = o.hint, progress = 0, detail = "", failed: string | null = null;
+  const tips = (o.tips ?? []).filter((tip) => tip.length > 0);
+  let tipIndex = 0;
 
   const titleS = surface(titleEl, (g, w, hh) => {
     nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.12, w, hh * 0.62, 2.5);
     label(g, title, w / 2, hh * 0.4, { size: Math.min(40, w / 14), maxW: w - 90, weight: 800 });
-    label(g, failed ?? hint, w / 2, hh * 0.9, { size: 14, maxW: w - 20 });
+    label(g, failed ?? (tips.length ? tips[tipIndex % tips.length]! : hint), w / 2, hh * 0.9, { size: 14, maxW: w - 20 });
   });
   const barS = surface(barEl, (g, w, hh) => {
     const by = 4, bh = hh - 20;
@@ -44,6 +46,9 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
     threeSlice(g, "frame_bar", 3, 0, by, w, bh);
     label(g, detail, w / 2, hh - 7, { size: 12, maxW: w });
   });
+  const tipTimer = tips.length > 1
+    ? globalThis.setInterval(() => { tipIndex = (tipIndex + 1) % tips.length; titleS.paint(); }, 2800)
+    : 0;
 
   return {
     el: root,
@@ -59,6 +64,9 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
       titleS.paint(); barS.paint();
       actions.replaceChildren(kitButton({ skin: "green", label: a.retryLabel, onClick: () => { failed = null; actions.replaceChildren(); titleS.paint(); a.retry(); } }).el);
     },
-    dispose() { root.remove(); },
+    dispose() {
+      if (tipTimer) globalThis.clearInterval(tipTimer);
+      root.remove();
+    },
   };
 }

@@ -79,29 +79,41 @@ export function createPlanningDragController({
   const sourceCell = (source: PlanningSlot) => source.kind === "board"
     ? { col: source.index % PLAYER_COLS, row: Math.floor(source.index / PLAYER_COLS) }
     : null;
-  const paintPointerCell = (clientX: number, clientY: number, source: PlanningSlot | null = null) => {
+  const paintPointerCell = (clientX: number, clientY: number, run: RunState, source: PlanningSlot | null = null) => {
     const highlights: Array<{ col: number; row: number; role: "hover" | "source" }> = [];
+    const benchHighlights: Array<{ index: number; role: "hover" | "source" }> = [];
     const from = source ? sourceCell(source) : null;
     if (from) highlights.push({ ...from, role: "source" });
+    else if (source?.kind === "bench") benchHighlights.push({ index: source.index, role: "source" });
     const hit = boardPicker.pick(clientX, clientY);
-    if (hit.kind === "cell") highlights.push({ ...hit.cell, role: "hover" });
+    if (hit.kind === "cell") {
+      highlights.push({ ...hit.cell, role: "hover" });
+    } else {
+      const benchHit = pickBench(clientX, clientY, run);
+      if (benchHit) benchHighlights.push({ index: benchHit.index, role: "hover" });
+    }
     stage.arena.setHighlights(highlights);
+    stage.arena.setBenchHighlights(benchHighlights);
   };
   const showMoveFeedback = (target: PlanningSlot, valid: boolean) => {
     clearTimeout(feedbackTimer);
     feedbackTimer = 0;
-    if (target.kind !== "board") {
+    const role = valid ? "valid" : "invalid";
+    if (target.kind === "bench") {
       stage.arena.clearHighlights();
-      return;
+      stage.arena.setBenchHighlights([{ index: target.index, role }]);
+    } else {
+      stage.arena.clearBenchHighlights();
+      stage.arena.setHighlights([{
+        col: target.index % PLAYER_COLS,
+        row: Math.floor(target.index / PLAYER_COLS),
+        role,
+      }]);
     }
-    stage.arena.setHighlights([{
-      col: target.index % PLAYER_COLS,
-      row: Math.floor(target.index / PLAYER_COLS),
-      role: valid ? "valid" : "invalid",
-    }]);
     feedbackTimer = window.setTimeout(() => {
       feedbackTimer = 0;
       stage.arena.clearHighlights();
+      stage.arena.clearBenchHighlights();
     }, MOVE_FEEDBACK_MS);
   };
 
@@ -174,6 +186,7 @@ export function createPlanningDragController({
     dragging = false;
     boardPicker.clear();
     stage.arena.clearHighlights();
+    stage.arena.clearBenchHighlights();
     clearPreview();
     clearTimeout(feedbackTimer);
     feedbackTimer = 0;
@@ -208,16 +221,18 @@ export function createPlanningDragController({
     if (!pressed || event.pointerId !== pressed.pointerId) {
       if (event.pointerType !== "mouse" || !enabled()) {
         stage.arena.clearHighlights();
+        stage.arena.clearBenchHighlights();
         clearPreview();
         return;
       }
       const run = getRun();
       if (!run || run.phase !== "PLANNING") {
         stage.arena.clearHighlights();
+        stage.arena.clearBenchHighlights();
         clearPreview();
         return;
       }
-      paintPointerCell(event.clientX, event.clientY);
+      paintPointerCell(event.clientX, event.clientY, run);
       showPreview(pickSource(event.clientX, event.clientY, run), event.clientX, event.clientY);
       return;
     }
@@ -235,7 +250,7 @@ export function createPlanningDragController({
       captured = true;
     }
     const run = getRun();
-    if (run) paintPointerCell(event.clientX, event.clientY, pressed.source);
+    if (run) paintPointerCell(event.clientX, event.clientY, run, pressed.source);
     event.preventDefault();
     event.stopImmediatePropagation();
   };

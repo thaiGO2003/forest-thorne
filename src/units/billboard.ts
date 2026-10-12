@@ -85,12 +85,12 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     s.pos.forEach((k, i) => {
       const x = 8 + i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
-      label(g, ICONS[k as keyof typeof ICONS] ?? "❔", x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
+      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
     });
     s.neg.forEach((k, i) => {
       const x = BILLBOARD_W - 8 - tile - i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
-      label(g, ICONS[k as keyof typeof ICONS] ?? "❔", x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
+      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
     });
 
     // Shell.

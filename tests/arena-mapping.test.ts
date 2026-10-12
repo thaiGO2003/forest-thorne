@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { toVisual } from "../src/board/geometry";
 vi.mock("../src/world/scenery", () => ({
-  createScenery: () => ({ setEnvironment() {}, update() {} }),
+  createScenery: () => ({ setEnvironment() {}, setDayNight() {}, update() {} }),
 }));
 vi.mock("../src/world/sky", () => ({
-  createSky: () => ({ setEnvironment() {}, update() {} }),
+  createSky: () => ({ setEnvironment() {}, setDayNight() {}, update() {} }),
 }));
 import { cellToWorld, createArena, worldToLogical } from "../src/world/arena";
 
@@ -47,18 +47,23 @@ describe("arena world mapping (A91.2)", () => {
       }
       return -1;
     };
-    const index = tileIndex(2, 1);
-    expect(index).toBeGreaterThanOrEqual(0);
-    arena.tiles.getColorAt(index, color);
+    const directIndex = tileIndex(2, 1);
+    const areaIndex = tileIndex(3, 1);
+    expect(directIndex).toBeGreaterThanOrEqual(0);
+    expect(areaIndex).toBeGreaterThanOrEqual(0);
+    arena.tiles.getColorAt(directIndex, color);
     const checker = color.getHex();
 
     arena.setHighlights([
       { col: 2, row: 1, role: "direct" },
+      { col: 3, row: 1, role: "area" },
       { col: 99, row: 99, role: "invalid" },
       { col: -1, row: 2, role: "hover" },
     ]);
-    arena.tiles.getColorAt(index, color);
-    expect(color.getHex()).not.toBe(checker);
+    arena.tiles.getColorAt(directIndex, color);
+    expect(color.getHex()).toBe(0xff3b30);
+    arena.tiles.getColorAt(areaIndex, color);
+    expect(color.getHex()).toBe(0xffd43b);
     expect(arena.tiles.count).toBe(50);
     for (let i = 0; i < arena.tiles.count; i++) {
       arena.tiles.getMatrixAt(i, matrix);
@@ -67,7 +72,7 @@ describe("arena world mapping (A91.2)", () => {
     }
 
     arena.clearHighlights();
-    arena.tiles.getColorAt(index, color);
+    arena.tiles.getColorAt(directIndex, color);
     expect(color.getHex()).toBe(checker);
     arena.dispose();
   });
@@ -93,6 +98,14 @@ describe("arena world mapping (A91.2)", () => {
     const startTime = material.uniforms.time!.value as number;
     arena.update(0.5);
     expect(material.uniforms.time!.value).toBeCloseTo(startTime + 0.5);
+
+    arena.setDayNight("night");
+    const nightStrength = material.uniforms.strength!.value as number;
+    expect(nightStrength).toBeLessThan(highStrength);
+    arena.setEnvironment("NIGHT");
+    expect(material.uniforms.strength!.value as number).toBeCloseTo(nightStrength * 0.45);
+    arena.setDayNight("day");
+    expect(material.uniforms.strength!.value as number).toBeGreaterThan(nightStrength);
 
     arena.setShadowQuality("medium");
     shadowLights = arena.root.children

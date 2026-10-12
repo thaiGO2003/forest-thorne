@@ -1,5 +1,7 @@
 // Shared unit readout + combat-strength formulas (spec A59, A68). No UI formatting/layout ownership here.
-import { NORMAL_UNITS, type Role, type UnitDef } from "../content/catalog";
+import { NORMAL_UNITS, getUnit, type Role, type UnitDef } from "../content/catalog";
+import { combatStat, makeFighter, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
+import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
 
 export const ROLE_EVASION_BASE: Readonly<Record<Role, number>> = {
@@ -74,6 +76,142 @@ export function sharedUnitReadout(unit: UnitDef): SharedUnitReadout {
     critRate: unit.stats.crit ?? ROLE_CRIT_BASE[unit.role] ?? 0.05,
     critDamage: unit.stats.critDmg,
     accuracyReadout: (ROLE_ACCURACY_READOUT[unit.role] ?? 95) + 2 * Math.max(0, unit.tier - 1),
+  };
+}
+
+export interface UnitStatSnapshot {
+  hp: number;
+  maxHp: number;
+  atk: number;
+  def: number;
+  matk: number;
+  mdef: number;
+  range: number;
+  rage: number;
+  rageMax: number;
+  shield: number;
+  crit: number;
+  critDmg: number;
+  accuracy: number;
+  evade: number;
+  lifesteal: number;
+  rageGainPct: number;
+  healPct: number;
+  onHitBurn: number;
+  onHitPoison: number;
+  alive: boolean;
+}
+
+export interface UnitDiagnosticEffect {
+  kind: "status" | "modifier" | "reaction";
+  key: string;
+  turns: number;
+  value: number;
+  pct?: boolean;
+  detail?: string;
+}
+
+export interface UnitDiagnostics {
+  uid: string;
+  baseId: string;
+  star: number;
+  side: Side;
+  readonly: boolean;
+  environment?: EnvironmentId;
+  equips: string[];
+  base: UnitStatSnapshot;
+  derived: UnitStatSnapshot;
+  live: UnitStatSnapshot;
+  effects: UnitDiagnosticEffect[];
+}
+
+function catalogSnapshot(unit: UnitDef): UnitStatSnapshot {
+  return {
+    hp: unit.stats.hp,
+    maxHp: unit.stats.hp,
+    atk: unit.stats.atk,
+    def: unit.stats.def,
+    matk: unit.stats.matk,
+    mdef: unit.stats.mdef,
+    range: normalizeAttackRange(unit.stats.range),
+    rage: 0,
+    rageMax: Math.max(1, unit.stats.rageMax),
+    shield: 0,
+    crit: unit.stats.crit ?? 0,
+    critDmg: unit.stats.critDmg ?? 1.5,
+    accuracy: unit.stats.accuracy ?? 0.95,
+    evade: unit.stats.evade ?? 0,
+    lifesteal: 0,
+    rageGainPct: 0,
+    healPct: 0,
+    onHitBurn: 0,
+    onHitPoison: 0,
+    alive: true,
+  };
+}
+
+function fighterSnapshot(fighter: Fighter, live: boolean): UnitStatSnapshot {
+  return {
+    hp: live ? fighter.hp : fighter.maxHp,
+    maxHp: fighter.maxHp,
+    atk: live ? combatStat(fighter, "atk") : fighter.atk,
+    def: live ? combatStat(fighter, "def") : fighter.def,
+    matk: live ? combatStat(fighter, "matk") : fighter.matk,
+    mdef: live ? combatStat(fighter, "mdef") : fighter.mdef,
+    range: fighter.range,
+    rage: fighter.rage,
+    rageMax: fighter.rageMax,
+    shield: fighter.shield,
+    crit: fighter.crit,
+    critDmg: fighter.critDmg,
+    accuracy: fighter.accuracy,
+    evade: live ? combatStat(fighter, "evade") : fighter.evade,
+    lifesteal: fighter.lifesteal,
+    rageGainPct: fighter.rageGainPct,
+    healPct: fighter.healPct,
+    onHitBurn: fighter.onHitBurn,
+    onHitPoison: fighter.onHitPoison,
+    alive: fighter.alive,
+  };
+}
+
+function diagnosticEffects(fighter: Fighter): UnitDiagnosticEffect[] {
+  const effects: UnitDiagnosticEffect[] = [];
+  for (const [key, status] of Object.entries(fighter.status)) {
+    effects.push({ kind: "status", key, turns: status.turns, value: status.value, detail: status.source?.skillId });
+  }
+  for (const mod of fighter.mods) {
+    effects.push({ kind: "modifier", key: mod.stat, turns: mod.turns, value: mod.value, pct: mod.pct, detail: mod.stackKey });
+  }
+  if (fighter.reflect) effects.push({ kind: "reaction", key: "reflect", turns: fighter.reflect.turns, value: fighter.reflect.pct });
+  if (fighter.counterTurns > 0) effects.push({ kind: "reaction", key: "counter", turns: fighter.counterTurns, value: 0 });
+  if (fighter.phoenix.armed || fighter.phoenix.used) effects.push({ kind: "reaction", key: fighter.phoenix.used ? "phoenix-used" : "phoenix", turns: 0, value: fighter.phoenix.revivePct });
+  if (fighter.berserk) effects.push({ kind: "reaction", key: "berserk", turns: fighter.berserk.turns, value: fighter.berserk.lifestealPct });
+  return effects;
+}
+
+export function unitDiagnostics(
+  placement: Placement,
+  side: Side,
+  bonus: SideBonus = {},
+  environment?: EnvironmentId,
+  liveFighter?: Fighter,
+  readonly = side === "R",
+): UnitDiagnostics {
+  const derivedFighter = makeFighter(placement, side, bonus, environment);
+  const live = liveFighter?.uid === placement.uid ? liveFighter : derivedFighter;
+  return {
+    uid: placement.uid,
+    baseId: placement.baseId,
+    star: placement.star,
+    side,
+    readonly,
+    environment,
+    equips: [...(placement.equips ?? [])],
+    base: catalogSnapshot(getUnit(placement.baseId)),
+    derived: fighterSnapshot(derivedFighter, false),
+    live: fighterSnapshot(live, true),
+    effects: diagnosticEffects(live),
   };
 }
 

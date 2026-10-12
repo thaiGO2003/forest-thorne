@@ -48,10 +48,17 @@
 /* ---------- loading ---------- */
 .loading { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; padding: 24px 16px max(28px, env(safe-area-inset-bottom)); }
 .loading-play { position: absolute; inset: 0; touch-action: none; }
-.loading-title { position: relative; width: min(560px, 92vw); height: 120px; align-self: center; pointer-events: none; }
+.loading-title { position: relative; width: min(560px, 92vw); height: 120px; align-self: center; pointer-events: none; transform-origin: center; animation: loading-title-float 2.4s ease-in-out infinite; }
 .loading-bar { position: relative; width: min(520px, 88vw); height: 44px; pointer-events: none; }
 .loading-actions { position: relative; display: flex; gap: 12px; margin-top: 14px; min-height: 44px; }
 .loading-actions .kit-btn { width: 180px; height: 44px; }
+@keyframes loading-title-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.025); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-title { animation: none; }
+}
 
 /* ---------- main menu ---------- */
 .menu { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); pointer-events: none; }

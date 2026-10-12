@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createBridge } from "../src/app/bridge";
 import { inspectSave, saveRun, PROGRESS_KEY } from "../src/core/save";
 import { buy, benchToBoard } from "../src/core/run";
+import { unitDiagnostics } from "../src/core/inspection";
 import { syncTutorialRound } from "../src/core/tutorial";
 import type { KV } from "../src/core/settings";
 
@@ -101,6 +102,33 @@ describe("recovered application bridge", () => {
     expect(replay?.finish()).toBeNull();
     expect(JSON.stringify(resumed.run())).toBe(after);
     expect(resumed.run()?.round).toBe(2);
+  });
+
+  it("projects resolved live fighters through the diagnostic snapshot", () => {
+    const { bridge, run } = deployed();
+    const owned = run.board[12]!;
+    const session = bridge.startCombat();
+    expect(session).not.toBeNull();
+    const snapshot = bridge.combatSnapshot();
+    const live = snapshot?.fighters.find((fighter) => fighter.uid === owned.uid);
+    expect(live).toBeDefined();
+    if (!snapshot || !live) throw new Error("live combat diagnostic missing");
+    const diagnostic = unitDiagnostics(
+      { uid: owned.uid, baseId: owned.baseId, star: owned.star, row: 2, col: 2, equips: [...owned.equips], traits: [...(owned.traits ?? [])] },
+      "L",
+      {},
+      snapshot.environment,
+      live,
+      false,
+    );
+    expect(diagnostic.live).toMatchObject({
+      hp: live.hp,
+      maxHp: live.maxHp,
+      rage: live.rage,
+      shield: live.shield,
+      alive: live.alive,
+    });
+    expect(session?.fighters.find((fighter) => fighter.uid === owned.uid)?.hp).toBe(live.hp);
   });
 
   it("Finish Fast commits one canonical bridge result, persists it, and stale natural finish cannot reapply it", () => {

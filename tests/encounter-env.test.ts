@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeFighter, simulate } from "../src/core/combat";
 import { bossForRound, encounterBudget, generateEncounter, normalizeAiMode } from "../src/core/encounter";
 import { environmentFor, environmentMods } from "../src/core/environment";
+import { dayNightForRound } from "../src/core/dayNight";
 import { getUnit, NORMAL_UNITS } from "../src/content/catalog";
 
 const rng = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x80000000);
@@ -10,6 +11,10 @@ const fixedRng = (value: number) => () => value;
 describe("environment A32", () => {
   it("cycles FIRE..WOOD every 8 rounds; round <1 clamps to FIRE", () => {
     expect([1, 2, 8, 9, 16, 0].map(environmentFor)).toEqual(["FIRE", "TIDE", "WOOD", "FIRE", "WOOD", "FIRE"]);
+  });
+  it("keeps odd/even day-night presentation independent from the 8-round elemental cycle", () => {
+    expect([0, 1, 2, 3, 8, 9].map(dayNightForRound)).toEqual(["day", "day", "night", "day", "night", "day"]);
+    expect(environmentFor(8)).toBe("WOOD");
   });
   it("match buff vs non-match debuff, fresh object each call", () => {
     expect(environmentMods("STONE", "STONE").startShield).toBe(18);
