@@ -11,6 +11,7 @@ const TILE_H = 0.12;
 const FLOW_SPEED = 0.62;
 
 export type LightPhase = "menu" | "planning" | "combat";
+export type ShadowQuality = "low" | "medium" | "high";
 const LIGHT_PRESETS: Record<LightPhase, { hemi: number; sun: number; rim: number; fog: [number, number]; sky: number }> = {
   menu: { hemi: 0.9, sun: 1.6, rim: 0.3, fog: [40, 110], sky: 0x9fd3ff },
   planning: { hemi: 1.0, sun: 2.0, rim: 0.25, fog: [45, 120], sky: 0xa8dcff },
@@ -66,7 +67,7 @@ export interface Arena {
   setHighlights(cells: readonly TacticalHighlightCell[]): void;
   clearHighlights(): void;
   setOccupied(col: number, row: number, occupied: boolean): void;
-  setShadowQuality(q: "low" | "medium" | "high"): void;
+  setShadowQuality(q: ShadowQuality): void;
   update(dt: number): void;
   dispose(): void;
 }
@@ -169,6 +170,50 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   });
   const scenery = createScenery(root, p, own, (c) => cellToWorld(c, p), waterMat);
   const sky = createSky(root, own);
+  const rayUniforms = {
+    time: { value: 0 },
+    strength: { value: 0.18 },
+    tint: { value: new THREE.Color(0xffd39a) },
+  };
+  const rayGeo = own(new THREE.PlaneGeometry(Math.max(14, rows * 0.8), Math.max(14, rows + 4)));
+  const rayMat = own(new THREE.ShaderMaterial({
+    uniforms: rayUniforms,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float time;
+      uniform float strength;
+      uniform vec3 tint;
+      varying vec2 vUv;
+      void main() {
+        float edgeFade = smoothstep(0.0, 0.18, vUv.y) * (1.0 - smoothstep(0.78, 1.0, vUv.y));
+        float bands = 0.55 + 0.45 * sin(vUv.x * 34.0 + time * 0.7);
+        bands *= 0.72 + 0.28 * sin(vUv.x * 79.0 - time * 0.43);
+        float alpha = strength * edgeFade * smoothstep(0.18, 0.95, bands);
+        gl_FragColor = vec4(tint, alpha);
+      }
+    `,
+  }));
+  const sunRays = new THREE.Group();
+  sunRays.name = "sun-rays";
+  for (const yaw of [-0.38, 0.62]) {
+    const ray = new THREE.Mesh(rayGeo, rayMat);
+    ray.rotation.set(-0.72, yaw, -0.18);
+    ray.position.set(-2.5, 5.5, 0);
+    ray.raycast = () => {};
+    sunRays.add(ray);
+  }
+  root.add(sunRays);
 
   // One owned lighting rig, retuned per phase (A91.5).
   const hemi = new THREE.HemisphereLight(0xeaf6ff, 0x5b4a2e, 1);
@@ -177,6 +222,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   sun.castShadow = true;
   const half = Math.max(VISUAL_COLS, rows) / 2 + 3;
   Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 50 });
+  sun.shadow.camera.updateProjectionMatrix();
   const rim = new THREE.DirectionalLight(0xbfd8ff, 0.3);
   rim.position.set(10, 6, -12);
   root.add(hemi, sun, rim);
@@ -187,6 +233,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   let currentPhase: LightPhase = "planning";
   let currentEnvironment: EnvironmentId = "FIRE";
+  let rayQualityGain = 1;
   const applyLighting = () => {
     const phase = LIGHT_PRESETS[currentPhase];
     const environment = ENVIRONMENT_LIGHT[currentEnvironment];
@@ -196,6 +243,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     hemi.color.setHex(environment.hemi);
     sun.color.setHex(environment.sun);
     rim.color.setHex(environment.rim);
+    rayUniforms.tint.value.setHex(currentEnvironment === "NIGHT" ? 0x9fb6e8 : 0xffd39a);
+    rayUniforms.strength.value = 0.18 * rayQualityGain * environment.gain * (currentEnvironment === "NIGHT" ? 0.22 : 1);
     [fog.near, fog.far] = phase.fog;
     fog.color.setHex(environment.sky);
     background.setHex(environment.sky);
@@ -258,15 +307,19 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     },
     setShadowQuality(q) {
       sun.castShadow = q !== "low";
+      sunRays.visible = q !== "low";
+      rayQualityGain = q === "high" ? 1 : q === "medium" ? 0.6 : 0;
       const size = q === "high" ? 2048 : 1024;
       if (sun.shadow.mapSize.x !== size) {
         sun.shadow.map?.dispose();
         sun.shadow.map = null;
         sun.shadow.mapSize.set(size, size);
       }
+      applyLighting();
     },
     update(dt) {
       flowT += Math.max(0, dt) * FLOW_SPEED;
+      rayUniforms.time.value += Math.max(0, dt);
       scenery.update(Math.max(0, dt));
       sky.update(Math.max(0, dt));
       markers.forEach((m, i) => {

@@ -69,6 +69,7 @@ export async function boot(root: HTMLElement): Promise<App> {
     const settings = bridge.settings.get();
     ui.style.zoom = String(settings.guiScale);
     stage.setFpsLimit(settings.fpsLimit);
+    stage.setShadowQuality(settings.quality);
     tooltip.setMode(settings.tooltipMode);
     document.documentElement.lang = settings.language;
   };

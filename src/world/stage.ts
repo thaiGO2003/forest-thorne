@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Profile } from "../board/geometry";
-import { createArena, type Arena, type LightPhase } from "./arena";
+import { createArena, type Arena, type LightPhase, type ShadowQuality } from "./arena";
 import { FAR, FOV, framingDistance, MAX_POLAR, maxDistance, MIN_DISTANCE, NEAR, panStep, smoothstep } from "./camera";
 
 export interface Stage {
@@ -15,6 +15,7 @@ export interface Stage {
   setPan(x: number, y: number): void;
   /** Cap rendered frames without creating a second timer/render loop. */
   setFpsLimit(fps: number): void;
+  setShadowQuality(q: ShadowQuality): void;
   renderer: THREE.WebGLRenderer;
   /** Per-frame callback (dt seconds) for presentation layers such as unit rigs; returns unsubscribe. */
   onFrame(fn: (dt: number) => void): () => void;
@@ -46,6 +47,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   let current = profile;
   let arena = createArena(scene, current);
   arena.setPhase("planning");
+  let shadowQuality: ShadowQuality = "high";
 
   // Profile reframe: smoothstep from current distance to framing distance over 0.5 s.
   let reframe: { from: number; to: number; t: number } | null = null;
@@ -126,6 +128,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       current = p;
       arena = createArena(scene, p);
       arena.setPhase("planning");
+      arena.setShadowQuality(shadowQuality);
       frame(false);
     },
     setPhase: (phase) => arena.setPhase(phase),
@@ -134,6 +137,10 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       fpsLimit = Number.isFinite(fps) ? Math.max(1, fps) : 60;
       lastRenderMs = Number.NEGATIVE_INFINITY;
       clock.getDelta();
+    },
+    setShadowQuality(q) {
+      shadowQuality = q;
+      arena.setShadowQuality(q);
     },
     onFrame(fn) { frameFns.add(fn); return () => frameFns.delete(fn); },
     dispose() {

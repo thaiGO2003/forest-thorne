@@ -71,4 +71,61 @@ describe("arena world mapping (A91.2)", () => {
     expect(color.getHex()).toBe(checker);
     arena.dispose();
   });
+
+  it("scales warm sun rays and the single shadow pass with graphics quality", () => {
+    const scene = new THREE.Scene();
+    const arena = createArena(scene, "solo");
+    const rays = arena.root.getObjectByName("sun-rays") as THREE.Group;
+    const ray = rays.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+    const material = ray.material;
+    let shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+
+    expect(rays.children).toHaveLength(2);
+    expect(material.transparent).toBe(true);
+    expect(material.depthWrite).toBe(false);
+
+    arena.setShadowQuality("high");
+    expect(rays.visible).toBe(true);
+    expect(shadowLights).toHaveLength(1);
+    expect(shadowLights[0]!.shadow.mapSize.x).toBe(2048);
+    const highStrength = material.uniforms.strength!.value as number;
+    const startTime = material.uniforms.time!.value as number;
+    arena.update(0.5);
+    expect(material.uniforms.time!.value).toBeCloseTo(startTime + 0.5);
+
+    arena.setShadowQuality("medium");
+    shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+    expect(shadowLights[0]!.shadow.mapSize.x).toBe(1024);
+    expect(material.uniforms.strength!.value as number).toBeLessThan(highStrength);
+
+    arena.setShadowQuality("low");
+    expect(rays.visible).toBe(false);
+    shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+    expect(shadowLights).toHaveLength(0);
+    arena.dispose();
+  });
+
+  it("keeps the largest playable board inside the primary shadow camera", () => {
+    const scene = new THREE.Scene();
+    const arena = createArena(scene, "coop4");
+    arena.setShadowQuality("high");
+    const sun = arena.root.children.find(
+      (child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow,
+    );
+    expect(sun).toBeDefined();
+    sun!.updateMatrixWorld(true);
+    sun!.target.updateMatrixWorld(true);
+    sun!.shadow.updateMatrices(sun!);
+
+    for (let col = 0; col < 10; col++) for (let row = 0; row < 20; row++) {
+      const world = cellToWorld(toVisual(col, row), "coop4");
+      const projected = new THREE.Vector3(world.x, 0.12, world.z).project(sun!.shadow.camera);
+      expect(Math.abs(projected.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(projected.y)).toBeLessThanOrEqual(1);
+    }
+    arena.dispose();
+  });
 });
