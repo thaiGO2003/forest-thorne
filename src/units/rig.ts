@@ -105,6 +105,7 @@ export interface UnitVisual {
   /** Yaw in radians; L side faces +x (enemy), R side faces -x. */
   setFacing(side: "L" | "R" | number): void;
   setHpRatio(r: number): void;
+  revive(): void;
   die(onDone?: () => void): void;
   update(dt: number): void;
   dispose(): void;
@@ -181,6 +182,18 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     setHpRatio(r) {
       visible = visibleBodies(star, r);
       bodies.forEach((b, i) => { b.group.visible = i < visible; });
+    },
+    revive() {
+      if (alive) return;
+      alive = true; dying = -1; onDeath = undefined;
+      state = "idle"; t = 0; dur = durationOf("idle"); impactFired = false; opts = {};
+      root.visible = true; root.scale.setScalar(1); anchor.visible = true;
+      bubble.visible = false; bubbleLeft = 0;
+      bodies.forEach((b, i) => {
+        b.group.rotation.z = 0;
+        b.group.position.y = REST_Y[def.motion];
+        b.group.visible = i < visible;
+      });
     },
     die(cb) { if (!alive) return; alive = false; dying = 0; onDeath = cb; },
     update(rawDt) {

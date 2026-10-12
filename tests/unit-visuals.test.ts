@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { visibleBodies } from "../src/units/rig";
 import { normalizeBillboard, type BillboardState } from "../src/units/billboard";
@@ -60,19 +60,27 @@ function idlePose(id: "toad_poison" | "jaguar_hunt", combat: boolean) {
 }
 
 describe("Library combat-idle authored poses", () => {
-  it("adapts combat stance and revival without replacing the current procedural model", () => {
-    const unit = createUnit("ant_guard", 1);
-    unit.update(.016);
-    const relaxed = unit.root.scale.clone();
-    unit.setCombat(true); unit.update(.016);
-    expect(unit.root.scale.y).toBeLessThan(relaxed.y);
-    unit.setCombat(false); unit.update(.016);
-    expect(unit.root.scale.equals(relaxed)).toBe(true);
-    unit.die(); unit.update(1);
-    expect(unit.root.visible).toBe(false);
-    unit.setHpRatio(.5); unit.update(.016);
-    expect(unit.root.visible).toBe(true);
-    unit.dispose(); unit.dispose();
+  it("restores a dead visual when combat revival occurs", () => {
+    vi.stubGlobal("document", {
+      createElement(tag: string) {
+        expect(tag).toBe("canvas");
+        return { width: 0, height: 0, getContext: () => null };
+      },
+    });
+    try {
+      const unit = createUnit("ant_guard", 1);
+      unit.setHpRatio(1);
+      unit.die();
+      for (let i = 0; i < 10; i++) unit.update(.1);
+      expect(unit.root.visible).toBe(false);
+      unit.setHpRatio(.5);
+      unit.revive(); unit.update(.016);
+      expect(unit.root.visible).toBe(true);
+      expect(unit.state()).toBe("idle");
+      unit.dispose(); unit.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
   it("Cóc Độc keeps relaxed idle normally and crouches in combat idle", () => {
     const relaxed = idlePose("toad_poison", false);

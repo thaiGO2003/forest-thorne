@@ -14,8 +14,8 @@ export interface BootWatchdog {
 }
 
 export function createBootWatchdog(options: BootWatchdogOptions): BootWatchdog {
-  const setTimer = options.setTimer ?? setTimeout;
-  const clearTimer = options.clearTimer ?? clearTimeout;
+  const setTimer: NonNullable<BootWatchdogOptions["setTimer"]> = options.setTimer ?? setTimeout;
+  const clearTimer: NonNullable<BootWatchdogOptions["clearTimer"]> = options.clearTimer ?? clearTimeout;
   if (options.isTest) return { dispose: () => undefined };
 
   let disposed = false;

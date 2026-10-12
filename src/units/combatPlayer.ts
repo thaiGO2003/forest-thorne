@@ -145,7 +145,15 @@ export function playCombat(o: {
         if (unit) { unit.statuses = unit.statuses.filter((status) => status.key !== event.kind); if (event.turns > 0) unit.statuses.push({ key: event.kind, positive: POSITIVE.has(event.kind) }); push(event.dst); }
         break;
       }
-      case "revive": { const unit = units.get(event.dst); if (unit) { unit.hp = event.hp; push(event.dst); } break; }
+      case "revive": {
+        const unit = units.get(event.dst);
+        if (unit) {
+          unit.hp = event.hp;
+          push(event.dst);
+          board.visual(event.dst)?.revive();
+        }
+        break;
+      }
       case "death": { const unit = units.get(event.dst); if (unit) { unit.hp = 0; unit.statuses = []; push(event.dst); } board.visual(event.dst)?.die(); break; }
       case "skip": fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? "💤", "status"); break;
     }

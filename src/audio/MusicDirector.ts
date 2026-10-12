@@ -95,8 +95,8 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
   const createAudio = options.createAudioElement ?? defaultCreateAudioElement;
   const gestureTarget = options.gestureTarget === undefined ? defaultGestureTarget() : options.gestureTarget;
   const random = options.random ?? Math.random;
-  const setTimeoutFn = options.setTimeoutFn ?? setTimeout;
-  const clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
+  const setTimeoutFn: NonNullable<MusicDirectorOptions["setTimeoutFn"]> = options.setTimeoutFn ?? setTimeout;
+  const clearTimeoutFn: NonNullable<MusicDirectorOptions["clearTimeoutFn"]> = options.clearTimeoutFn ?? clearTimeout;
   const continuity = createMusicContinuityStore(options.continuityStorage, random);
   let settings = options.settings.get();
   let desired: DesiredRequest = null;
