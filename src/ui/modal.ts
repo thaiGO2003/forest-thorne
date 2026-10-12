@@ -1,8 +1,15 @@
 // Coordinated modal stack (§40, §52, A22, A60). Exactly one major modal owns input: opening a new
 // one closes the previous; the shade blocks click-through; Escape and the minus control close.
-import { closeButton, drawFit, h, kitButton, nineSlice, label, SLICE, surface } from "./kit";
+import { closeButton, drawFit, h, kitButton, nineSlice, label, SLICE, surface, type KitButton } from "./kit";
 
-export interface ModalHandle { id: string; body: HTMLDivElement; close(): void; setTitle(t: string): void }
+export interface ModalHandle {
+  id: string;
+  body: HTMLDivElement;
+  close(): void;
+  setTitle(t: string): void;
+  setCloseLabel(t: string): void;
+  setHeaderActionLabel(t: string): void;
+}
 
 export interface ModalOptions {
   id: string;
@@ -70,14 +77,16 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       frame.setAttribute("aria-label", title);
       const body = h("div", "modal-body");
       frame.append(head, body);
+      let closeControl: HTMLButtonElement | null = null;
       if (o.dismissible !== false) {
-        const x = closeButton(close, o.closeLabel ?? "Đóng");
-        x.classList.add("modal-close");
-        frame.append(x);
+        closeControl = closeButton(close, o.closeLabel ?? "Đóng");
+        closeControl.classList.add("modal-close");
+        frame.append(closeControl);
       }
+      let headerAction: KitButton | null = null;
       if (o.headerAction) {
-        const action = kitButton({ skin: "icon", icon: o.headerAction.icon, aria: o.headerAction.label, cls: "modal-header-action", onClick: o.headerAction.onClick });
-        frame.append(action.el);
+        headerAction = kitButton({ skin: "icon", icon: o.headerAction.icon, aria: o.headerAction.label, cls: "modal-header-action", onClick: o.headerAction.onClick });
+        frame.append(headerAction.el);
       }
       root.append(shade, frame);
       layer.append(root);
@@ -85,6 +94,8 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       const handle: ModalHandle = {
         id: o.id, body, close,
         setTitle(t) { title = t; frame.setAttribute("aria-label", t); ribbon.paint(); },
+        setCloseLabel(t) { closeControl?.setAttribute("aria-label", t); },
+        setHeaderActionLabel(t) { headerAction?.setAria(t); },
       };
       current = { handle, root, o, restore };
       frame.tabIndex = -1;

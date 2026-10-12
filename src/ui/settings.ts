@@ -45,10 +45,10 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
   let confirmUntil = 0, confirmTimer = 0;
   const root = h("div", "settings");
   const tabs = h("div", "tabs");
-  const tabBtns: [Tab, KitButton][] = TABS.map((x) => {
-    const b = kitButton({ skin: "wood", label: t(x.key), onClick: () => { tab = x.id; listening = null; note = ""; render(); } });
-    tabs.append(b.el);
-    return [x.id, b];
+  const tabBtns: { id: Tab; key: MsgKey; button: KitButton }[] = TABS.map((x) => {
+    const button = kitButton({ skin: "wood", label: t(x.key), onClick: () => { tab = x.id; listening = null; note = ""; render(); } });
+    tabs.append(button.el);
+    return { id: x.id, key: x.key, button };
   });
   const body = h("div", "stack settings-body");
   root.append(tabs, body);
@@ -77,7 +77,13 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
 
   function render() {
     const s: Settings = store.get();
-    for (const [id, b] of tabBtns) b.setSelected(id === tab);
+    modal.setTitle(t("menu.settings"));
+    modal.setCloseLabel(t("ui.close"));
+    modal.setHeaderActionLabel(t("settings.home"));
+    for (const { id, key, button } of tabBtns) {
+      button.setLabel(t(key));
+      button.setSelected(id === tab);
+    }
     body.replaceChildren();
     switch (tab) {
       case "audio": {
