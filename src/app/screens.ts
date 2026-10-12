@@ -23,11 +23,19 @@ import { STAR_STAT } from "../core/economy";
 import { starStatMilestones, teamStrength } from "../core/inspection";
 import { environmentFor } from "../core/environment";
 import { getGameSpeedDisplayMultiplier } from "../core/gameSpeed";
-import { createModManager, type ModManager } from "../mods/ModRegistry";
+import { createModManager, type ModManager, type ModValidationIssue } from "../mods/ModRegistry";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
 import { createCombatFx, type CombatFx } from "../units/fx";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
 import type { TacticalHighlightCell } from "../world/arena";
+import {
+  DONATE_ACCOUNT,
+  DONATE_ACCOUNT_NAME,
+  DONATE_AMOUNT_PRESETS,
+  DONATE_BANK_NAME,
+  buildDonateVietQrUrl,
+  randomDonateMemo,
+} from "../ui/donate";
 
 /** One shared portrait renderer: card snapshots + live Library viewer use the real unit rigs. */
 const portraits = createPortraits();
@@ -45,7 +53,8 @@ function openReturnToMenuConfirm(app: App) {
   body.append(h("p", "dialog-copy", t("settings.homeConfirm")));
   const actions = h("div", "row dialog-actions");
   const cancel = kitButton({ skin: "wood", label: t("common.cancel"), onClick: () => { m.close(); app.openPanel("settings"); } });
-  const confirm = kitButton({ skin: "red", label: t("common.confirm"), onClick: () => { m.close(); app.go("menu"); } });
+  const confirm = kitButton({ skin: "red", label: t("common.confirm"), cls: "fit-btn", onClick: () => { m.close(); app.go("menu"); } });
+  confirm.el.append(h("span", "kit-fit-measure", t("common.confirm")));
   actions.append(cancel.el, confirm.el);
   body.append(actions);
   m.body.append(body);
@@ -77,11 +86,67 @@ function openUndeveloped(app: App, id: "tribute" | "social") {
 
 function openDonate(app: App) {
   const m = app.modals.open({ id: "donate", title: t("menu.donate"), size: "md", closeLabel: t("ui.close") });
-  const root = h("div", "stack donate");
-  const accountMissing = h("p", "dialog-copy", t("donate.accountMissing"));
-  const qrMissing = h("div", "slot donate-qr-missing", t("donate.qrUnavailable"));
-  root.append(accountMissing, qrMissing);
+  m.body.classList.add("donate-modal-body");
+  const root = h("div", "donate");
+  const details = h("div", "stack donate-details");
+  const account = h("div", "slot donate-account");
+  const kv = (label: string, value: string) => {
+    const row = h("div", "info-kv");
+    row.append(h("strong", "", label), h("span", "", value));
+    return row;
+  };
+  account.append(
+    kv(t("donate.bank"), DONATE_BANK_NAME),
+    kv(t("donate.account"), DONATE_ACCOUNT),
+    kv(t("donate.accountName"), DONATE_ACCOUNT_NAME),
+  );
+
+  const formatter = new Intl.NumberFormat(getLocale() === "vi" ? "vi-VN" : "en-US");
+  let amount: number = DONATE_AMOUNT_PRESETS[0];
+  let memo = randomDonateMemo();
+  const selectedAmount = h("strong", "donate-selected");
+  const presets = h("div", "donate-presets");
+  const presetButtons = DONATE_AMOUNT_PRESETS.map((preset) => {
+    const button = kitButton({
+      skin: "green",
+      label: formatter.format(preset),
+      onClick: () => {
+        amount = preset;
+        update();
+      },
+    });
+    presets.append(button.el);
+    return { amount: preset, button };
+  });
+  const memoCopy = h("div", "slot donate-memo");
+  const randomize = kitButton({
+    skin: "wood",
+    label: t("donate.randomize"),
+    cls: "fit-btn",
+    onClick: () => {
+      memo = randomDonateMemo();
+      update();
+    },
+  });
+  randomize.el.append(h("span", "kit-fit-measure", t("donate.randomize")));
+  details.append(account, selectedAmount, presets, h("strong", "", t("donate.memo")), memoCopy, randomize.el);
+
+  const qrWrap = h("div", "donate-qr-wrap");
+  const qr = document.createElement("img");
+  qr.className = "donate-qr";
+  qr.alt = t("donate.qrAlt");
+  qr.decoding = "async";
+  qrWrap.append(qr);
+  root.append(details, qrWrap);
   m.body.append(root);
+
+  function update() {
+    selectedAmount.textContent = t("donate.selectedAmount", { amount: formatter.format(amount) });
+    memoCopy.textContent = memo;
+    qr.src = buildDonateVietQrUrl(amount, memo);
+    for (const preset of presetButtons) preset.button.setSelected(preset.amount === amount);
+  }
+  update();
 }
 
 function openMods(app: App) {
@@ -89,6 +154,12 @@ function openMods(app: App) {
   const root = h("div", "stack mods");
   m.body.append(root);
   root.append(h("div", "slot", t("loading.assets")));
+  const issueCopy = (issue: ModValidationIssue) => issue.kind === "unknown-enabled-mod"
+    ? t("mods.issueUnknown", { modId: issue.modId })
+    : issue.kind === "missing-dependency"
+      ? t("mods.issueMissingDependency", { modId: issue.modId, dependencyId: issue.dependencyId })
+      : t("mods.issueConflict", { modId: issue.modId, conflictId: issue.conflictId });
+  const listCopy = (values: string[]) => values.length ? values.join(", ") : t("mods.none");
   void modManager().then((manager) => {
     if (app.modals.active() !== "mods") return;
     const render = () => {
@@ -100,17 +171,45 @@ function openMods(app: App) {
         (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER));
       const warnings = manager.getRegistryWarnings();
       const issues = manager.validateEnabled();
+      const workshopStatus = index.workshop.status === "available" ? t("mods.workshopAvailable") : t("mods.workshopPlaceholder");
+      const summary = h("div", "mods-summary");
+      summary.append(
+        h("div", "slot", t("mods.summary", { enabled: profile.enabledIds.length, total: manifests.length })),
+        h("div", "slot", t("mods.workshop") + ": " + workshopStatus + (index.workshop.appId ? " · " + index.workshop.appId : "")),
+      );
+      root.append(summary);
       if (!manifests.length) root.append(h("div", "slot", t("mods.empty")));
       for (const manifest of manifests) {
         const card = h("div", "slot mod-row");
         const copy = h("div", "grow mod-copy");
-        copy.append(
-          h("strong", "", `${manifest.name} · v${manifest.version}`),
-          h("div", "", manifest.description),
-          h("small", "", `${manifest.packageType} · ${manifest.source} · ${manifest.author}`),
-        );
-        const actions = h("div", "row mod-actions");
         const enabled = manager.isEnabled(manifest.id);
+        const position = profile.loadOrder.indexOf(manifest.id);
+        copy.append(
+          h("strong", "", manifest.name + " · v" + manifest.version),
+          h("div", "mod-state", t(enabled ? "mods.enabled" : "mods.disabled") + " · " + t("mods.loadOrder") + ": " + (position >= 0 ? String(position + 1) : "—")),
+          h("div", "", manifest.description),
+        );
+        const meta = h("div", "mod-meta");
+        meta.append(
+          h("small", "", t("mods.packageType") + ": " + manifest.packageType),
+          h("small", "", t("mods.source") + ": " + manifest.source),
+          h("small", "", t("mods.author") + ": " + manifest.author),
+        );
+        const relations = h("div", "mod-relations");
+        relations.append(
+          h("small", "", t("mods.requires") + ": " + listCopy(manifest.requires)),
+          h("small", "", t("mods.conflicts") + ": " + listCopy(manifest.conflicts)),
+          h("small", "", t("mods.tags") + ": " + listCopy(manifest.tags)),
+        );
+        copy.append(meta, relations);
+        if (manifest.workshopId) copy.append(h("small", "", t("mods.workshop") + ": " + manifest.workshopId));
+        const packageIssues = issues.filter((issue) => issue.modId === manifest.id);
+        if (packageIssues.length) {
+          const packageValidation = h("div", "mod-package-issues");
+          for (const issue of packageIssues) packageValidation.append(h("small", "", issueCopy(issue)));
+          copy.append(packageValidation);
+        }
+        const actions = h("div", "row mod-actions");
         const toggle = kitButton({
           skin: enabled ? "red" : "green",
           label: t(enabled ? "mods.disable" : "mods.enable"),
@@ -122,24 +221,17 @@ function openMods(app: App) {
         });
         const up = kitButton({ skin: "wood", label: t("mods.up"), onClick: () => { manager.move(manifest.id, -1); render(); } });
         const down = kitButton({ skin: "wood", label: t("mods.down"), onClick: () => { manager.move(manifest.id, 1); render(); } });
-        up.setDisabled(!enabled || profile.loadOrder.indexOf(manifest.id) <= 0);
-        down.setDisabled(!enabled || profile.loadOrder.indexOf(manifest.id) < 0 || profile.loadOrder.indexOf(manifest.id) >= profile.loadOrder.length - 1);
+        up.setDisabled(!enabled || position <= 0);
+        down.setDisabled(!enabled || position < 0 || position >= profile.loadOrder.length - 1);
         actions.append(toggle.el, up.el, down.el);
         card.append(copy, actions);
         root.append(card);
       }
       const validation = h("div", "stack mod-validation");
       validation.append(h("strong", "", t("mods.validation")));
-      if (!issues.length) validation.append(h("div", "slot", t("mods.noIssues")));
-      for (const issue of issues) {
-        const text = issue.kind === "unknown-enabled-mod"
-          ? t("mods.issueUnknown", { modId: issue.modId })
-          : issue.kind === "missing-dependency"
-            ? t("mods.issueMissingDependency", { modId: issue.modId, dependencyId: issue.dependencyId })
-            : t("mods.issueConflict", { modId: issue.modId, conflictId: issue.conflictId });
-        validation.append(h("div", "slot", text));
-      }
-      for (const warning of warnings) validation.append(h("div", "slot", `${t("mods.warning")}: ${warning.message}`));
+      if (!issues.length && !warnings.length) validation.append(h("div", "slot", t("mods.noIssues")));
+      for (const issue of issues) validation.append(h("div", "slot", issueCopy(issue)));
+      for (const warning of warnings) validation.append(h("div", "slot", t("mods.warning") + ": " + warning.message));
       root.append(validation);
     };
     render();
@@ -402,17 +494,19 @@ function mountAugments(app: App, m: ModalHandle) {
     const run = app.bridge.run();
     m.body.replaceChildren();
     if (!run || run.phase !== "AUGMENT") return;
-    const root = h("div", "choice-list");
+    const root = h("div", "augment-list");
     for (const id of run.activeAugmentChoices) {
       const def = AUGMENT_BY_ID.get(id);
-      const row = h("div", "slot");
-      const copy = h("div");
-      copy.textContent = def ? `${id} · ${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}` : id;
+      const row = h("div", "slot augment-row");
+      const copy = h("div", "augment-copy");
+      copy.textContent = def ? id + " · " + def.effect + " " + (def.value >= 0 ? "+" : "") + def.value : id;
       const choose = kitButton({
         skin: "green",
         label: t("planning.choose"),
+        cls: "augment-choose fit-btn",
         onClick: () => { if (app.bridge.chooseAugment(id)) m.close(); },
       });
+      choose.el.append(h("span", "kit-fit-measure", t("planning.choose")));
       row.append(copy, choose.el);
       root.append(row);
     }

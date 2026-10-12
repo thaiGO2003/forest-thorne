@@ -31,6 +31,50 @@ describe("recovered application bridge", () => {
     expect(store.getItem(PROGRESS_KEY)).toBe(before);
     expect(replacement.aiMode).toBe("EASY");
   });
+  it("imports a valid exported run through Bridge and makes it resumable", () => {
+    const source = createBridge(storage());
+    const sourceRun = source.newRun("EndlessPvEClassic", "EASY");
+    sourceRun.gold = 37;
+    source.checkpoint("EVENT", "Chuẩn bị xuất phiên chơi");
+    const exported = source.exportRun();
+    expect(exported).not.toBeNull();
+
+    const store = storage();
+    const bridge = createBridge(store);
+    expect(bridge.importRun(exported!.text)).toBe(true);
+    expect(bridge.run()?.gold).toBe(37);
+    expect(bridge.run()?.aiMode).toBe("EASY");
+
+    const resumed = createBridge(store);
+    expect(resumed.continueRun()).toBe(true);
+    expect(resumed.run()?.gold).toBe(37);
+  });
+
+  it("rejects malformed imported JSON without replacing existing progress", () => {
+    const { store, bridge, run } = deployed();
+    const before = store.getItem(PROGRESS_KEY);
+    expect(bridge.importRun("{not-json")).toBe(false);
+    expect(store.getItem(PROGRESS_KEY)).toBe(before);
+    expect(bridge.run()).toBe(run);
+  });
+
+  it("normalizes imported interrupted combat to Planning like Continue", () => {
+    const source = createBridge(storage());
+    const sourceRun = source.newRun("EndlessPvEClassic", "MEDIUM");
+    sourceRun.phase = "COMBAT";
+    source.checkpoint("EVENT", "Mô phỏng phiên bị gián đoạn");
+    const exported = source.exportRun();
+    expect(exported).not.toBeNull();
+
+    const store = storage();
+    const bridge = createBridge(store);
+    expect(bridge.importRun(exported!.text)).toBe(true);
+    expect(bridge.run()?.phase).toBe("PLANNING");
+    const saved = inspectSave(store);
+    expect(saved.status).toBe("valid");
+    if (saved.status !== "valid") throw new Error("imported save missing");
+    expect(saved.envelope.payload.player?.phase).toBe("PLANNING");
+  });
   it("persists newer HUD mutations and structured history through one checkpoint", () => {
     const { store, bridge, run } = deployed();
     const inspection = inspectSave(store);

@@ -17,12 +17,12 @@ const TABS: { id: Tab; key: MsgKey }[] = [
 ];
 const CONFIRM_MS = 3000;
 
-/** A110.4 stepper: distinct − / + targets around a read-only value; bounds disable the ends. */
+/** A110.4 stepper: distinct < / > targets around a read-only value; bounds disable the ends. */
 function stepper<T>(values: readonly T[], current: T, show: (v: T) => string, set: (v: T) => void) {
   const row = h("div", "stepper");
   const i = Math.max(0, values.indexOf(current));
-  const dec = kitButton({ skin: "wood", label: "−", cls: "step-btn", onClick: () => set(values[i - 1]!) });
-  const inc = kitButton({ skin: "wood", label: "+", cls: "step-btn", onClick: () => set(values[i + 1]!) });
+  const dec = kitButton({ skin: "wood", label: "<", cls: "step-btn", onClick: () => set(values[i - 1]!) });
+  const inc = kitButton({ skin: "wood", label: ">", cls: "step-btn", onClick: () => set(values[i + 1]!) });
   const val = panelEl("slot_well", "step-val");
   val.append(h("span", "step-text", show(current)));
   val.setAttribute("aria-live", "polite");

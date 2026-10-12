@@ -100,6 +100,11 @@ export async function boot(root: HTMLElement): Promise<App> {
     const menu = createMenu(layers.screen, modals, tooltip, {
       continueRun: () => { if (bridge.continueRun()) app.go("planning"); },
       newRun: (mode, ai) => { bridge.newRun(mode, ai); app.go("planning"); },
+      importRun: (text) => {
+        if (!bridge.importRun(text)) return false;
+        app.go("planning");
+        return true;
+      },
       clearBrokenRun: () => { bridge.clearBrokenRun(); menu.update({ save: bridge.saveSummary(), version: __APP_VERSION__ }); },
       openUtility: (id) => (utilities[id] ? utilities[id](app) : app.openPanel(id)),
     }, { save: bridge.saveSummary(), version: __APP_VERSION__ });

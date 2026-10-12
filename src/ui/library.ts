@@ -158,6 +158,7 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
     const stateBtns: KitButton[] = [];
     for (const s of ACTION_STATES) {
       const b = kitButton({ skin: s === "idle" ? "green" : "wood", label: t(STATE_KEY[s]), onClick: () => {
+        viewer?.setCombat(false);
         viewer?.play(s);
         for (const x of stateBtns) x.setSelected(x === b);
         scheduleIdle();
@@ -165,12 +166,14 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
       actions.append(b.el);
       stateBtns.push(b);
       if (s === "idle") {
-        const replay = kitButton({ skin: "icon", label: "↻", aria: t("library.idleReplay"), onClick: () => {
+        const stance = kitButton({ skin: "wood", label: t("unit.combatIdle"), onClick: () => {
+          viewer?.setCombat(true);
           viewer?.play("idle");
+          for (const x of stateBtns) x.setSelected(false);
           scheduleIdle();
         } });
-        tip.bind(replay.el, () => ({ title: t("library.idleReplay") }));
-        actions.append(replay.el);
+        tip.bind(stance.el, () => ({ title: t("unit.combatIdle") }));
+        actions.append(stance.el);
       }
     }
     const stars = h("div", "lib-stars");

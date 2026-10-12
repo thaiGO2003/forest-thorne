@@ -17,12 +17,13 @@ export interface MenuModel { save: SaveSummary; version: string }
 export interface MenuIntents {
   continueRun(): void;
   newRun(mode: GameMode, ai: string): void;
+  importRun(text: string): boolean;
   clearBrokenRun(): void;
   /** Utility surfaces open their own modal through the shared host. */
   openUtility(id: UtilityId): void;
 }
 
-export type UtilityId = "settings" | "library" | "language" | "achievements" | "mods" | "information" | "tribute" | "social" | "donate" | "version" | "debug";
+export type UtilityId = "settings" | "library" | "language" | "achievements" | "mods" | "information" | "tribute" | "social" | "donate" | "debug";
 
 const UTILITIES: { id: UtilityId; icon: string; key: MsgKey }[] = [
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
@@ -34,7 +35,6 @@ const UTILITIES: { id: UtilityId; icon: string; key: MsgKey }[] = [
   { id: "tribute", icon: ICONS.tribute, key: "menu.tribute" },
   { id: "social", icon: ICONS.social, key: "menu.social" },
   { id: "donate", icon: ICONS.donate, key: "menu.donate" },
-  { id: "version", icon: ICONS.version, key: "menu.version" },
 ];
 
 export interface MenuView { el: HTMLElement; update(m: MenuModel): void; refreshCopy(): void; dispose(): void }
@@ -99,6 +99,23 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
     const note = h("div", "slot", t("menu.onlyClassic"));
     const modeBtns: [GameMode, KitButton][] = [];
     const play = kitButton({ skin: "green", icon: ICONS.start, label: t("menu.play"), cls: "menu-play", onClick: () => { modal.close(); intents.newRun(mode, ai); } });
+    const importInput = document.createElement("input");
+    importInput.type = "file";
+    importInput.accept = ".json,application/json";
+    importInput.hidden = true;
+    const importStatus = h("div", "dialog-copy");
+    importStatus.hidden = true;
+    const importSaved = kitButton({ skin: "wood", label: t("menu.importRun"), onClick: () => importInput.click() });
+    importInput.addEventListener("change", () => {
+      const file = importInput.files?.[0];
+      if (!file) return;
+      void file.text().then((text) => {
+        importInput.value = "";
+        if (intents.importRun(text)) return;
+        importStatus.textContent = t("menu.importInvalid");
+        importStatus.hidden = false;
+      });
+    });
     const renderAi = () => {
       aiList.replaceChildren();
       for (const a of MODE_CONFIG[mode].ai.allowed) {
@@ -117,7 +134,7 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
     }
     function sync() { for (const [id, b] of modeBtns) b.setSelected(id === mode); renderAi(); }
     const stack = h("div", "stack");
-    stack.append(modeList, note, h("div", "slot", t("menu.difficulty")), aiList, play.el);
+    stack.append(modeList, note, h("div", "slot", t("menu.difficulty")), aiList, importSaved.el, importStatus, importInput, play.el);
     modal.body.append(stack);
     sync();
   }

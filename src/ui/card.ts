@@ -69,8 +69,9 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
       label(g, `${ICONS.gold}${data.cost}`, pad, by, { size: fs, align: "left", fill: data.affordable === false ? "#b23a2e" : TEXT, stroke: null, weight: 900 });
     }
     if (data.detail === "library") {
-      const stat = `${ICONS.hp}${unit.stats.hp} ${ICONS.atk}${Math.max(unit.stats.atk, unit.stats.matk)}`;
-      label(g, stat, pad, by, { size: fs * 0.9, align: "left", fill: TEXT, stroke: null, maxW: pw });
+      const magicBasic = unit.role === "MAGE" || unit.role === "SUPPORT" || unit.basic.damageType === "magic";
+      label(g, `${ICONS.hp}${unit.stats.hp}`, pad, by, { size: fs * 0.9, align: "left", fill: TEXT, stroke: null, maxW: pw * 0.48 });
+      label(g, `${magicBasic ? ICONS.matk : ICONS.atk}${magicBasic ? unit.stats.matk : unit.stats.atk}`, w - pad, by, { size: fs * 0.9, align: "right", fill: TEXT, stroke: null, maxW: pw * 0.48 });
     } else {
       label(g, `${ICONS.range}${unit.stats.range}`, w - pad, by, { size: fs * 0.9, align: "right", fill: TEXT, stroke: null, maxW: data.cost !== undefined ? pw * 0.6 : pw });
     }

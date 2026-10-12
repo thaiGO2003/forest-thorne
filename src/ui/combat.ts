@@ -62,8 +62,12 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
   // Right rail: turn-order queue + short log with History access.
   const side = panelEl("panel_wood", "cb-side");
   const sideHead = h("div", "cb-side-head");
-  const speed = kitButton({ skin: "plum", icon: "⏩", cls: "cb-speed", onClick: () => it.speed() });
-  const finishFast = kitButton({ skin: "red", label: t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }), cls: "cb-fast", onClick: () => it.finishFast() });
+  const speed = kitButton({ skin: "plum", icon: "⏩", cls: "cb-speed fit-btn", onClick: () => it.speed() });
+  const finishFast = kitButton({ skin: "red", label: t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }), cls: "cb-fast fit-btn", onClick: () => it.finishFast() });
+  const speedMeasure = h("span", "kit-fit-measure", "×1");
+  const fastMeasure = h("span", "kit-fit-measure", t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }));
+  speed.el.append(speedMeasure);
+  finishFast.el.append(fastMeasure);
   const hist = kitButton({ skin: "icon", icon: ICONS.history, cls: "cb-hist", onClick: () => it.history() });
   const information = kitButton({ skin: "icon", icon: ICONS.info, cls: "cb-info-btn", onClick: () => it.information() });
   const settings = kitButton({ skin: "icon", icon: ICONS.settings, cls: "cb-settings", onClick: () => it.settings() });
@@ -93,10 +97,14 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
   return {
     update(nm) {
       m = nm;
-      speed.setLabel(`×${nm.speed}`);
+      const speedLabel = `×${nm.speed}`;
+      speed.setLabel(speedLabel);
+      speedMeasure.textContent = speedLabel;
       speed.setAria(t("combat.speed", { speed: nm.speed }));
-      finishFast.setLabel(t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }));
-      finishFast.setAria(t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }));
+      const finishLabel = t("combat.finishFast", { cost: FINISH_FAST_BASE_COST });
+      finishFast.setLabel(finishLabel);
+      fastMeasure.textContent = finishLabel;
+      finishFast.setAria(finishLabel);
       hist.setAria(t("planning.history"));
       information.setAria(t("menu.information"));
       settings.setAria(t("menu.settings"));

@@ -9,7 +9,7 @@ import {
   unequipItem, type RoundResultInput, type RoundResultSummary, type RunState,
 } from "../core/run";
 import { applyFinishFast } from "../core/combatFast";
-import { EXPORT_FILENAME, exportSaveJson, inspectSave, clearRunProgress, saveRun } from "../core/save";
+import { EXPORT_FILENAME, exportSaveJson, importSaveJson, inspectSave, clearRunProgress, saveRun, type RunPayload } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor } from "../core/environment";
@@ -50,6 +50,7 @@ export interface Bridge {
   saveSummary(): SaveSummary;
   continueRun(): boolean;
   newRun(mode: GameMode, ai: string): RunState;
+  importRun(text: string): boolean;
   clearBrokenRun(): void;
   /** Current authored tutorial instruction; null when tutorial is inactive or this round is complete. */
   tutorialStep(context?: TutorialInspectionContext): TutorialStep | null;
@@ -169,6 +170,18 @@ export function createBridge(store: KV = localStorage): Bridge {
     };
   };
 
+  const resumeRun = (payload: RunPayload) => {
+    const saved = payload.player;
+    if (!saved || !MODE_CONFIG[saved.mode].available || saved.phase === "GAME_OVER") return false;
+    state = saved;
+    if (state.phase === "COMBAT") state.phase = "PLANNING"; // Replay the persisted deterministic encounter after interruption.
+    resetExternalPlanningState();
+    saveRun(store, payload);
+    resetHistory();
+    emit();
+    return true;
+  };
+
   return {
     run: () => state,
     saveSummary() {
@@ -181,16 +194,14 @@ export function createBridge(store: KV = localStorage): Bridge {
     },
     continueRun() {
       const s = inspectSave(store);
-      if (s.status !== "valid" || !s.envelope.payload.player) return false;
-      const saved = s.envelope.payload.player;
-      if (!MODE_CONFIG[saved.mode].available || saved.phase === "GAME_OVER") return false;
-      state = saved;
-      if (state.phase === "COMBAT") state.phase = "PLANNING"; // Replay the persisted deterministic encounter after interruption.
-      resetExternalPlanningState();
-      persist();
-      resetHistory();
-      emit();
-      return true;
+      return s.status === "valid" ? resumeRun(s.envelope.payload) : false;
+    },
+    importRun(text) {
+      const imported = importSaveJson(store, text, false);
+      const candidate = imported?.player;
+      if (!candidate || !MODE_CONFIG[candidate.mode].available || candidate.phase === "GAME_OVER") return false;
+      const persisted = importSaveJson(store, text, true);
+      return persisted ? resumeRun(persisted) : false;
     },
     newRun(mode, ai) {
       const selectedMode = normalizeAvailableMode(mode);
