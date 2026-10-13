@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { simulate, type Placement } from "../src/core/combat";
+import { restoreHeartBlessing } from "../src/core/blessings";
 import { migrate } from "../src/core/save";
 import {
   consumeWeatherBlessings,
   createRun,
   enqueueWeatherBlessing,
   reorderWeatherBlessing,
-  restoreHeartBlessing,
 } from "../src/core/run";
 
 describe("ordered blessings", () => {

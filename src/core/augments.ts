@@ -1,4 +1,5 @@
 // Augments (spec A10). Generated families × 5 authored values; apply once per id; score is presentation-only.
+import { restoreHeartBlessing } from "./blessings";
 import { addXp } from "./economy";
 import type { RunState } from "./run";
 import { modeConfig } from "./modes";
@@ -27,6 +28,7 @@ const FAMILIES: [string, string, AugGroup, number[]][] = [
   ["xp_discount", "xp_cost_delta", "ECONOMY", [-1, -1, -1, -1, -2]],
   ["victory_gold", "win_gold_bonus", "ECONOMY", [1, 1, 2, 2, 3]],
   ["interest_flow", "interest_rate_bonus", "ECONOMY", [0.01, 0.01, 0.02, 0.02, 0.03]],
+  ["heart_recovery", "heart_recovery", "ECONOMY", [1, 1, 1, 1, 1]],
   ...(["atk", "def", "hp", "matk", "mdef"] as const).map(
     (k): [string, string, AugGroup, number[]] => [`team_${k}`, `team_${k}_pct`, "COMBAT", [0.05, 0.07, 0.09, 0.11, 0.13]]),
   ["opening_rage", "starting_rage", "COMBAT", [1, 1, 1, 2, 2]],
@@ -100,6 +102,7 @@ export function applyAugment(s: RunState, id: string): boolean {
   s.augmentMods[a.effect] = (s.augmentMods[a.effect] ?? 0) + a.value;
   if (a.effect === "gold_flat" && !modeConfig(s.mode).creative) s.gold += a.value;
   if (a.effect === "xp_flat") Object.assign(s, addXp(s.level, s.xp, a.value));
+  if (a.effect === "heart_recovery") restoreHeartBlessing(s, a.value);
   const f = RUN_FIELD[a.effect];
   if (f) s[f] += a.value;
   applyPercentField(s, a.effect, a.value);

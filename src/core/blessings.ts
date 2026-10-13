@@ -1,4 +1,6 @@
 import type { EnvironmentId } from "./environment";
+import { modeConfig } from "./modes";
+import type { RunState } from "./run";
 
 export const HEART_RECOVERY_BLESSING_ID = "heart_recovery" as const;
 
@@ -53,4 +55,13 @@ export function normalizeWeatherBlessingQueue(value: unknown): WeatherBlessingId
 
 export function weatherBlessingEnvironment(id: WeatherBlessingId): EnvironmentId {
   return WEATHER_BLESSING_ENVIRONMENT[id];
+}
+
+export function restoreHeartBlessing(s: RunState, amount = 1): number {
+  if (s.phase === "GAME_OVER") return 0;
+  const restored = Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0;
+  if (!restored) return 0;
+  const before = s.hp;
+  s.hp = Math.min(modeConfig(s.mode).startHp, Math.max(0, s.hp + restored));
+  return s.hp - before;
 }

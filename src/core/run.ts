@@ -250,15 +250,6 @@ export function consumeWeatherBlessings(s: RunState, consumed: readonly WeatherB
   return true;
 }
 
-export function restoreHeartBlessing(s: RunState, amount = 1): number {
-  if (s.phase === "GAME_OVER") return 0;
-  const restored = Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0;
-  if (!restored) return 0;
-  const before = s.hp;
-  s.hp = Math.min(modeConfig(s.mode).startHp, Math.max(0, s.hp + restored));
-  return s.hp - before;
-}
-
 export function buyXp(s: RunState): boolean {
   const cost = xpBuyCost(s.xpCostDelta);
   if (!planning(s) || !tutorialActionAllowed(s, "buy_xp") || !canAfford(s, cost)) return false;

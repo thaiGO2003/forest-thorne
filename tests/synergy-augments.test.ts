@@ -52,6 +52,18 @@ describe("augments A10", () => {
     expect([s.rollCostDelta, s.augmentMods.roll_cost_delta]).toEqual([-3, -3]);
     expect(applyAugment(s, "nope")).toBe(false);
   });
+  it("offers multiple one-heart recovery blessings without touching combat escrow", () => {
+    const s = createRun(31);
+    const max = s.hp;
+    s.hp = Math.max(0, max - 2);
+    s.heartEscrow = 1;
+
+    expect(applyAugment(s, "heart_recovery_1")).toBe(true);
+    expect([s.hp, s.heartEscrow]).toEqual([max - 1, 1]);
+    expect(applyAugment(s, "heart_recovery_2")).toBe(true);
+    expect([s.hp, s.heartEscrow]).toEqual([max, 1]);
+    expect(applyAugment(s, "heart_recovery_1")).toBe(false);
+  });
   it("materializes persistent augment values into canonical run/combat fields", () => {
     const s = createRun(4);
     applyAugment(s, "team_atk_1");
