@@ -154,7 +154,8 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         exported.setDisabled(!o.hasRun);
         body.append(exported.el);
         const armed = performance.now() < confirmUntil;
-        const b = kitButton({ skin: "red", label: armed ? t("settings.confirm") : t("settings.clearRun"), cls: "wide-btn", onClick: () => {
+        const clearLabel = armed ? t("settings.confirm") : t("settings.clearRun");
+        const b = kitButton({ skin: "red", label: clearLabel, cls: "wide-btn destructive-fit", onClick: () => {
           if (performance.now() < confirmUntil) {
             clearTimeout(confirmTimer); confirmUntil = 0; o.clearRun(); return;
           }
@@ -162,6 +163,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
           confirmTimer = window.setTimeout(() => { confirmUntil = 0; render(); }, CONFIRM_MS);
           render();
         } });
+        b.el.append(h("span", "kit-fit-measure", clearLabel));
         b.setDisabled(!o.hasRun && !armed);
         b.setSelected(armed);
         body.append(b.el);

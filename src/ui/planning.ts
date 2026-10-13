@@ -61,6 +61,7 @@ const synName = (l: SynergyLine) => t(`${SYN_PREFIX[l.kind]}.${l.key}` as MsgKey
 export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: PortraitProvider, it: PlanningIntents): PlanningView {
   let m: PlanningModel | null = null, page = 0;
   const compactShop = matchMedia("(max-width: 760px)");
+  const portraitPlanning = matchMedia("(max-width: 760px) and (orientation: portrait)");
   const shopPageSize = () => compactShop.matches ? SHOP_PAGE_COMPACT : SHOP_PAGE_WIDE;
   const root = h("div", "planning");
   root.dataset.screen = "planning";
@@ -77,11 +78,14 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       `${ICONS.level} ${t("planning.level", { level: r.level })}`,
       `${ICONS.start} ${t("planning.deploy", { current: m.deployed, max: m.deployLimit })}`,
     ];
+    const portrait = portraitPlanning.matches;
     const cw = (w - 16) / cells.length;
-    cells.forEach((c, i) => label(g, c, 8 + cw * (i + 0.5), hh * 0.42, { size: Math.min(15, cw / 7), maxW: cw - 6 }));
+    const cy = portrait ? 18 : hh * 0.42;
+    const statSize = portrait ? Math.min(11, cw / 7) : Math.min(15, cw / 7);
+    cells.forEach((c, i) => label(g, c, 8 + cw * (i + 0.5), cy, { size: statSize, maxW: cw - 6 }));
     // XP progress bar under the stats (dynamic fill inside authored frame).
     const need = xpToNext(r.level), pct = need > 0 ? Math.min(1, r.xp / need) : 1;
-    const bx = 14, bw = w - 28, by = hh - 16, bh = 10;
+    const bx = 14, bw = w - 28, by = portrait ? 38 : hh - 16, bh = portrait ? 8 : 10;
     nineSlice(g, "bar_trough", 1, bx + 2, by + 2, bw - 4, bh - 4);
     g.fillStyle = "#7fc8ff";
     g.fillRect(bx + 2, by + 2, Math.round((bw - 4) * pct), bh - 4);
@@ -90,12 +94,24 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
 
   // ---- top battle controls: START · xp · Low Cortisol; shop controls live in the dock header ----
   const battle = panelEl("panel_wood", "pl-battle");
+  const portraitControls = h("div", "pl-portrait-controls");
+  stats.append(portraitControls);
   const reroll = kitButton({ skin: "blue", icon: ICONS.reroll, cls: "pl-reroll", onClick: () => it.reroll() });
-  const start = kitButton({ skin: "green", icon: ICONS.start, cls: "pl-start", onClick: () => it.start() });
+  const start = kitButton({ skin: "green", icon: ICONS.start, cls: "pl-start fit-btn", onClick: () => it.start() });
+  const startMeasure = h("span", "kit-fit-measure");
+  start.el.append(startMeasure);
   const xp = kitButton({ skin: "plum", icon: ICONS.xp, onClick: () => it.buyXp() });
   const lock = kitButton({ skin: "icon", icon: ICONS.unlock, aria: t("planning.lock"), cls: "pl-lock", onClick: () => it.toggleLock() });
   const cortisol = kitButton({ skin: "plum", icon: ICONS.cortisol, cls: "pl-cortisol", onClick: () => it.cortisol() });
-  battle.append(start.el, xp.el, cortisol.el);
+  const syncPlanningComposition = () => {
+    const portrait = portraitPlanning.matches;
+    battle.hidden = portrait;
+    const host = portrait ? portraitControls : battle;
+    if (start.el.parentElement !== host) host.append(start.el, xp.el, cortisol.el);
+    statsS.paint();
+  };
+  portraitPlanning.addEventListener("change", syncPlanningComposition);
+  syncPlanningComposition();
   tip.bind(lock.el, () => ({ title: t("planning.lock") }));
   tip.bind(cortisol.el, () => ({ title: t("planning.cortisol") }));
 
@@ -260,7 +276,9 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const r = nm.run;
     reroll.setLabel(`${refreshCost(r.level, r.rollCostDelta)}`);
     xp.setLabel(`${xpBuyCost(r.xpCostDelta)}`);
-    start.setLabel(`${t("planning.start")} · -1 ${ICONS.heart}`);
+    const startText = `${t("planning.start")} · -1 ${ICONS.heart}`;
+    start.setLabel(startText);
+    startMeasure.textContent = startText;
     reroll.setAria(t("planning.reroll", { cost: refreshCost(r.level, r.rollCostDelta) }));
     xp.setAria(t("planning.buyXp", { cost: xpBuyCost(r.xpCostDelta) }));
     lock.setIcon(r.shopLocked ? ICONS.lock : ICONS.unlock);
@@ -275,6 +293,6 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
 
   return {
     el: root, update, refreshCopy,
-    dispose() { compactShop.removeEventListener("change", onShopLayoutChange); it.pan(0, 0); for (const s of slots) s.card.dispose(); root.remove(); },
+    dispose() { compactShop.removeEventListener("change", onShopLayoutChange); portraitPlanning.removeEventListener("change", syncPlanningComposition); it.pan(0, 0); for (const s of slots) s.card.dispose(); root.remove(); },
   };
 }
