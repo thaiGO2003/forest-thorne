@@ -81,17 +81,27 @@ After Wave 1 foundation lands:
 2. Validate selected-control green corner treatment and lighting against asset-first rules.
 3. Headed screenshots/browser verification for modal sizing, typography, QR, card HP, filters, board highlights, night/day, lamps.
 
-Wave 4 verification evidence (2026-10-12):
+Wave 4 verification evidence (2026-10-13):
 - `Settings.quality` drives the existing Three.js shadow pass and warm sun-ray shader through `Stage.setShadowQuality(...)`; low disables both, medium uses a 1024 shadow map with reduced ray gain, high uses 2048 with full ray gain.
-- `Arena.update(dt)` advances the shader time in the existing render loop; the primary shadow camera projection is refreshed after bounds changes so the `coop4` board remains inside the frustum.
-- Targeted command `NODE_OPTIONS='--localstorage-file=.vitest-ls.json' pnpm exec vitest --run tests/arena-mapping.test.ts` passed 1 file / 6 tests after the projection-matrix fix.
-- Headed/browser screenshot verification is blocked in the current OMP runtime: the shared browser daemon cannot launch (`omp.browser.headed` failed, headless exited), so no browser PASS is claimed.
+- `Arena.update(dt)` advances shader time in the existing render loop; the primary shadow-camera projection is refreshed after bounds changes so the `coop4` board remains inside the frustum.
+- Prior targeted command `NODE_OPTIONS='--localstorage-file=.vitest-ls.json' pnpm exec vitest --run tests/arena-mapping.test.ts` passed **1 file / 6 tests** after the projection-matrix fix.
+- Agentic Browser E2E Testing is now operational through the 1DevTool BrowserPanel at 930×840: graphics quality was changed Cao → Vừa → Cao, the Information modal exposed canonical team/environment values, and the final runtime console contains only the two known baseline Three.js warnings plus Vite connection messages.
+- Settings long-value layout is source-confirmed by `.stepper { grid-template-columns: 56px minmax(0, 1fr) 56px; width: 100% }` (48px/1fr/48px under 760px), with BrowserPanel semantic evidence keeping long values between the two step controls. Pixel geometry is not claimed because the BrowserPanel screenshot response omits image pixels to the active model.
+- Wave 4 criterion 3 remains **not formally closed**: no honest pixel-level PASS is available for modal sizing/typography, QR, card HP, filters, board highlights, night/day, or lamps.
 
 ## Wave 5 — Integration and verification
 1. Headed smoke repeatedly verify deployed animal count == combat log count == information-modal count across planning/combat/results.
 2. Targeted regressions for loss->main no Continue, heart escrow/reload, equipment drops/crafting, day/night, burn cycle timing, idle cooldown, shortcuts, settings/persistence.
 3. `pnpm typecheck` and `pnpm build` only after implementation integration.
 4. Commit by coherent workstream with required multi-line bodies; push `dev`.
+
+Wave 5 verification evidence (2026-10-13):
+- Canonical count ownership is unified: planning derives allied units from `run.board`, combat roster creation derives from `boardPlacements(s)`, and playback consumes `session.roster`. BrowserPanel planning evidence showed `Thú đồng minh: 0` and the ally detail tab reported `Không có thú.`
+- A headed count-smoke continuation bought one animal, but it remained undeployed/bench-only; the BrowserPanel accessibility snapshot exposes no board-cell ref for placing it, and Start with zero deployed units did not transition to combat. Therefore the required planning → combat → results count-equality smoke is **not claimed complete**.
+- Recorded Wave 5 regression evidence remains **14 files / 128 tests passed**, plus adjacent combat-staging/inspection/skills **3 files / 19 tests passed**. A later grouped targeted Vitest operation was rejected by the platform before execution and was not retried or rerouted.
+- Current release checks in this continuation: `pnpm typecheck` passed, `pnpm build` passed, and `git diff --check` passed.
+- The `dev` branch was synchronized with `origin/dev` before this documentation update. Wave 5 remains formally pending only the full headed count-equality smoke and this verification-doc commit/push.
+
 
 ## 2026-10-12 backlog additions
 
@@ -142,4 +152,4 @@ Wave 7 status (2026-10-13): **complete**. Shared working-tree evidence covers ra
 
 Wave 9 status (2026-10-13): **complete under the explicit browser waiver**. Global sun-ray quality/shadow authority remains covered by arena regression; loading now has real progress plus rotating tips/title motion; scenery adds richer lamps, ore/moss/mushrooms/fruit, outside-only meandering river/path; victory fireworks are result-owned and one-per-reserve origin. Targeted Wave 8/9 presentation/authority verification: `tests/scenery-presentation.test.ts`, `tests/victory-fireworks.test.ts`, `tests/arena-mapping.test.ts`, `tests/blessings.test.ts` → **4 files / 15 tests passed**. Additional day/night/environment regression: `tests/encounter-env.test.ts`, `tests/scenery-presentation.test.ts`, `tests/arena-mapping.test.ts` → **3 files / 21 tests passed**. Browser verification remains waived; no browser PASS is claimed.
 
-Release-gate note (2026-10-13): the missing shared `ICONS.social`, `ICONS.donate`, and `ICONS.cortisol` production keys are fixed. `pnpm exec vite build` passes (**81 modules transformed**) and `git diff --check` passes. `pnpm typecheck` / `pnpm build` remain blocked only by three previously platform-rejected test-typing fixes: `tests/persistence.test.ts:50` delete-operand optionality, missing `UnitVisual.revive` in `tests/recovered-playback.test.ts`, and missing `BoardView.startLowCortisol/stopLowCortisol` in that same mock. Those rejected edits were not retried or rerouted.
+Release-gate note (2026-10-13): the missing shared `ICONS.social`, `ICONS.donate`, and `ICONS.cortisol` production keys are fixed. Prior Wave 7–9 presentation/authority suites remain recorded above; in the current Wave 4/5 verification continuation, `pnpm typecheck`, `pnpm build`, and `git diff --check` all pass. The earlier test-fixture typing blockers are therefore historical and no longer a current release-check blocker; the remaining formal gaps are the pixel-observable Wave 4 visual acceptance and the headed Wave 5 planning → combat → results animal-count smoke.
