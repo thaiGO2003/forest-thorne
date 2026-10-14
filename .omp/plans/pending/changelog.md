@@ -684,3 +684,15 @@
 - Fresh release gates after the Wave 8 change: `pnpm typecheck` and `pnpm build` still fail only on the same three existing test-fixture diagnostics (`tests/persistence.test.ts:50` delete operand optionality; `tests/recovered-playback.test.ts` missing `UnitVisual.revive`; missing `BoardView.startLowCortisol/stopLowCortisol`). `pnpm exec vite build` passes with **81 modules transformed** and `git diff --check` passes.
 - The fixture diagnostics cannot be resolved by a contract-correct production change: `heartEscrow`, `UnitVisual.revive`, and `BoardView.startLowCortisol/stopLowCortisol` are required production contracts. The previously rejected fixture edits were not retried or routed around, and those contracts were not weakened to make stale mocks compile.
 - No browser verification was run in this lead session. Waves 4–6 remain pending delegated browser evidence, so the canonical backlog plan stays open.
+
+## 2026-10-14 — Wave 6 delegated browser acceptance blocked
+
+- The Wave 6 owner reported fresh delegated runtime evidence: the existing dev server at `http://127.0.0.1:5174/` returned HTTP 200, then the approved Chromium open at 1280×720 was rejected before tab creation with `This tool call was blocked by OpenAI because we couldn't determine the safety status of the request.`
+- The owner did not retry, repackage, or reroute the rejected browser operation and made no production edits, commit, or push.
+- Therefore Start button content-fit, portrait Start/XP/cortisol merge and reduced footprint, non-portrait separation, and destructive Clear/Xác nhận content-fit remain **BLOCKED / not observed**. No visual PASS/FAIL is claimed, Wave 6 remains `in_progress`, and the backlog plan remains in `pending/`.
+
+## 2026-10-14 — Wave 4 delegated browser acceptance blocked
+
+- The Wave 4 owner attempted the delegated headed acceptance against the current local app at 1440×1000. Browser creation failed before tab creation with: “Shared browser daemon unavailable (broker start or Chromium launch failed); check `omp ps` for omp.browser.* daemons and ~/.omp/logs for details”.
+- Per lead coordination rules the owner did not retry or reroute. Modal sizing/typography, Donate QR, card HP/damage layout, filters/highlights, day/night, and lamps therefore remain **BLOCKED / not run** with no visual PASS/FAIL, screenshot, visible-state, or console evidence.
+- No Wave 5 work was started. Wave 5 remains `pending` and `blocked_by` Wave 4; the lead did not duplicate browser work.
