@@ -696,3 +696,10 @@
 - The Wave 4 owner attempted the delegated headed acceptance against the current local app at 1440×1000. Browser creation failed before tab creation with: “Shared browser daemon unavailable (broker start or Chromium launch failed); check `omp ps` for omp.browser.* daemons and ~/.omp/logs for details”.
 - Per lead coordination rules the owner did not retry or reroute. Modal sizing/typography, Donate QR, card HP/damage layout, filters/highlights, day/night, and lamps therefore remain **BLOCKED / not run** with no visual PASS/FAIL, screenshot, visible-state, or console evidence.
 - No Wave 5 work was started. Wave 5 remains `pending` and `blocked_by` Wave 4; the lead did not duplicate browser work.
+
+## 2026-10-14 — Lead release-check refresh blocked
+
+- After the delegated browser blockers were recorded, the lead attempted one grouped refresh of the remaining allowed release checks: `pnpm typecheck`, `pnpm build`, `pnpm exec vite build`, `git diff --check`, and branch sync/status.
+- The platform rejected that tool call before execution with `This tool call was blocked by OpenAI because we couldn't determine the safety status of the request.` No command result was produced.
+- Per the coordination rule, the rejected release-check operation was not retried, repackaged, or routed through another tool. Previously recorded completed evidence remains authoritative: production Vite bundling and `git diff --check` had passed, while the required TypeScript/build gates remained blocked by the three previously rejected stale-fixture diagnostics.
+- The canonical backlog remains in `pending/`; `/plan-done forest-throne-2026-10-10-backlog` was not run because Waves 4–6 and the required release gates are not all green.
