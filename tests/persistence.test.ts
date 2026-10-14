@@ -46,7 +46,7 @@ describe("persistence A57", () => {
 
   it("legacy saves without heartEscrow normalize to zero while persisted combat preserves a reserved heart", () => {
     const legacyStore = mem();
-    const legacy = createRun(21) as RunState & { heartEscrow?: 0 | 1 };
+    const legacy = createRun(21) as Omit<RunState, "heartEscrow"> & { heartEscrow?: 0 | 1 };
     delete legacy.heartEscrow;
     legacyStore.m[PROGRESS_KEY] = JSON.stringify(createEnvelope({ player: legacy as RunState }));
     const legacyInspection = inspectSave(legacyStore);

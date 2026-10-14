@@ -18,7 +18,7 @@ function playback(events: CombatEvent[]) {
     play: vi.fn((state: string, opts?: { onImpact?: () => void }) => {
       if (state === "attack" && opts?.onImpact) impacts.set(unit.uid, opts.onImpact);
     }),
-    state: () => "idle", setCombat: vi.fn(), setFacing: vi.fn(), setHpRatio: vi.fn(), die: vi.fn(), update: vi.fn(), dispose: vi.fn(),
+    state: () => "idle", setCombat: vi.fn(), setFacing: vi.fn(), setHpRatio: vi.fn(), revive: vi.fn(), die: vi.fn(), update: vi.fn(), dispose: vi.fn(),
   } as UnitVisual]));
   const board: BoardView = {
     sync() {},
@@ -30,6 +30,8 @@ function playback(events: CombatEvent[]) {
     forEach() {},
     setLive: (uid, state) => { if (state.hp !== undefined) live.set(uid, state.hp); },
     setCombat() {},
+    startLowCortisol() {},
+    stopLowCortisol() {},
     dispose() {},
   };
   const fx: CombatFx = { float: vi.fn(), burst: vi.fn(), shot: vi.fn(), jolt: vi.fn(), update: vi.fn(), dispose: vi.fn() };
