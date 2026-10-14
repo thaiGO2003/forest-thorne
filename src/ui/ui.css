@@ -112,15 +112,15 @@
 .mod-actions { flex: none; justify-content: flex-end; flex-wrap: wrap; align-content: flex-start; }
 .mod-actions .kit-btn { min-width: 72px; min-height: 44px; height: 44px; }
 .donate-modal-body { overflow: hidden; }
-.donate { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .8fr); gap: 12px; align-items: center; min-height: 0; }
-.donate-details { min-width: 0; gap: 8px; }
-.donate-account { display: flex; flex-direction: column; gap: 6px; }
-.donate-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.donate-presets .kit-btn { min-width: 0; height: 44px; }
+.donate { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, .65fr); gap: 8px; align-items: center; min-height: 0; }
+.donate-details { min-width: 0; gap: 6px; }
+.donate-account { display: flex; flex-direction: column; gap: 4px; }
+.donate-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.donate-presets .kit-btn { min-width: 0; height: 38px; min-height: 38px; }
 .donate-selected { text-align: center; }
 .donate-memo { overflow-wrap: anywhere; }
 .donate-qr-wrap { display: grid; place-items: center; min-width: 0; min-height: 0; }
-.donate-qr { display: block; width: min(100%, 360px); max-height: min(52vh, 360px); object-fit: contain; }
+.donate-qr { display: block; width: min(100%, 280px); max-height: min(42vh, 280px); object-fit: contain; }
 .augment-list { display: flex; flex-direction: column; gap: 6px; }
 .augment-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; }
 .augment-copy { flex: 1 1 auto; min-width: 0; }
@@ -268,10 +268,10 @@
   .mod-meta, .mod-relations { grid-template-columns: 1fr; }
   .mod-actions { width: 100%; justify-content: stretch; }
   .mod-actions .kit-btn { flex: 1 1 132px; min-width: 0; }
-  .donate { grid-template-columns: 1fr; gap: 6px; }
-  .donate-details { gap: 6px; }
-  .donate-presets { gap: 6px; }
-  .donate-qr { width: min(52vw, 220px); max-height: min(26vh, 220px); }
+  .donate { grid-template-columns: 1fr; gap: 4px; }
+  .donate-details { gap: 4px; }
+  .donate-presets { gap: 4px; }
+  .donate-qr { width: min(44vw, 180px); max-height: min(22vh, 180px); }
   .cb-top { height: 80px; }
   .cb-side { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: 50%; right: auto; transform: translateX(-50%); width: fit-content; min-width: min(300px, calc(100% - 16px)); max-width: calc(100% - 16px); }
   .cb-info { min-height: 200px; }

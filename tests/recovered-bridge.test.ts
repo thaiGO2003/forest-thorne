@@ -4,7 +4,10 @@ import { inspectSave, saveAchievementProfile, saveRun, PROGRESS_KEY } from "../s
 import { buy, benchToBoard } from "../src/core/run";
 import { unitDiagnostics } from "../src/core/inspection";
 import { skipTutorial, syncTutorialRound } from "../src/core/tutorial";
-import { ACHIEVEMENT_REWARDS, achievementRows } from "../src/core/achievements";
+import {
+  ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_COMPLETION_CLAIM_ID, ACHIEVEMENT_REWARDS,
+  ACHIEVEMENT_THRESHOLDS, achievementRows,
+} from "../src/core/achievements";
 import type { KV } from "../src/core/settings";
 
 function storage(): KV {
@@ -385,6 +388,20 @@ describe("recovered application bridge", () => {
     expect(bridge.equipCollectionSkin(mapping.unitId, mapping.skinId)).toBe(true);
     expect(bridge.collectionProfile().equippedSkinByUnitId[mapping.unitId]).toBe(mapping.skinId);
     expect(createBridge(store).collectionProfile().equippedSkinByUnitId[mapping.unitId]).toBe(mapping.skinId);
+  });
+  it("claims and persists the separate all-100 completion reward through the bridge", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const achievements = bridge.achievementProfile();
+    for (const category of ACHIEVEMENT_CATEGORIES) {
+      achievements.stats[category] = Math.max(...ACHIEVEMENT_THRESHOLDS[category]);
+    }
+    saveAchievementProfile(store, achievements);
+
+    expect(bridge.claimAchievement(ACHIEVEMENT_COMPLETION_CLAIM_ID)).toBe(true);
+    expect(bridge.claimAchievement(ACHIEVEMENT_COMPLETION_CLAIM_ID)).toBe(false);
+    expect(createBridge(store).collectionProfile().claimedAchievementIds)
+      .toContain(ACHIEVEMENT_COMPLETION_CLAIM_ID);
   });
 
 });

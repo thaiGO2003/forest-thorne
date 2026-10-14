@@ -28,8 +28,8 @@ import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type 
 import { setLocale } from "../core/i18n";
 import { createSettingsStore, type SettingsStore, type KV } from "../core/settings";
 import {
-  ACHIEVEMENT_REWARDS, claimSkinReward, equipCollectionSkin as equipOwnedCollectionSkin,
-  recordEndlessAchievementEvent,
+  ACHIEVEMENT_COMPLETION_CLAIM_ID, ACHIEVEMENT_REWARDS, claimAchievementCompletionSkin,
+  claimSkinReward, equipCollectionSkin as equipOwnedCollectionSkin, recordEndlessAchievementEvent,
   type AchievementProfile, type CollectionProfile, type EndlessAchievementEvent,
 } from "../core/achievements";
 import type { EnemyPreviewResult } from "../core/preview";
@@ -110,7 +110,7 @@ export interface Bridge {
   achievementProfile(): AchievementProfile;
   /** Read collection ownership/equips through the bridge-owned store. */
   collectionProfile(): CollectionProfile;
-  /** Claim one eligible catalog-backed achievement reward and persist it idempotently. */
+  /** Claim one eligible catalog reward or the all-100 completion reward, idempotently. */
   claimAchievement(achievementId: string): boolean;
   /** Equip an owned authored skin (or base look) and persist it. */
   equipCollectionSkin(unitId: string, skinId: string | null): boolean;
@@ -514,11 +514,14 @@ export function createBridge(store: KV = localStorage): Bridge {
     achievementProfile: () => loadAchievementProfile(store),
     collectionProfile: () => loadCollectionProfile(store),
     claimAchievement(achievementId) {
-      const mapping = ACHIEVEMENT_REWARDS.find((candidate) => candidate.achievementId === achievementId);
-      if (!mapping) return false;
       const achievements = loadAchievementProfile(store);
       const collection = loadCollectionProfile(store);
-      if (!claimSkinReward(achievements, collection, mapping)) return false;
+      if (achievementId === ACHIEVEMENT_COMPLETION_CLAIM_ID) {
+        if (!claimAchievementCompletionSkin(achievements, collection)) return false;
+      } else {
+        const mapping = ACHIEVEMENT_REWARDS.find((candidate) => candidate.achievementId === achievementId);
+        if (!mapping || !claimSkinReward(achievements, collection, mapping)) return false;
+      }
       saveAchievementProfile(store, achievements);
       saveCollectionProfile(store, collection);
       emit();

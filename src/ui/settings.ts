@@ -3,7 +3,7 @@
 // and music selection live under Audio.
 import { onLocaleChange, t, type MsgKey } from "../core/i18n";
 import {
-  DEFAULT_KEYS, FPS_LIMITS, GUI_SCALES, normalizeKey, QUALITY, RESOLUTIONS, TOOLTIP_MODES,
+  DEFAULT_KEYS, FPS_LIMITS, GUI_SCALES, normalizeKey, QUALITY, RENDER_SCALES, RESOLUTIONS, TOOLTIP_MODES,
   type KeyContext, type Settings, type SettingsStore,
 } from "../core/settings";
 import { MUSIC_TRACKS } from "../data/musicPlaylists";
@@ -118,10 +118,12 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
       }
       case "display":
         field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v, (v) => store.save({ resolutionKey: v })));
-        field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => v, (v) => store.save({ tooltipMode: v })));
+        field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => t(`tooltip.${v}` as MsgKey), (v) => store.save({ tooltipMode: v })));
         field("menu.language", stepper(["vi", "en"] as const, s.language, (v) => (v === "vi" ? "Tiếng Việt" : "English"), (v) => store.save({ language: v })));
         field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
+        field("settings.renderScale", stepper(RENDER_SCALES, s.renderScale, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
         field("settings.fpsLimit", stepper(FPS_LIMITS, s.fpsLimit, (v) => `${v} FPS`, (v) => store.save({ fpsLimit: v })));
+        field("settings.batterySaver", toggle(s.batterySaver, (v) => store.save({ batterySaver: v })));
         field("settings.guiScale", stepper(GUI_SCALES, s.guiScale, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ guiScale: v })));
         break;
       case "keys":

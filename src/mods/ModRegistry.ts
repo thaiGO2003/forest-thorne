@@ -69,6 +69,11 @@ export interface ModIndexLoadResult {
   index: ModIndex;
   warnings: ModRegistryWarning[];
 }
+export type LocalModImportErrorKind = "unsupported-extension" | "invalid-json" | "invalid-manifest" | "duplicate-id";
+export type LocalModImportResult =
+  | { ok: true; manifest: ModManifest }
+  | { ok: false; kind: LocalModImportErrorKind };
+
 
 export interface ModManager {
   getIndex(): ModIndex;
@@ -79,6 +84,7 @@ export interface ModManager {
   disable(id: string): ModProfile;
   move(id: string, direction: -1 | 1): ModProfile;
   validateEnabled(): ModValidationIssue[];
+  importLocalPackage(fileName: string, text: string): LocalModImportResult;
 }
 
 const EMPTY_WORKSHOP: WorkshopCapability = { status: "placeholder", appId: null };
@@ -152,6 +158,28 @@ export function normalizeModManifest(value: unknown): ModManifest | null {
     requires: stringList(raw.requires),
     conflicts: stringList(raw.conflicts),
     tags: stringList(raw.tags),
+  };
+}
+
+function packageTypeFromFileName(fileName: string): ModPackageType | null {
+  const lower = fileName.trim().toLowerCase();
+  return MOD_PACKAGE_TYPES.find((type) => lower.endsWith(type)) ?? null;
+}
+
+export function parseLocalModPackage(fileName: string, text: string): LocalModImportResult {
+  const packageType = packageTypeFromFileName(fileName);
+  if (!packageType) return { ok: false, kind: "unsupported-extension" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, kind: "invalid-json" };
+  }
+  const manifest = normalizeModManifest(parsed);
+  if (!manifest) return { ok: false, kind: "invalid-manifest" };
+  return {
+    ok: true,
+    manifest: { ...manifest, source: "local", packageType },
   };
 }
 
@@ -301,7 +329,7 @@ export async function createModManager(
   url = DEFAULT_MOD_INDEX_URL,
 ): Promise<ModManager> {
   const loaded = await loadModIndexWithWarnings(fetchImpl, url);
-  const index = loaded.index;
+  let index = loaded.index;
   let profile = loadModProfile(storage);
 
   const commit = (next: ModProfile): ModProfile => {
@@ -343,6 +371,18 @@ export async function createModManager(
       const loadOrder = [...profile.loadOrder];
       [loadOrder[position], loadOrder[target]] = [loadOrder[target]!, loadOrder[position]!];
       return commit({ ...profile, loadOrder });
+    },
+    importLocalPackage(fileName, text) {
+      const result = parseLocalModPackage(fileName, text);
+      if (!result.ok) return result;
+      if (index.mods.some((manifest) => manifest.id === result.manifest.id)) {
+        return { ok: false, kind: "duplicate-id" };
+      }
+      index = { ...index, mods: [...index.mods, result.manifest] };
+      return {
+        ok: true,
+        manifest: { ...result.manifest, requires: [...result.manifest.requires], conflicts: [...result.manifest.conflicts], tags: [...result.manifest.tags] },
+      };
     },
     validateEnabled: () => validateEnabledMods(index, profile),
   };

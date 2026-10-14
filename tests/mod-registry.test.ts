@@ -9,6 +9,7 @@ import {
   normalizeModIndex,
   normalizeModManifest,
   normalizeModProfile,
+  parseLocalModPackage,
   validateEnabledMods,
   type ModIndex,
 } from "../src/mods/ModRegistry";
@@ -165,6 +166,31 @@ describe("mod registry A50", () => {
 
     const reloaded = await createModManager(storage, fetcher);
     expect(reloaded.getProfile()).toEqual(manager.getProfile());
+  });
+
+  it("imports supported local manifests deterministically and leaves state unchanged on failure", async () => {
+    const manager = await createModManager(memoryStorage(), async () => ({ ok: true, json: async () => validIndex }));
+    const profileBefore = manager.getProfile();
+    expect(parseLocalModPackage("demo.zip", "{}")).toEqual({ ok: false, kind: "unsupported-extension" });
+    expect(parseLocalModPackage("demo.ftunit", "{bad")).toEqual({ ok: false, kind: "invalid-json" });
+    expect(parseLocalModPackage("demo.ftunit", JSON.stringify({ id: "", name: "Bad" }))).toEqual({ ok: false, kind: "invalid-manifest" });
+
+    expect(manager.importLocalPackage("weather.ftlogic", JSON.stringify({
+      id: "weather-plus", name: "Weather Plus", version: "1.0.0", source: "workshop", packageType: ".ftunit",
+    }))).toMatchObject({
+      ok: true,
+      manifest: { id: "weather-plus", name: "Weather Plus", source: "local", packageType: ".ftlogic" },
+    });
+    expect(manager.importLocalPackage("bundle.ftmodpack", JSON.stringify({ id: "bundle-plus", name: "Bundle Plus" }))).toMatchObject({ ok: true });
+    expect(manager.getIndex().mods.map((manifest) => manifest.id)).toEqual(["beasts-plus", "logic-plus", "weather-plus", "bundle-plus"]);
+    expect(manager.getProfile()).toEqual(profileBefore);
+
+    const indexAfterSuccess = manager.getIndex();
+    expect(manager.importLocalPackage("duplicate.ftunit", JSON.stringify({ id: "weather-plus", name: "Duplicate" })))
+      .toEqual({ ok: false, kind: "duplicate-id" });
+    expect(manager.importLocalPackage("broken.ftlogic", "{bad")).toEqual({ ok: false, kind: "invalid-json" });
+    expect(manager.getIndex()).toEqual(indexAfterSuccess);
+    expect(manager.getProfile()).toEqual(profileBefore);
   });
 
   it("returns an empty but usable manager when the bundled index is unavailable", async () => {

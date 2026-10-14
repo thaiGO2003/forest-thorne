@@ -106,7 +106,7 @@ function openDonate(app: App) {
   );
 
   const formatter = new Intl.NumberFormat(getLocale() === "vi" ? "vi-VN" : "en-US");
-  let amount: number = DONATE_AMOUNT_PRESETS[0];
+  let amount: number = 20_000;
   let memo = randomDonateMemo();
   const selectedAmount = h("strong", "donate-selected");
   const presets = h("div", "donate-presets");
@@ -164,6 +164,7 @@ function openMods(app: App) {
       ? t("mods.issueMissingDependency", { modId: issue.modId, dependencyId: issue.dependencyId })
       : t("mods.issueConflict", { modId: issue.modId, conflictId: issue.conflictId });
   const listCopy = (values: string[]) => values.length ? values.join(", ") : t("mods.none");
+  let importStatus = "";
   void modManager().then((manager) => {
     if (app.modals.active() !== "mods") return;
     const render = () => {
@@ -176,6 +177,40 @@ function openMods(app: App) {
       const warnings = manager.getRegistryWarnings();
       const issues = manager.validateEnabled();
       const workshopStatus = index.workshop.status === "available" ? t("mods.workshopAvailable") : t("mods.workshopPlaceholder");
+      const importRow = h("div", "row mod-import");
+      const importLabel = h("span", "", t("mods.import"));
+      const importInput = document.createElement("input");
+      importInput.type = "file";
+      importInput.accept = ".ftunit,.ftlogic,.ftmodpack";
+      importInput.className = "mod-import-input";
+      importInput.setAttribute("aria-label", t("mods.import"));
+      importInput.addEventListener("change", async () => {
+        const file = importInput.files?.[0];
+        if (!file) return;
+        try {
+          const result = manager.importLocalPackage(file.name, await file.text());
+          if (result.ok) importStatus = t("mods.importSuccess", { name: result.manifest.name });
+          else {
+            const key: Record<typeof result.kind, MsgKey> = {
+              "unsupported-extension": "mods.importUnsupported",
+              "invalid-json": "mods.importInvalidJson",
+              "invalid-manifest": "mods.importInvalidManifest",
+              "duplicate-id": "mods.importDuplicate",
+            };
+            importStatus = t(key[result.kind]);
+          }
+        } catch {
+          importStatus = t("mods.importReadFailed");
+        }
+        if (app.modals.active() === "mods") render();
+      });
+      importRow.append(importLabel, importInput);
+      root.append(importRow);
+      if (importStatus) {
+        const status = h("div", "slot", importStatus);
+        status.setAttribute("role", "status");
+        root.append(status);
+      }
       const summary = h("div", "mods-summary");
       summary.append(
         h("div", "slot", t("mods.summary", { enabled: profile.enabledIds.length, total: manifests.length })),

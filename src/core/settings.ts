@@ -12,6 +12,7 @@ export const TOOLTIP_MODES = ["off", "compact", "summary", "expanded"] as const;
 export const QUALITY = ["low", "medium", "high"] as const;
 export const GUI_SCALES = [0.8, 1, 1.2, 1.4] as const;
 export const FPS_LIMITS = [30, 45, 60, 90, 120] as const;
+export const RENDER_SCALES = [0.5, 0.67, 0.75, 1] as const;
 export const MUSIC_SOURCES = ["local", "online"] as const;
 export { GAME_MODES, type GameMode } from "./modes";
 
@@ -62,6 +63,7 @@ export interface Settings {
   language: "vi" | "en"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
   narrationEnabled: boolean; keys: KeyBindings;
   quality: (typeof QUALITY)[number]; fpsLimit: (typeof FPS_LIMITS)[number];
+  renderScale: number; batterySaver: boolean;
 }
 
 const pick = <T>(list: readonly T[], v: unknown, def: T): T => (list.includes(v as T) ? (v as T) : def);
@@ -74,7 +76,9 @@ export function normalizeSettings(raw: unknown): Settings {
   const musicVol = Math.round(Number(r.musicVolume));
   const rawGuiScale = Number(r.guiScale);
   const rawFpsLimit = Number(r.fpsLimit);
-  const legacyFps = bool(r.batterySaver, false) ? 30 : 60;
+  const rawRenderScale = Number(r.renderScale);
+  const batterySaver = bool(r.batterySaver, false);
+  const legacyFps = batterySaver ? 30 : 60;
   const tooltipMode = pick(TOOLTIP_MODES, r.tooltipMode, "summary");
   const guiScale = (GUI_SCALES as readonly number[]).includes(rawGuiScale)
     ? rawGuiScale as Settings["guiScale"]
@@ -106,6 +110,8 @@ export function normalizeSettings(raw: unknown): Settings {
     keys: normalizeKeys(r.keys),
     quality: pick(QUALITY, r.quality, "high"),
     fpsLimit,
+    renderScale: Number.isFinite(rawRenderScale) ? Math.min(1, Math.max(0.5, rawRenderScale)) : 1,
+    batterySaver,
   };
 }
 

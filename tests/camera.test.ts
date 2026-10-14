@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BASE_MAX_DISTANCE, DOLLY_HEADROOM, framingDistance, maxDistance, PAN, panStep, smoothstep } from "../src/world/camera";
+import { effectivePixelRatio } from "../src/world/stage";
 
 describe("tactical camera (A91.1)", () => {
   it("dolly ceiling always covers framing + 5 and never drops below 50", () => {
@@ -23,5 +24,12 @@ describe("tactical camera (A91.1)", () => {
     expect(panStep(0, 0, 1, 0, 10)).toEqual(panStep(0, 0, 1, 0, 0.05));
     expect(panStep(23.9, -23.9, 1, -1, 0.05)).toEqual({ x: 24, z: -24 });
     expect(panStep(1, 1, 1, 0, -0.1)).toEqual({ x: 1, z: 1 });
+  });
+
+  it("caps DPR by quality then applies render scale", () => {
+    expect(effectivePixelRatio(3, "high", 0.75)).toBe(1.5);
+    expect(effectivePixelRatio(3, "low", 1)).toBe(1);
+    expect(effectivePixelRatio(1.5, "medium", 0.2)).toBe(0.75);
+    expect(effectivePixelRatio(Number.NaN, "high", Number.NaN)).toBe(1);
   });
 });

@@ -16,6 +16,8 @@ export interface Stage {
   /** Cap rendered frames without creating a second timer/render loop. */
   setFpsLimit(fps: number): void;
   setShadowQuality(q: ShadowQuality): void;
+  /** Scale drawing-buffer resolution without changing logical/CSS layout size. */
+  setRenderScale(scale: number): void;
   renderer: THREE.WebGLRenderer;
   /** Per-frame callback (dt seconds) for presentation layers such as unit rigs; returns unsubscribe. */
   onFrame(fn: (dt: number) => void): () => void;
@@ -29,10 +31,17 @@ const PAN_KEYS: Record<string, [number, number]> = {
 };
 /** Tactical view direction: behind the allied side, looking across the board. */
 const VIEW_DIR = new THREE.Vector3(0, 0.82, 0.57).normalize();
+export function effectivePixelRatio(deviceRatio: number, quality: ShadowQuality, renderScale: number): number {
+  const dpr = Number.isFinite(deviceRatio) && deviceRatio > 0 ? deviceRatio : 1;
+  const scale = Number.isFinite(renderScale) ? Math.min(1, Math.max(0.5, renderScale)) : 1;
+  const cap = quality === "low" ? 1 : 2;
+  return Math.min(dpr, cap) * scale;
+}
+
 
 export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(effectivePixelRatio(devicePixelRatio, "high", 1));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -48,6 +57,8 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   let arena = createArena(scene, current);
   arena.setPhase("planning");
   let shadowQuality: ShadowQuality = "high";
+  let renderScale = 1;
+  const applyPixelRatio = () => renderer.setPixelRatio(effectivePixelRatio(devicePixelRatio, shadowQuality, renderScale));
 
   // Profile reframe: smoothstep from current distance to framing distance over 0.5 s.
   let reframe: { from: number; to: number; t: number } | null = null;
@@ -60,6 +71,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   };
 
   const resize = () => {
+    applyPixelRatio();
     const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
     renderer.setSize(w, h);
     camera.aspect = w / h;
@@ -138,9 +150,14 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       lastRenderMs = Number.NEGATIVE_INFINITY;
       clock.getDelta();
     },
+    setRenderScale(scale) {
+      renderScale = Number.isFinite(scale) ? Math.min(1, Math.max(0.5, scale)) : 1;
+      applyPixelRatio();
+    },
     setShadowQuality(q) {
       shadowQuality = q;
       arena.setShadowQuality(q);
+      applyPixelRatio();
     },
     onFrame(fn) { frameFns.add(fn); return () => frameFns.delete(fn); },
     dispose() {

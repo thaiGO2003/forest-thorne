@@ -1,7 +1,10 @@
 // Account achievement browser: renders the canonical 100 threshold rows and claims catalog-backed skins.
 import { getUnit } from "../content/catalog";
 import {
+  ACHIEVEMENT_COMPLETION_CLAIM_ID,
+  ACHIEVEMENT_COMPLETION_SKIN_ID,
   ACHIEVEMENT_REWARDS,
+  CATALOG_SKIN_DEFINITIONS,
   rankAchievementRows,
   unlockedAchievementCount,
   type AchievementCategory,
@@ -38,6 +41,13 @@ export function mountAchievements(modal: ModalHandle, account: AchievementAccoun
   modal.body.append(root);
 
   const rewardByAchievement = new Map(ACHIEVEMENT_REWARDS.map((mapping) => [mapping.achievementId, mapping]));
+  const completionDefinition = CATALOG_SKIN_DEFINITIONS.find((skin) => skin.id === ACHIEVEMENT_COMPLETION_SKIN_ID);
+  const completionUnit = completionDefinition ? getUnit(completionDefinition.unitId) : undefined;
+  const completionSkin = completionUnit?.skin?.id === ACHIEVEMENT_COMPLETION_SKIN_ID ? completionUnit.skin : undefined;
+  const completionReward = completionSkin
+    ? `${completionUnit!.nameVi} · ${completionSkin.stagesVi.join(" / ")} · ${completionSkin.id}`
+    : ACHIEVEMENT_COMPLETION_SKIN_ID;
+
 
   const render = () => {
     const achievements = account.achievementProfile();
@@ -53,6 +63,30 @@ export function mountAchievements(modal: ModalHandle, account: AchievementAccoun
       claimed,
       rewards: ACHIEVEMENT_REWARDS.length,
     })));
+
+    const completionClaimed = collection.claimedAchievementIds.includes(ACHIEVEMENT_COMPLETION_CLAIM_ID);
+    const completionUnlocked = unlocked === rows.length;
+    const completion = panelEl("panel_tooltip", "lib-sec");
+    completion.dataset.achievementId = ACHIEVEMENT_COMPLETION_CLAIM_ID;
+    completion.append(h("h3", "lib-h", t("achievements.completion")));
+    completion.append(h("p", "lib-p", t("achievements.progress", { current: unlocked, threshold: rows.length })));
+    completion.append(h("p", "lib-p", t("achievements.reward", { reward: completionReward })));
+    completion.append(h("p", "lib-p", t(
+      completionClaimed ? "achievements.claimed" : completionUnlocked ? "achievements.claimable" : "achievements.locked",
+    )));
+    if (completionUnlocked && !completionClaimed) {
+      const actions = h("div", "row");
+      const claim = kitButton({
+        skin: "green",
+        label: t("achievements.claim"),
+        onClick: () => {
+          if (account.claimAchievement(ACHIEVEMENT_COMPLETION_CLAIM_ID)) render();
+        },
+      });
+      actions.append(claim.el);
+      completion.append(actions);
+    }
+    root.append(completion);
 
     for (const row of rows) {
       const panel = panelEl("panel_tooltip", "lib-sec");

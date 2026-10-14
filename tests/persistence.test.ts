@@ -251,19 +251,21 @@ describe("settings A35/A44", () => {
   it("defaults, clamps and per-mode AI legality", () => {
     const d = normalizeSettings({
       volumeLevel: 99, musicVolume: 99, resolutionKey: "800x600", guiScale: 2,
-      fpsLimit: 144, tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" },
+      fpsLimit: 144, renderScale: 0.2, batterySaver: true,
+      tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" },
     });
     expect([
       d.volumeLevel, d.musicVolume, d.resolutionKey, d.expandedTooltip, d.language, d.guiScale, d.fpsLimit,
-    ]).toEqual([10, 10, "1600x900", true, "vi", 1, 60]);
+      d.renderScale, d.batterySaver,
+    ]).toEqual([10, 10, "1600x900", true, "vi", 1, 30, 0.5, true]);
     expect(d.aiModeByGameMode).toEqual({
       EndlessPvEClassic: "TUTORIAL", EndlessPvEFortress: "MEDIUM", EndlessCreative: "TUTORIAL", FortressPvP4: "COOP4_MEDIUM",
     });
   });
 
-  it("migrates legacy battery saver and subtitle preferences", () => {
-    const migrated = normalizeSettings({ batterySaver: true, subtitleEnabled: false });
-    expect([migrated.fpsLimit, migrated.narrationEnabled]).toEqual([30, false]);
+  it("persists battery saver independently and clamps arbitrary render scale", () => {
+    const migrated = normalizeSettings({ batterySaver: true, subtitleEnabled: false, fpsLimit: 120, renderScale: 1.4 });
+    expect([migrated.fpsLimit, migrated.batterySaver, migrated.renderScale, migrated.narrationEnabled]).toEqual([120, true, 1, false]);
   });
 
   it("keys: defaults use R and Right Shift; invalid → default, ESCAPE reserved, lower-case normalized", () => {

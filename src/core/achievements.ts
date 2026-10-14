@@ -4,6 +4,9 @@ import type { GameMode } from "./modes";
 
 export const ACHIEVEMENT_PROFILE_VERSION = 1;
 export const COLLECTION_PROFILE_VERSION = 2;
+export const ACHIEVEMENT_COMPLETION_CLAIM_ID = "meta_all_achievements_100";
+export const ACHIEVEMENT_COMPLETION_SKIN_ID = "gaMaiNguNuong";
+
 
 
 export const ACHIEVEMENT_THRESHOLDS = {
@@ -333,6 +336,18 @@ export function claimAchievementSkin(
     changed = true;
   }
   return changed;
+}
+
+/** Meta reward for completing all 100 standard threshold achievements. */
+export function claimAchievementCompletionSkin(
+  profile: AchievementProfile, collection: CollectionProfile,
+): boolean {
+  if (unlockedAchievementCount(profile) !== 100) return false;
+  return claimAchievementSkin(
+    collection,
+    ACHIEVEMENT_COMPLETION_CLAIM_ID,
+    ACHIEVEMENT_COMPLETION_SKIN_ID,
+  );
 }
 
 

@@ -32,6 +32,8 @@ Implement the requested Forest Throne fixes/features using current production co
 8. Key changes: D no longer switch-animal; R does. Right Shift starts new run.
 9. Add 100-achievement completion unlock path for the existing main-screen skin entry.
 
+2026-10-14 evidence: the 100/100 contract is restored as the historical separate meta claim `meta_all_achievements_100` for existing authored skin `gaMaiNguNuong`, without adding a synthetic 101st achievement or fabricating a Falcon cosmetic. The canonical threshold grid remains 100 rows; direct authored catalog rewards remain 99 because `gaMaiNguNuong` is authored as free. Focused core + bridge regressions prove 99/100 rejection, 100/100 success, idempotence, and persistence through `Bridge.claimAchievement()`.
+
 ### Member B — old_src/current-source reconnaissance, no edits
 Map exact current and `old_src` owners for:
 1. combat animation timing and damage-number emission;
@@ -131,6 +133,8 @@ Verified before adding new work: terminal heart loss already transitions the run
 
 
 Wave 6 status (2026-10-14): **implementation complete; visual/content-fit acceptance BLOCKED**. The shared implementation patch uses the existing `fit-btn` / `kit-fit-measure` authority for Start, reparents Start/XP/cortisol into the stats panel only on portrait layouts with reduced stat/XP footprint, and content-fits destructive Clear/Confirm. Prior targeted verification remains **5 files / 48 tests passed**; the fresh cross-cutting targeted suite passes **9 files / 112 tests**, and release gates pass (`pnpm typecheck`, `pnpm build` with **82 modules transformed**, `git diff --check`). Fresh 1DevTool BrowserPanel semantic interaction is operational at 930×840 and screenshot capture succeeds, but image pixels are not exposed to the active model, so Start fit, portrait merge, non-portrait separation, and Clear/Xác nhận fit remain unobserved with no visual PASS/FAIL claim.
+
+Donate semantic acceptance (2026-10-14): BrowserPanel opened the live Donate modal at 930×840 with `20.000 ₫` selected by default; changing to `50.000 ₫` updated pressed/selected state and exposed the VietQR image; memo randomization changed the transfer memo while preserving the selected amount; `Escape` closed the modal. Screenshot capture succeeded, but image pixels are unavailable to the active model, so compactness remains semantic/layout-implementation evidence rather than pixel-level visual PASS.
 ### Wave 7 — Animal interaction, inventory, crafting, and motion
 1. Randomize idle-animal animation cooldowns so idle clips do not loop continuously; stance/idle names and Library replay controls must use the same terminology and behavior.
 2. Prevent animal/character models from sinking below the grass/ground plane; placement and animation offsets must preserve the canonical ground contact.

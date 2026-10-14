@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_REWARDS, ACHIEVEMENT_THRESHOLDS, CATALOG_SKIN_DEFINITIONS,
-  CATALOG_SKIN_UNLOCK_ERRORS, FREE_COLLECTION_SKIN_IDS, achievementRows, claimAchievementSkin,
+  ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_COMPLETION_CLAIM_ID, ACHIEVEMENT_COMPLETION_SKIN_ID,
+  ACHIEVEMENT_REWARDS, ACHIEVEMENT_THRESHOLDS, CATALOG_SKIN_DEFINITIONS, CATALOG_SKIN_UNLOCK_ERRORS,
+  FREE_COLLECTION_SKIN_IDS, achievementRows, claimAchievementCompletionSkin, claimAchievementSkin,
   claimSkinReward, createAchievementProfile, createCollectionProfile, equipCollectionSkin, equipUnitSkin,
   normalizeCollectionProfile, parseAuthoredSkinUnlock, rankAchievementRows, recordEndlessAchievementEvent,
   unlockedAchievementCount, validateAchievementRewards, validateCatalogAchievementRewards,
@@ -34,6 +35,26 @@ describe("achievement + collection profile", () => {
     expect(CATALOG_SKIN_DEFINITIONS.find((skin) => skin.id === "gaMaiNguNuong")?.unlockType).toBe("free");
     expect(CATALOG_SKIN_DEFINITIONS.some((skin) => skin.unlockType === "locked")).toBe(true);
     expect(ACHIEVEMENT_REWARDS).toHaveLength(99);
+  });
+
+  it("claims the separate all-100 completion marker without changing authored free ownership", () => {
+    const p = createAchievementProfile();
+    for (const category of ACHIEVEMENT_CATEGORIES) {
+      p.stats[category] = Math.max(...ACHIEVEMENT_THRESHOLDS[category]);
+    }
+    p.stats.runs_started = 49;
+    const c = createCollectionProfile();
+
+    expect(c.unlockedSkinIds).toContain(ACHIEVEMENT_COMPLETION_SKIN_ID);
+    expect(unlockedAchievementCount(p)).toBe(99);
+    expect(claimAchievementCompletionSkin(p, c)).toBe(false);
+
+    p.stats.runs_started = 50;
+    expect(unlockedAchievementCount(p)).toBe(100);
+    expect(claimAchievementCompletionSkin(p, c)).toBe(true);
+    expect(c.claimedAchievementIds).toContain(ACHIEVEMENT_COMPLETION_CLAIM_ID);
+    expect(c.unlockedSkinIds.filter((id) => id === ACHIEVEMENT_COMPLETION_SKIN_ID)).toHaveLength(1);
+    expect(claimAchievementCompletionSkin(p, c)).toBe(false);
   });
 
   it("parses all authored achievement prefixes at exact thresholds and rejects invalid descriptors", () => {
