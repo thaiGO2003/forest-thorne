@@ -4,8 +4,6 @@ import type { GameMode } from "./modes";
 
 export const ACHIEVEMENT_PROFILE_VERSION = 1;
 export const COLLECTION_PROFILE_VERSION = 2;
-export const ACHIEVEMENT_COMPLETION_CLAIM_ID = "meta_all_achievements_100";
-export const ACHIEVEMENT_COMPLETION_SKIN_ID = "gaMaiNguNuong";
 
 
 export const ACHIEVEMENT_THRESHOLDS = {
@@ -23,6 +21,38 @@ export const ACHIEVEMENT_THRESHOLDS = {
 
 export type AchievementCategory = keyof typeof ACHIEVEMENT_THRESHOLDS;
 export const ACHIEVEMENT_CATEGORIES = Object.keys(ACHIEVEMENT_THRESHOLDS) as AchievementCategory[];
+
+const AUTHORED_UNLOCK_CATEGORY: Record<string, AchievementCategory> = {
+  bestRound: "best_round",
+  roundsWon: "rounds_won",
+  runsStarted: "runs_started",
+  shopRefreshes: "shop_refreshes",
+  xpPurchases: "xp_purchases",
+  unitsBought: "units_bought",
+  merges: "merges",
+  augmentsChosen: "augments_chosen",
+  craftedItems: "crafted_items",
+  highestLevel: "highest_level",
+};
+
+export type AuthoredSkinUnlock =
+  | { type: "free" }
+  | { type: "locked" }
+  | { type: "achievement"; achievementId: string; category: AchievementCategory; threshold: number };
+
+export function parseAuthoredSkinUnlock(value: string): AuthoredSkinUnlock | null {
+  if (value === "free") return { type: "free" };
+  if (value === "locked") return { type: "locked" };
+  const match = /^([A-Za-z]+)_(\d+)$/.exec(value);
+  if (!match) return null;
+  const category = AUTHORED_UNLOCK_CATEGORY[match[1]!];
+  if (!category) return null;
+  const threshold = Number(match[2]);
+  const tierIndex = ACHIEVEMENT_THRESHOLDS[category].findIndex((candidate) => candidate === threshold);
+  if (tierIndex < 0) return null;
+  return { type: "achievement", achievementId: achievementId(category, tierIndex), category, threshold };
+}
+
 
 export interface AchievementStats {
   best_round: number;
@@ -101,7 +131,12 @@ export function normalizeAchievementProfile(value: unknown): AchievementProfile 
 }
 
 export function createCollectionProfile(): CollectionProfile {
-  return { version: COLLECTION_PROFILE_VERSION, unlockedSkinIds: [], claimedAchievementIds: [], equippedSkinByUnitId: {} };
+  return {
+    version: COLLECTION_PROFILE_VERSION,
+    unlockedSkinIds: [...FREE_COLLECTION_SKIN_IDS],
+    claimedAchievementIds: [],
+    equippedSkinByUnitId: {},
+  };
 }
 
 export function normalizeCollectionProfile(value: unknown): CollectionProfile {
@@ -120,13 +155,16 @@ export function normalizeCollectionProfile(value: unknown): CollectionProfile {
   }
   return {
     version: COLLECTION_PROFILE_VERSION,
-    unlockedSkinIds: uniqueSkinIds(raw.unlockedSkinIds),
+    unlockedSkinIds: [...new Set([...FREE_COLLECTION_SKIN_IDS, ...uniqueSkinIds(raw.unlockedSkinIds)])],
     claimedAchievementIds: uniqueStrings(raw.claimedAchievementIds),
     equippedSkinByUnitId,
   };
 }
 
 export const achievementId = (category: AchievementCategory, tierIndex: number): string => `${category}_${tierIndex + 1}`;
+export const FREE_COLLECTION_SKIN_IDS = [...UNIT_BY_ID.values()].flatMap((unit) =>
+  unit.skin && parseAuthoredSkinUnlock(unit.skin.unlock)?.type === "free" ? [unit.skin.id] : [],
+);
 
 export interface AchievementRow {
   id: string;
@@ -210,6 +248,41 @@ export interface SkinDefinitionForValidation {
   appearanceStars: readonly number[];
 }
 
+interface CatalogSkinEntry {
+  id: string;
+  unitId: string;
+  unlock: string;
+  stagesVi: readonly string[];
+  parsed: AuthoredSkinUnlock | null;
+}
+
+const CATALOG_SKIN_ENTRIES: readonly CatalogSkinEntry[] = [...UNIT_BY_ID.values()].flatMap((unit) =>
+  unit.skin ? [{
+    id: unit.skin.id,
+    unitId: unit.id,
+    unlock: unit.skin.unlock,
+    stagesVi: unit.skin.stagesVi,
+    parsed: parseAuthoredSkinUnlock(unit.skin.unlock),
+  }] : [],
+);
+
+export const CATALOG_SKIN_UNLOCK_ERRORS = CATALOG_SKIN_ENTRIES
+  .filter((entry) => entry.parsed === null)
+  .map((entry) => `invalid authored skin unlock ${entry.unlock} for ${entry.id}`);
+
+export const CATALOG_SKIN_DEFINITIONS: readonly SkinDefinitionForValidation[] = CATALOG_SKIN_ENTRIES.map((entry) => ({
+  id: entry.id,
+  unitId: entry.unitId,
+  unlockType: entry.parsed?.type === "achievement" ? "achievement" : entry.parsed?.type === "free" ? "free" : "locked",
+  appearanceStars: entry.stagesVi.map((_, index) => index + 1),
+}));
+
+export const ACHIEVEMENT_REWARDS: readonly AchievementRewardMapping[] = CATALOG_SKIN_ENTRIES.flatMap((entry) =>
+  entry.parsed?.type === "achievement"
+    ? [{ achievementId: entry.parsed.achievementId, skinId: entry.id, unitId: entry.unitId }]
+    : [],
+);
+
 /** A36 one-to-one validation. Returns human-readable invariant errors, empty when valid. */
 export function validateAchievementRewards(
   mappings: readonly AchievementRewardMapping[], skins: readonly SkinDefinitionForValidation[],
@@ -239,6 +312,13 @@ export function validateAchievementRewards(
   return errors;
 }
 
+export function validateCatalogAchievementRewards(): string[] {
+  return [
+    ...CATALOG_SKIN_UNLOCK_ERRORS,
+    ...validateAchievementRewards(ACHIEVEMENT_REWARDS, CATALOG_SKIN_DEFINITIONS),
+  ];
+}
+
 export function claimAchievementSkin(
   collection: CollectionProfile, achievementId: string, skinId: string,
 ): boolean {
@@ -253,17 +333,6 @@ export function claimAchievementSkin(
     changed = true;
   }
   return changed;
-}
-/** Meta reward: all 100 standard threshold achievements, not a synthetic 101st row. */
-export function claimAchievementCompletionSkin(
-  profile: AchievementProfile, collection: CollectionProfile,
-): boolean {
-  if (unlockedAchievementCount(profile) !== 100) return false;
-  return claimAchievementSkin(
-    collection,
-    ACHIEVEMENT_COMPLETION_CLAIM_ID,
-    ACHIEVEMENT_COMPLETION_SKIN_ID,
-  );
 }
 
 
@@ -289,8 +358,11 @@ export function claimSkinReward(
 }
 
 export function equipCollectionSkin(collection: CollectionProfile, unitId: string, skinId: string | null): boolean {
-  if (skinId !== null && !collection.unlockedSkinIds.includes(normalizeLegacySkinId(skinId))) return false;
-  return equipUnitSkin(collection, unitId, skinId);
+  if (skinId === null) return equipUnitSkin(collection, unitId, null);
+  const normalizedSkinId = normalizeLegacySkinId(skinId);
+  const unit = UNIT_BY_ID.get(unitId);
+  if (!unit?.skin || unit.skin.id !== normalizedSkinId || !collection.unlockedSkinIds.includes(normalizedSkinId)) return false;
+  return equipUnitSkin(collection, unitId, normalizedSkinId);
 }
 
 export interface RankedAchievementRow extends AchievementRow { rewardSkinId?: string; claimed: boolean; claimable: boolean }

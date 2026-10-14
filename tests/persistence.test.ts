@@ -86,7 +86,7 @@ describe("persistence A57", () => {
     expect(JSON.parse(s.m[ACHIEVEMENTS_KEY]!).stats).toMatchObject({ runs_started: 4, highest_level: 3 });
     expect(JSON.parse(s.m[COLLECTION_KEY]!)).toEqual({
       version: 2,
-      unlockedSkinIds: ["skin.loli_a"],
+      unlockedSkinIds: ["gaMaiNguNuong", "skin.loli_a"],
       claimedAchievementIds: [],
       equippedSkinByUnitId: { ant_guard: "skin.loli_a" },
     });
@@ -99,7 +99,7 @@ describe("persistence A57", () => {
     expect(loadAchievementProfile(s).stats).toMatchObject({ runs_started: 0, highest_level: 1 });
     expect(loadCollectionProfile(s)).toEqual({
       version: 2,
-      unlockedSkinIds: [],
+      unlockedSkinIds: ["gaMaiNguNuong"],
       claimedAchievementIds: [],
       equippedSkinByUnitId: {},
     });
@@ -111,7 +111,7 @@ describe("persistence A57", () => {
     });
     expect(JSON.parse(s.m[COLLECTION_KEY]!)).toEqual({
       version: 2,
-      unlockedSkinIds: ["skin.loli_a"],
+      unlockedSkinIds: ["gaMaiNguNuong", "skin.loli_a"],
       claimedAchievementIds: ["runs_started_1"],
       equippedSkinByUnitId: { ant_guard: "skin.loli_a" },
     });

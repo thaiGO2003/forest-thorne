@@ -12,6 +12,7 @@ import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
 import { hasRig } from "../units/registry";
 import { ACTION_STATES, type ActionState, type Star } from "../units/rig";
+import type { CollectionProfile } from "../core/achievements";
 
 const ROLES: Role[] = ["TANKER", "FIGHTER", "ASSASSIN", "ARCHER", "MAGE", "SUPPORT"];
 const FACTIONS: Faction[] = ["BEAST", "AVIAN", "INSECT", "REPTILE", "AQUATIC", "MYTHICAL"];
@@ -30,9 +31,21 @@ export function filterUnits(units: readonly UnitDef[], f: Filter): UnitDef[] {
 }
 
 export interface LibraryView { showDetail(id: string): void; dispose(): void }
+export interface LibraryCollectionAccess {
+  collectionProfile(): CollectionProfile;
+  equipCollectionSkin(unitId: string, skinId: string | null): boolean;
+}
 
-export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tooltip, startId?: string): LibraryView {
+export function mountLibrary(
+  modal: ModalHandle,
+  portraits: Portraits,
+  tip: Tooltip,
+  account: LibraryCollectionAccess,
+  startId?: string,
+): LibraryView {
   const f: Filter = { q: "", role: null, faction: null, tier: null };
+  let collection = account.collectionProfile();
+  const refreshCollection = () => { collection = account.collectionProfile(); };
   let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
   const root = h("div", "lib");
   modal.body.append(root);
@@ -143,7 +156,9 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
     gridRo?.disconnect(); gridRo = null;
     root.replaceChildren();
     modal.setTitle(u.nameVi);
-    let star: Star = 1, skinId: string | null = null;
+    const equippedSkinId = collection.equippedSkinByUnitId[u.id];
+    let star: Star = 1;
+    let skinId: string | null = u.skin?.id === equippedSkinId && collection.unlockedSkinIds.includes(equippedSkinId) ? equippedSkinId : null;
     const wrap = h("div", "lib-detail");
     const stagePanel = panelEl("slot_well", "lib-stage");
     const view = h("div", "lib-view");
@@ -230,6 +245,7 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
         skinSec.append(h("h3", "lib-h", `🎨 ${t("library.skins")}`));
         const skinActions = h("div", "lib-skin-actions");
         const base = kitButton({ skin: "wood", label: t("library.baseLook"), onClick: () => {
+          if (account.equipCollectionSkin(u.id, null)) refreshCollection();
           skinId = null;
           viewer?.setUnit(u.id, star, skinId);
           scheduleIdle();
@@ -239,7 +255,10 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
         skinActions.append(base.el);
         skin.stagesVi.forEach((label, index) => {
           const stage = Math.min(3, index + 1) as Star;
+          const owned = collection.unlockedSkinIds.includes(skin.id);
           const b = kitButton({ skin: "wood", label, onClick: () => {
+            if (!owned) return;
+            if (account.equipCollectionSkin(u.id, skin.id)) refreshCollection();
             star = stage;
             skinId = skin.id;
             viewer?.setUnit(u.id, star, skinId);
@@ -247,6 +266,7 @@ export function mountLibrary(modal: ModalHandle, portraits: Portraits, tip: Tool
             for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === star);
             renderInfo();
           } });
+          b.setDisabled(!owned);
           b.setSelected(skinId === skin.id && star === stage);
           skinActions.append(b.el);
         });

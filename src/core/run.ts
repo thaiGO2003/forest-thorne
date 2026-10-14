@@ -293,19 +293,21 @@ export function research(s: RunState, id: string): boolean {
   return true;
 }
 
-export function buy(s: RunState, slot: number): boolean {
+export interface BuyResult { merges: number }
+
+export function buy(s: RunState, slot: number): BuyResult | null {
   const id = s.shop[slot];
-  if (!planning(s) || !id || !tutorialActionAllowed(s, "buy_unit", { shopSlot: slot })) return false;
+  if (!planning(s) || !id || !tutorialActionAllowed(s, "buy_unit", { shopSlot: slot })) return null;
   const price = getUnit(id).tier;
-  if (!canAfford(s, price) || s.bench.length >= benchCap(s)) return false;
+  if (!canAfford(s, price) || s.bench.length >= benchCap(s)) return null;
   spendGold(s, price);
   s.shop[slot] = null;
   const role = getUnit(id).role;
   const seed = nextUint32(s);
   s.bench.push({ uid: allocateUid(s), baseId: id, star: 1, equips: [], traits: [rollVariantTrait(role, seed)] });
-  autoMerge(s);
+  const merges = autoMerge(s);
   recordTutorialEvent(s, "buy_unit");
-  return true;
+  return { merges };
 }
 
 /** Sell from bench ("bench", index) or board ("board", cell). Equipment returns to bag. */

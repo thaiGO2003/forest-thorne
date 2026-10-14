@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createBridge } from "../src/app/bridge";
-import { inspectSave, saveRun, PROGRESS_KEY } from "../src/core/save";
+import { inspectSave, saveAchievementProfile, saveRun, PROGRESS_KEY } from "../src/core/save";
 import { buy, benchToBoard } from "../src/core/run";
 import { unitDiagnostics } from "../src/core/inspection";
-import { syncTutorialRound } from "../src/core/tutorial";
+import { skipTutorial, syncTutorialRound } from "../src/core/tutorial";
+import { ACHIEVEMENT_REWARDS, achievementRows } from "../src/core/achievements";
 import type { KV } from "../src/core/settings";
 
 function storage(): KV {
@@ -13,7 +14,7 @@ function storage(): KV {
 function deployed() {
   const store = storage(), bridge = createBridge(store);
   const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
-  expect(buy(run, 0)).toBe(true);
+  expect(buy(run, 0)).not.toBeNull();
   expect(benchToBoard(run, 0, 12)).toBe(true);
   bridge.checkpoint("SHOP", "Mua và triển khai tướng");
   return { store, bridge, run };
@@ -270,6 +271,72 @@ describe("recovered application bridge", () => {
     expect(inspection.envelope.payload.player?.bench[0]?.equips).toEqual(["eq_warmog_armor"]);
   });
 
+  it("records accepted Classic shop actions once and ignores rejected actions", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    skipTutorial(run);
+    run.gold = 100;
+    const slot = run.shop.findIndex((id) => id !== null);
+    expect(slot).toBeGreaterThanOrEqual(0);
+    expect(bridge.buy(slot)).toBe(true);
+    expect(bridge.reroll()).toBe(true);
+    expect(bridge.buyXp()).toBe(true);
+    expect(bridge.achievementProfile().stats).toMatchObject({
+      runs_started: 1,
+      units_bought: 1,
+      shop_refreshes: 1,
+      xp_purchases: 1,
+    });
+
+    run.phase = "COMBAT";
+    const before = bridge.achievementProfile().stats;
+    expect(bridge.buy(run.shop.findIndex((id) => id !== null))).toBe(false);
+    expect(bridge.reroll()).toBe(false);
+    expect(bridge.buyXp()).toBe(false);
+    expect(bridge.achievementProfile().stats).toEqual(before);
+  });
+
+  it("records the exact canonical auto-merge count from one purchase", () => {
+    const bridge = createBridge(storage());
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    skipTutorial(run);
+    run.gold = 100;
+    const slot = run.shop.findIndex((id) => id !== null);
+    const baseId = run.shop[slot]!;
+    run.bench = [
+      { uid: "merge-a", baseId, star: 1, equips: [] },
+      { uid: "merge-b", baseId, star: 1, equips: [] },
+    ];
+    expect(bridge.buy(slot)).toBe(true);
+    expect(run.bench).toHaveLength(1);
+    expect(run.bench[0]?.star).toBe(2);
+    expect(bridge.achievementProfile().stats).toMatchObject({ units_bought: 1, merges: 1 });
+  });
+
+  it("keeps achievement recording Endless Classic-only", () => {
+    const bridge = createBridge(storage());
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    const before = bridge.achievementProfile().stats.augments_chosen;
+    run.mode = "EndlessCreative";
+    run.phase = "AUGMENT";
+    run.activeAugmentChoices = ["gold_cache", "wild_command", "opening_fury"];
+    expect(bridge.chooseAugment("wild_command")).toBe(true);
+    expect(bridge.achievementProfile().stats.augments_chosen).toBe(before);
+  });
+
+  it("persists one round-result achievement event", () => {
+    const { bridge } = deployed();
+    const session = bridge.startCombat();
+    expect(session).not.toBeNull();
+    const summary = session!.finish();
+    expect(summary).not.toBeNull();
+    const stats = bridge.achievementProfile().stats;
+    expect(stats.rounds_won).toBe(summary!.winner === "LEFT" ? 1 : 0);
+    expect(stats.rounds_lost).toBe(summary!.winner === "RIGHT" ? 1 : 0);
+    expect(stats.items_looted).toBe(summary!.acceptedDrops.length);
+  });
+
   it("keeps craft staging external and clears it only after a successful craft", () => {
     const store = storage();
     const bridge = createBridge(store);
@@ -282,6 +349,7 @@ describe("recovered application bridge", () => {
     expect(run.itemBag).toContain("eq_blue_buff");
     expect(run.itemBag).not.toContain("tear");
     expect(bridge.craftStaging()).toEqual(Array<string | null>(9).fill(null));
+    expect(bridge.achievementProfile().stats.crafted_items).toBe(1);
   });
 
   it("commits augment choice and returns the run to Planning", () => {
@@ -294,9 +362,29 @@ describe("recovered application bridge", () => {
     expect(run.phase).toBe("PLANNING");
     expect(run.activeAugmentChoices).toEqual([]);
     expect(run.augments).toContain("wild_command");
+    expect(bridge.achievementProfile().stats.augments_chosen).toBe(1);
 
     const resumed = createBridge(store);
     expect(resumed.continueRun()).toBe(true);
     expect(resumed.run()?.augments).toContain("wild_command");
   });
+  it("claims and equips catalog rewards through bridge-owned persistence", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const mapping = ACHIEVEMENT_REWARDS[0]!;
+    const achievements = bridge.achievementProfile();
+    const row = achievementRows(achievements).find((candidate) => candidate.id === mapping.achievementId)!;
+    achievements.stats[row.category] = row.threshold;
+    saveAchievementProfile(store, achievements);
+
+    expect(bridge.claimAchievement(mapping.achievementId)).toBe(true);
+    expect(bridge.claimAchievement(mapping.achievementId)).toBe(false);
+    expect(bridge.collectionProfile().claimedAchievementIds).toContain(mapping.achievementId);
+    expect(bridge.collectionProfile().unlockedSkinIds).toContain(mapping.skinId);
+
+    expect(bridge.equipCollectionSkin(mapping.unitId, mapping.skinId)).toBe(true);
+    expect(bridge.collectionProfile().equippedSkinByUnitId[mapping.unitId]).toBe(mapping.skinId);
+    expect(createBridge(store).collectionProfile().equippedSkinByUnitId[mapping.unitId]).toBe(mapping.skinId);
+  });
+
 });

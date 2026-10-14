@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_THRESHOLDS, achievementRows, claimAchievementCompletionSkin,
-  claimAchievementSkin, claimSkinReward, createAchievementProfile, createCollectionProfile,
-  equipCollectionSkin, equipUnitSkin, normalizeCollectionProfile, rankAchievementRows,
-  recordEndlessAchievementEvent, unlockedAchievementCount, validateAchievementRewards,
+  ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_REWARDS, ACHIEVEMENT_THRESHOLDS, CATALOG_SKIN_DEFINITIONS,
+  CATALOG_SKIN_UNLOCK_ERRORS, FREE_COLLECTION_SKIN_IDS, achievementRows, claimAchievementSkin,
+  claimSkinReward, createAchievementProfile, createCollectionProfile, equipCollectionSkin, equipUnitSkin,
+  normalizeCollectionProfile, parseAuthoredSkinUnlock, rankAchievementRows, recordEndlessAchievementEvent,
+  unlockedAchievementCount, validateAchievementRewards, validateCatalogAchievementRewards,
 } from "../src/core/achievements";
 import {
   COMBAT_HISTORY_CAP, createCombatHistory, createPlanningHistory, filterPlanningHistory, HISTORY_FILTERS,
@@ -26,38 +27,48 @@ describe("achievement + collection profile", () => {
     expect(unlockedAchievementCount(p)).toBeGreaterThan(0);
   });
 
-  it("unlocks the existing completion skin only after all 100 standard achievements", () => {
-    const p = createAchievementProfile();
-    for (const category of ACHIEVEMENT_CATEGORIES) {
-      const thresholds = ACHIEVEMENT_THRESHOLDS[category];
-      p.stats[category] = thresholds[thresholds.length - 1]!;
-    }
-    p.stats.runs_started = 49;
-    expect(achievementRows(p)).toHaveLength(100);
-    expect(unlockedAchievementCount(p)).toBe(99);
-    const c = createCollectionProfile();
-    expect(claimAchievementCompletionSkin(p, c)).toBe(false);
-    expect(c.unlockedSkinIds).toEqual([]);
-    expect(c.claimedAchievementIds).toEqual([]);
-
-    p.stats.runs_started = 50;
-    expect(unlockedAchievementCount(p)).toBe(100);
-    expect(claimAchievementCompletionSkin(p, c)).toBe(true);
-    expect(claimAchievementCompletionSkin(p, c)).toBe(false);
-    expect(c.unlockedSkinIds).toEqual(["gaMaiNguNuong"]);
-    expect(c.claimedAchievementIds).toEqual(["meta_all_achievements_100"]);
+  it("derives free and achievement skin ownership from authored catalog metadata", () => {
+    expect(FREE_COLLECTION_SKIN_IDS).toContain("gaMaiNguNuong");
+    expect(CATALOG_SKIN_UNLOCK_ERRORS).toEqual([]);
+    expect(validateCatalogAchievementRewards()).toEqual([]);
+    expect(CATALOG_SKIN_DEFINITIONS.find((skin) => skin.id === "gaMaiNguNuong")?.unlockType).toBe("free");
+    expect(CATALOG_SKIN_DEFINITIONS.some((skin) => skin.unlockType === "locked")).toBe(true);
+    expect(ACHIEVEMENT_REWARDS).toHaveLength(99);
   });
 
-  it("claims a reward once, equips only unlocked skins and ranks claimable rows first", () => {
+  it("parses all authored achievement prefixes at exact thresholds and rejects invalid descriptors", () => {
+    const cases = [
+      ["bestRound_2", "best_round", "best_round_1"],
+      ["roundsWon_1", "rounds_won", "rounds_won_1"],
+      ["runsStarted_1", "runs_started", "runs_started_1"],
+      ["shopRefreshes_1", "shop_refreshes", "shop_refreshes_1"],
+      ["xpPurchases_1", "xp_purchases", "xp_purchases_1"],
+      ["unitsBought_1", "units_bought", "units_bought_1"],
+      ["merges_1", "merges", "merges_1"],
+      ["augmentsChosen_1", "augments_chosen", "augments_chosen_1"],
+      ["craftedItems_1", "crafted_items", "crafted_items_1"],
+      ["highestLevel_2", "highest_level", "highest_level_1"],
+    ] as const;
+    for (const [value, category, achievementId] of cases) {
+      expect(parseAuthoredSkinUnlock(value)).toMatchObject({ type: "achievement", category, achievementId });
+    }
+    expect(parseAuthoredSkinUnlock("free")).toEqual({ type: "free" });
+    expect(parseAuthoredSkinUnlock("locked")).toEqual({ type: "locked" });
+    expect(parseAuthoredSkinUnlock("unknown_1")).toBeNull();
+    expect(parseAuthoredSkinUnlock("runsStarted_4")).toBeNull();
+  });
+
+  it("claims a real catalog reward once, equips only owned catalog skins and ranks claimable rows first", () => {
     const p = createAchievementProfile();
     recordEndlessAchievementEvent(p, "EndlessPvEClassic", { type: "run_started" });
     const c = createCollectionProfile();
-    const mapping = { achievementId: "runs_started_1", skinId: "skin_test", unitId: NORMAL_UNITS[0]!.id };
+    const mapping = ACHIEVEMENT_REWARDS.find((reward) => reward.achievementId === "runs_started_1");
+    if (!mapping) throw new Error("missing authored runs_started_1 reward");
     expect(claimSkinReward(p, c, mapping)).toBe(true);
     expect(claimSkinReward(p, c, mapping)).toBe(false);
     expect(equipCollectionSkin(c, mapping.unitId, "locked_skin")).toBe(false);
-    expect(equipCollectionSkin(c, mapping.unitId, "skin_test")).toBe(true);
-    const ranked = rankAchievementRows(p, createCollectionProfile(), [mapping]);
+    expect(equipCollectionSkin(c, mapping.unitId, mapping.skinId)).toBe(true);
+    const ranked = rankAchievementRows(p, createCollectionProfile(), ACHIEVEMENT_REWARDS);
     expect(ranked[0]?.id).toBe("runs_started_1");
     expect(ranked[0]?.claimable).toBe(true);
   });
@@ -72,7 +83,7 @@ describe("achievement + collection profile", () => {
       equippedSkinByUnitId: { [unitId]: "skin.lofi_alpha" },
     })).toEqual({
       version: 2,
-      unlockedSkinIds: ["skin.loli_alpha"],
+      unlockedSkinIds: ["gaMaiNguNuong", "skin.loli_alpha"],
       claimedAchievementIds: ["runs_started_1"],
       equippedSkinByUnitId: { [unitId]: "skin.loli_alpha" },
     });
@@ -86,7 +97,7 @@ describe("achievement + collection profile", () => {
     expect(claimAchievementSkin(c, "runs_started_1", "skin.loli_reward")).toBe(false);
     expect(c).toMatchObject({
       claimedAchievementIds: ["runs_started_1"],
-      unlockedSkinIds: ["skin.loli_reward"],
+      unlockedSkinIds: ["gaMaiNguNuong", "skin.loli_reward"],
     });
     expect(equipUnitSkin(c, unitId, "skin.lofi_reward")).toBe(true);
     expect(c.equippedSkinByUnitId[unitId]).toBe("skin.loli_reward");

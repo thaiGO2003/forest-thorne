@@ -9,7 +9,11 @@ import {
   unequipItem, type RoundResultInput, type RoundResultSummary, type RunState,
 } from "../core/run";
 import { applyFinishFast } from "../core/combatFast";
-import { EXPORT_FILENAME, exportSaveJson, importSaveJson, inspectSave, clearRunProgress, saveRun, type RunPayload } from "../core/save";
+import {
+  EXPORT_FILENAME, exportSaveJson, importSaveJson, inspectSave, clearRunProgress, saveRun,
+  loadAchievementProfile, saveAchievementProfile, loadCollectionProfile, saveCollectionProfile,
+  type RunPayload,
+} from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor, type EnvironmentId } from "../core/environment";
@@ -23,6 +27,11 @@ import { rollEquipmentLoot, rollMaterialLoot } from "../core/loot";
 import { createPlanningHistory, pushPlanningHistory, type HistoryCategory, type PlanningHistoryState } from "../core/history";
 import { setLocale } from "../core/i18n";
 import { createSettingsStore, type SettingsStore, type KV } from "../core/settings";
+import {
+  ACHIEVEMENT_REWARDS, claimSkinReward, equipCollectionSkin as equipOwnedCollectionSkin,
+  recordEndlessAchievementEvent,
+  type AchievementProfile, type CollectionProfile, type EndlessAchievementEvent,
+} from "../core/achievements";
 import type { EnemyPreviewResult } from "../core/preview";
 export type SaveSummary =
   | { kind: "none" | "corrupt" }
@@ -97,6 +106,14 @@ export interface Bridge {
   checkpoint(category: HistoryCategory, message: string): void;
   /** Canonical persisted UI settings owner (A35, A110.2). */
   settings: SettingsStore;
+  /** Read account achievement progress through the bridge-owned store. */
+  achievementProfile(): AchievementProfile;
+  /** Read collection ownership/equips through the bridge-owned store. */
+  collectionProfile(): CollectionProfile;
+  /** Claim one eligible catalog-backed achievement reward and persist it idempotently. */
+  claimAchievement(achievementId: string): boolean;
+  /** Equip an owned authored skin (or base look) and persist it. */
+  equipCollectionSkin(unitId: string, skinId: string | null): boolean;
   /** Drop an in-memory run after settings imports or clears persisted progress. */
   forgetRun(): void;
   /** Run-only clear (A57/A60.5); never touches settings, collection or achievements. */
@@ -140,6 +157,23 @@ export function createBridge(store: KV = localStorage): Bridge {
   const persist = () => {
     if (state) saveRun(store, { player: state });
   };
+  const achievementSnapshot = (): EndlessAchievementEvent | null => state ? {
+    type: "snapshot",
+    round: state.round,
+    gold: state.gold,
+    level: state.level,
+    winStreak: state.winStreak,
+  } : null;
+  const recordAchievements = (events: readonly EndlessAchievementEvent[] = []) => {
+    if (!state) return false;
+    const profile = loadAchievementProfile(store);
+    let changed = false;
+    for (const event of events) changed = recordEndlessAchievementEvent(profile, state.mode, event) || changed;
+    const snapshot = achievementSnapshot();
+    if (snapshot) changed = recordEndlessAchievementEvent(profile, state.mode, snapshot) || changed;
+    if (changed) saveAchievementProfile(store, profile);
+    return changed;
+  };
   const record = (category: HistoryCategory, message: string, details?: string[]) => {
     pushPlanningHistory(history, {
       category,
@@ -149,7 +183,13 @@ export function createBridge(store: KV = localStorage): Bridge {
       round: state?.round,
     });
   };
-  const commit = (category: HistoryCategory, message: string, details?: string[]) => {
+  const commit = (
+    category: HistoryCategory,
+    message: string,
+    details?: string[],
+    achievementEvents: readonly EndlessAchievementEvent[] = [],
+  ) => {
+    recordAchievements(achievementEvents);
     record(category, message, details);
     persist();
     emit();
@@ -228,6 +268,7 @@ export function createBridge(store: KV = localStorage): Bridge {
       state.aiMode = config.ai.allowed.includes(requestedAi) ? requestedAi : config.ai.def;
       resetExternalPlanningState();
       resetHistory();
+      recordAchievements([{ type: "run_started" }]);
       persist();
       emit();
       return state;
@@ -258,18 +299,21 @@ export function createBridge(store: KV = localStorage): Bridge {
     buy(slot) {
       if (!state) return false;
       const id = state.shop[slot];
-      if (!id || !buyUnit(state, slot)) return false;
-      commit("SHOP", `Mua ${getUnit(id).nameVi}`);
+      const purchase = id ? buyUnit(state, slot) : null;
+      if (!id || !purchase) return false;
+      const achievementEvents: EndlessAchievementEvent[] = [{ type: "unit_bought" }];
+      if (purchase.merges > 0) achievementEvents.push({ type: "merge", count: purchase.merges });
+      commit("SHOP", `Mua ${getUnit(id).nameVi}`, undefined, achievementEvents);
       return true;
     },
     reroll() {
       if (!state || !refresh(state)) return false;
-      commit("SHOP", "Làm mới cửa hàng");
+      commit("SHOP", "Làm mới cửa hàng", undefined, [{ type: "shop_refresh" }]);
       return true;
     },
     buyXp() {
       if (!state || !buyRunXp(state)) return false;
-      commit("SHOP", "Mua 4 XP");
+      commit("SHOP", "Mua 4 XP", undefined, [{ type: "xp_purchase" }]);
       return true;
     },
     toggleLock() {
@@ -331,12 +375,12 @@ export function createBridge(store: KV = localStorage): Bridge {
       const crafted = craftRunItem(state, craftStaging);
       if (!crafted) return null;
       craftStaging = Array<string | null>(9).fill(null);
-      commit("EVENT", `Chế tạo ${crafted}`);
+      commit("EVENT", `Chế tạo ${crafted}`, undefined, [{ type: "crafted" }]);
       return crafted;
     },
     chooseAugment(id) {
       if (!state || !chooseRunAugment(state, id)) return false;
-      commit("EVENT", `Chọn nâng cấp ${id}`);
+      commit("EVENT", `Chọn nâng cấp ${id}`, undefined, [{ type: "augment_chosen" }]);
       return true;
     },
     prepareEnemyPreview() {
@@ -432,7 +476,16 @@ export function createBridge(store: KV = localStorage): Bridge {
 
       const publishResult = (summary: RoundResultSummary | null) => {
         if (!summary) return null;
-        commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`);
+        commit("COMBAT", `Kết thúc giao tranh vòng ${round}: ${summary.winner}`, undefined, [{
+          type: "round_result",
+          round,
+          won: summary.winner === "LEFT",
+          lost: summary.winner === "RIGHT",
+          itemsLooted: summary.acceptedDrops.length,
+          gold: s.gold,
+          level: s.level,
+          winStreak: s.winStreak,
+        }]);
         combatDiagnostics = null;
         return summary;
       };
@@ -458,6 +511,26 @@ export function createBridge(store: KV = localStorage): Bridge {
     checkpoint: commit,
     history: () => history,
     settings,
+    achievementProfile: () => loadAchievementProfile(store),
+    collectionProfile: () => loadCollectionProfile(store),
+    claimAchievement(achievementId) {
+      const mapping = ACHIEVEMENT_REWARDS.find((candidate) => candidate.achievementId === achievementId);
+      if (!mapping) return false;
+      const achievements = loadAchievementProfile(store);
+      const collection = loadCollectionProfile(store);
+      if (!claimSkinReward(achievements, collection, mapping)) return false;
+      saveAchievementProfile(store, achievements);
+      saveCollectionProfile(store, collection);
+      emit();
+      return true;
+    },
+    equipCollectionSkin(unitId, skinId) {
+      const collection = loadCollectionProfile(store);
+      if (!equipOwnedCollectionSkin(collection, unitId, skinId)) return false;
+      saveCollectionProfile(store, collection);
+      emit();
+      return true;
+    },
     forgetRun() { state = null; resetExternalPlanningState(); resetHistory(); emit(); },
     clearRun() { clearRunProgress(store); state = null; resetExternalPlanningState(); emit(); },
     exportRun() {

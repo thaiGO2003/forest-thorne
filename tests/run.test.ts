@@ -24,7 +24,7 @@ describe("run state", () => {
     const s = normalRun(1);
     const id = s.shop[0]!;
     const gold = s.gold;
-    expect(buy(s, 0)).toBe(true);
+    expect(buy(s, 0)).toEqual({ merges: 0 });
     expect(s.shop[0]).toBeNull();
     expect(s.gold).toBeLessThan(gold);
     expect(s.bench.at(-1)?.baseId).toBe(id);
@@ -34,9 +34,9 @@ describe("run state", () => {
     const s = normalRun(1);
     s.gold = 0;
     const before = snap(s);
-    expect(buy(s, 0)).toBe(false);
+    expect(buy(s, 0)).toBeNull();
     s.shop[1] = null;
-    expect(buy(s, 1)).toBe(false);
+    expect(buy(s, 1)).toBeNull();
     expect(snap(s).replace(/"shop":\[[^\]]*\]/, "")).toBe(before.replace(/"shop":\[[^\]]*\]/, ""));
   });
 
@@ -161,7 +161,7 @@ describe("run state", () => {
     s.board[0] = unit("b");
     expect(startCombat(s)).toBeNull();
     expect(s.phase).toBe("COMBAT");
-    expect(buy(s, 0)).toBe(false);
+    expect(buy(s, 0)).toBeNull();
   });
 
   it("equipment mutations are atomic and use canonical tier/cost rules", () => {

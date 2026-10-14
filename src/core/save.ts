@@ -14,7 +14,7 @@ import { AUGMENT_BY_ID } from "./augments";
 import { TECH_BY_ID, maxLevel } from "./tech";
 import { normalizeWeatherBlessingQueue } from "./blessings";
 import {
-  claimAchievementCompletionSkin, normalizeAchievementProfile, normalizeCollectionProfile,
+  normalizeAchievementProfile, normalizeCollectionProfile,
   type AchievementProfile, type CollectionProfile,
 } from "./achievements";
 import type { KV } from "./settings";
@@ -257,9 +257,6 @@ export function inspectSave(store: KV): ContinueState {
 export function saveRun(store: KV, payload: RunPayload): Envelope {
   const achievementsProfile = loadAchievementProfile(store);
   const collectionProfile = loadCollectionProfile(store);
-  if (claimAchievementCompletionSkin(achievementsProfile, collectionProfile)) {
-    saveCollectionProfile(store, collectionProfile);
-  }
   const env = createEnvelope(structuredClone(payload), { achievementsProfile, collectionProfile });
   store.setItem(PROGRESS_KEY, JSON.stringify(env));
   return env;
@@ -280,8 +277,6 @@ export function loadAchievementProfile(store: KV): AchievementProfile {
 export function saveAchievementProfile(store: KV, value: unknown): AchievementProfile {
   const normalized = normalizeAchievementProfile(value);
   store.setItem(ACHIEVEMENTS_KEY, JSON.stringify(normalized));
-  const collection = loadCollectionProfile(store);
-  if (claimAchievementCompletionSkin(normalized, collection)) saveCollectionProfile(store, collection);
   return normalized;
 }
 
@@ -316,9 +311,7 @@ export function importProgress(store: KV, text: string, persist: boolean): RunPa
     store.setItem(PROGRESS_KEY, JSON.stringify(m.envelope));
     if (isObj(raw) && isObj(raw.achievementsProfile)) saveAchievementProfile(store, m.envelope.achievementsProfile);
     if (isObj(raw) && isObj(raw.collectionProfile)) {
-      const collection = normalizeCollectionProfile(m.envelope.collectionProfile);
-      claimAchievementCompletionSkin(m.envelope.achievementsProfile, collection);
-      saveCollectionProfile(store, collection);
+      saveCollectionProfile(store, normalizeCollectionProfile(m.envelope.collectionProfile));
     }
   }
   return m.envelope.payload;

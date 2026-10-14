@@ -8,6 +8,7 @@ import { normalizeKey } from "../core/settings";
 import { h, kitButton } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
+import { mountAchievements } from "../ui/achievements";
 import { mountSettings } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
 import { mountHistory } from "../ui/history";
@@ -697,8 +698,18 @@ function openEnemyUnitDetail(app: App, uid: string) {
 }
 
 const openLibrary = (app: App, id?: string) =>
-  openPanelModal(app, { id: "library", title: t("menu.library"), size: "full" }, (m) => mountLibrary(m, portraits, app.tooltip, id));
+  openPanelModal(
+    app,
+    { id: "library", title: t("menu.library"), size: "full" },
+    (m) => mountLibrary(m, portraits, app.tooltip, app.bridge, id),
+  );
 registerPanel("library", (app) => openLibrary(app));
+registerPanel("achievements", (app) =>
+  openPanelModal(
+    app,
+    { id: "achievements", title: t("menu.achievements"), size: "full" },
+    (m) => mountAchievements(m, app.bridge),
+  ));
 registerPanel("unit-detail", (app, id) => {
   if (id?.startsWith("owned:")) {
     openOwnedUnitDetail(app, id.slice("owned:".length));
