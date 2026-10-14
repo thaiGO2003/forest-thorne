@@ -3,11 +3,11 @@
 ## Goal
 Implement the requested Forest Throne fixes/features using current production code as authority and `old_src/` only as a reference. Preserve asset-first UI rules, pnpm-only commands, targeted verification, and the existing generated `.omp/plans/custom/html/agent-index.html`.
 
-## Leader closure status (2026-10-13)
-- **Completed locally/integrated:** Waves 1–3 and 7–9; Wave 6 implementation/content-fit patch is landed on `dev`; targeted regressions and the production Vite bundle are green where recorded below.
-- **Delegated and still open on the Team board:** Wave 4 pixel-observable headed checks; Wave 5 planning → combat → results animal-count equality smoke; Wave 6 visual/content-fit acceptance. The lead session intentionally does not duplicate browser work already delegated to those agents.
-- **Release gate still open:** `pnpm typecheck` and `pnpm build` fail on exactly the three known test-fixture diagnostics recorded below. Their previously rejected fixture edits are not retried or bypassed by weakening production contracts.
-- **Closure rule:** this plan stays in `pending/` until delegated browser evidence is actually PASS and required release gates are green; only then may the leader run `/plan-done forest-throne-2026-10-10-backlog`.
+## Leader closure status (2026-10-14)
+- **Completed locally/integrated:** Waves 1–3 and 7–9. Wave 6 implementation/content-fit code is landed on `dev`; its targeted regression and production Vite bundle evidence are recorded below.
+- **Acceptance blockers only:** Wave 4 pixel-observable headed checks are BLOCKED by browser creation failure; Wave 5 planning → combat → results animal-count equality remains pending behind Wave 4; Wave 6 visual/content-fit acceptance is BLOCKED by the platform browser safety-status rejection. These rejected browser operations are not retried, repackaged, or rerouted.
+- **Release blocker only:** the latest executable `pnpm typecheck` / `pnpm build` evidence still fails on exactly the three known stale test-fixture diagnostics recorded below. Their fixture edits were previously platform-rejected and are not retried or bypassed by weakening required production contracts. A fresh grouped release-check refresh on 2026-10-14 was itself platform-rejected before execution and was not rerouted.
+- **Closure rule:** no independent implementation work remains. This plan stays in `pending/` until the blocked headed acceptances actually PASS and required TypeScript/build gates are green; only then may the leader run `/plan-done forest-throne-2026-10-10-backlog`.
 
 ## Imported reference
 - `old_src/` copied from `DevGOVietnam/homeserver-forest-throne-classic`.
@@ -87,7 +87,7 @@ After Wave 1 foundation lands:
 2. Validate selected-control green corner treatment and lighting against asset-first rules.
 3. Headed screenshots/browser verification for modal sizing, typography, QR, card HP, filters, board highlights, night/day, lamps.
 
-Wave 4 verification evidence (2026-10-13):
+Wave 4 verification evidence (through 2026-10-14):
 - `Settings.quality` drives the existing Three.js shadow pass and warm sun-ray shader through `Stage.setShadowQuality(...)`; low disables both, medium uses a 1024 shadow map with reduced ray gain, high uses 2048 with full ray gain.
 - `Arena.update(dt)` advances shader time in the existing render loop; the primary shadow-camera projection is refreshed after bounds changes so the `coop4` board remains inside the frustum.
 - Prior targeted command `NODE_OPTIONS='--localstorage-file=.vitest-ls.json' pnpm exec vitest --run tests/arena-mapping.test.ts` passed **1 file / 6 tests** after the projection-matrix fix.
@@ -101,7 +101,7 @@ Wave 4 verification evidence (2026-10-13):
 3. `pnpm typecheck` and `pnpm build` only after implementation integration.
 4. Commit by coherent workstream with required multi-line bodies; push `dev`.
 
-Wave 5 verification evidence (2026-10-13):
+Wave 5 verification evidence (through 2026-10-14):
 - Canonical count ownership remains unified: planning derives allied units from `run.board`, combat roster creation derives from `boardPlacements(s)`, and playback consumes `session.roster`. Earlier BrowserPanel planning evidence showed `Thú đồng minh: 0` and the ally detail tab reported `Không có thú.`
 - The required planning → combat → results deployed-animal count equality smoke remains **pending behind Wave 4**. The delegated owner explicitly reported that no Wave 5 work was started because Wave 4 acceptance is still blocked; the lead session does not duplicate the headed verification.
 - Recorded Wave 5 regression evidence remains **14 files / 128 tests passed**, plus adjacent combat-staging/inspection/skills **3 files / 19 tests passed**. Current Wave 6 regression also passes **5 files / 48 tests**.
