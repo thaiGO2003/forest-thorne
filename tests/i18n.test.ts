@@ -31,4 +31,14 @@ describe("i18n", () => {
     expect(t("info.synergyClass", {}, "vi")).toBe("Vai trò");
     expect(t("info.synergyElement", {}, "en")).toBe("Element");
   });
+
+  it("localizes graphics quality and mod metadata values in both locales", () => {
+    expect(t("quality.high", {}, "vi")).toBe("Cao");
+    expect(t("quality.high", {}, "en")).toBe("High");
+    expect(t("mods.packageType.ftunit", {}, "vi")).toBe("Gói đơn vị (.ftunit)");
+    expect(t("mods.packageType.ftlogic", {}, "en")).toBe("Logic package (.ftlogic)");
+    expect(t("mods.source.bundled", {}, "vi")).toBe("Tích hợp sẵn");
+    expect(t("mods.source.local", {}, "en")).toBe("Local");
+    expect(t("mods.source.workshop", {}, "vi")).toBe("Workshop");
+  });
 });

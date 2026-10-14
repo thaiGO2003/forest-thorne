@@ -26,7 +26,7 @@ import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { getGameSpeedDisplayMultiplier } from "../core/gameSpeed";
 import { finishFastCost } from "../core/combatFast";
-import { createModManager, type ModManager, type ModValidationIssue } from "../mods/ModRegistry";
+import { createModManager, type ModManager, type ModPackageType, type ModSource, type ModValidationIssue } from "../mods/ModRegistry";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
 import { createCombatFx, type CombatFx } from "../units/fx";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
@@ -70,6 +70,16 @@ const ITEM_COPY: Partial<Record<string, MsgKey>> = {
   tear: "item.tear",
 };
 const itemName = (id: string) => ITEM_COPY[id] ? t(ITEM_COPY[id]!) : id;
+const MOD_PACKAGE_TYPE_COPY: Record<ModPackageType, MsgKey> = {
+  ".ftunit": "mods.packageType.ftunit",
+  ".ftlogic": "mods.packageType.ftlogic",
+  ".ftmodpack": "mods.packageType.ftmodpack",
+};
+const MOD_SOURCE_COPY: Record<ModSource, MsgKey> = {
+  bundled: "mods.source.bundled",
+  local: "mods.source.local",
+  workshop: "mods.source.workshop",
+};
 
 let modManagerPromise: Promise<ModManager> | null = null;
 const modManager = () => {
@@ -230,8 +240,8 @@ function openMods(app: App) {
         );
         const meta = h("div", "mod-meta");
         meta.append(
-          h("small", "", t("mods.packageType") + ": " + manifest.packageType),
-          h("small", "", t("mods.source") + ": " + manifest.source),
+          h("small", "", t("mods.packageType") + ": " + t(MOD_PACKAGE_TYPE_COPY[manifest.packageType])),
+          h("small", "", t("mods.source") + ": " + t(MOD_SOURCE_COPY[manifest.source])),
           h("small", "", t("mods.author") + ": " + manifest.author),
         );
         const relations = h("div", "mod-relations");
