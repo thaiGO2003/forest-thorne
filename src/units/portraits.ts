@@ -20,15 +20,17 @@ function light(scene: THREE.Scene) {
   scene.add(key, rim);
 }
 
-/** Place camera so the unit's bounding box fills the frame at the inspection angle. */
-function frame(camera: THREE.PerspectiveCamera, obj: THREE.Object3D, zoom = 1) {
-  const box = new THREE.Box3().setFromObject(obj, true);
-  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
-  const radius = Math.max(size.x, size.y, size.z) * 0.62;
-  const dist = (radius / Math.tan((camera.fov * Math.PI) / 360)) * zoom;
+/** Fit the entire 3D rig, including depth, at every aspect ratio and orbital angle. */
+function frame(camera: THREE.PerspectiveCamera, bounds: THREE.Sphere, zoom = 1) {
+  const halfVertical = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const halfHorizontal = Math.atan(Math.tan(halfVertical) * camera.aspect);
+  const limitingHalfAngle = Math.min(halfVertical, halfHorizontal);
+  const dist = Math.max(0.5, bounds.radius * 1.2 / Math.sin(limitingHalfAngle)) * zoom;
+  const center = bounds.center;
   camera.position.set(center.x + Math.sin(VIEW_YAW) * dist, center.y + dist * 0.28, center.z + Math.cos(VIEW_YAW) * dist);
   camera.lookAt(center);
-  camera.near = dist / 50; camera.far = dist * 6;
+  camera.near = Math.max(0.01, dist / 100);
+  camera.far = dist + bounds.radius * 4 + 2;
   camera.updateProjectionMatrix();
 }
 
@@ -67,7 +69,7 @@ export function createPortraits(): Portraits {
       const u = createUnit(job.id, job.star);
       u.update(0.016);
       scene.add(u.root);
-      frame(camera, u.root);
+      frame(camera, new THREE.Box3().setFromObject(u.root, true).getBoundingSphere(new THREE.Sphere()));
       renderer.render(scene, camera);
       const c = document.createElement("canvas");
       c.width = c.height = SNAP;
@@ -109,20 +111,27 @@ export function createPortraits(): Portraits {
       const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
       const turn = new THREE.Group();
       vs.add(turn);
-      let unit: UnitVisual | null = null, currentId: string | null = null, combat = false, zoom = 1, yaw = 0, dragging = false;
+      let unit: UnitVisual | null = null, currentId: string | null = null, combat = false, zoom = 1;
+      let yaw = 0, pitch = 0, idleWindow = 2, previewAction = false;
+      const bounds = new THREE.Sphere();
       const pointers = new Map<number, { x: number; y: number }>();
       let pinch = 0;
 
       const resize = () => {
-        const w = host.clientWidth || 1, h = host.clientHeight || 1;
+        const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
         r.setSize(w, h, false);
         cam.aspect = w / h;
-        if (unit) frame(cam, turn, zoom);
+        if (unit) frame(cam, bounds, zoom);
+        else cam.updateProjectionMatrix();
       };
       const ro = new ResizeObserver(resize);
       ro.observe(host);
 
-      const down = (e: PointerEvent) => { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); r.domElement.setPointerCapture(e.pointerId); dragging = true; };
+      const down = (e: PointerEvent) => {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        r.domElement.setPointerCapture(e.pointerId);
+        pinch = 0;
+      };
       const move = (e: PointerEvent) => {
         const prev = pointers.get(e.pointerId);
         if (!prev) return;
@@ -132,11 +141,18 @@ export function createPortraits(): Portraits {
           const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
           if (pinch) setZoom(zoom * (pinch / d));
           pinch = d;
-        } else yaw += (e.clientX - prev.x) * 0.012;
+        } else if (pointers.size === 1) {
+          yaw += (e.clientX - prev.x) * 0.012;
+          pitch = THREE.MathUtils.clamp(pitch + (e.clientY - prev.y) * 0.012, -Math.PI / 2, Math.PI / 2);
+        }
       };
-      const up = (e: PointerEvent) => { pointers.delete(e.pointerId); pinch = 0; dragging = pointers.size > 0; };
+      const up = (e: PointerEvent) => {
+        pointers.delete(e.pointerId);
+        if (r.domElement.hasPointerCapture(e.pointerId)) r.domElement.releasePointerCapture(e.pointerId);
+        pinch = 0;
+      };
       const wheel = (e: WheelEvent) => { e.preventDefault(); setZoom(zoom * (1 + Math.sign(e.deltaY) * 0.1)); };
-      const setZoom = (z: number) => { zoom = Math.min(1.8, Math.max(0.55, z)); if (unit) frame(cam, turn, zoom); };
+      const setZoom = (z: number) => { zoom = Math.min(1.8, Math.max(0.65, z)); if (unit) frame(cam, bounds, zoom); };
       r.domElement.addEventListener("pointerdown", down);
       r.domElement.addEventListener("pointermove", move);
       r.domElement.addEventListener("pointerup", up);
@@ -145,10 +161,25 @@ export function createPortraits(): Portraits {
 
       const clock = new THREE.Clock();
       r.setAnimationLoop(() => {
-        const dt = clock.getDelta();
-        if (!dragging) yaw += dt * 0.15; // slow showcase turn while idle
-        turn.rotation.y = yaw;
-        unit?.update(dt);
+        const dt = Math.min(0.1, clock.getDelta());
+        if (!pointers.size) yaw += dt * 0.15;
+        turn.rotation.set(pitch, yaw, 0, "YXZ");
+        if (unit) {
+          if (previewAction) {
+            unit.update(dt);
+          } else if (idleWindow > 0) {
+            unit.update(dt);
+            idleWindow -= dt;
+            if (idleWindow <= 0) {
+              unit.play("idle");
+              unit.update(0);
+              idleWindow = -(2 + Math.random() * 3);
+            }
+          } else {
+            idleWindow += dt;
+            if (idleWindow >= 0) { unit.play("idle"); idleWindow = 1.5 + Math.random() * 1.5; }
+          }
+        }
         r.render(vs, cam);
       });
 
@@ -156,19 +187,35 @@ export function createPortraits(): Portraits {
         setUnit(id, star) {
           if (currentId !== null && currentId !== id) combat = false;
           unit?.dispose();
+          turn.rotation.set(0, 0, 0);
           unit = createUnit(id, star);
           currentId = id;
           unit.setCombat(combat);
           unit.update(0.016);
           turn.add(unit.root);
+          new THREE.Box3().setFromObject(unit.root, true).getBoundingSphere(bounds);
           yaw = 0;
+          pitch = 0;
+          zoom = 1;
+          previewAction = false;
+          idleWindow = 1.5 + Math.random();
           resize();
         },
         setCombat(v) {
           combat = v;
           unit?.setCombat(v);
         },
-        play(state) { unit?.play(state); },
+        play(state) {
+          if (!unit) return;
+          if (state === "idle") {
+            previewAction = false;
+            idleWindow = 1.5 + Math.random() * 1.5;
+            unit.play("idle");
+          } else {
+            previewAction = true;
+            unit.play(state, { onDone: () => { previewAction = false; idleWindow = -(2 + Math.random() * 3); } });
+          }
+        },
         dispose() {
           combat = false;
           unit?.setCombat(false);

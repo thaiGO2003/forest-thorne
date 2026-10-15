@@ -64,10 +64,13 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
     if (!listening) return;
     e.preventDefault();
     e.stopPropagation(); // capture must not leak to Escape-close or board shortcuts (A95.3)
-    const raw = e.key === " " ? "SPACE" : e.key;
+    const raw = e.code === "ShiftRight" ? "SHIFTRIGHT" : e.key === " " ? "SPACE" : e.key;
     const k = normalizeKey(raw);
     if (!k || k === "ESCAPE") { note = t("settings.reserved"); listening = null; render(); return; }
     const s = store.get(), { ctx, action } = listening;
+    if (Object.entries(s.keys[ctx]).some(([other, value]) => other !== action && value === k)) {
+      note = t("settings.keyConflict"); listening = null; render(); return;
+    }
     listening = null; note = ""; // clear first: save() notifies subscribers, which re-render immediately
     store.save({ keys: { ...s.keys, [ctx]: { ...s.keys[ctx], [action]: k } } });
   };
@@ -81,12 +84,13 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
     switch (tab) {
       case "audio":
         field("settings.sound", toggle(s.audioEnabled && !s.audioMuted, (v) => store.save({ audioEnabled: true, audioMuted: !v })));
+        field("settings.music", toggle(s.musicEnabled, (v) => store.save({ musicEnabled: v })));
         field("settings.volume", stepper([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.volumeLevel, (v) => `${v}/10`, (v) => store.save({ volumeLevel: v })));
         break;
       case "display":
         field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v === "adaptive" ? t("settings.resolution.adaptive") : v, (v) => store.save({ resolutionKey: v })));
         field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => t(`settings.tooltip.${v}` as MsgKey), (v) => store.save({ tooltipMode: v })));
-        field("menu.language", stepper(["vi", "en"] as const, s.language, (v) => (v === "vi" ? "Tiếng Việt" : "English"), (v) => store.save({ language: v })));
+        field("menu.language", stepper(["vi"] as const, s.language, () => "Tiếng Việt", (v) => store.save({ language: v })));
         break;
       case "gameplay":
         field("settings.subtitle", toggle(s.subtitleEnabled, (v) => store.save({ subtitleEnabled: v })));
@@ -110,7 +114,6 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
       case "device":
         field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`settings.quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
         field("settings.renderScale", stepper(RENDER_SCALES, (RENDER_SCALES as readonly number[]).includes(s.renderScale) ? (s.renderScale as (typeof RENDER_SCALES)[number]) : 1, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
-        field("settings.battery", toggle(s.batterySaver, (v) => store.save({ batterySaver: v })));
         break;
       case "data": {
         const armed = performance.now() < confirmUntil;

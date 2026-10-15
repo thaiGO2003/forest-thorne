@@ -6,13 +6,13 @@ import {
   buyXp as buyRunXp, chooseAugment as chooseRunAugment, craftRunItem, createModeRun, deployLimit,
   enemyPreview, equipItem, playerCombatBonus, refresh, research as researchTech, runSynergies,
   sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
-  unequipItem, type RoundResultSummary, type RunState,
+  unequipItem, unequipAll, type RoundResultSummary, type RunState,
 } from "../core/run";
 import { inspectSave, clearRunProgress, saveRun } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor } from "../core/environment";
-import { makeFighter, simulate, type CombatEvent, type Placement, type SideBonus } from "../core/combat";
+import { materializeCombat, simulate, snapshotFighter, type CombatEvent, type CombatInspectionFrame, type Placement, type SideBonus } from "../core/combat";
 import {
   currentTutorialStep, dismissTutorialStep, recordTutorialEvent, skipTutorial as skipTutorialState,
   tutorialActionAllowed, type TutorialAction, type TutorialActionContext, type TutorialInspectionContext,
@@ -36,6 +36,7 @@ export interface CombatSession {
   /** Every combatant at battle start (both sides), with starting HP/rage/shield. */
   roster: RosterEntry[];
   events: CombatEvent[];
+  inspectionFrames: CombatInspectionFrame[];
   /** Applies the result once (idempotent by combat id) and returns the normalized summary. */
   finish(): RoundResultSummary | null;
 }
@@ -66,6 +67,7 @@ export interface Bridge {
   move(from: { kind: "bench" | "board"; index: number }, to: { kind: "bench" | "board"; index: number }): boolean;
   equip(itemId: string, where: "bench" | "board", index: number): boolean;
   unequip(where: "bench" | "board", index: number, equippedIndex: number): boolean;
+  unequipAll(where: "bench" | "board", index: number): boolean;
   craftStaging(): readonly (string | null)[];
   stageCraft(index: number, itemId: string | null): boolean;
   craft(): string | null;
@@ -278,6 +280,11 @@ export function createBridge(store: KV = localStorage): Bridge {
       commit("EVENT", `Tháo trang bị ${itemId}`);
       return true;
     },
+    unequipAll(where, index) {
+      if (!state || !unequipAll(state, where, index)) return false;
+      commit("EVENT", "Tháo toàn bộ trang bị");
+      return true;
+    },
     craftStaging() {
       syncCraftStaging();
       return craftStaging.slice();
@@ -329,21 +336,20 @@ export function createBridge(store: KV = localStorage): Bridge {
       const combatSeed = (baseSeed ^ Math.imul(round, 0x45d9f3b)) | 0;
       const combatId = `solo:${round}:${combatSeed >>> 0}`;
       const environment = environmentFor(round);
-      const playerBonus = addBonus(playerCombatBonus(s), synergyBonus(s));
       const ai = AI_PROFILE[s.aiMode];
       const configuredScale = preview.source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(round);
       const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
-      const enemyBonus: SideBonus = {
-        hpPct: (ai.hp * scale - 1) * 100,
-        atkPct: (ai.atk * scale - 1) * 100,
-        matkPct: (ai.matk * scale - 1) * 100,
-      };
 
       if (beginCombat(s) !== null) return null;
-      const roster: RosterEntry[] = [
-        ...left.map((placement) => makeFighter(placement, "L", playerBonus, environment)),
-        ...right.map((placement) => makeFighter(placement, "R", enemyBonus, environment)),
-      ].map((fighter) => ({
+      const fighters = materializeCombat(left, right, {
+        rightAi: { hp: ai.hp, atk: ai.atk, matk: ai.matk },
+        rightModeScale: scale,
+        tutorialRightHpHalving: s.aiMode === "TUTORIAL" && round >= 1 && round <= 8,
+        leftPersistent: playerCombatBonus(s),
+        environment,
+        synergy: { L: synergyBonus(s) },
+      });
+      const roster: RosterEntry[] = fighters.map((fighter) => ({
         uid: fighter.uid,
         baseId: fighter.baseId,
         star: fighter.star,
@@ -353,13 +359,13 @@ export function createBridge(store: KV = localStorage): Bridge {
         rage: fighter.rage,
         rageMax: fighter.rageMax,
         shield: fighter.shield,
+        inspection: snapshotFighter(fighter),
       }));
-      const result = simulate(left, right, {
+      const result = simulate(fighters, {
         seed: combatSeed,
+        captureInspection: true,
         gold: { L: s.gold },
-        bonus: { L: playerBonus, R: enemyBonus },
         rageGain: { R: ai.rageGain },
-        environment,
         rightRandomTargetChance: ai.randomTarget,
       });
       const survivors = new Set(result.survivors.filter((fighter) => fighter.side === "R").map((fighter) => fighter.uid));
@@ -373,6 +379,7 @@ export function createBridge(store: KV = localStorage): Bridge {
       return {
         roster,
         events: result.events,
+        inspectionFrames: result.inspectionFrames ?? [],
         finish() {
           if (state !== s) return null;
           const summary = applyRoundResult(s, {

@@ -37,10 +37,10 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
     const { unit, star } = data;
     nineSlice(g, `card_t${Math.min(6, unit.tier)}`, SLICE.card, 0, 0, w, hh);
 
-    // Layout bands derived from the card box (2.2): portrait 58%, name 14%, identity 14%, corners 14%.
+    // Reserve more breathing room for the three information rows below the portrait.
     const pad = Math.max(6, Math.round(w * 0.08)), inner = hh - pad * 2;
-    const pw = w - pad * 2, ph = Math.round(inner * 0.58);
-    const band = (inner - ph) / 3, fs = Math.max(9, Math.min(15, band * 0.62, w / 8));
+    const pw = w - pad * 2, ph = Math.round(inner * 0.54);
+    const band = (inner - ph) / 3, fs = Math.max(9, Math.min(15, band * 0.58, w / 8));
     nineSlice(g, "slot_well", SLICE.slot_well, pad, pad, pw, ph);
     const p = portraits.get(unit.id, star);
     if (p) {

@@ -15,13 +15,13 @@ export { GAME_MODES, type GameMode } from "./modes";
 
 export type KeyContext = "planning" | "combat" | "menu";
 export const DEFAULT_KEYS = {
-  planning: { startCombat: "SPACE", reroll: "D", buyXp: "F", sell: "E", newRun: "R", settings: "ESCAPE", toggleAudio: "M" },
+  planning: { startCombat: "SPACE", reroll: "R", buyXp: "F", sell: "E", newRun: "SHIFTRIGHT", settings: "ESCAPE", toggleAudio: "M" },
   combat: { step: "SPACE", settings: "ESCAPE", toggleAudio: "M" },
   menu: { back: "ESCAPE" },
 } as const satisfies Record<KeyContext, Record<string, string>>;
 export type KeyBindings = { [C in KeyContext]: Record<keyof (typeof DEFAULT_KEYS)[C], string> };
 
-const NAMED_KEYS = ["SPACE", "DELETE", "BACKSPACE", "ENTER", "TAB", "ESCAPE"];
+const NAMED_KEYS = ["SPACE", "DELETE", "BACKSPACE", "ENTER", "TAB", "ESCAPE", "SHIFTRIGHT"];
 /** Single letter/digit or a named key; anything else → null. */
 export function normalizeKey(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -40,6 +40,14 @@ export function normalizeKeys(raw: unknown): KeyBindings {
       out[ctx][action] = k && (k !== "ESCAPE" || def === "ESCAPE") ? k : def;
     }
   }
+  // Migrate the old default pair together, rather than leaving R on new-run.
+  // On newer saves, never let the reroll/new-run actions share a shortcut.
+  if (out.planning?.reroll === "D" && out.planning?.newRun === "R") {
+    out.planning.reroll = "R";
+    out.planning.newRun = "SHIFTRIGHT";
+  } else if (out.planning?.reroll === out.planning?.newRun) {
+    out.planning.newRun = "SHIFTRIGHT";
+  }
   return out as KeyBindings;
 }
 
@@ -52,11 +60,11 @@ export const MODE_AI: Record<GameMode, { allowed: readonly AiMode[]; def: AiMode
 };
 
 export interface Settings {
-  audioEnabled: boolean; audioMuted: boolean; volumeLevel: number;
+  audioEnabled: boolean; audioMuted: boolean; musicEnabled: boolean; volumeLevel: number;
   aiMode: AiMode; aiModeByGameMode: Record<GameMode, AiMode>;
   loseCondition: "NO_HEARTS" | "NO_UNITS";
   resolutionKey: (typeof RESOLUTIONS)[number]; guiScale: 2;
-  language: "vi" | "en"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
+  language: "vi"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
   subtitleEnabled: boolean; keys: KeyBindings;
   quality: (typeof QUALITY)[number]; renderScale: number; batterySaver: boolean;
 }
@@ -73,6 +81,7 @@ export function normalizeSettings(raw: unknown): Settings {
   return {
     audioEnabled: bool(r.audioEnabled, true),
     audioMuted: bool(r.audioMuted, false),
+    musicEnabled: bool(r.musicEnabled, true),
     volumeLevel: Number.isFinite(vol) ? Math.min(10, Math.max(1, vol)) : 5,
     aiMode: normalizeAiMode(r.aiMode, "TUTORIAL"),
     aiModeByGameMode: Object.fromEntries(GAME_MODES.map((m) => {
@@ -84,7 +93,7 @@ export function normalizeSettings(raw: unknown): Settings {
       : pick(["NO_HEARTS", "NO_UNITS"] as const, r.loseCondition, "NO_HEARTS"),
     resolutionKey: pick(RESOLUTIONS, r.resolutionKey, "1600x900"),
     guiScale: 2,
-    language: pick(["vi", "en"] as const, r.language, "vi"),
+    language: "vi",
     tooltipMode,
     expandedTooltip: tooltipMode === "expanded",
     subtitleEnabled: bool(r.subtitleEnabled, true),

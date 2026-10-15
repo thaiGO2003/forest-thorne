@@ -1,9 +1,50 @@
 // Loading scene (§4.1, A55.1, A97). Progress is driven one-way by the real loader; the bubble
 // shooter is presentation-only and never gates, speeds or mutates loading/gameplay.
-import { drawFit, h, kitButton, label, nineSlice, SLICE, surface, threeSlice } from "./kit";
+import { drawFit, h, HEADING_FONT, kitButton, label, nineSlice, SLICE, surface, threeSlice } from "./kit";
 
 const AMMO = ["🐾", "🍄", "🌰", "⭐", "🔥", "🍃"];
 const FIRST_SPAWN_MS = 180, SPAWN_MS = 280, SHOT_SPEED = 620, SHOT_R = 16, MAX_DT = 0.1;
+
+// Title color advances only when the actual asset loader reports progress.
+const RAINBOW = ["#ff7068", "#ffae58", "#f6de62", "#7bdd76", "#63c9f1", "#958cff", "#dd86e9"] as const;
+
+function drawLoadingTitle(g: CanvasRenderingContext2D, title: string, progress: number, w: number, hh: number): void {
+  // NFC preserves Vietnamese glyphs composed with combining accents as single characters.
+  const lines = title.split(/\r?\n/).map((line) => Array.from(line.normalize("NFC")));
+  const letterCount = lines.reduce((sum, line) => sum + line.filter((ch) => ch.trim() !== "").length, 0);
+  const revealed = Math.floor(Math.max(0, Math.min(1, progress)) * letterCount);
+  const size = Math.min(40, w / 14);
+  g.save();
+  g.font = `800 ${size}px ${HEADING_FONT}`;
+  g.textAlign = "left";
+  g.textBaseline = "middle";
+  g.lineJoin = "round";
+  g.lineWidth = Math.max(2, size / 5);
+  g.strokeStyle = "#1e120a";
+  let ordinal = 0;
+  lines.forEach((glyphs, row) => {
+    const advances = glyphs.map((glyph) => g.measureText(glyph).width);
+    const lineWidth = advances.reduce((sum, advance) => sum + advance, 0);
+    const scale = Math.min(1, (w - 90) / Math.max(1, lineWidth));
+    g.save();
+    g.translate((w - lineWidth * scale) / 2, hh * 0.4 + (row - (lines.length - 1) / 2) * size * 1.1);
+    g.scale(scale, 1);
+    let x = 0;
+    glyphs.forEach((glyph, index) => {
+      if (glyph.trim()) {
+        g.fillStyle = ordinal < revealed ? RAINBOW[ordinal % RAINBOW.length]! : "#ffffff";
+        ordinal++;
+      } else {
+        g.fillStyle = "#ffffff";
+      }
+      g.strokeText(glyph, x, 0);
+      g.fillText(glyph, x, 0);
+      x += advances[index]!;
+    });
+    g.restore();
+  });
+  g.restore();
+}
 
 interface Bubble { x: number; y: number; r: number; vx: number; vy: number; amp: number; phase: number; t: number }
 interface Shot { x: number; y: number; vx: number; vy: number; glyph: string }
@@ -37,7 +78,7 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
 
   const titleS = surface(titleEl, (g, w, hh) => {
     nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.12, w, hh * 0.62, 2.5);
-    label(g, title, w / 2, hh * 0.4, { size: Math.min(40, w / 14), maxW: w - 90, weight: 800 });
+    drawLoadingTitle(g, title, progress, w, hh);
     label(g, failed ?? hint, w / 2, hh * 0.9, { size: 14, maxW: w - 20 });
   });
   const barS = surface(barEl, (g, w, hh) => {
@@ -113,7 +154,7 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
       progress = Math.max(0, Math.min(1, Number.isFinite(p) ? p : 0));
       if (d !== undefined) detail = d;
       barEl.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
-      barS.paint();
+      titleS.paint(); barS.paint();
     },
     setCopy(c) { if (c.title) title = c.title; if (c.hint) hint = c.hint; titleS.paint(); },
     fail(message, a) {
@@ -123,6 +164,8 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
     },
     dispose() {
       cancelAnimationFrame(raf);
+      titleS.dispose();
+      barS.dispose();
       ro.disconnect();
       play.removeEventListener("pointerdown", fire);
       bubbles.length = shots.length = 0;

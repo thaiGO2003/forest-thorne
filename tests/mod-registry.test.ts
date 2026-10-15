@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  MOD_LOCAL_KEY,
   MOD_PROFILE_KEY,
   createModManager,
   inspectModIndex,
@@ -226,6 +227,48 @@ describe("mod registry A50", () => {
     expect(manager.validateEnabled()).toEqual([]);
   });
 
+
+  it("persists imported local mods, their enabled order, and removes them after reload", async () => {
+    const storage = memoryStorage();
+    const fetcher = async () => ({ ok: true, json: async () => validIndex });
+    const first = await createModManager(storage, fetcher);
+    expect(first.importLocal("saved.ftunit", { id: "saved", name: "Đã nhập", packageType: ".ftunit" })).toMatchObject({ ok: true });
+    expect(first.importLocal("second.ftlogic", { id: "second", name: "Thứ hai", packageType: ".ftlogic" })).toMatchObject({ ok: true });
+    first.enable("saved");
+    first.enable("second");
+    first.move("second", -1);
+
+    const restored = await createModManager(storage, fetcher);
+    expect(restored.getIndex().mods.filter((mod) => mod.source === "local").map((mod) => mod.id))
+      .toContain("saved");
+    expect(restored.getProfile().loadOrder).toEqual(["second", "saved"]);
+    expect(restored.validateEnabled()).toEqual([]);
+    expect(restored.removeLocal("saved")).toBe(true);
+    expect(restored.removeLocal("saved")).toBe(false);
+    expect(restored.removeLocal("logic-plus")).toBe(false);
+    expect(restored.getProfile().enabledIds).toEqual(["second"]);
+    const afterRemoval = await createModManager(storage, fetcher);
+    expect(afterRemoval.getIndex().mods.map((mod) => mod.id)).not.toContain("saved");
+    expect(afterRemoval.getIndex().mods.map((mod) => mod.id)).toContain("second");
+    expect(afterRemoval.getProfile().loadOrder).toEqual(["second"]);
+    expect(JSON.parse(storage.getItem(MOD_LOCAL_KEY) ?? "null")).toMatchObject([{ id: "second" }]);
+  });
+
+  it("ignores malformed stored local manifests and bundled ID collisions", async () => {
+    const storage = memoryStorage();
+    storage.setItem(MOD_LOCAL_KEY, JSON.stringify([
+      { id: "logic-plus", name: "Conflict", packageType: ".ftlogic" },
+      { id: "safe", name: "Safe", packageType: ".ftunit" },
+      { id: "safe", name: "Duplicate", packageType: ".ftunit" },
+      { id: "broken", name: "Broken", packageType: ".zip" },
+      { id: "invalid", packageType: ".ftunit" },
+    ]));
+    const manager = await createModManager(storage, async () => ({ ok: true, json: async () => validIndex }));
+    expect(manager.getIndex().mods.filter((mod) => mod.id === "logic-plus")).toHaveLength(1);
+    expect(manager.getIndex().mods.filter((mod) => mod.id === "safe")).toHaveLength(1);
+    expect(manager.getIndex().mods.map((mod) => mod.id)).not.toContain("broken");
+    expect(manager.getIndex().mods.map((mod) => mod.id)).not.toContain("invalid");
+  });
 
   it("isolates dependency/conflict problems as validation issues instead of throwing", () => {
     const profile = normalizeModProfile({ schemaVersion: 1, enabledIds: ["logic-plus", "legacy-rules"], loadOrder: [] });

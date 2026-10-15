@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
-  autoMerge, benchToBench, benchToBoard, boardToBench, buy, createRun, equipItem, refresh, sell, sellItem, startCombat,
-  unequipAll, unequipItem,
+  autoMerge, benchToBench, benchToBoard, boardToBench, boardToBoard, buy, canBenchToBench, canBenchToBoard, canBoardToBench,
+  canBoardToBoard, createRun, equipItem, refresh, sell, sellItem, startCombat, unequipAll, unequipItem,
   type OwnedUnit, type RunState,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
@@ -148,6 +148,44 @@ describe("run state", () => {
     expect(snap(s)).toBe(before);
     expect(benchToBench(s, 0, 5)).toBe(true);
     expect(s.bench.map((u) => u.uid)).toEqual(["b", "c", "a"]);
+  });
+
+  it("move legality predicates match transactions and never mutate preview state", () => {
+    const benchBoard = normalRun(11);
+    benchBoard.bench = [otherUnit("bench")];
+    let before = snap(benchBoard);
+    expect(canBenchToBoard(benchBoard, 0, 0)).toBe(true);
+    expect(snap(benchBoard)).toBe(before);
+    expect(benchToBoard(benchBoard, 0, 0)).toBe(true);
+
+    const duplicate = normalRun(12);
+    duplicate.board[0] = unit("deployed");
+    duplicate.bench = [unit("duplicate")];
+    before = snap(duplicate);
+    expect(canBenchToBoard(duplicate, 0, 1)).toBe(false);
+    expect(snap(duplicate)).toBe(before);
+    expect(benchToBoard(duplicate, 0, 1)).toBe(false);
+
+    const boardBench = normalRun(13);
+    boardBench.board[0] = unit("board");
+    before = snap(boardBench);
+    expect(canBoardToBench(boardBench, 0, 0)).toBe(true);
+    expect(snap(boardBench)).toBe(before);
+    expect(boardToBench(boardBench, 0, 0)).toBe(true);
+
+    const boardBoard = normalRun(14);
+    boardBoard.board[0] = unit("board");
+    before = snap(boardBoard);
+    expect(canBoardToBoard(boardBoard, 0, 1)).toBe(true);
+    expect(snap(boardBoard)).toBe(before);
+    expect(boardToBoard(boardBoard, 0, 1)).toBe(true);
+
+    const benchBench = normalRun(15);
+    benchBench.bench = [unit("a"), otherUnit("b")];
+    before = snap(benchBench);
+    expect(canBenchToBench(benchBench, 0, 1)).toBe(true);
+    expect(snap(benchBench)).toBe(before);
+    expect(benchToBench(benchBench, 0, 1)).toBe(true);
   });
 
   it("sell returns equips to bag; start needs a deployed unit", () => {

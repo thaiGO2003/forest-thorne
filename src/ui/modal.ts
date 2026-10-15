@@ -1,6 +1,6 @@
 // Coordinated modal stack (§40, §52, A22, A60). Exactly one major modal owns input: opening a new
 // one closes the previous; the shade blocks click-through; Escape and the minus control close.
-import { closeButton, drawFit, h, nineSlice, label, SLICE, surface } from "./kit";
+import { closeButton, disposeSurfaceTree, drawFit, h, nineSlice, label, SLICE, surface } from "./kit";
 
 export interface ModalHandle { id: string; body: HTMLDivElement; close(): void; setTitle(t: string): void }
 
@@ -27,13 +27,17 @@ export interface ModalHost {
 export function createModalHost(layer: HTMLElement): ModalHost {
   let current: { handle: ModalHandle; root: HTMLElement; o: ModalOptions; restore: Element | null } | null = null;
   const listeners = new Set<(id: string | null) => void>();
+  let restorePageScroll: (() => void) | null = null;
   const emit = () => { for (const fn of listeners) fn(current?.o.id ?? null); };
 
   const close = () => {
     if (!current) return;
     const c = current;
     current = null;
+    disposeSurfaceTree(c.root);
     c.root.remove();
+    restorePageScroll?.();
+    restorePageScroll = null;
     layer.dataset.open = "false";
     c.o.onClose?.();
     if (c.restore instanceof HTMLElement) c.restore.focus();
@@ -47,6 +51,14 @@ export function createModalHost(layer: HTMLElement): ModalHost {
   return {
     open(o) {
       close(); // no accidental modal-on-modal stacking
+      const htmlOverflow = document.documentElement.style.overflow;
+      const bodyOverflow = document.body.style.overflow;
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+      restorePageScroll = () => {
+        document.documentElement.style.overflow = htmlOverflow;
+        document.body.style.overflow = bodyOverflow;
+      };
       const restore = document.activeElement;
       const root = h("div", "modal-root");
       const shade = h("div", "modal-shade");
@@ -64,7 +76,7 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       const ribbon = surface(head, (g, w, hh) => {
         const rw = Math.min(w - 40, Math.max(220, title.length * 15 + 80));
         nineSlice(g, "ribbon", SLICE.ribbon, (w - rw) / 2, 0, rw, hh, 1.5);
-        label(g, title, w / 2, hh * 0.44, { size: Math.round(hh * 0.36), maxW: rw - 60 });
+        label(g, title, w / 2, hh * 0.44, { size: Math.round(hh * 0.36), fill: "#fff8ec", maxW: Math.max(20, rw - 108), font: "heading" });
       });
       frame.setAttribute("aria-label", title);
       const body = h("div", "modal-body");

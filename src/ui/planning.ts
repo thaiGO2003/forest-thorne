@@ -1,6 +1,6 @@
 // Planning HUD (§14.1, §14.5, §50.2, A22): one command table around the board.
-// Top: stats bar + centred battle controls (Start in the middle). Right: 7 action icons.
-// Bottom shop shows 8 offers on wide screens or 4 on compact screens, with paging so the board stays usable.
+// Top: stats + battle controls. Right: contextual actions and a portrait-only shop toggle.
+// Shop shows 8 offers on wide screens or 4 on compact screens, with paging.
 import { getUnit } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
@@ -17,8 +17,6 @@ const ACTIONS: { id: PlanningAction; icon: string; key: MsgKey }[] = [
   { id: "library", icon: ICONS.library, key: "menu.library" },
   { id: "tech", icon: ICONS.tech, key: "planning.tech" },
   { id: "craft", icon: ICONS.craft, key: "planning.craft" },
-  { id: "recipes", icon: ICONS.recipe, key: "planning.recipes" },
-  { id: "inventory", icon: ICONS.inventory, key: "planning.inventory" },
   { id: "history", icon: ICONS.history, key: "planning.history" },
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
 ];
@@ -60,6 +58,8 @@ const synName = (l: SynergyLine) => t(`${SYN_PREFIX[l.kind]}.${l.key}` as MsgKey
 export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: PortraitProvider, it: PlanningIntents): PlanningView {
   let m: PlanningModel | null = null, page = 0;
   const compactShop = matchMedia("(max-width: 760px)");
+  const portraitShop = matchMedia("(max-width: 760px) and (orientation: portrait)");
+  let shopOpen = false;
   const shopPageSize = () => compactShop.matches ? SHOP_PAGE_COMPACT : SHOP_PAGE_WIDE;
   const root = h("div", "planning");
   root.dataset.screen = "planning";
@@ -104,6 +104,10 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     rail.append(b.el);
     return { a, b };
   });
+  const shopToggle = kitButton({ skin: "icon", icon: "🏪", cls: "pl-shop-toggle",
+    aria: t("planning.shop"), onClick: () => { shopOpen = !shopOpen; syncShopVisibility(); } });
+  tip.bind(shopToggle.el, () => ({ title: t("planning.shop") }));
+  rail.append(shopToggle.el);
 
   // ---- left synergy rail ----
   const syn = h("div", "pl-synergy");
@@ -197,6 +201,17 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   dockHead.append(prev.el, next.el, cortisol.el);
   const grid = h("div", "pl-shop-grid");
   dock.append(dockHead, grid);
+  function syncShopVisibility() {
+    const shown = !portraitShop.matches || shopOpen;
+    dock.hidden = !shown;
+    root.dataset.shopOpen = String(shown);
+    shopToggle.setSelected(portraitShop.matches && shown);
+    shopToggle.el.setAttribute("aria-expanded", String(shown));
+    shopToggle.el.setAttribute("aria-controls", "planning-creature-shop");
+  }
+  dock.id = "planning-creature-shop";
+  const onShopViewportChange = () => { shopOpen = false; syncShopVisibility(); };
+  portraitShop.addEventListener("change", onShopViewportChange);
 
   interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
@@ -227,7 +242,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       if (!id) { s.card.set(null); s.buy.setDisabled(true); s.info.setDisabled(true); return; }
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
       s.card.set({ unit: u, star: 1, cost: u.tier, detail: "planning", affordable: afford });
-      s.buy.setLabel(`${t("planning.buy")} ${u.tier}`);
+      s.buy.setLabel(`${t("planning.buy")} (${u.tier} ${ICONS.gold})`);
       s.buy.setDisabled(m!.locked || !afford);
       s.info.setDisabled(false);
     });
@@ -235,12 +250,14 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   }
   const onShopLayoutChange = () => { page = 0; renderShop(); };
   compactShop.addEventListener("change", onShopLayoutChange);
+  syncShopVisibility();
 
   root.append(stats, battle, rail, syn, joy, tutorial, dock);
   host.append(root);
 
   function refreshCopy() {
     for (const { a, b } of actionBtns) b.setAria(t(a.key));
+    shopToggle.setAria(t("planning.shop"));
     tutorialNext.setLabel(t("tutorial.continue"));
     tutorialSkip.setLabel(t("tutorial.skip"));
     lock.setAria(t("planning.lock"));
@@ -250,8 +267,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   function update(nm: PlanningModel) {
     m = nm;
     const r = nm.run;
-    reroll.setLabel(`${refreshCost(r.level, r.rollCostDelta)}`);
-    xp.setLabel(`${xpBuyCost(r.xpCostDelta)}`);
+    reroll.setLabel(`(${refreshCost(r.level, r.rollCostDelta)} ${ICONS.gold})`);
+    xp.setLabel(`(${xpBuyCost(r.xpCostDelta)} ${ICONS.gold})`);
     start.setLabel(t("planning.start"));
     reroll.setAria(t("planning.reroll", { cost: refreshCost(r.level, r.rollCostDelta) }));
     xp.setAria(t("planning.buyXp", { cost: xpBuyCost(r.xpCostDelta) }));
@@ -267,6 +284,6 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
 
   return {
     el: root, update, refreshCopy,
-    dispose() { compactShop.removeEventListener("change", onShopLayoutChange); it.pan(0, 0); for (const s of slots) s.card.dispose(); root.remove(); },
+    dispose() { compactShop.removeEventListener("change", onShopLayoutChange); portraitShop.removeEventListener("change", onShopViewportChange); it.pan(0, 0); for (const s of slots) s.card.dispose(); root.remove(); },
   };
 }

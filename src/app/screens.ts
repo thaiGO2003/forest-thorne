@@ -1,7 +1,7 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { boardCount } from "../core/run";
-import { activeIndices, RECIPES } from "../core/craft";
+import { activeIndices, matchRecipe, RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { normalizeKey } from "../core/settings";
@@ -14,9 +14,12 @@ import { loadAchievementProfile, loadCollectionProfile, saveCollectionProfile } 
 import { APP_LAST_UPDATED, APP_VERSION_TAG } from "../core/appMeta";
 import { createModManager } from "../mods/ModRegistry";
 import { openExternalHttpUrl } from "../platform/discordActivity";
-import { h, kitButton } from "../ui/kit";
+import { h, kitButton, panelEl } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
+import { mountUnitInventory } from "../ui/unitInventory";
+import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
+import { snapshotWithResources } from "../core/combat";
 import { mountSettings } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
 import { mountHistory } from "../ui/history";
@@ -51,10 +54,10 @@ const ITEM_COPY: Partial<Record<string, MsgKey>> = {
 };
 const itemName = (id: string) => ITEM_COPY[id] ? t(ITEM_COPY[id]!) : id;
 
-function mountInventory(app: App, m: ModalHandle) {
+function mountInventory(app: App, host: HTMLElement) {
   const render = () => {
     const run = app.bridge.run();
-    m.body.replaceChildren();
+    host.replaceChildren();
     if (!run) return;
     const root = h("div", "stack");
     const itemsTitle = h("strong");
@@ -118,63 +121,113 @@ function mountInventory(app: App, m: ModalHandle) {
         root.append(slot);
       }
     }
-    m.body.append(root);
+    host.append(root);
   };
   const off = app.bridge.onChange(render);
   render();
   return { dispose: off };
 }
 
-function mountCraft(app: App, m: ModalHandle) {
+function mountCraft(app: App, host: HTMLElement) {
+  let selectedMaterial: string | null = null;
+  let buttons: ReturnType<typeof kitButton>[] = [];
   const render = () => {
+    for (const button of buttons) button.dispose();
+    buttons = [];
+    host.replaceChildren();
     const run = app.bridge.run();
-    m.body.replaceChildren();
     if (!run) return;
     const staged = app.bridge.craftStaging();
-    const root = h("div", "stack");
-    const materialsTitle = h("strong");
-    materialsTitle.textContent = t("planning.materials");
-    root.append(materialsTitle);
-    const materials = [...new Set(run.itemBag.filter((id) => getEquipment(id) === null))];
-    for (const index of activeIndices(run.craftTableLevel)) {
-      const slot = h("div", "slot");
-      const title = h("div");
-      title.textContent = `${t("planning.craftSlot", { slot: index + 1 })}: ${staged[index] ? itemName(staged[index]!) : t("planning.empty")}`;
-      const actions = h("div", "row");
-      for (const material of materials) {
-        const add = kitButton({
-          skin: "blue",
-          label: itemName(material),
-          onClick: () => { app.bridge.stageCraft(index, material); },
+    const active = new Set(activeIndices(run.craftTableLevel));
+    const materials = [...new Set(run.itemBag.filter((id) => !getEquipment(id)))];
+    const remaining = (id: string) =>
+      run.itemBag.filter((entry) => entry === id).length - staged.filter((entry) => entry === id).length;
+    if (selectedMaterial && remaining(selectedMaterial) <= 0) selectedMaterial = null;
+
+    const workspace = h("div", "craft-workspace");
+    const board = h("div", "craft-grid");
+    board.setAttribute("role", "group");
+    board.setAttribute("aria-label", t("planning.craft"));
+    for (let index = 0; index < 9; index++) {
+      const slot = h("div", "craft-cell");
+      const material = staged[index];
+      const enabled = active.has(index);
+      const title = material ? itemName(material) : t("planning.empty");
+      const button = kitButton({
+        skin: material ? "green" : "wood",
+        label: `${index + 1}. ${enabled ? title : "🔒"}`,
+        onClick: () => {
+          if (!enabled) return;
+          const choice = selectedMaterial && remaining(selectedMaterial) > 0 ? selectedMaterial : null;
+          if (app.bridge.stageCraft(index, choice)) render();
+        },
+      });
+      button.setDisabled(!enabled);
+      button.el.title = !enabled
+        ? t("planning.craftSlot", { slot: index + 1 })
+        : material ? `${title} · Chọn ô để thay hoặc bỏ nguyên liệu` : "Chọn nguyên liệu bên kho rồi chọn ô";
+      buttons.push(button);
+      slot.append(button.el);
+      if (material) {
+        const clear = kitButton({
+          skin: "plum", label: "Bỏ",
+          onClick: () => { if (app.bridge.stageCraft(index, null)) render(); },
         });
-        actions.append(add.el);
+        buttons.push(clear);
+        slot.append(clear.el);
       }
-      slot.append(title, actions);
-      root.append(slot);
+      board.append(slot);
     }
+    const bag = h("div", "craft-bag");
+    bag.append(h("strong", "", t("planning.materials")), h("p", "", "Chọn nguyên liệu, sau đó chọn ô trên bàn chế tạo."));
+    for (const material of materials) {
+      const count = remaining(material);
+      const entry = h("div", "slot craft-material");
+      const img = h("img");
+      img.src = `/assets/items/${encodeURIComponent(material)}.svg`;
+      img.alt = "";
+      img.loading = "lazy";
+      const choice = kitButton({
+        skin: "blue", label: `${itemName(material)} · ×${count}`,
+        onClick: () => {
+          selectedMaterial = selectedMaterial === material ? null : material;
+          render();
+        },
+      });
+      choice.setDisabled(count <= 0);
+      choice.setSelected(selectedMaterial === material);
+      buttons.push(choice);
+      entry.append(img, choice.el);
+      bag.append(entry);
+    }
+    if (!materials.length) bag.append(h("div", "slot", t("planning.empty")));
+    const matched = matchRecipe(staged.slice(), run.craftTableLevel);
+    const result = h("div", "craft-result");
+    result.append(h("span", "", matched ? `${itemName(`eq_${matched.id}`)}` : t("planning.empty")));
     const craft = kitButton({
-      skin: "green",
-      label: t("planning.craftNow"),
+      skin: "green", label: t("planning.craftNow"),
       onClick: () => { app.bridge.craft(); },
     });
-    craft.setDisabled(staged.every((item) => item === null));
-    root.append(craft.el);
-    m.body.append(root);
+    craft.setDisabled(!matched || run.phase !== "PLANNING");
+    buttons.push(craft);
+    result.append(craft.el);
+    bag.append(result);
+    workspace.append(board, bag);
+    host.append(workspace);
   };
   const off = app.bridge.onChange(render);
   render();
-  return { dispose: off };
+  return { dispose() { off(); for (const b of buttons) b.dispose(); } };
 }
 
-function mountRecipes(m: ModalHandle) {
+function mountRecipes(host: HTMLElement) {
   const root = h("div", "choice-list");
   for (const recipe of RECIPES) {
     const row = h("div", "slot");
     row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(`eq_${recipe.id}`)}`;
     root.append(row);
   }
-  m.body.append(root);
-  return { dispose() {} };
+  host.append(root);
 }
 
 function mountAugments(app: App, m: ModalHandle) {
@@ -221,12 +274,45 @@ registerPanel("tech", (app) => {
     return { dispose() { off(); view.dispose(); } };
   });
 });
-registerPanel("inventory", (app) =>
-  openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "lg" }, (m) => mountInventory(app, m)));
-registerPanel("craft", (app) =>
-  openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "lg" }, (m) => mountCraft(app, m)));
-registerPanel("recipes", (app) =>
-  openPanelModal(app, { id: "recipes", title: t("planning.recipes"), size: "lg" }, mountRecipes));
+function mountWorkshop(app: App, modal: ModalHandle, initial: "inventory" | "craft" | "recipes") {
+  const tabs = h("div", "craft-tabs");
+  tabs.setAttribute("role", "tablist");
+  const body = h("div", "craft-content");
+  let active = initial;
+  let view: { dispose(): void } | null = null;
+  const entries = [
+    { id: "inventory", label: t("planning.inventory") },
+    { id: "craft", label: t("planning.craft") },
+    { id: "recipes", label: t("planning.recipes") },
+  ] as const;
+  const tabButtons = entries.map(({ id, label }) => {
+    const button = kitButton({ skin: "blue", label, onClick: () => show(id) });
+    button.el.setAttribute("role", "tab");
+    tabs.append(button.el);
+    return button;
+  });
+  const show = (id: typeof active) => {
+    view?.dispose();
+    view = null;
+    active = id;
+    for (let i = 0; i < entries.length; i++) {
+      const selected = entries[i]!.id === active;
+      tabButtons[i]!.setSelected(selected);
+      tabButtons[i]!.el.setAttribute("aria-selected", String(selected));
+    }
+    body.replaceChildren();
+    if (id === "inventory") view = mountInventory(app, body);
+    else if (id === "craft") view = mountCraft(app, body);
+    else mountRecipes(body);
+  };
+  modal.body.append(tabs, body);
+  show(initial);
+  return { dispose() { view?.dispose(); for (const b of tabButtons) b.dispose(); } };
+}
+for (const id of ["inventory", "craft", "recipes"] as const) {
+  registerPanel(id, (app) =>
+    openPanelModal(app, { id, title: t("planning.craft"), size: "full" }, (m) => mountWorkshop(app, m, id)));
+}
 registerPanel("augment", (app) =>
   openPanelModal(app, { id: "augment", title: t("planning.augment"), size: "lg", dismissible: false }, (m) => mountAugments(app, m)));
 
@@ -234,20 +320,56 @@ registerScreen("planning", (app) => {
   const { bridge, stage } = app;
   const board = createBoardView(stage);
   let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
+  let selectedUid: string | null = null;
+  let inventoryView: ReturnType<typeof mountUnitInventory> | null = null;
+  let inventoryInspection: OwnedUnitInspection | null = null;
+  let inventoryUid: string | null = null;
+  const liveRoster = new Map<string, RosterEntry>();
+  const withOwned = (uid: string, action: (where: "board" | "bench", index: number) => boolean) => {
+    const run = bridge.run();
+    const found = run ? findOwnedUnit(run, uid) : null;
+    return found ? action(found.where, found.index) : false;
+  };
+  const openOwnedInventory = (uid: string) => {
+    const run = bridge.run();
+    const inspection = run ? inspectOwnedUnit(run, uid) : null;
+    if (!inspection) return;
+    openPanelModal(app, { id: "unit-inventory", title: t("inventory.title"), size: "full" }, (m) => {
+      inventoryUid = uid; inventoryInspection = inspection;
+      const view = mountUnitInventory(m, portraits, {
+        getModel: () => {
+          const state = bridge.run();
+          if (!state || !inventoryInspection || !findOwnedUnit(state, uid)) return null;
+          const live = liveRoster.get(uid);
+          const current = live?.inspection ? snapshotWithResources(live.inspection, live, getUnit(inventoryInspection.unit.baseId).role) : inventoryInspection.boosted;
+          return { run: state, inspection: inventoryInspection, current, inCombat: state.phase === "COMBAT" };
+        },
+        select: () => { selectedUid = uid; board.setSelected?.(uid); },
+        sell: () => withOwned(uid, (where, index) => bridge.sell(where, index)),
+        equip: (itemId) => withOwned(uid, (where, index) => bridge.equip(itemId, where, index)),
+        unequip: (index) => withOwned(uid, (where, at) => bridge.unequip(where, at, index)),
+        unequipAll: () => withOwned(uid, (where, index) => bridge.unequipAll(where, index)),
+      });
+      inventoryView = view;
+      return { dispose() { view.dispose(); if (inventoryView === view) { inventoryView = null; inventoryUid = null; inventoryInspection = null; } } };
+    });
+  };
   const drag = createPlanningDragController({
     stage,
     board,
     getRun: () => bridge.run(),
     move: (from, to) => bridge.move(from, to),
     select: (source) => {
-      const unit = bridge.run()?.board[source.index];
+      const state = bridge.run();
+      const unit = source.kind === "board" ? state?.board[source.index] : state?.bench[source.index];
       if (!unit) return;
-      app.openPanel("unit-detail", unit.baseId);
-      bridge.tutorialEvent("show_attack_preview", "show_attack_preview", {
+      openOwnedInventory(unit.uid);
+      if (source.kind === "board" && state?.phase === "PLANNING") bridge.tutorialEvent("show_attack_preview", "show_attack_preview", {
         source: { where: "board", index: source.index },
       });
     },
-    enabled: () => !combat && !app.modals.blocking() && bridge.run()?.phase === "PLANNING",
+    enabled: () => !app.modals.blocking() && (bridge.run()?.phase === "PLANNING" || Boolean(combat)),
+    inspectOnly: () => Boolean(combat),
   });
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
     buy: (slot) => bridge.buy(slot),
@@ -266,6 +388,8 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
+    if (selectedUid && !findOwnedUnit(run, selectedUid)) { selectedUid = null; board.setSelected?.(null); }
+    if (inventoryUid) { inventoryInspection = inspectOwnedUnit(run, inventoryUid); inventoryView?.update(); }
     const preview = bridge.prepareEnemyPreview();
     const renderRun = preview && preview.units !== run.enemyPreview ? { ...run, enemyPreview: preview.units } : run;
     const locked = app.modals.blocking() || run.phase !== "PLANNING";
@@ -290,6 +414,8 @@ registerScreen("planning", (app) => {
     if (!combat) return;
     combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose();
     combat = null;
+    liveRoster.clear();
+    if (app.modals.active() === "unit-inventory") app.modals.closeActive();
     board.setCombat(false);
     hud.el.hidden = false;
     stage.setPhase("planning");
@@ -310,18 +436,22 @@ registerScreen("planning", (app) => {
     });
     const strength = (list: RosterEntry[]) => teamStrength(list.map((r) => {
       const u = getUnit(r.baseId), k = STAR_STAT[r.star] ?? 1;
-      return { hp: r.hp, maxHp: r.maxHp, shield: r.shield, atk: u.stats.atk * k, matk: u.stats.matk * k, def: u.stats.def * k, mdef: u.stats.mdef * k, star: r.star, tier: u.tier, alive: r.hp > 0 };
+      return { hp: r.hp, maxHp: r.maxHp, shield: r.shield, atk: r.inspection?.atk ?? u.stats.atk * k, matk: r.inspection?.matk ?? u.stats.matk * k, def: r.inspection?.def ?? u.stats.def * k, mdef: r.inspection?.mdef ?? u.stats.mdef * k, star: r.star, tier: u.tier, alive: r.hp > 0 };
     }));
     const player = playCombat({
-      board, fx, roster: session.roster, events: session.events, onFrame: stage.onFrame,
-      onTick: (tk) => chud.update({
+      board, fx, roster: session.roster, events: session.events, inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
+      onTick: (tk) => {
+        for (const entry of tk.all) liveRoster.set(entry.uid, entry);
+        inventoryView?.update();
+        chud.update({
         round: run?.round ?? 1, cycle: tk.cycle, speed,
         // LOGIC: anti-stall multiplier (A17) belongs to canonical combat; expose it on the session.
         escalation: 1,
         left: strength(tk.all.filter((r) => r.side === "L")), right: strength(tk.all.filter((r) => r.side === "R")),
         queue: tk.queue.map((uid) => { const r = tk.all.find((x) => x.uid === uid); return { name: r ? getUnit(r.baseId).nameVi : uid, side: r?.side ?? "L", icon: r ? ICONS[getUnit(r.baseId).role] : "❔" }; }),
         log: tk.log,
-      }),
+        });
+      },
     });
     combat = { player, hud: chud, fx };
     void player.done.then(() => {
@@ -347,7 +477,8 @@ registerScreen("planning", (app) => {
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.repeat || combat || app.modals.blocking()) return;
+    // The modal host may already have consumed Escape and closed its dialog.
+    if (event.defaultPrevented || event.repeat || combat || app.modals.blocking()) return;
     const target = event.target;
     if (target instanceof HTMLElement && (
       target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
@@ -384,7 +515,7 @@ registerScreen("planning", (app) => {
 registerUtility("language", (app) => {
   const m = app.modals.open({ id: "language", title: t("menu.language"), size: "sm", closeLabel: t("ui.close") });
   const list = h("div", "choice-list");
-  const names: Record<string, string> = { vi: "Tiếng Việt", en: "English" };
+  const names: Record<string, string> = { vi: "Tiếng Việt" };
   for (const l of LOCALES) {
     const b = kitButton({ skin: "blue", label: names[l] ?? l, onClick: () => {
       app.bridge.settings.save({ language: l }); // canonical owner persists + switches locale
@@ -418,7 +549,7 @@ registerUtility("donate", (app) => {
   const presets = h("div", "choice-list donate-presets");
   const presetAmounts = [5_000, 10_000, 15_000, 20_000, 30_000, 50_000, 100_000, 200_000, 500_000] as const;
   const presetButtons: Array<{ amount: number | null; button: ReturnType<typeof kitButton> }> = [];
-  const amountLabelFor = (value: number) => `${new Intl.NumberFormat(getLocale() === "vi" ? "vi-VN" : "en-US").format(value)} ₫`;
+  const amountLabelFor = (value: number) => `${new Intl.NumberFormat("vi-VN").format(value)} ₫`;
   const syncPresetSelection = () => {
     const value = Number(amount.value);
     const preset = Number.isFinite(value) ? presetAmounts.find((candidate) => candidate === value) : undefined;
@@ -454,7 +585,7 @@ registerUtility("donate", (app) => {
 registerUtility("version", (app) => {
   const m = app.modals.open({ id: "version", title: t("menu.version"), size: "sm", closeLabel: t("ui.close") });
   m.body.append(
-    h("div", "slot", `Forest Throne ${APP_VERSION_TAG}`),
+    h("div", "slot", `Bá Chủ Khu Rừng ${APP_VERSION_TAG}`),
     h("div", "slot", t("menu.versionUpdated", { date: APP_LAST_UPDATED })),
   );
 });
@@ -495,9 +626,10 @@ registerUtility("achievements", (app) => {
         list.append(card);
         continue;
       }
+      const unit = getUnit(mapping.unitId);
       card.append(h("div", "slot", t("menu.achievementReward", {
-        skin: mapping.skinId,
-        unit: getUnit(mapping.unitId).nameVi,
+        skin: unit.skin?.stagesVi[0] ?? mapping.skinId,
+        unit: unit.nameVi,
       })));
       if (!row.unlocked) {
         card.append(h("div", "slot", t("menu.achievementLocked")));
@@ -535,76 +667,195 @@ registerUtility("achievements", (app) => {
 });
 
 registerUtility("mods", (app) => {
-  const m = app.modals.open({ id: "mods", title: t("menu.mods"), size: "md", closeLabel: t("ui.close") });
-  const content = h("div", "stack");
-  content.append(h("div", "slot", t("menu.modsLoading")));
-  m.body.append(content);
+  const m = app.modals.open({ id: "mods", title: t("menu.mods"), size: "full", closeLabel: t("ui.close") });
+  const root = h("div", "lib");
+  const loading = h("div", "slot", t("menu.modsLoading"));
+  root.append(loading);
+  m.body.append(root);
   void createModManager(localStorage).then((manager) => {
+    type ModTab = "discover" | "installed" | "enabled" | "updates";
+    const sections: readonly { id: ModTab; title: string }[] = [
+      { id: "discover", title: "Khám phá" },
+      { id: "installed", title: "Đã cài" },
+      { id: "enabled", title: "Đang bật" },
+      { id: "updates", title: "Cập nhật" },
+    ];
+    let tab: ModTab = "installed";
+    let query = "";
+    let selectedId: string | null = null;
+    let importStatus = "";
     const fileInput = h("input");
     fileInput.type = "file";
     fileInput.accept = ".ftunit,.ftlogic,.ftmodpack";
     fileInput.hidden = true;
-    let importStatus = "";
     const importButton = kitButton({
-      skin: "green",
-      label: t("menu.modsImport"),
+      skin: "green", label: t("menu.modsImport"),
       onClick: () => fileInput.click(),
     });
-    const render = () => {
+    const search = h("input", "lib-input");
+    search.type = "search";
+    search.placeholder = "Tìm theo tên, tác giả hoặc loại mod";
+    search.setAttribute("aria-label", search.placeholder);
+    search.addEventListener("input", () => {
+      query = search.value.trim().toLocaleLowerCase("vi");
+      renderResults();
+    });
+    const results = h("div", "choice-list");
+    const detail = panelEl("panel_tooltip", "slot stack");
+    const status = h("div", "slot");
+    const nav = h("div", "tabs");
+    const buttons = sections.map(({ id, title }) => {
+      const button = kitButton({
+        skin: "wood", label: title,
+        onClick: () => { tab = id; selectedId = null; render(); },
+      });
+      nav.append(button.el);
+      return { id, button };
+    });
+    const toolbar = h("div", "row");
+    const searchWell = panelEl("slot_well", "lib-search grow");
+    searchWell.append(search);
+    toolbar.append(importButton.el, searchWell);
+    const layout = h("div", "lib-detail");
+    const list = h("div", "lib-info");
+    list.append(results);
+    layout.append(list, detail);
+
+    function renderDetails() {
+      detail.replaceChildren();
       const index = manager.getIndex();
-      const profile = manager.getProfile();
-      content.replaceChildren(importButton.el, fileInput);
-      if (importStatus) content.append(h("div", "slot", importStatus));
-      if (index.mods.length === 0) {
-        content.append(h("div", "slot", t("menu.modsEmpty")));
-      } else {
-        content.append(h("div", "slot", t("menu.modsSummary", { enabled: profile.enabledIds.length, total: index.mods.length })));
-        for (const manifest of index.mods) {
-          const row = h("div", "stack");
-          row.append(h("div", "slot", `${manifest.name} · v${manifest.version} · ${manifest.author}`));
-          if (manifest.description) row.append(h("div", "slot", manifest.description));
-          const toggle = kitButton({
-            skin: "blue",
-            label: manager.isEnabled(manifest.id) ? t("menu.modsDisable") : t("menu.modsEnable"),
-            onClick: () => {
-              if (manager.isEnabled(manifest.id)) manager.disable(manifest.id);
-              else manager.enable(manifest.id);
-              render();
-            },
+      const manifest = index.mods.find((mod) => mod.id === selectedId);
+      if (!manifest) {
+        detail.append(h("h3", "", "Chi tiết gói mở rộng"), h("p", "", "Chọn một gói để xem thông tin và thao tác."));
+        return;
+      }
+      detail.append(
+        h("h3", "", manifest.name),
+        h("p", "", `Phiên bản ${manifest.version} · ${manifest.author}`),
+        h("p", "", manifest.description || "Không có mô tả."),
+        h("p", "", `Loại: ${manifest.packageType} · Nguồn: ${manifest.source}`),
+        h("p", "", `Trạng thái: ${manager.isEnabled(manifest.id) ? "Đang bật" : "Đã tắt"}`),
+      );
+      if (manifest.requires.length) detail.append(h("p", "", `Phụ thuộc: ${manifest.requires.join(", ")}`));
+      if (manifest.conflicts.length) detail.append(h("p", "", `Xung đột: ${manifest.conflicts.join(", ")}`));
+      if (manifest.tags.length) detail.append(h("p", "", `Nhãn: ${manifest.tags.join(", ")}`));
+      const actions = h("div", "row");
+      const enabled = manager.isEnabled(manifest.id);
+      const toggle = kitButton({
+        skin: enabled ? "plum" : "green",
+        label: enabled ? t("menu.modsDisable") : t("menu.modsEnable"),
+        onClick: () => { if (enabled) manager.disable(manifest.id); else manager.enable(manifest.id); render(); },
+      });
+      actions.append(toggle.el);
+      if (enabled) {
+        const profile = manager.getProfile();
+        const position = profile.loadOrder.indexOf(manifest.id);
+        for (const [direction, caption] of [[-1, "↑ Ưu tiên"], [1, "↓ Ưu tiên"]] as const) {
+          const move = kitButton({
+            skin: "wood", label: caption,
+            onClick: () => { manager.move(manifest.id, direction); render(); },
           });
-          toggle.setSelected(manager.isEnabled(manifest.id));
-          row.append(toggle.el);
-          content.append(row);
+          move.setDisabled(position < 0 || position + direction < 0 || position + direction >= profile.loadOrder.length);
+          actions.append(move.el);
         }
       }
-      if (index.workshop.status === "placeholder") content.append(h("div", "slot", t("menu.modsWorkshopUnavailable")));
+      if (manifest.source === "local") {
+        const remove = kitButton({
+          skin: "plum", label: "Gỡ gói khỏi danh sách",
+          onClick: () => {
+            if (!window.confirm(`Gỡ gói ${manifest.name} khỏi danh sách mod cục bộ?`)) return;
+            if (manager.removeLocal(manifest.id)) { selectedId = null; render(); }
+          },
+        });
+        actions.append(remove.el);
+      }
+      detail.append(actions);
+    }
+
+    function renderResults() {
+      results.replaceChildren();
+      const index = manager.getIndex();
+      const profile = manager.getProfile();
+      const matches = index.mods.filter((mod) => {
+        if (tab === "enabled" && !profile.enabledIds.includes(mod.id)) return false;
+        if (tab === "installed" && mod.source !== "local") return false;
+        if (tab === "discover" && mod.source === "local") return false;
+        if (tab === "updates") return false; // Registry does not provide release/update metadata.
+        const haystack = `${mod.name} ${mod.author} ${mod.packageType} ${mod.tags.join(" ")}`.toLocaleLowerCase("vi");
+        return haystack.includes(query);
+      }).sort((a, b) => {
+        if (tab !== "enabled") return a.name.localeCompare(b.name, "vi");
+        return profile.loadOrder.indexOf(a.id) - profile.loadOrder.indexOf(b.id);
+      });
+      if (!matches.length) {
+        const message = tab === "updates"
+          ? "Nguồn mod hiện không cung cấp dữ liệu phiên bản mới để kiểm tra cập nhật."
+          : tab === "discover" && index.workshop.status === "placeholder"
+            ? t("menu.modsWorkshopUnavailable")
+            : tab === "installed"
+              ? "Chưa có mod cục bộ. Dùng nút Nhập mod cục bộ để thêm gói."
+              : tab === "enabled" ? "Chưa có mod nào đang bật." : "Không tìm thấy gói phù hợp.";
+        results.append(h("div", "slot", message));
+      }
+      for (const mod of matches) {
+        const entry = panelEl("slot_well", "slot stack");
+        entry.append(
+          h("strong", "", mod.name),
+          h("span", "", `${mod.packageType} · v${mod.version} · ${mod.author}`),
+          h("span", "", manager.isEnabled(mod.id) ? "● Đang bật" : "○ Đã tắt"),
+        );
+        const select = kitButton({
+          skin: selectedId === mod.id ? "green" : "wood",
+          label: selectedId === mod.id ? "Đang xem" : "Xem chi tiết",
+          onClick: () => { selectedId = mod.id; renderResults(); },
+        });
+        entry.append(select.el);
+        results.append(entry);
+      }
+      renderDetails();
+    }
+
+    function render() {
+      if (!root.isConnected) return;
+      root.replaceChildren();
+      for (const { id, button } of buttons) button.setSelected(tab === id);
+      status.textContent = importStatus;
+      root.append(nav, toolbar, fileInput);
+      if (importStatus) root.append(status);
+      root.append(h("div", "slot", t("menu.modsSummary", {
+        enabled: manager.getProfile().enabledIds.length, total: manager.getIndex().mods.length,
+      })), layout);
+      const issues = manager.validateEnabled();
+      if (issues.length) root.append(h("div", "slot", `Cảnh báo phụ thuộc hoặc xung đột: ${issues.map((issue) => JSON.stringify(issue)).join(" · ")}`));
       const warnings = manager.getRegistryWarnings();
-      if (warnings.length > 0) content.append(h("div", "slot", t("menu.modsWarnings", { count: warnings.length })));
-    };
+      if (warnings.length) root.append(h("div", "slot", t("menu.modsWarnings", { count: warnings.length })));
+      renderResults();
+    }
+
     fileInput.addEventListener("change", () => {
       const file = fileInput.files?.[0];
       if (!file) return;
-      void file.text().then((text) => {
-        let payload: unknown;
+      void file.text().then((raw) => {
         try {
-          payload = JSON.parse(text);
+          const result = manager.importLocal(file.name, JSON.parse(raw));
+          importStatus = result.ok
+            ? t("menu.modsImportSuccess", { name: result.manifest.name })
+            : t("menu.modsImportError", { error: result.error });
+          if (result.ok) { tab = "installed"; selectedId = result.manifest.id; }
         } catch {
-          importStatus = t("menu.modsImportError", { error: "invalid JSON" });
-          render();
-          return;
+          importStatus = t("menu.modsImportError", { error: "JSON không hợp lệ" });
         }
-        const result = manager.importLocal(file.name, payload);
-        importStatus = result.ok
-          ? t("menu.modsImportSuccess", { name: result.manifest.name })
-          : t("menu.modsImportError", { error: result.error });
         fileInput.value = "";
         render();
       }, (error: unknown) => {
         importStatus = t("menu.modsImportError", { error: error instanceof Error ? error.message : String(error) });
+        fileInput.value = "";
         render();
       });
     });
     render();
+  }).catch((error: unknown) => {
+    if (root.isConnected) root.replaceChildren(h("div", "slot", `Không tải được danh sách mod: ${error instanceof Error ? error.message : String(error)}`));
   });
 });
 

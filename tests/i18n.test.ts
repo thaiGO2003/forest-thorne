@@ -1,32 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 import { DICTS, onLocaleChange, setLocale, t } from "../src/core/i18n";
 
-const tokens = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort();
-
 describe("i18n", () => {
-  it("vi/en key parity and identical placeholder tokens", () => {
-    expect(Object.keys(DICTS.en).sort()).toEqual(Object.keys(DICTS.vi).sort());
-    for (const k of Object.keys(DICTS.vi) as (keyof typeof DICTS.vi)[]) expect(tokens(DICTS.en[k])).toEqual(tokens(DICTS.vi[k]));
+  it("ships Vietnamese as the only UI locale", () => {
+    expect(Object.keys(DICTS)).toEqual(["vi"]);
+    expect(t("menu.continue")).toBe("Tiếp tục");
+    expect(t("mode.EndlessPvEClassic")).toBe("Vô Tận Cổ Điển");
   });
+
   it("localizes settings display values without changing their canonical ids", () => {
-    expect(t("settings.quality.low", {}, "vi")).toBe("Thấp");
-    expect(t("settings.quality.medium", {}, "en")).toBe("Medium");
-    expect(t("settings.tooltip.expanded", {}, "vi")).toBe("Đầy đủ");
-    expect(t("settings.tooltip.off", {}, "en")).toBe("Off");
-    expect(t("settings.resolution.adaptive", {}, "vi")).toBe("Tự động");
+    expect(t("settings.quality.low")).toBe("Thấp");
+    expect(t("settings.quality.medium")).toBe("Trung bình");
+    expect(t("settings.tooltip.expanded")).toBe("Đầy đủ");
+    expect(t("settings.tooltip.off")).toBe("Tắt");
+    expect(t("settings.resolution.adaptive")).toBe("adaptive");
   });
 
-
-  it("substitutes params, keeps unknown tokens, switches live and notifies once", () => {
-    expect(t("planning.deploy", { current: 3, max: 5 }, "vi")).toBe("Ra trận 3/5");
-    expect(t("planning.reroll", {}, "en")).toBe("Reroll ({cost})");
+  it("substitutes params, keeps unknown tokens, and keeps Vietnamese stable", () => {
+    expect(t("planning.deploy", { current: 3, max: 5 })).toBe("Ra trận 3/5");
+    expect(t("planning.reroll")).toBe("Đổi tướng ({cost})");
     const fn = vi.fn();
     const off = onLocaleChange(fn);
-    setLocale("en");
-    setLocale("en");
-    expect([fn.mock.calls.length, t("menu.continue")]).toEqual([1, "Continue"]);
-    off();
     setLocale("vi");
-    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn).not.toHaveBeenCalled();
+    expect(t("menu.continue")).toBe("Tiếp tục");
+    off();
   });
 });

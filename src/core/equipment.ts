@@ -51,7 +51,7 @@ export function defaultUnequipCost(tier: number): number {
 }
 
 export const itemUnequipCost = (item: EquipmentDef, discount = 0): number =>
-  Math.max(0, Math.round(item.unequipCost ?? defaultUnequipCost(item.tier)) - Math.max(0, Math.round(discount)));
+  Math.max(1, Math.round(item.unequipCost ?? defaultUnequipCost(item.tier)) - Math.max(0, Math.round(discount)));
 
 /** Star-aware slot capacity: resolved skill cost -> rageMax -> compatibility default 3. */
 export function slotCapForUnit(unit: UnitDef, star: number): number {

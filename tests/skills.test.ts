@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeFighter } from "../src/core/combat";
+import { materializeCombat } from "../src/core/combat";
 import { parseSkill, skillSpec } from "../src/core/skills";
 
 describe("skill parser", () => {
@@ -88,7 +88,7 @@ describe("skill parser", () => {
   });
 
   it("boss rage thresholds come from the authored per-star profiles", () => {
-    expect(makeFighter({ uid: "phoenix", baseId: "boss_storm_phoenix", star: 1, row: 2, col: 7 }, "R").rageMax).toBe(2);
-    expect(makeFighter({ uid: "dragon", baseId: "boss_ember_dragon", star: 1, row: 2, col: 7 }, "R").rageMax).toBe(3);
+    expect(materializeCombat([], [{ uid: "phoenix", baseId: "boss_storm_phoenix", star: 1, row: 2, col: 7 }])[0]!.rageMax).toBe(2);
+    expect(materializeCombat([], [{ uid: "dragon", baseId: "boss_ember_dragon", star: 1, row: 2, col: 7 }])[0]!.rageMax).toBe(3);
   });
 });

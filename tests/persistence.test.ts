@@ -229,7 +229,7 @@ describe("persistence A57", () => {
 
 describe("settings A35/A44", () => {
   it("defaults, clamps and per-mode AI legality", () => {
-    const d = normalizeSettings({ volumeLevel: 99, resolutionKey: "800x600", renderScale: 0.2, tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" } });
+    const d = normalizeSettings({ language: "en", volumeLevel: 99, resolutionKey: "800x600", renderScale: 0.2, tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" } });
     expect([d.volumeLevel, d.resolutionKey, d.renderScale, d.expandedTooltip, d.language, d.guiScale]).toEqual([10, "1600x900", 0.5, true, "vi", 2]);
     expect(d.aiModeByGameMode).toEqual({
       EndlessPvEClassic: "TUTORIAL", EndlessPvEFortress: "MEDIUM", EndlessCreative: "TUTORIAL", FortressPvP4: "COOP4_MEDIUM",

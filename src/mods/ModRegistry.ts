@@ -3,6 +3,7 @@
 export const MOD_INDEX_SCHEMA_VERSION = 1 as const;
 export const MOD_PROFILE_SCHEMA_VERSION = 1 as const;
 export const MOD_PROFILE_KEY = "forest-throne.mods.profile.v1";
+export const MOD_LOCAL_KEY = "forest-throne.mods.local.v1";
 export const DEFAULT_MOD_INDEX_URL = "mods/index.json";
 
 export const MOD_PACKAGE_TYPES = [".ftunit", ".ftlogic", ".ftmodpack"] as const;
@@ -84,6 +85,7 @@ export interface ModManager {
   move(id: string, direction: -1 | 1): ModProfile;
   validateEnabled(): ModValidationIssue[];
   importLocal(filename: string, payload: unknown): LocalModImportResult;
+  removeLocal(id: string): boolean;
 }
 
 const EMPTY_WORKSHOP: WorkshopCapability = { status: "placeholder", appId: null };
@@ -319,6 +321,32 @@ function cloneProfile(profile: ModProfile): ModProfile {
   };
 }
 
+function loadLocalMods(storage: ModStorage): ModManifest[] {
+  try {
+    const value: unknown = JSON.parse(storage.getItem(MOD_LOCAL_KEY) ?? "null");
+    if (!Array.isArray(value)) return [];
+    const seen = new Set<string>();
+    return value.flatMap((raw): ModManifest[] => {
+      const item = record(raw);
+      if (!item || !MOD_PACKAGE_TYPES.includes(item.packageType as ModPackageType)) return [];
+      const parsed = parseLocalModManifest(`saved${item.packageType}`, item);
+      if (!parsed.ok || seen.has(parsed.manifest.id)) return [];
+      seen.add(parsed.manifest.id);
+      return [parsed.manifest];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function persistLocalMods(storage: ModStorage, index: ModIndex, bundledIds: ReadonlySet<string>): void {
+  try {
+    storage.setItem(MOD_LOCAL_KEY, JSON.stringify(index.mods.filter((mod) => mod.source === "local" && !bundledIds.has(mod.id))));
+  } catch {
+    // Local storage availability must not crash an in-memory mod session.
+  }
+}
+
 export function validateEnabledMods(index: ModIndex, profile: ModProfile): ModValidationIssue[] {
   const manifests = new Map<string, ModManifest>();
   for (const manifest of index.mods) if (!manifests.has(manifest.id)) manifests.set(manifest.id, manifest);
@@ -347,7 +375,11 @@ export async function createModManager(
   url = DEFAULT_MOD_INDEX_URL,
 ): Promise<ModManager> {
   const loaded = await loadModIndexWithWarnings(fetchImpl, url);
-  let index = loaded.index;
+  const bundledIds = new Set(loaded.index.mods.map((mod) => mod.id));
+  let index: ModIndex = {
+    ...loaded.index,
+    mods: [...loaded.index.mods, ...loadLocalMods(storage).filter((mod) => !bundledIds.has(mod.id))],
+  };
   let profile = loadModProfile(storage);
 
   const commit = (next: ModProfile): ModProfile => {
@@ -403,7 +435,20 @@ export async function createModManager(
         tags: [...parsed.manifest.tags],
       };
       index = { ...index, mods: [...index.mods, manifest] };
+      persistLocalMods(storage, index, bundledIds);
       return { ok: true, manifest: { ...manifest, requires: [...manifest.requires], conflicts: [...manifest.conflicts], tags: [...manifest.tags] } };
+    },
+    removeLocal(id) {
+      const manifest = index.mods.find((mod) => mod.id === id && mod.source === "local");
+      if (!manifest) return false;
+      index = { ...index, mods: index.mods.filter((mod) => mod.id !== manifest.id) };
+      persistLocalMods(storage, index, bundledIds);
+      commit({
+        ...profile,
+        enabledIds: profile.enabledIds.filter((enabledId) => enabledId !== id),
+        loadOrder: profile.loadOrder.filter((orderedId) => orderedId !== id),
+      });
+      return true;
     },
     validateEnabled: () => validateEnabledMods(index, profile),
   };

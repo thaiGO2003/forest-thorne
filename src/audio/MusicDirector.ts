@@ -71,7 +71,7 @@ type DesiredRequest =
   | null;
 
 function musicVolume(settings: Settings): number {
-  return 0.45 * normalizedMasterVolume(settings);
+  return settings.musicEnabled ? 0.45 * normalizedMasterVolume(settings) : 0;
 }
 
 function defaultCreateAudioElement(): MusicAudioElement | null {

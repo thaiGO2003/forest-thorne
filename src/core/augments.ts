@@ -32,6 +32,9 @@ const FAMILIES: [string, string, AugGroup, number[]][] = [
   ["opening_rage", "starting_rage", "COMBAT", [1, 1, 1, 2, 2]],
   ["starting_shield", "starting_shield", "COMBAT", [18, 24, 30, 36, 42]],
   ["lifesteal", "lifesteal_pct", "COMBAT", [0.04, 0.05, 0.06, 0.08, 0.1]],
+  ["heart_restore", "heal_hearts_now", "COMBAT", [4, 6, 8, 10, 12]],
+  ["heart_victory", "heal_hearts_on_win", "COMBAT", [1, 2, 3, 4, 5]],
+  ["heart_survivor", "heal_hearts_on_survived_loss", "COMBAT", [2, 3, 4, 5, 6]],
   ["interest_cap", "interest_cap", "ECONOMY", [1, 1, 1, 2, 2]],
   ["deploy_cap", "deploy_cap_bonus", "FORMATION", [1, 1, 1, 1, 1]],
   ["bench", "bench_bonus", "FORMATION", [1, 1, 2, 2, 3]],
@@ -57,6 +60,8 @@ const SCORE: Record<string, [number, number, number, number, boolean]> = {
   starting_shield: [54, 5, 1.5, 16, false], extra_class_count: [79, 1, 7, 10, false], extra_tribe_count: [79, 1, 7, 10, false],
   lifesteal_pct: [58, 0.01, 1.15, 14, false], xp_flat: [47, 1, 1.25, 16, false], win_gold_bonus: [56, 1, 7, 16, false],
   interest_rate_bonus: [72, 0.01, 6, 12, false], xp_cost_delta: [72, 1, 10, 12, true], rage_gain_pct: [56, 0.01, 1.15, 16, false],
+  heal_hearts_now: [57, 1, 2, 16, false], heal_hearts_on_win: [58, 1, 3, 18, false],
+  heal_hearts_on_survived_loss: [59, 1, 3, 18, false],
 };
 
 export function augmentScore(a: Augment): number {
@@ -92,6 +97,14 @@ function applyPercentField(s: RunState, effect: string, value: number): void {
   if (effect === "interest_rate_bonus") s.interestRateBonus += value;
 }
 
+/** Recover run hearts without reviving a defeated run or exceeding its mode cap. */
+export function restoreRunHearts(s: RunState, amount: number): number {
+  if (modeConfig(s.mode).creative || s.lossCondition !== "NO_HEARTS" || s.hp <= 0 || !Number.isFinite(amount)) return 0;
+  const before = s.hp;
+  s.hp = Math.min(modeConfig(s.mode).startHp, s.hp + Math.max(0, Math.floor(amount)));
+  return s.hp - before;
+}
+
 /** Apply once per id: immediate gold/XP + persistent modifier accumulation. Returns false (no change) on repeat/unknown. */
 export function applyAugment(s: RunState, id: string): boolean {
   const a = AUGMENT_BY_ID.get(id);
@@ -100,6 +113,7 @@ export function applyAugment(s: RunState, id: string): boolean {
   s.augmentMods[a.effect] = (s.augmentMods[a.effect] ?? 0) + a.value;
   if (a.effect === "gold_flat" && !modeConfig(s.mode).creative) s.gold += a.value;
   if (a.effect === "xp_flat") Object.assign(s, addXp(s.level, s.xp, a.value));
+  if (a.effect === "heal_hearts_now") restoreRunHearts(s, a.value);
   const f = RUN_FIELD[a.effect];
   if (f) s[f] += a.value;
   applyPercentField(s, a.effect, a.value);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeFighter, simulate } from "../src/core/combat";
+import { materializeCombat, simulate } from "../src/core/combat";
 import { bossForRound, encounterBudget, generateEncounter, normalizeAiMode } from "../src/core/encounter";
 import { environmentFor, environmentMods } from "../src/core/environment";
 import { getUnit, NORMAL_UNITS } from "../src/content/catalog";
@@ -22,9 +22,16 @@ describe("environment A32", () => {
     const stone = NORMAL_UNITS.find((u) => u.element === "STONE")!;
     const other = NORMAL_UNITS.find((u) => u.element !== "STONE" && u.element !== "SWARM")!;
     const p = { uid: "a", baseId: stone.id, star: 1, row: 2, col: 4 };
-    expect(makeFighter(p, "L", {}, "STONE").shield).toBe(18);
-    expect(makeFighter({ ...p, baseId: other.id }, "L", {}, "STONE").def).toBe(makeFighter({ ...p, baseId: other.id }, "L").def - 6);
-    const r = simulate([{ ...p, baseId: other.id }], [{ uid: "b", baseId: other.id, star: 1, row: 2, col: 5 }], { seed: 3, environment: "SWARM" });
+    expect(materializeCombat([p], [], { environment: "STONE" })[0]!.shield).toBe(18);
+    const stoneDebuffed = materializeCombat([{ ...p, baseId: other.id }], [], { environment: "STONE" })[0]!;
+    const baseline = materializeCombat([{ ...p, baseId: other.id }], [])[0]!;
+    expect(stoneDebuffed.def).toBe(baseline.def - 6);
+    const fighters = materializeCombat(
+      [{ ...p, baseId: other.id }],
+      [{ uid: "b", baseId: other.id, star: 1, row: 2, col: 5 }],
+      { environment: "SWARM" },
+    );
+    const r = simulate(fighters, { seed: 3 });
     expect(r.events.some((e) => e.t === "dot" && e.kind === "poisonAura")).toBe(true);
   });
 });
