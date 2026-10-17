@@ -43,3 +43,12 @@ Ngày cập nhật: 2026-10-17. **Trạng thái: candidate đã resolve hết co
 - `/home/thaigo/forest-thorne-dev/old_src/` vẫn tồn tại và `git status --short -- old_src` báo `?? old_src/`; dev còn untracked generated HTML riêng.
 - Main worktree vẫn giữ user state: **42 unstaged, 6 untracked**; không ghi đè/chạm vào các thay đổi đó trong candidate.
 - Với BrowserPanel reachable acceptance + final gates + preservation audit đã đạt, candidate đủ điều kiện tạo local merge commit. Sau commit mới tích hợp candidate → dev → main; không push/force-update và không thao tác production service/tunnel/port.
+
+## Kết quả tích hợp branch cuối — 2026-10-17
+
+- Local merge commit đã tạo: `a224005ec90d0475c3b1591d1bcf2cc7025aff65` với parents `fdd819f8e3546717098b273ebc37e9287a74f974` và `d9b3af798c7b984619bd1f6c814c84f5697c7e8c`.
+- `dev` đã fast-forward thành công tới `a224005ec90d0475c3b1591d1bcf2cc7025aff65`. Hai artifact người dùng vẫn được bảo toàn: `?? old_src/` và `?? .omp/plans/custom/html/forest-throne-2026-10-10-backlog-plan.html`.
+- `main` vẫn ở `ef9cdcdc5a416f0b17c967070552c3ced490ab67`. `git merge --ff-only dev` bị Git chặn trước khi ghi đè vì local tracked edits và untracked collisions; follow-up status xác nhận main vẫn **42 unstaged, 6 untracked**, không đổi ref/worktree.
+- Không dùng stash/reset/clean/move/delete hoặc force/update-ref để lách guard. Stash vẫn là `stash@{0}: On dev: preserve dev generated index before main integration`.
+- Ancestry cuối: candidate/dev đều **chứa** merge commit `a224005`; `a224005` **không** là ancestor của `main`. Vì vậy Merge V3 đã tích hợp tới dev nhưng main còn bị chặn bởi yêu cầu bảo toàn user work hiện hữu.
+- Không push GitHub và không thao tác production service/tunnel/port/website.
