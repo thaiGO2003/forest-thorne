@@ -32,6 +32,7 @@ import { STAR_STAT } from "../core/economy";
 import { teamStrength } from "../core/inspection";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
 import { createCombatFx, type CombatFx } from "../units/fx";
+import { createCombatLowHpMusic } from "../audio/CombatLowHpMusic";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
 
 /** One shared portrait renderer: card snapshots + live Library viewer use the real unit rigs. */
@@ -233,7 +234,7 @@ registerPanel("augment", (app) =>
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
   const board = createBoardView(stage);
-  let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
+  let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx; lowHpMusic: { dispose(): void } } | null = null;
   const drag = createPlanningDragController({
     stage,
     board,
@@ -288,7 +289,7 @@ registerScreen("planning", (app) => {
   // Combat: logic resolves the battle; presentation swaps HUDs, replays events, then shows the result.
   const endCombat = () => {
     if (!combat) return;
-    combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose();
+    combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose(); combat.lowHpMusic.dispose();
     combat = null;
     board.setCombat(false);
     hud.el.hidden = false;
@@ -303,6 +304,11 @@ registerScreen("planning", (app) => {
     stage.setPhase("combat");
     board.setCombat(true);
     const fx = createCombatFx(stage.scene);
+    const lowHpMusic = createCombatLowHpMusic({
+      settings: bridge.settings,
+      allySrc: "/assets/audio/combat/combat_low_ally_01.mp3",
+      enemySrc: "/assets/audio/combat/combat_low_enemy_01.mp3",
+    });
     let speed = 1;
     const chud = createCombatHud(app.layers.hud, {
       speed: () => { speed = speed >= 4 ? 1 : speed * 2; combat?.player.setSpeed(speed); },
@@ -314,16 +320,24 @@ registerScreen("planning", (app) => {
     }));
     const player = playCombat({
       board, fx, roster: session.roster, events: session.events, onFrame: stage.onFrame,
-      onTick: (tk) => chud.update({
+      onTick: (tk) => {
+        const hpRatio = (side: "L" | "R") => {
+          let hp = 0, maxHp = 0;
+          for (const r of tk.all) if (r.side === side) { hp += r.hp; maxHp += r.maxHp; }
+          return maxHp > 0 ? hp / maxHp : 1;
+        };
+        lowHpMusic.update(hpRatio("L"), hpRatio("R"));
+        chud.update({
         round: run?.round ?? 1, cycle: tk.cycle, speed,
         // LOGIC: anti-stall multiplier (A17) belongs to canonical combat; expose it on the session.
         escalation: 1,
         left: strength(tk.all.filter((r) => r.side === "L")), right: strength(tk.all.filter((r) => r.side === "R")),
         queue: tk.queue.map((uid) => { const r = tk.all.find((x) => x.uid === uid); return { name: r ? getUnit(r.baseId).nameVi : uid, side: r?.side ?? "L", icon: r ? ICONS[getUnit(r.baseId).role] : "❔" }; }),
         log: tk.log,
-      }),
+        });
+      },
     });
-    combat = { player, hud: chud, fx };
+    combat = { player, hud: chud, fx, lowHpMusic };
     void player.done.then(() => {
       if (!combat || combat.player !== player) return;
       const summary = session.finish();
