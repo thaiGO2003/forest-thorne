@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { simulate, type Placement } from "../src/core/combat";
+import { materializeCombat, simulate, type Placement } from "../src/core/combat";
 import { restoreHeartBlessing } from "../src/core/blessings";
 import { migrate } from "../src/core/save";
 import {
@@ -28,7 +28,7 @@ describe("ordered blessings", () => {
     const left: Placement[] = [{ uid: "left", baseId: "titan_earth", star: 1, row: 0, col: 4 }];
     const right: Placement[] = [{ uid: "right", baseId: "titan_earth", star: 1, row: 0, col: 5 }];
     const queue = ["weather_fire", "weather_tide", "weather_wind"] as const;
-    const result = simulate(left, right, { seed: 17, orderedBlessings: queue });
+    const result = simulate(materializeCombat(left, right), { seed: 17, orderedBlessings: queue });
     const cycles = result.events.filter((event) => event.t === "cycle").length;
 
     expect(cycles).toBeGreaterThan(1);
@@ -39,13 +39,12 @@ describe("ordered blessings", () => {
 
   it("stops consuming once a first-cycle combat has ended", () => {
     const result = simulate(
-      [{ uid: "left", baseId: "bison_stampede", star: 3, row: 0, col: 4 }],
-      [{ uid: "right", baseId: "salamander_flame", star: 1, row: 0, col: 5 }],
-      {
-        seed: 2,
-        bonus: { L: { atkPct: 10000, matkPct: 10000, startRage: 5 } },
-        orderedBlessings: ["weather_stone", "weather_night"],
-      },
+      materializeCombat(
+        [{ uid: "left", baseId: "bison_stampede", star: 3, row: 0, col: 4 }],
+        [{ uid: "right", baseId: "salamander_flame", star: 1, row: 0, col: 5 }],
+        { leftPersistent: { atkPct: 10000, matkPct: 10000, startRage: 5 } },
+      ),
+      { seed: 2, orderedBlessings: ["weather_stone", "weather_night"] },
     );
     const cycles = result.events.filter((event) => event.t === "cycle").length;
 

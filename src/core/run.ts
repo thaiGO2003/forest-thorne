@@ -9,7 +9,7 @@ import {
   equipmentSaleValue, getEquipment, itemUnequipCost, normalizeEquipment, slotCapForUnit,
 } from "./equipment";
 import { normalizeVariantTraits, rollVariantTrait, type VariantTraitRef } from "./variants";
-import { applyAugment, AUGMENTS, AUGMENT_ROUNDS } from "./augments";
+import { applyAugment, AUGMENTS, AUGMENT_ROUNDS, restoreRunHearts } from "./augments";
 import { BASE_MATERIALS, craft as commitCraft, stage as stageCraft } from "./craft";
 import { lossDamage, type Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
@@ -451,8 +451,8 @@ export function autoMerge(s: RunState): number {
   }
 }
 
-/** A2 rules 1–2: bench → board cell (empty or swap). */
-export function benchToBoard(s: RunState, benchIndex: number, cell: number, allowSwap = true): boolean {
+/** A2 rules 1–2: pure bench → board legality used by preview and mutation. */
+export function canBenchToBoard(s: RunState, benchIndex: number, cell: number, allowSwap = true): boolean {
   const u = s.bench[benchIndex];
   if (!planning(s) || !u || cell < 0 || cell >= s.board.length || !tutorialActionAllowed(s, "move_unit", {
     source: { where: "bench", index: benchIndex }, destination: { where: "board", index: cell }, unitUid: u.uid,
@@ -461,7 +461,14 @@ export function benchToBoard(s: RunState, benchIndex: number, cell: number, allo
   if (occupant && !allowSwap) return false;
   const species = getUnit(u.baseId).species;
   if (s.board.some((unit, index) => index !== cell && unit && getUnit(unit.baseId).species === species)) return false;
-  if (!occupant && boardCount(s) >= deployLimit(s)) return false;
+  return Boolean(occupant) || boardCount(s) < deployLimit(s);
+}
+
+/** A2 rules 1–2: bench → board cell (empty or swap). */
+export function benchToBoard(s: RunState, benchIndex: number, cell: number, allowSwap = true): boolean {
+  if (!canBenchToBoard(s, benchIndex, cell, allowSwap)) return false;
+  const u = s.bench[benchIndex]!;
+  const occupant = s.board[cell];
   s.board[cell] = u;
   if (occupant) s.bench[benchIndex] = occupant;
   else s.bench.splice(benchIndex, 1);
@@ -469,36 +476,49 @@ export function benchToBoard(s: RunState, benchIndex: number, cell: number, allo
   return true;
 }
 
-/** A2 rules 3–4: board → bench position (insert when room, swap when occupied). */
-export function boardToBench(s: RunState, cell: number, benchIndex: number, allowSwap = true): boolean {
+/** A2 rules 3–4: pure board → bench legality used by preview and mutation. */
+export function canBoardToBench(s: RunState, cell: number, benchIndex: number, allowSwap = true): boolean {
   const u = s.board[cell];
   const capacity = benchCap(s);
   if (!planning(s) || !u || benchIndex < 0 || benchIndex >= capacity || !tutorialActionAllowed(s, "move_unit", {
     source: { where: "board", index: cell }, destination: { where: "bench", index: benchIndex }, unitUid: u.uid,
   })) return false;
   const target = s.bench[benchIndex];
+  if (!target) return s.bench.length < capacity;
+  if (!allowSwap) return false;
+  const species = getUnit(target.baseId).species;
+  return !s.board.some((unit, index) => index !== cell && unit && getUnit(unit.baseId).species === species);
+}
+
+/** A2 rules 3–4: board → bench position (insert when room, swap when occupied). */
+export function boardToBench(s: RunState, cell: number, benchIndex: number, allowSwap = true): boolean {
+  if (!canBoardToBench(s, cell, benchIndex, allowSwap)) return false;
+  const u = s.board[cell]!;
+  const target = s.bench[benchIndex];
   if (target) {
-    if (!allowSwap) return false;
-    const species = getUnit(target.baseId).species;
-    if (s.board.some((unit, index) => index !== cell && unit && getUnit(unit.baseId).species === species)) return false;
     s.board[cell] = target;
     s.bench[benchIndex] = u;
     recordTutorialEvent(s, "move_unit");
     return true;
   }
-  if (s.bench.length >= benchCap(s)) return false;
   s.board[cell] = null;
   s.bench.splice(Math.min(benchIndex, s.bench.length), 0, u);
   recordTutorialEvent(s, "move_unit");
   return true;
 }
 
+/** Pure board → board legality used by preview and mutation. */
+export function canBoardToBoard(s: RunState, from: number, to: number): boolean {
+  const u = s.board[from];
+  return Boolean(planning(s) && u && to >= 0 && to < s.board.length && from !== to && tutorialActionAllowed(s, "move_unit", {
+    source: { where: "board", index: from }, destination: { where: "board", index: to }, unitUid: u.uid,
+  }));
+}
+
 /** Board → board: move or swap. */
 export function boardToBoard(s: RunState, from: number, to: number): boolean {
-  const u = s.board[from];
-  if (!planning(s) || !u || to < 0 || to >= s.board.length || from === to || !tutorialActionAllowed(s, "move_unit", {
-    source: { where: "board", index: from }, destination: { where: "board", index: to }, unitUid: u.uid,
-  })) return false;
+  if (!canBoardToBoard(s, from, to)) return false;
+  const u = s.board[from]!;
   s.board[from] = s.board[to] ?? null;
   s.board[to] = u;
   recordTutorialEvent(s, "move_board_unit");
@@ -506,14 +526,20 @@ export function boardToBoard(s: RunState, from: number, to: number): boolean {
   return true;
 }
 
-/** A2 rules 5–6: bench reorder/swap, never creating holes. */
-export function benchToBench(s: RunState, from: number, to: number, allowSwap = true): boolean {
+/** A2 rules 5–6: pure bench reorder/swap legality used by preview and mutation. */
+export function canBenchToBench(s: RunState, from: number, to: number, allowSwap = true): boolean {
   const u = s.bench[from];
   if (!planning(s) || !u || to < 0 || to >= benchCap(s) || from === to || !tutorialActionAllowed(s, "move_unit", {
     source: { where: "bench", index: from }, destination: { where: "bench", index: to }, unitUid: u.uid,
   })) return false;
+  return allowSwap || !s.bench[to];
+}
+
+/** A2 rules 5–6: bench reorder/swap, never creating holes. */
+export function benchToBench(s: RunState, from: number, to: number, allowSwap = true): boolean {
+  if (!canBenchToBench(s, from, to, allowSwap)) return false;
+  const u = s.bench[from]!;
   if (s.bench[to]) {
-    if (!allowSwap) return false;
     s.bench[from] = s.bench[to]!;
     s.bench[to] = u;
   } else {
@@ -750,6 +776,13 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
     s.loseStreak = 0;
     goldEarned = input.bounty;
     if (!cfg.creative) s.gold += goldEarned;
+  }
+
+  // Blessings pay out only on their specified real round outcome; never on replay.
+  // Failed rounds cannot be revived by a post-result blessing.
+  if (input.winner === "LEFT") restoreRunHearts(s, s.augmentMods.heal_hearts_on_win ?? 0);
+  if (input.winner === "RIGHT" && !gameOver) {
+    restoreRunHearts(s, s.augmentMods.heal_hearts_on_survived_loss ?? 0);
   }
 
   const room = Math.max(0, inventoryCapacity(s) - s.itemBag.length);

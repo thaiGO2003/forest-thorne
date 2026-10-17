@@ -49,8 +49,8 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   titleEl.setAttribute("aria-level", "1");
   const title = surface(titleEl, (g, w, hh) => {
     nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6, 3);
-    label(g, t("loading.title"), w / 2, hh * 0.45, { size: Math.min(56, w / 11), weight: 900, maxW: w - 120 });
-    label(g, "Forest Throne", w / 2, hh * 0.9, { size: Math.min(20, w / 28), fill: "#ffe08a" });
+    label(g, t("loading.title"), w / 2, hh * 0.45, { size: Math.min(56, w / 11), weight: 900, fill: "#fff8ec", maxW: w - 120, font: "heading" });
+    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.9, { size: Math.min(20, w / 28), fill: "#ffe08a", font: "body" });
   });
 
   const main = panelEl("panel_wood", "menu-main");

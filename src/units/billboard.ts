@@ -29,9 +29,9 @@ export interface Normalized extends BillboardState { segments: number; filled: n
 export function normalizeBillboard(s: BillboardState): Normalized {
   const fin = (v: number, d = 0) => (Number.isFinite(v) ? v : d);
   const maxHp = Math.max(1, Math.round(fin(s.maxHp, 1)));
-  const hp = Math.max(0, Math.round(fin(s.hp)));
+  const hp = Math.min(maxHp, Math.max(0, Math.round(fin(s.hp))));
   const rageMax = Math.max(0, Math.round(fin(s.rageMax)));
-  const rage = Math.max(0, Math.round(fin(s.rage)));
+  const rage = Math.min(rageMax, Math.max(0, Math.round(fin(s.rage))));
   const segments = Math.min(MAX_SEGMENTS, Math.max(1, rageMax || 1));
   const filled = rageMax <= MAX_SEGMENTS
     ? Math.min(segments, rage)
@@ -88,7 +88,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
     });
     s.neg.forEach((k, i) => {
-      const x = BILLBOARD_W - 8 - tile - i * (tile + 4);
+      const x = BILLBOARD_W - 8 - s.neg.length * tile - (s.neg.length - 1) * 4 + i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
       label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
     });
@@ -111,10 +111,10 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     g.fillStyle = "rgba(255,255,255,0.35)";
     g.fillRect(bx + 6, by + 6, fw, 5);
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
-    label(g, `${s.hp}/${s.maxHp}`, BILLBOARD_W / 2, by + bh / 2, { size: 20 });
+    label(g, `${s.hp}/${s.maxHp} · ${Math.round(pct * 100)}%`, BILLBOARD_W / 2, by + bh / 2, { size: 20 });
 
     // Rage: segmented cells (3-slice frames) + precise numeric value.
-    const ry = by + bh + 4, rh = 24, numW = 92, gap = 4;
+    const ry = by + bh + 4, rh = 24, numW = 174, gap = 4;
     const cw = (BILLBOARD_W - 28 - numW - gap * (s.segments - 1)) / s.segments;
     for (let i = 0; i < s.segments; i++) {
       const x = 14 + i * (cw + gap);
@@ -122,7 +122,8 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       if (i < s.filled) { g.fillStyle = "#ffcf3a"; g.fillRect(x + 3, ry + 3, cw - 6, rh - 6); }
       threeSlice(g, "frame_rage_cell", 2, x, ry, cw, rh);
     }
-    label(g, `${ICONS.rage}${s.rage}/${s.rageMax}`, BILLBOARD_W - 14, ry + rh / 2, { size: 18, align: "right" });
+    const ragePercent = s.rageMax > 0 ? Math.round((s.rage / s.rageMax) * 100) : 0;
+    label(g, `${ICONS.rage}${s.rage}/${s.rageMax} · ${ragePercent}%`, BILLBOARD_W - 14, ry + rh / 2, { size: 17, align: "right" });
     tex.needsUpdate = true;
   };
 

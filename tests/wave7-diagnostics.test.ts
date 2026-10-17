@@ -3,6 +3,7 @@ import { NORMAL_UNITS } from "../src/content/catalog";
 import {
   cloneFighter,
   makeFighter,
+  materializeCombat,
   simulate,
   type Placement,
 } from "../src/core/combat";
@@ -22,11 +23,11 @@ const placement = (uid: string, row: number, col: number): Placement => ({
 
 describe("Wave 7 combat diagnostics", () => {
   it("retains every resolved fighter, including dead units", () => {
-    const result = simulate(
+    const result = simulate(materializeCombat(
       [placement("left", 0, 0)],
       [placement("right", 0, 5)],
-      { seed: 7, environment: environmentFor(1) },
-    );
+      { environment: environmentFor(1) },
+    ), { seed: 7 });
 
     expect(result.fighters.map((fighter) => fighter.uid).sort()).toEqual(["left", "right"]);
     expect(result.fighters.some((fighter) => !fighter.alive)).toBe(true);
@@ -38,17 +39,20 @@ describe("Wave 7 combat diagnostics", () => {
     fighter.status.burn = { turns: 2 } as typeof fighter.status.burn;
     fighter.mods.push({ stat: "atk", value: 5, turns: 2 } as (typeof fighter.mods)[number]);
     fighter.counterTurns = 2;
+    fighter.reflect = { turns: 2, pctByDamageType: { physical: 0.4, magic: 0.2 } };
 
     const snapshot = cloneFighter(fighter);
     snapshot.status.burn!.turns = 9;
     snapshot.mods[0]!.value = 99;
     snapshot.counterTurns = 8;
     snapshot.env.atkPct += 100;
+    snapshot.reflect!.pctByDamageType.physical = 0.9;
 
     expect(fighter.status.burn!.turns).toBe(2);
     expect(fighter.mods[0]!.value).toBe(5);
     expect(fighter.counterTurns).toBe(2);
     expect(snapshot.env.atkPct).not.toBe(fighter.env.atkPct);
+    expect(fighter.reflect!.pctByDamageType.physical).toBe(0.4);
   });
 
   it("uses canonical derived stats plus live fighter state for editable friendly and readonly enemy diagnostics", () => {

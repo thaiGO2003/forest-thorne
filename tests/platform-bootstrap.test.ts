@@ -16,10 +16,10 @@ import {
 
 describe("app metadata", () => {
   it("uses Git-derived config-time version metadata", () => {
-    expect(APP_VERSION).toBe("0.1.0080-10/10");
-    expect(APP_DISPLAY_VERSION).toBe("0.1.0080-10/10");
-    expect(APP_VERSION_TAG).toBe("v0.1.0080-10/10");
-    expect(APP_LAST_UPDATED).toBe("2026-10-10");
+    expect(APP_DISPLAY_VERSION).toBe(APP_VERSION);
+    expect(APP_VERSION_TAG).toBe(`v${APP_VERSION}`);
+    expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d{4}-\d{2}\/\d{2}$/);
+    expect(APP_LAST_UPDATED).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(normalizeAppVersion(" ")).toBe("0.0.0000-00/00");
     expect(formatAppVersion("2.5.0")).toBe("2.5.0");
     expect(formatAppVersion("2.5.1")).toBe("2.5.1");

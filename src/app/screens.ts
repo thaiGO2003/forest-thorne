@@ -1,14 +1,17 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { BOARD_SIZE, boardCount, slotCap, type RoundResultSummary } from "../core/run";
-import { activeIndices, RECIPES } from "../core/craft";
+import { activeIndices, matchRecipe, RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { normalizeKey } from "../core/settings";
-import { h, kitButton } from "../ui/kit";
+import { h, kitButton, panelEl } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
+import { mountUnitInventory } from "../ui/unitInventory";
+import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
+import { snapshotWithResources } from "../core/combat";
 import { mountSettings } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
 import { mountHistory } from "../ui/history";
@@ -412,57 +415,21 @@ function openInformation(app: App) {
   render();
 }
 
-function mountInventoryCraft(app: App, m: ModalHandle) {
+function mountInventory(app: App, host: HTMLElement) {
+  let buttons: ReturnType<typeof kitButton>[] = [];
   const render = () => {
+    for (const button of buttons) button.dispose();
+    buttons = [];
     const run = app.bridge.run();
-    m.body.replaceChildren();
+    host.replaceChildren();
     if (!run) return;
-    const staged = app.bridge.craftStaging();
-    const root = h("div", "stack");
 
-    const itemsTitle = h("strong");
-    itemsTitle.textContent = t("planning.items");
-    root.append(itemsTitle);
+    const root = h("div", "stack");
+    root.append(h("strong", "", t("planning.items")));
     const bag = h("div", "row");
     for (const id of run.itemBag) bag.append(h("div", "slot", itemName(id)));
     if (!run.itemBag.length) bag.append(h("div", "slot", t("planning.empty")));
     root.append(bag);
-
-    const materialsTitle = h("strong");
-    materialsTitle.textContent = t("planning.materials");
-    root.append(materialsTitle);
-    const materials = [...new Set(run.itemBag.filter((id) => getEquipment(id) === null))];
-    for (const index of activeIndices(run.craftTableLevel)) {
-      const slot = h("div", "slot");
-      const title = h("div");
-      title.textContent = `${t("planning.craftSlot", { slot: index + 1 })}: ${staged[index] ? itemName(staged[index]!) : t("planning.empty")}`;
-      const actions = h("div", "row");
-      for (const material of materials) {
-        const add = kitButton({
-          skin: "blue",
-          label: itemName(material),
-          onClick: () => { app.bridge.stageCraft(index, material); },
-        });
-        actions.append(add.el);
-      }
-      if (staged[index]) {
-        const clear = kitButton({
-          skin: "wood",
-          label: t("planning.empty"),
-          onClick: () => { app.bridge.stageCraft(index, null); },
-        });
-        actions.append(clear.el);
-      }
-      slot.append(title, actions);
-      root.append(slot);
-    }
-    const craft = kitButton({
-      skin: "green",
-      label: t("planning.craftNow"),
-      onClick: () => { app.bridge.craft(); },
-    });
-    craft.setDisabled(staged.every((item) => item === null));
-    root.append(craft.el);
 
     const equipmentBag = [...new Set(run.itemBag.filter((id) => getEquipment(id) !== null))];
     const groups = [
@@ -475,9 +442,15 @@ function mountInventoryCraft(app: App, m: ModalHandle) {
         const unit = group.units[index];
         if (!unit) continue;
         const slot = h("div", "slot");
-        const title = h("div", "", `${index + 1}. ${getUnit(unit.baseId).nameVi} ★${unit.star}`);
+        const capacity = slotCap(unit.baseId, unit.star);
+        const title = h("div", "", `${index + 1}. ${getUnit(unit.baseId).nameVi} ★${unit.star} · ${unit.equips.length}/${capacity}`);
         const actions = h("div", "row");
-        const sell = kitButton({ skin: "wood", label: t("planning.sell"), onClick: () => { app.bridge.sell(group.where, index); } });
+        const sell = kitButton({
+          skin: "wood",
+          label: t("planning.sell"),
+          onClick: () => { app.bridge.sell(group.where, index); },
+        });
+        buttons.push(sell);
         actions.append(sell.el);
         unit.equips.forEach((itemId, equippedIndex) => {
           const unequip = kitButton({
@@ -485,6 +458,7 @@ function mountInventoryCraft(app: App, m: ModalHandle) {
             label: `${t("planning.unequip")} ${itemName(itemId)}`,
             onClick: () => { app.bridge.unequip(group.where, index, equippedIndex); },
           });
+          buttons.push(unequip);
           actions.append(unequip.el);
         });
         for (const itemId of equipmentBag) {
@@ -495,29 +469,126 @@ function mountInventoryCraft(app: App, m: ModalHandle) {
             label: `${t("planning.equip")} ${itemName(itemId)}`,
             onClick: () => { app.bridge.equip(itemId, group.where, index); },
           });
-          equip.setDisabled(item.tier > unit.star);
+          equip.setDisabled(item.tier > unit.star || unit.equips.length >= capacity);
+          buttons.push(equip);
           actions.append(equip.el);
         }
         slot.append(title, actions);
         root.append(slot);
       }
     }
-    m.body.append(root);
+    host.append(root);
   };
   const off = app.bridge.onChange(render);
   render();
-  return { dispose: off };
+  return {
+    dispose() {
+      off();
+      for (const button of buttons) button.dispose();
+    },
+  };
 }
 
-function mountRecipes(m: ModalHandle) {
+function mountCraft(app: App, host: HTMLElement) {
+  let selectedMaterial: string | null = null;
+  let buttons: ReturnType<typeof kitButton>[] = [];
+  const render = () => {
+    for (const button of buttons) button.dispose();
+    buttons = [];
+    host.replaceChildren();
+    const run = app.bridge.run();
+    if (!run) return;
+    const staged = app.bridge.craftStaging();
+    const active = new Set(activeIndices(run.craftTableLevel));
+    const materials = [...new Set(run.itemBag.filter((id) => !getEquipment(id)))];
+    const remaining = (id: string) =>
+      run.itemBag.filter((entry) => entry === id).length - staged.filter((entry) => entry === id).length;
+    if (selectedMaterial && remaining(selectedMaterial) <= 0) selectedMaterial = null;
+
+    const workspace = h("div", "craft-workspace");
+    const board = h("div", "craft-grid");
+    board.setAttribute("role", "group");
+    board.setAttribute("aria-label", t("planning.craft"));
+    for (let index = 0; index < 9; index++) {
+      const slot = h("div", "craft-cell");
+      const material = staged[index];
+      const enabled = active.has(index);
+      const title = material ? itemName(material) : t("planning.empty");
+      const button = kitButton({
+        skin: material ? "green" : "wood",
+        label: `${index + 1}. ${enabled ? title : "🔒"}`,
+        onClick: () => {
+          if (!enabled) return;
+          const choice = selectedMaterial && remaining(selectedMaterial) > 0 ? selectedMaterial : null;
+          if (app.bridge.stageCraft(index, choice)) render();
+        },
+      });
+      button.setDisabled(!enabled);
+      button.el.title = !enabled
+        ? t("planning.craftSlot", { slot: index + 1 })
+        : material ? `${title} · Chọn ô để thay hoặc bỏ nguyên liệu` : "Chọn nguyên liệu bên kho rồi chọn ô";
+      buttons.push(button);
+      slot.append(button.el);
+      if (material) {
+        const clear = kitButton({
+          skin: "plum", label: "Bỏ",
+          onClick: () => { if (app.bridge.stageCraft(index, null)) render(); },
+        });
+        buttons.push(clear);
+        slot.append(clear.el);
+      }
+      board.append(slot);
+    }
+    const bag = h("div", "craft-bag");
+    bag.append(h("strong", "", t("planning.materials")), h("p", "", "Chọn nguyên liệu, sau đó chọn ô trên bàn chế tạo."));
+    for (const material of materials) {
+      const count = remaining(material);
+      const entry = h("div", "slot craft-material");
+      const img = h("img");
+      img.src = `/assets/items/${encodeURIComponent(material)}.svg`;
+      img.alt = "";
+      img.loading = "lazy";
+      const choice = kitButton({
+        skin: "blue", label: `${itemName(material)} · ×${count}`,
+        onClick: () => {
+          selectedMaterial = selectedMaterial === material ? null : material;
+          render();
+        },
+      });
+      choice.setDisabled(count <= 0);
+      choice.setSelected(selectedMaterial === material);
+      buttons.push(choice);
+      entry.append(img, choice.el);
+      bag.append(entry);
+    }
+    if (!materials.length) bag.append(h("div", "slot", t("planning.empty")));
+    const matched = matchRecipe(staged.slice(), run.craftTableLevel);
+    const result = h("div", "craft-result");
+    result.append(h("span", "", matched ? `${itemName(`eq_${matched.id}`)}` : t("planning.empty")));
+    const craft = kitButton({
+      skin: "green", label: t("planning.craftNow"),
+      onClick: () => { app.bridge.craft(); },
+    });
+    craft.setDisabled(!matched || run.phase !== "PLANNING");
+    buttons.push(craft);
+    result.append(craft.el);
+    bag.append(result);
+    workspace.append(board, bag);
+    host.append(workspace);
+  };
+  const off = app.bridge.onChange(render);
+  render();
+  return { dispose() { off(); for (const b of buttons) b.dispose(); } };
+}
+
+function mountRecipes(host: HTMLElement) {
   const root = h("div", "choice-list");
   for (const recipe of RECIPES) {
     const row = h("div", "slot");
     row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(`eq_${recipe.id}`)}`;
     root.append(row);
   }
-  m.body.append(root);
-  return { dispose() {} };
+  host.append(root);
 }
 
 function mountAugments(app: App, m: ModalHandle) {
@@ -787,12 +858,45 @@ registerPanel("tech", (app) => {
     return { dispose() { off(); view.dispose(); } };
   });
 });
-registerPanel("inventory", (app) =>
-  openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "lg" }, (m) => mountInventoryCraft(app, m)));
-registerPanel("craft", (app) =>
-  openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "lg" }, (m) => mountInventoryCraft(app, m)));
-registerPanel("recipes", (app) =>
-  openPanelModal(app, { id: "recipes", title: t("planning.recipes"), size: "lg" }, mountRecipes));
+function mountWorkshop(app: App, modal: ModalHandle, initial: "inventory" | "craft" | "recipes") {
+  const tabs = h("div", "craft-tabs");
+  tabs.setAttribute("role", "tablist");
+  const body = h("div", "craft-content");
+  let active = initial;
+  let view: { dispose(): void } | null = null;
+  const entries = [
+    { id: "inventory", label: t("planning.inventory") },
+    { id: "craft", label: t("planning.craft") },
+    { id: "recipes", label: t("planning.recipes") },
+  ] as const;
+  const tabButtons = entries.map(({ id, label }) => {
+    const button = kitButton({ skin: "blue", label, onClick: () => show(id) });
+    button.el.setAttribute("role", "tab");
+    tabs.append(button.el);
+    return button;
+  });
+  const show = (id: typeof active) => {
+    view?.dispose();
+    view = null;
+    active = id;
+    for (let i = 0; i < entries.length; i++) {
+      const selected = entries[i]!.id === active;
+      tabButtons[i]!.setSelected(selected);
+      tabButtons[i]!.el.setAttribute("aria-selected", String(selected));
+    }
+    body.replaceChildren();
+    if (id === "inventory") view = mountInventory(app, body);
+    else if (id === "craft") view = mountCraft(app, body);
+    else mountRecipes(body);
+  };
+  modal.body.append(tabs, body);
+  show(initial);
+  return { dispose() { view?.dispose(); for (const b of tabButtons) b.dispose(); } };
+}
+for (const id of ["inventory", "craft", "recipes"] as const) {
+  registerPanel(id, (app) =>
+    openPanelModal(app, { id, title: t("planning.craft"), size: "full" }, (m) => mountWorkshop(app, m, id)));
+}
 registerPanel("augment", (app) =>
   openPanelModal(app, { id: "augment", title: t("planning.augment"), size: "lg", dismissible: false }, (m) => mountAugments(app, m)));
 
@@ -801,6 +905,40 @@ registerScreen("planning", (app) => {
   const board = createBoardView(stage);
   let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
   let resultFireworks: VictoryFireworks | null = null;
+  let selectedUid: string | null = null;
+  let inventoryView: ReturnType<typeof mountUnitInventory> | null = null;
+  let inventoryInspection: OwnedUnitInspection | null = null;
+  let inventoryUid: string | null = null;
+  const liveRoster = new Map<string, RosterEntry>();
+  const withOwned = (uid: string, action: (where: "board" | "bench", index: number) => boolean) => {
+    const run = bridge.run();
+    const found = run ? findOwnedUnit(run, uid) : null;
+    return found ? action(found.where, found.index) : false;
+  };
+  const openOwnedInventory = (uid: string) => {
+    const run = bridge.run();
+    const inspection = run ? inspectOwnedUnit(run, uid) : null;
+    if (!inspection) return;
+    openPanelModal(app, { id: "unit-inventory", title: t("inventory.title"), size: "full" }, (m) => {
+      inventoryUid = uid; inventoryInspection = inspection;
+      const view = mountUnitInventory(m, portraits, {
+        getModel: () => {
+          const state = bridge.run();
+          if (!state || !inventoryInspection || !findOwnedUnit(state, uid)) return null;
+          const live = liveRoster.get(uid);
+          const current = live?.inspection ? snapshotWithResources(live.inspection, live, getUnit(inventoryInspection.unit.baseId).role) : inventoryInspection.boosted;
+          return { run: state, inspection: inventoryInspection, current, inCombat: state.phase === "COMBAT" };
+        },
+        select: () => { selectedUid = uid; board.setSelected?.(uid); },
+        sell: () => withOwned(uid, (where, index) => bridge.sell(where, index)),
+        equip: (itemId) => withOwned(uid, (where, index) => bridge.equip(itemId, where, index)),
+        unequip: (index) => withOwned(uid, (where, at) => bridge.unequip(where, at, index)),
+        unequipAll: () => withOwned(uid, (where, index) => bridge.unequipAll(where, index)),
+      });
+      inventoryView = view;
+      return { dispose() { view.dispose(); if (inventoryView === view) { inventoryView = null; inventoryUid = null; inventoryInspection = null; } } };
+    });
+  };
   const drag = createPlanningDragController({
     stage,
     board,
@@ -810,10 +948,12 @@ registerScreen("planning", (app) => {
       const run = bridge.run();
       const unit = source.kind === "bench" ? run?.bench[source.index] : run?.board[source.index];
       if (!unit) return;
-      app.openPanel("unit-detail", ownedPanelId(unit.uid));
-      bridge.tutorialEvent("show_attack_preview", "show_attack_preview", {
-        source: { where: source.kind, index: source.index },
-      });
+      openOwnedInventory(unit.uid);
+      if (source.kind === "board" && run?.phase === "PLANNING") {
+        bridge.tutorialEvent("show_attack_preview", "show_attack_preview", {
+          source: { where: "board", index: source.index },
+        });
+      }
     },
     preview: (source, anchor) => {
       const run = bridge.run();
@@ -833,7 +973,8 @@ registerScreen("planning", (app) => {
       });
     },
     previewEnd: () => app.tooltip.hide(),
-    enabled: () => !combat && !app.modals.blocking() && bridge.run()?.phase === "PLANNING",
+    enabled: () => !app.modals.blocking() && (bridge.run()?.phase === "PLANNING" || Boolean(combat)),
+    inspectOnly: () => Boolean(combat),
   });
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
     buy: (slot) => bridge.buy(slot),
@@ -853,6 +994,8 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
+    if (selectedUid && !findOwnedUnit(run, selectedUid)) { selectedUid = null; board.setSelected?.(null); }
+    if (inventoryUid) { inventoryInspection = inspectOwnedUnit(run, inventoryUid); inventoryView?.update(); }
     const preview = bridge.prepareEnemyPreview();
     const renderRun = preview && preview.units !== run.enemyPreview ? { ...run, enemyPreview: preview.units } : run;
     stage.arena.setEnvironment(environmentFor(run.round));
@@ -880,6 +1023,8 @@ registerScreen("planning", (app) => {
     if (!combat) return;
     combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose();
     combat = null;
+    liveRoster.clear();
+    if (app.modals.active() === "unit-inventory") app.modals.closeActive();
     board.setCombat(false);
     hud.el.hidden = false;
     stage.setPhase("planning");
@@ -929,10 +1074,11 @@ registerScreen("planning", (app) => {
     });
     const strength = (list: RosterEntry[]) => teamStrength(list.map((r) => {
       const u = getUnit(r.baseId), k = STAR_STAT[r.star] ?? 1;
-      return { hp: r.hp, maxHp: r.maxHp, shield: r.shield, atk: u.stats.atk * k, matk: u.stats.matk * k, def: u.stats.def * k, mdef: u.stats.mdef * k, star: r.star, tier: u.tier, alive: r.hp > 0 };
+      return { hp: r.hp, maxHp: r.maxHp, shield: r.shield, atk: r.inspection?.atk ?? u.stats.atk * k, matk: r.inspection?.matk ?? u.stats.matk * k, def: r.inspection?.def ?? u.stats.def * k, mdef: r.inspection?.mdef ?? u.stats.mdef * k, star: r.star, tier: u.tier, alive: r.hp > 0 };
     }));
     const player = playCombat({
-      board, fx, roster: session.roster, events: session.events, onFrame: stage.onFrame,
+      board, fx, roster: session.roster, events: session.events,
+      inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
       onEvent: (event) => {
         if (event.t !== "cast") {
           stage.arena.clearHighlights();
@@ -951,15 +1097,19 @@ registerScreen("planning", (app) => {
         });
         stage.arena.setHighlights(highlights);
       },
-      onTick: (tk) => chud.update({
-        round: combatRound, cycle: tk.cycle, speed: speedMultiplier,
-        finishFastCost: finishFastCost({ techLevels: run?.techLevels ?? {} }),
+      onTick: (tk) => {
+        for (const entry of tk.all) liveRoster.set(entry.uid, entry);
+        inventoryView?.update();
+        chud.update({
+          round: combatRound, cycle: tk.cycle, speed: speedMultiplier,
+          finishFastCost: finishFastCost({ techLevels: run?.techLevels ?? {} }),
         // LOGIC: anti-stall multiplier (A17) belongs to canonical combat; expose it on the session.
         escalation: 1,
         left: strength(tk.all.filter((r) => r.side === "L")), right: strength(tk.all.filter((r) => r.side === "R")),
         queue: tk.queue.map((uid) => { const r = tk.all.find((x) => x.uid === uid); return { name: r ? getUnit(r.baseId).nameVi : uid, side: r?.side ?? "L", icon: r ? ICONS[getUnit(r.baseId).role] : ICONS.sleep }; }),
         log: tk.log,
-      }),
+        });
+      },
     });
     player.setSpeed(speedLevel);
     combat = { player, hud: chud, fx };
@@ -986,12 +1136,13 @@ registerScreen("planning", (app) => {
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.repeat || combat || app.modals.blocking()) return;
+    // The modal host may already have consumed Escape and closed its dialog.
+    if (event.defaultPrevented || event.repeat || combat || app.modals.blocking()) return;
     const target = event.target;
     if (target instanceof HTMLElement && (
       target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
     )) return;
-    const key = normalizeKey(event.code === "ShiftRight" ? "SHIFT_RIGHT" : event.key === " " ? "SPACE" : event.key);
+    const key = normalizeKey(event.code === "ShiftRight" ? "SHIFTRIGHT" : event.key === " " ? "SPACE" : event.key);
     if (!key) return;
     const bindings = bridge.settings.get().keys.planning;
     if (key === bindings.startCombat) {
@@ -1034,7 +1185,7 @@ registerUtility("social", (app) => openUndeveloped(app, "social"));
 registerUtility("language", (app) => {
   const m = app.modals.open({ id: "language", title: t("menu.language"), size: "sm", closeLabel: t("ui.close") });
   const list = h("div", "choice-list");
-  const names: Record<string, string> = { vi: "Tiếng Việt", en: "English" };
+  const names: Record<string, string> = { vi: "Tiếng Việt" };
   for (const l of LOCALES) {
     const b = kitButton({ skin: "blue", label: names[l] ?? l, onClick: () => {
       app.bridge.settings.save({ language: l }); // canonical owner persists + switches locale

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { benchPerimeter, toVisual } from "../src/board/geometry";
 import { createBridge } from "../src/app/bridge";
-import { createPlanningDragController } from "../src/app/planningDrag";
+import { createPlanningDragController, type PlanningDragTargetState } from "../src/app/planningDrag";
 import { cellToWorld } from "../src/world/arena";
 
 const TILE_HEIGHT = 0.12;
@@ -185,21 +185,31 @@ describe("Planning drag controller", () => {
         fn(otherUid, { root: otherRoot }, "bench");
         fn("enemy-preview", { root: enemyRoot }, "enemy");
       },
+      visual(uid: string) {
+        if (uid === playerUid) return { root: playerRoot };
+        if (uid === otherUid) return { root: otherRoot };
+        if (uid === "enemy-preview") return { root: enemyRoot };
+        return undefined;
+      },
     };
 
     const setHighlights = vi.fn();
     const clearHighlights = vi.fn();
     const setBenchHighlights = vi.fn();
     const clearBenchHighlights = vi.fn();
+    let renderFrame: (dt: number) => void = () => {};
     const stage = {
       renderer: { domElement: canvas },
       camera,
       arena: { tiles, setHighlights, clearHighlights, setBenchHighlights, clearBenchHighlights },
+      onFrame(callback: (dt: number) => void) { renderFrame = callback; return () => { renderFrame = () => {}; }; },
       scene,
     };
 
     const moves: Array<{ from: { kind: "bench" | "board"; index: number }; to: { kind: "bench" | "board"; index: number } }> = [];
     const selections: Array<{ kind: "bench" | "board"; index: number }> = [];
+    const targetStates: Array<PlanningDragTargetState | null> = [];
+    let inspectOnly = false;
     const controller = createPlanningDragController({
       stage: stage as never,
       board: boardView as never,
@@ -209,14 +219,23 @@ describe("Planning drag controller", () => {
         return bridge.move(from, to);
       },
       select: (source) => { selections.push(source); },
+      onTargetState: (state) => { targetStates.push(state); },
       enabled: () => true,
+      inspectOnly: () => inspectOnly,
     });
 
-    const drag = (from: THREE.Vector3, to: THREE.Vector3, pointerId: number, pointerType = "mouse") => {
+    const drag = (
+      from: THREE.Vector3,
+      to: THREE.Vector3,
+      pointerId: number,
+      pointerType = "mouse",
+      beforeDrop?: () => void,
+    ) => {
       const start = clientPointForWorld(from, camera, rect);
       const end = clientPointForWorld(to, camera, rect);
       canvas.dispatchPointer("pointerdown", start.clientX, start.clientY, pointerId, pointerType);
       canvas.dispatchPointer("pointermove", end.clientX, end.clientY, pointerId, pointerType);
+      beforeDrop?.();
       canvas.dispatchPointer("pointerup", end.clientX, end.clientY, pointerId, pointerType);
     };
     const click = (point: THREE.Vector3, pointerId: number) => {
@@ -227,13 +246,25 @@ describe("Planning drag controller", () => {
 
     const boardA = { col: 1, row: 1 };
     const boardAWorld = cellToWorld(toVisual(boardA.col, boardA.row), "solo");
+    const boardAIndex = boardA.row * 5 + boardA.col;
+    const beforePreview = JSON.stringify(run);
     drag(
       new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z),
       new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z),
       1,
       "touch",
+      () => {
+        expect(controller.targetState()).toEqual({
+          source: { kind: "bench", index: 0 },
+          target: { kind: "board", index: boardAIndex },
+          valid: true,
+        });
+        expect(JSON.stringify(run)).toBe(beforePreview);
+        renderFrame(0.1);
+        expect(playerRoot.position.distanceTo(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z))).toBeGreaterThan(0.1);
+      },
     );
-    const boardAIndex = boardA.row * 5 + boardA.col;
+    expect(controller.targetState()).toBeNull();
     expect(run.board[boardAIndex]?.uid).toBe(playerUid);
     expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([{
       col: boardA.col,
@@ -244,8 +275,29 @@ describe("Planning drag controller", () => {
     expect(run.bench[0]?.uid).toBe(otherUid);
 
     placeRoot(playerRoot, boardAWorld.x, boardAWorld.z, scene);
+    // Hidden status/speech surfaces must not intercept a click on a visible creature.
+    const hiddenOverlay = new THREE.Group();
+    hiddenOverlay.visible = false;
+    const hiddenMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 2), new THREE.MeshBasicMaterial());
+    hiddenOverlay.add(hiddenMesh);
+    hiddenOverlay.position.copy(playerRoot.position).sub(enemyRoot.position);
+    enemyRoot.add(hiddenOverlay);
+    scene.updateMatrixWorld(true);
     click(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 6);
     expect(selections).toEqual([{ kind: "board", index: boardAIndex }]);
+    hiddenOverlay.removeFromParent(); hiddenMesh.geometry.dispose(); hiddenMesh.material.dispose();
+
+    const sameCell = clientPointForWorld(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), camera, rect);
+    canvas.dispatchPointer("pointerdown", sameCell.clientX, sameCell.clientY, 9);
+    canvas.dispatchPointer("pointermove", sameCell.clientX + 8, sameCell.clientY, 9);
+    expect(controller.targetState()).toEqual({
+      source: { kind: "board", index: boardAIndex },
+      target: { kind: "board", index: boardAIndex },
+      valid: false,
+    });
+    canvas.dispatchPointer("pointerup", sameCell.clientX + 8, sameCell.clientY, 9);
+    expect(controller.targetState()).toBeNull();
+    expect(targetStates.some((state) => state?.valid === false && state.target?.kind === "board")).toBe(true);
     const boardB = { col: 3, row: 1 };
     const boardBWorld = cellToWorld(toVisual(boardB.col, boardB.row), "solo");
     drag(
@@ -267,7 +319,8 @@ describe("Planning drag controller", () => {
     expect(run.board[boardBIndex]).toBeNull();
     expect(run.bench[1]?.uid).toBe(playerUid);
 
-    placeRoot(playerRoot, bench[1]!.x, bench[1]!.z, scene);
+    // Do not warm world matrices here: clicks must work before the next renderer frame.
+    playerRoot.position.set(bench[1]!.x, TILE_HEIGHT, bench[1]!.z);
     click(new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z), 7);
     expect(selections).toEqual([
       { kind: "board", index: boardAIndex },
@@ -287,6 +340,18 @@ describe("Planning drag controller", () => {
     expect(moves).toHaveLength(moveCount);
     click(enemyPoint, 8);
     expect(selections).toHaveLength(2);
+
+    // Combat clicks still inspect owned units, while drags never mutate the formation.
+    inspectOnly = true;
+    run.phase = "COMBAT";
+    placeRoot(playerRoot, bench[0]!.x, bench[0]!.z, scene);
+    const combatBefore = JSON.stringify(run);
+    click(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), 10);
+    expect(selections.at(-1)).toEqual({ kind: "bench", index: 0 });
+    drag(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 11);
+    expect(moves).toHaveLength(moveCount);
+    expect(selections).toHaveLength(3);
+    expect(JSON.stringify(run)).toBe(combatBefore);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",
       "board->board",
@@ -349,6 +414,9 @@ describe("Planning drag controller", () => {
     const boardView = {
       forEach(fn: (id: string, visual: { root: THREE.Object3D }, kind: "board" | "bench" | "enemy") => void) {
         fn(uid, { root }, "bench");
+      },
+      visual(id: string) {
+        return id === uid ? { root } : undefined;
       },
     };
     const setHighlights = vi.fn();

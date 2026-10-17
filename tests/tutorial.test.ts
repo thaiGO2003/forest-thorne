@@ -18,12 +18,12 @@ describe("tutorial A94/A108", () => {
     const s = createRun(7);
     expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "deer_song", "falcon_dive", "cat_goldbow", "ram_charge"]);
     expect(currentTutorialStep(s)?.id).toBe("welcome");
-    expect(buy(s, 0)).toBe(false);
+    expect(buy(s, 0)).toBeNull();
 
     expect(dismissTutorialStep(s, "welcome")).toBe(true);
     expect(currentTutorialStep(s)?.id).toBe("buy_unit");
-    expect(buy(s, 1)).toBe(false);
-    expect(buy(s, 0)).toBe(true);
+    expect(buy(s, 1)).toBeNull();
+    expect(buy(s, 0)).toEqual({ merges: 0 });
     expect(currentTutorialStep(s)?.id).toBe("deploy_first_unit");
 
     const first = s.bench[0]!;
@@ -35,7 +35,7 @@ describe("tutorial A94/A108", () => {
 
     dismissTutorialStep(s, "explain_synergy");
     const offer = s.shop.findIndex(Boolean);
-    expect(buy(s, offer)).toBe(true);
+    expect(buy(s, offer)).toEqual({ merges: 0 });
     const second = s.bench[0]!;
     expect(benchToBoard(s, 0, recommendedTutorialDeployCell(s, second)!)).toBe(true);
     expect(currentTutorialStep(s)?.id).toBe("start_combat");

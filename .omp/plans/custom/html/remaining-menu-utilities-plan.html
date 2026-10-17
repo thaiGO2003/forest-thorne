@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Remaining Menu Utilities Plan — Forest Throne plan</title>
+  <link rel="stylesheet" href="../plan.css" />
+</head>
+<body>
+  <div class="doc">
+    <div class="doc-head">
+      <h1>Remaining Menu Utilities Plan</h1>
+      <div class="doc-meta">
+        <span class="badge badge-done">✅ Done</span>
+        <span>Cập nhật 2026-10-10</span>
+        <span>·</span>
+        <span>bản markdown: <code>.omp/plans/done/</code></span>
+        <span>·</span>
+        <a href="./agent-index.html">← Tất cả plan</a>
+      </div>
+    </div>
+<h1>Remaining Menu Utilities Plan</h1>
+<h2>Scope</h2>
+<p>Finish the remaining non-creature-visual requirements from the mega prompt without restoring or modifying rejected creature rigs.</p>
+<h2>Decisions</h2>
+<ul><li>Settings: localize displayed canonical values only; persisted IDs stay unchanged.</li><li>Mods: extend the existing ModRegistry owner with strict local import parsing; failed imports are atomic and Workshop remains a placeholder.</li><li>Donate: compact only with scoped layout classes; no CSS-painted chrome or color.</li><li>Achievements: render canonical 100 rows, rank with rankAchievementRows, persist claim/equip through the existing collection profile owner.</li><li>Reward coverage: the authored prompt/catalog contains only 99 achievement skins and no runsStarted_50 reward. Do not invent a Falcon skin; make validation surface the missing mapping explicitly.</li><li>Equipped skins: keep state player-owned only. No enemy/right-side consumer will read equippedSkinByUnitId.</li></ul>
+<h2>Files</h2>
+<ul><li>src/core/i18n.ts</li><li>src/ui/settings.ts</li><li>src/mods/ModRegistry.ts</li><li>src/app/screens.ts</li><li>src/ui/ui.css</li><li>src/core/achievements.ts</li><li>tests/settings*.test.ts or focused UI/value-label coverage</li><li>tests/mod-registry.test.ts</li><li>tests/achievements-history.test.ts</li><li>tests/donate.test.ts</li><li>.omp/plans/pending/changelog.md</li></ul>
+<h2>Verification</h2>
+<ul><li>Focused Vitest only.</li><li>corepack pnpm typecheck</li><li>corepack pnpm build</li><li>git diff --check</li><li>Browser smoke for Settings, local mod import, Donate, Achievements.</li><li>Confirm rejected creature visual modules remain untouched.</li></ul>
+
+  </div>
+</body>
+</html>

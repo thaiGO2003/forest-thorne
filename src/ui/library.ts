@@ -2,11 +2,15 @@
 // 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
+import { BASE_MATERIALS, RECIPES } from "../core/craft";
+import { shopTierOdds } from "../core/economy";
+import { EQUIPMENT } from "../core/equipment";
+import { AUGMENTS, type AugGroup } from "../core/augments";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
 import { createCard, type CardView } from "./card";
-import { h, kitButton, panelEl, type KitButton } from "./kit";
+import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
@@ -18,6 +22,33 @@ const ROLES: Role[] = ["TANKER", "FIGHTER", "ASSASSIN", "ARCHER", "MAGE", "SUPPO
 const FACTIONS: Faction[] = ["BEAST", "AVIAN", "INSECT", "REPTILE", "AQUATIC", "MYTHICAL"];
 const TIERS = [1, 2, 3, 4, 5, 6];
 const STATE_KEY: Record<ActionState, MsgKey> = { idle: "unit.idle", attack: "unit.attack", skill: "unit.skill", hit: "unit.hit", move: "unit.move" };
+
+type LibraryTab = "units" | "materials" | "equipment" | "recipes" | "augments" | "odds";
+const TABS: readonly { id: LibraryTab; name: string }[] = [
+  { id: "units", name: "Thú" },
+  { id: "materials", name: "Vật phẩm" },
+  { id: "equipment", name: "Trang bị" },
+  { id: "recipes", name: "Chế tạo / công thức" },
+  { id: "augments", name: "Chúc phúc" },
+  { id: "odds", name: "Xác suất cửa hàng" },
+];
+const MATERIAL_NAMES: Record<string, string> = {
+  bark: "Vỏ cây", feather: "Lông vũ", belt: "Đai", claw: "Vuốt", tear: "Nước mắt", crystal: "Pha lê",
+};
+const AUGMENT_GROUPS: Record<AugGroup, string> = {
+  ECONOMY: "Kinh tế", FORMATION: "Đội hình", COMBAT: "Giao tranh", SYNERGY: "Cộng hưởng",
+};
+const EFFECT_NAMES: Record<string, string> = {
+  gold_flat: "Vàng nhận ngay", roll_cost_delta: "Giảm giá làm mới", xp_flat: "Kinh nghiệm nhận ngay",
+  xp_cost_delta: "Giảm giá mua kinh nghiệm", win_gold_bonus: "Thưởng vàng khi thắng",
+  interest_rate_bonus: "Lãi vàng", interest_cap: "Giới hạn lãi",
+  team_atk_pct: "Sát thương vật lý toàn đội", team_matk_pct: "Sát thương phép toàn đội",
+  team_def_pct: "Giáp toàn đội", team_mdef_pct: "Kháng phép toàn đội", team_hp_pct: "Máu toàn đội",
+  starting_rage: "Nộ khởi đầu", starting_shield: "Khiên khởi đầu",
+  lifesteal_pct: "Hút máu", deploy_cap_bonus: "Giới hạn ra trận",
+  bench_bonus: "Ô dự bị", inventory_bonus: "Sức chứa kho",
+  extra_class_count: "Cộng hưởng vai trò", extra_tribe_count: "Cộng hưởng bộ tộc",
+};
 
 interface Filter { q: string; role: Role | null; faction: Faction | null; tier: number | null }
 
@@ -47,6 +78,7 @@ export function mountLibrary(
   let collection = account.collectionProfile();
   const refreshCollection = () => { collection = account.collectionProfile(); };
   let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
+  let tab: LibraryTab = "units";
   const root = h("div", "lib");
   modal.body.append(root);
   const clearIdleTimer = () => {
@@ -75,12 +107,117 @@ export function mountLibrary(
     return { row, sync: () => { for (const [v, b] of btns) b.setSelected(get() === v); } };
   };
 
+  function renderCatalog() {
+    const list = h("div", "lib-info");
+    root.append(list);
+    const entry = (title: string, ...detail: string[]) => {
+      const panel = panelEl("panel_tooltip", "lib-sec");
+      panel.append(h("h3", "lib-h", title));
+      for (const line of detail) panel.append(h("p", "lib-p", line));
+      list.append(panel);
+      return panel;
+    };
+    const iconEntry = (id: string, title: string, ...detail: string[]) => {
+      const heading = entry(title, ...detail).querySelector(".lib-h");
+      const icon = h("img", "lib-item-icon");
+      icon.src = `/assets/items/${encodeURIComponent(id)}.svg`;
+      icon.alt = "";
+      icon.loading = "lazy";
+      heading?.prepend(icon);
+    };
+    const nameOfEquipment = (id: string) => id === "eq_blue_buff"
+      ? t("item.eq_blue_buff")
+      : id === "eq_warmog_armor" ? t("item.eq_warmog_armor") : id;
+    if (tab === "materials") {
+      entry("Danh mục nguyên liệu", "Các nguyên liệu có thể sử dụng trên bàn chế tạo.");
+      for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? id);
+    } else if (tab === "equipment") {
+      for (const item of EQUIPMENT) {
+        const bonuses = Object.entries(item.bonuses).map(([key, value]) => `${key}: ${value}`);
+        iconEntry(item.id, nameOfEquipment(item.id), `Bậc ${item.tier}`, ...bonuses);
+      }
+    } else if (tab === "recipes") {
+      entry("Công thức đã có", "Chỉ hiển thị các công thức được định nghĩa trong trò chơi; không suy đoán công thức còn thiếu.");
+      for (const recipe of RECIPES) {
+        const lines = [];
+        for (let row = 0; row < recipe.size; row++) {
+          lines.push(recipe.pattern.slice(row * recipe.size, (row + 1) * recipe.size)
+            .map((id) => id ? MATERIAL_NAMES[id] ?? id : "Ô trống").join(" · "));
+        }
+        iconEntry(`eq_${recipe.id}`, nameOfEquipment(`eq_${recipe.id}`), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
+      }
+    } else if (tab === "augments") {
+      const picker = h("select", "lib-input");
+      picker.setAttribute("aria-label", "Nhóm chúc phúc");
+      const option = (value: string, name: string) => {
+        const opt = document.createElement("option");
+        opt.value = value; opt.textContent = name;
+        picker.append(opt);
+      };
+      option("ALL", "Tất cả nhóm chúc phúc");
+      for (const [group, name] of Object.entries(AUGMENT_GROUPS)) option(group, name);
+      const filter = () => {
+        list.replaceChildren(picker);
+        for (const augment of AUGMENTS) {
+          if (picker.value !== "ALL" && augment.group !== picker.value) continue;
+          entry(EFFECT_NAMES[augment.effect] ?? augment.effect,
+            `${AUGMENT_GROUPS[augment.group]} · Mức hiệu ứng: ${augment.value}`, `Mã: ${augment.id}`);
+        }
+      };
+      picker.addEventListener("change", filter);
+      filter();
+    } else if (tab === "odds") {
+      const level = h("select", "lib-input");
+      level.setAttribute("aria-label", "Cấp người chơi");
+      for (let n = 1; n <= 25; n++) {
+        const option = document.createElement("option");
+        option.value = String(n);
+        option.textContent = `Cấp ${n}`;
+        level.append(option);
+      }
+      level.value = "1";
+      const panel = panelEl("panel_tooltip", "lib-sec");
+      const table = h("table", "lib-table");
+      const update = () => {
+        table.replaceChildren();
+        const header = h("tr");
+        for (const name of ["Bậc thú", "Giá (vàng)", "Xác suất"]) header.append(h("th", "", name));
+        table.append(header);
+        shopTierOdds(Number(level.value)).forEach((chance, index) => {
+          const row = h("tr");
+          for (const value of [String(index + 1), String(index + 1), `${(chance * 100).toFixed(2)}%`]) row.append(h("td", "", value));
+          table.append(row);
+        });
+      };
+      level.addEventListener("change", update);
+      update();
+      panel.append(h("h3", "lib-h", "Xác suất theo cấp người chơi"), level,
+        h("p", "lib-p", "Giá mua thú bằng bậc thú. Tỉ lệ lấy từ cùng hàm xác suất dùng khi làm mới cửa hàng."), table);
+      list.append(panel);
+    }
+  }
+
   function renderBrowse() {
     clearIdleTimer();
     viewer?.dispose(); viewer = null;
     for (const c of cards) c.dispose();
+    cards = [];
+    gridRo?.disconnect(); gridRo = null;
+    gridEl = footEl = null;
+    disposeSurfaceTree(root);
     root.replaceChildren();
     modal.setTitle(t("menu.library"));
+    const tabs = h("div", "lib-tabs");
+    tabs.setAttribute("role", "tablist");
+    for (const item of TABS) {
+      const btn = kitButton({ skin: "wood", label: item.name, onClick: () => { tab = item.id; renderBrowse(); } });
+      btn.setSelected(tab === item.id);
+      btn.el.setAttribute("role", "tab");
+      btn.el.setAttribute("aria-selected", String(tab === item.id));
+      tabs.append(btn.el);
+    }
+    root.append(tabs);
+    if (tab !== "units") { renderCatalog(); return; }
     const bar = h("div", "lib-filters");
     const search = panelEl("slot_well", "lib-search");
     const input = h("input", "lib-input");
@@ -101,7 +238,6 @@ export function mountLibrary(
     syncChips = () => { roles.sync(); facs.sync(); tiers.sync(); };
     gridEl = grid; footEl = foot;
     // Page size depends on the grid's laid-out box; re-render only when the fitted count changes.
-    gridRo?.disconnect();
     gridRo = new ResizeObserver(() => { if (gridEl && pageSize(gridEl) !== lastPer) renderGrid(); });
     gridRo.observe(grid);
     renderGrid();
@@ -154,6 +290,7 @@ export function mountLibrary(
     for (const c of cards) c.dispose();
     cards = []; gridEl = footEl = null;
     gridRo?.disconnect(); gridRo = null;
+    disposeSurfaceTree(root);
     root.replaceChildren();
     modal.setTitle(u.nameVi);
     const equippedSkinId = collection.equippedSkinByUnitId[u.id];
@@ -278,5 +415,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { clearIdleTimer(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); root.remove(); } };
+  return { showDetail, dispose() { clearIdleTimer(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }

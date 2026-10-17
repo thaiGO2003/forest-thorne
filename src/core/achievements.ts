@@ -1,5 +1,5 @@
 // Account-level Endless achievements + collection profile (spec A36, A104). Pure and corruption-tolerant.
-import { UNIT_BY_ID } from "../content/catalog";
+import { UNIT_BY_ID, UNITS, type UnitDef } from "../content/catalog";
 import type { GameMode } from "./modes";
 
 export const ACHIEVEMENT_PROFILE_VERSION = 1;
@@ -165,6 +165,10 @@ export function normalizeCollectionProfile(value: unknown): CollectionProfile {
 }
 
 export const achievementId = (category: AchievementCategory, tierIndex: number): string => `${category}_${tierIndex + 1}`;
+const EMPTY_ACHIEVEMENT_IDS: ReadonlySet<string> = new Set();
+const CATALOG_REWARDLESS_ACHIEVEMENT_IDS: ReadonlySet<string> = new Set([
+  achievementId("runs_started", ACHIEVEMENT_THRESHOLDS.runs_started.length - 1),
+]);
 export const FREE_COLLECTION_SKIN_IDS = [...UNIT_BY_ID.values()].flatMap((unit) =>
   unit.skin && parseAuthoredSkinUnlock(unit.skin.unlock)?.type === "free" ? [unit.skin.id] : [],
 );
@@ -250,6 +254,56 @@ export interface SkinDefinitionForValidation {
   unlockType: "achievement" | "free" | "locked";
   appearanceStars: readonly number[];
 }
+export interface AuthoredAchievementRewardCatalog {
+  mappings: AchievementRewardMapping[];
+  skins: SkinDefinitionForValidation[];
+}
+
+const AUTHORED_ACHIEVEMENT_PREFIX: Record<string, AchievementCategory> = {
+  bestRound: "best_round",
+  roundsWon: "rounds_won",
+  runsStarted: "runs_started",
+  shopRefreshes: "shop_refreshes",
+  xpPurchases: "xp_purchases",
+  unitsBought: "units_bought",
+  merges: "merges",
+  augmentsChosen: "augments_chosen",
+  craftedItems: "crafted_items",
+  highestLevel: "highest_level",
+};
+
+function authoredAchievementId(unlock: string): string | null {
+  const match = /^([A-Za-z]+)_(\d+)$/.exec(unlock);
+  if (!match) return null;
+  const category = AUTHORED_ACHIEVEMENT_PREFIX[match[1]!];
+  if (!category) return null;
+  const threshold = Number(match[2]);
+  const tierIndex = (ACHIEVEMENT_THRESHOLDS[category] as readonly number[]).indexOf(threshold);
+  return tierIndex >= 0 ? achievementId(category, tierIndex) : null;
+}
+
+export function buildAuthoredAchievementRewardCatalog(units: readonly UnitDef[] = UNITS): AuthoredAchievementRewardCatalog {
+  const mappings: AchievementRewardMapping[] = [];
+  const skins: SkinDefinitionForValidation[] = [];
+  for (const unit of units) {
+    const skin = unit.skin;
+    if (!skin) continue;
+    const unlockType: SkinDefinitionForValidation["unlockType"] = skin.unlock === "free"
+      ? "free"
+      : skin.unlock === "locked" ? "locked" : "achievement";
+    skins.push({
+      id: skin.id,
+      unitId: unit.id,
+      unlockType,
+      appearanceStars: skin.stagesVi.map((_, index) => index + 1),
+    });
+    if (unlockType !== "achievement") continue;
+    const id = authoredAchievementId(skin.unlock);
+    if (id) mappings.push({ achievementId: id, skinId: skin.id, unitId: unit.id });
+  }
+  return { mappings, skins };
+}
+
 
 interface CatalogSkinEntry {
   id: string;
@@ -289,6 +343,7 @@ export const ACHIEVEMENT_REWARDS: readonly AchievementRewardMapping[] = CATALOG_
 /** A36 one-to-one validation. Returns human-readable invariant errors, empty when valid. */
 export function validateAchievementRewards(
   mappings: readonly AchievementRewardMapping[], skins: readonly SkinDefinitionForValidation[],
+  rewardlessAchievementIds: ReadonlySet<string> = EMPTY_ACHIEVEMENT_IDS,
 ): string[] {
   const errors: string[] = [];
   const validAchievementIds = new Set(achievementRows(createAchievementProfile()).map((row) => row.id));
@@ -312,13 +367,22 @@ export function validateAchievementRewards(
   for (const skin of skins) {
     if (skin.unlockType === "achievement" && !mappedSkins.has(skin.id)) errors.push(`missing reward mapping for skin ${skin.id}`);
   }
+  for (const id of validAchievementIds) {
+    if (!mappedAchievements.has(id) && !rewardlessAchievementIds.has(id)) {
+      errors.push(`missing reward mapping for achievement ${id}`);
+    }
+  }
   return errors;
 }
 
 export function validateCatalogAchievementRewards(): string[] {
   return [
     ...CATALOG_SKIN_UNLOCK_ERRORS,
-    ...validateAchievementRewards(ACHIEVEMENT_REWARDS, CATALOG_SKIN_DEFINITIONS),
+    ...validateAchievementRewards(
+      ACHIEVEMENT_REWARDS,
+      CATALOG_SKIN_DEFINITIONS,
+      CATALOG_REWARDLESS_ACHIEVEMENT_IDS,
+    ),
   ];
 }
 

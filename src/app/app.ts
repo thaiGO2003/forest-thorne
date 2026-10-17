@@ -1,6 +1,12 @@
 // App shell (§4, A64, A115): loading → menu → planning. Owns UI layers, modal host, tooltip and
 // the 3D stage; each screen is created on entry and disposed on exit so nothing resurrects.
 import "../ui/ui.css";
+import "@fontsource/noto-sans/latin-400.css";
+import "@fontsource/noto-sans/vietnamese-400.css";
+import "@fontsource/noto-sans/latin-700.css";
+import "@fontsource/noto-sans/vietnamese-700.css";
+import "@fontsource/noto-sans/latin-900.css";
+import "@fontsource/noto-sans/vietnamese-900.css";
 import { t, setLocale, onLocaleChange, type Locale } from "../core/i18n";
 import { createStage, type Stage } from "../world/stage";
 import { h, loadKit } from "../ui/kit";
@@ -37,7 +43,16 @@ export function registerScreen(r: Route, f: ScreenFactory) { screens[r] = f; }
 const utilities: Partial<Record<UtilityId, (app: App) => void>> = {};
 export function registerUtility(id: UtilityId, open: (app: App) => void) { utilities[id] = open; }
 
+const UI_FONT_SAMPLE = "Bá Chủ Khu Rừng — Tiếng Việt đầy đủ dấu";
+
+async function ensureUiFontLoaded(): Promise<void> {
+  await Promise.all([400, 700, 900].map((weight) =>
+    document.fonts.load(`${weight} 16px "Noto Sans"`, UI_FONT_SAMPLE),
+  ));
+}
+
 export async function boot(root: HTMLElement): Promise<App> {
+  await ensureUiFontLoaded();
   const stage = createStage(root);
   const ui = h("div", "ui-root");
   const mk = (cls: string) => { const l = h("div", `layer ${cls}`); ui.append(l); return l; };

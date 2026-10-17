@@ -603,6 +603,49 @@
 - Fixed round-5 Warmog legality by deterministic 2★ preparation, made round-6 craft progression monotonic with durable canonical events, added non-drag board selection for the attack-preview step, and kept craft staging external to `RunState`.
 - Added compact portrait shop paging and corrected joystick placement from live BrowserPanel evidence; the Tutorial HUD now honors its `hidden` state after canonical completion, so round 9 / `aiMode: EASY` no longer displays stale guidance.
 - Removed temporary smoke diagnostics before delivery. Verification: targeted Vitest `3 files / 19 tests passed`; `corepack pnpm typecheck`; `corepack pnpm build`; `git diff --check`; real 1DevTool BrowserPanel playthrough exercised Tutorial rounds 1–8 and resumed the persisted round-9 run without Tutorial guidance.
+
+## 2026-10-09 — Main-menu utilities, Donate presets, and visual-rig rollback
+
+- Kept the restored `main` app shell and TPBank VietQR donation owner for `LUONG QUOC THAI` / `6039352614`, including the existing randomized transfer notes and safe omission of non-positive amounts.
+- Completed the visible Main Menu utility surfaces instead of leaving placeholder locks: Achievements reads persisted achievement/collection progress, Mods uses the canonical `ModRegistry`, Version shows canonical app version/update metadata, Tribute reports the truthful empty verified-data state, Language remains interactive, and Community exposes the verified GitHub repository through `openExternalHttpUrl(...)` while truthfully reporting Discord/Fanpage as unconfigured.
+- Donate now defaults to 20,000 VND and provides 5k, 10k, 15k, 20k, 30k, 50k, 100k, 200k and 500k presets plus `Tùy tâm`/Custom. Preset changes update the amount and QR; Custom clears the fixed amount while preserving manual input semantics.
+- Reverted the 15 visual rigs authored in the prior tier-1 visual pass (`ant_guard`, `badger_stone`, `crane_blessing`, `crow_storm`, `dove_peace`, `firefly_heal`, `fox_flame`, `komodo_bite`, `newt_fire`, `ram_charge`, `salamander_flame`, `scorpion_shadow`, `spider_venom`, `tiger_fang`, `triceratops_charge`). Those IDs now use canonical `pendingArt(id)` again; pre-existing `jaguar_hunt` and `toad_poison` authored rigs remain registered.
+- Preserved the existing revive lifecycle repair in `src/units/rig.ts`: a positive HP update after death restores the same visual instance to idle rather than leaving it hidden/dead.
+- Final targeted gate: `corepack pnpm exec vitest --run tests/unit-visuals.test.ts tests/donate.test.ts tests/platform-bootstrap.test.ts` → **3 files / 13 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed (75 modules transformed); `git diff --check` → passed.
+- Real browser smoke exercised New Game, Library, Achievements, Mods, Language (VI→EN→VI), Tribute, Community, Donate and Version. Donate observed default 20,000 VND, 50,000 preset QR update, then Custom with no fixed amount. Settings at 1440×900 rendered a 900×640 dialog fully inside the viewport; at 390×844 it rendered 366×640 at x=12/y=102, all six tabs and the close control remained visible, and stable browser state had zero page errors. Rapid QR replacement only produced expected canceled-image `ERR_ABORTED` request entries while changing presets, not page exceptions.
+- Final health probes: local `http://127.0.0.1:5173/cho` → HTTP 200; public `https://forest-thorne.devgovietnam.io.vn/cho` → HTTP 200.
+
+## 2026-10-09 — WBS-101 aftermath repair and A102 re-verification
+
+- `src/core/skills.ts`: separated authored gradual max-HP healing into typed `TimedHotSpec` instead of collapsing it into immediate healing, and replaced single-type reflect payloads with `pctByDamageType` so Pangolin 3★ can truthfully represent 135% physical plus 60% magic reflect.
+- `src/core/combat.ts`: reflect now resolves only the matching incoming damage type, gates its offense-debuff rider on an actual positive reflect and surviving attacker, and prevents counter/lifesteal from executing after reflect has already made the attacker lethal. HOT is materialized into canonical timed status state, divided evenly across authored turns, and resolves through `heal(...)` at the living recipient's start of turn before action processing.
+- `tests/skills.test.ts` + `tests/combat.test.ts`: added regressions for gradual-heal parsing/materialization, mixed typed reflect, no reflect rider on unmatched magic damage, no lifesteal resurrection after lethal reflect, and HOT event ordering after intervening damage.
+- Verification: `corepack pnpm exec vitest --run tests/combat.test.ts tests/skills.test.ts` → **2 files / 37 tests passed**; `corepack pnpm typecheck` → passed; scoped `git diff --check` → passed.
+- WBS-100/A102 was re-checked against current authority: equipment cadence/chance/tier/slot/no-duplicate/injected-RNG constraints are authored, but deterministic candidate selection is not. `EQUIPMENT_BY_TIER` remains data, not picker policy, so WBS-100 stays unchecked.
+- 1DevTool BrowserPanel control remains blocked for this repair: `browser_list_tabs` reports the mounted automation tab ready at the live Vite server, but `browser_navigate` to the deterministic A120 smoke page times out and leaves the tab URL unchanged. No new BrowserPanel smoke is claimed; the prior production-module Vite SSR counter smoke remains the latest live A120 runtime proof.
+
+## 2026-10-09 — Restore non-creature Main Menu utilities after visual rollback
+
+- Restored the requested non-creature Main Menu behavior from `4f9eb5d` in `src/app/screens.ts` and `src/core/i18n.ts`: Donate presets/custom amount, persisted Achievements, canonical Mod manager, Version metadata, Tribute, Community, and complete VI/EN strings.
+- Kept the requested creature-visual rollback intact: all 15 rejected tier-one roster visual modules remain absent/pending-art; no creature visual rig was recreated by this correction.
+- Focused verification on the corrected tree: `corepack pnpm exec vitest --run tests/platform-bootstrap.test.ts tests/donate.test.ts tests/achievements-history.test.ts tests/unit-visuals.test.ts` → **4 files / 22 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed (75 modules transformed).
+- Real 1DevTool BrowserPanel smoke exercised Achievements, Mod manager, Language VI→EN→VI, Tribute, Community, Donate preset/custom flows, Version, Settings, Library, and New Game. Donate visibly moved from the 20,000 VND default to the 50,000 VND preset with matching input/QR state, then Custom cleared the fixed amount. Console inspection after the flow showed no page/runtime errors; only the existing Three.js `Clock` deprecation and `PCFSoftShadowMap` removal warnings.
+## 2026-10-10T02:10:50.311Z
+
+- remaining-menu-utilities-plan.md created by plans-sync.
+
+## 2026-10-10 — Remaining menu utilities completion
+
+- Settings now localizes displayed quality, tooltip-mode and adaptive-resolution values in VI/EN while preserving canonical persisted IDs (`low|medium|high`, tooltip mode IDs, and resolution keys).
+- Mod Manager now accepts strict local `.ftunit`, `.ftlogic`, and `.ftmodpack` JSON manifests through the canonical `ModManager`; malformed/mismatched/duplicate imports fail atomically, successful imports are forced to `source: "local"`, and Workshop remains explicitly unavailable.
+- Donate keeps the existing presets/custom/VietQR behavior but uses scoped compact layout classes only; no shared chrome/color rules were changed.
+- Achievements now renders/ranks all 100 canonical rows, claims and equips through the existing collection persistence owner, and derives 99 authored reward mappings from the unit catalog. The sole unsupported canonical reward remains visible/non-claimable as `runs_started_10`; no reward was invented.
+- Focused gate: `corepack pnpm exec vitest --run tests/i18n.test.ts tests/mod-registry.test.ts tests/achievements-history.test.ts tests/donate.test.ts` → **4 files / 25 tests passed**; `corepack pnpm typecheck` → passed; `corepack pnpm build` → passed (75 modules transformed); `git diff --check` → passed.
+- Runtime smoke through Vite SSR confirmed localized Settings labels, strict local mod normalization, 100 achievement rows / 99 mappings with exactly `missing reward mapping for achievement runs_started_10`, and a 20,000 VND Donate QR amount. 1DevTool BrowserPanel itself could not reach the menu surface because its Chromium guest reported WebGL disabled and aborted at `THREE.WebGLRenderer: Error creating WebGL context`; no visual BrowserPanel success is claimed for this pass.
+- Rejected creature visual modules remain outside this scope and were not restored.
+## 2026-10-10T02:56:47.166Z
+
+- remaining-menu-utilities-plan.md moved out of pending via /plan-done.
 ## 2026-10-10T12:27:42.608Z
 
 - forest-throne-2026-10-10-backlog-plan.md created by plans-sync.

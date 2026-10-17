@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import { equipmentCategory, getEquipment, normalizeEquipment } from "../src/core/equipment";
-import { makeFighter } from "../src/core/combat";
+import { materializeCombat } from "../src/core/combat";
 import { normalizeVariantTraits, rollVariantTrait, sumVariantBonuses, VARIANTS_BY_ROLE } from "../src/core/variants";
 
 describe("variant traits and equipment contracts", () => {
@@ -22,8 +22,8 @@ describe("variant traits and equipment contracts", () => {
       { id: "tanker_rebound", seed: 2 },
     ];
     expect(sumVariantBonuses("TANKER", traits)).toMatchObject({ def: 6, hpPct: 4, startingShield: 18 });
-    const plain = makeFighter({ uid: "p", baseId: unit.id, star: 1, row: 0, col: 0 }, "L");
-    const boosted = makeFighter({ uid: "b", baseId: unit.id, star: 1, row: 0, col: 0, traits }, "L");
+    const plain = materializeCombat([{ uid: "p", baseId: unit.id, star: 1, row: 0, col: 0 }], [])[0]!;
+    const boosted = materializeCombat([{ uid: "b", baseId: unit.id, star: 1, row: 0, col: 0, traits }], [])[0]!;
     expect(boosted.maxHp).toBeGreaterThan(plain.maxHp);
     expect(boosted.def).toBe(plain.def + 6);
     expect(boosted.shield).toBe(18);

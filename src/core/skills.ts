@@ -20,10 +20,11 @@ export type SkillSelector =
 
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
+export interface TimedHotSpec { totalPctMaxHp: number; turns: number }
+
 
 export interface ReflectReactionSpec {
-  damageType: "physical" | "magic" | "all";
-  pct: number;
+  pctByDamageType: Partial<Record<DamageType, number>>;
   turns: number;
   offenseDebuff?: { value: number; turns: number; mode: "autoByRole" };
 }
@@ -56,6 +57,8 @@ export interface SkillSpec {
   controls: { kind: ControlKind; turns: number; chance: number }[];
   /** Heal: flat formula or % of target max HP. */
   heal: { formula: Formula | null; pctMaxHp: number } | null;
+  /** Gradual max-HP healing spread across the authored duration. */
+  hot: TimedHotSpec | null;
   selfHealPctMaxHp: number;
   lifestealPct: number;
   shield: Formula | null;
@@ -170,8 +173,12 @@ export function parseSkill(text: string): SkillSpec {
     }
   }
 
-  const allyHeal = /[Hh]ồi (?:dần )?(?:máu )?(\d+)% HP tối đa(?: trong \d+ lượt)? cho (?!bản)/.exec(t);
+  const gradualHeal = /[Hh]ồi dần (?:máu )?(\d+(?:\.\d+)?)% HP tối đa trong (\d+) lượt cho (?!bản)/.exec(t);
+  const allyHeal = /[Hh]ồi (?!dần\b)(?:máu )?(\d+(?:\.\d+)?)% HP tối đa(?: trong \d+ lượt)? cho (?!bản)/.exec(t);
   const flatHeal = t.match(new RegExp(String.raw`(?:[Hh]ồi|lượng máu bằng)[^.()]*?${FORMULA.source}`)) ?? t.match(/hồi (\d+) HP/);
+  const hot: SkillSpec["hot"] = gradualHeal
+    ? { totalPctMaxHp: Number(gradualHeal[1]) / 100, turns: Number(gradualHeal[2]) }
+    : null;
   let heal: SkillSpec["heal"] = null;
   if (allyHeal) heal = { formula: null, pctMaxHp: Number(allyHeal[1]) / 100 };
   else if (flatHeal) heal = { formula: flatHeal[4] ? formulaAt(flatHeal) : { base: Number(flatHeal[1]), scale: 0, stat: "matk" }, pctMaxHp: 0 };
@@ -201,7 +208,7 @@ export function parseSkill(text: string): SkillSpec {
     side, area, count: Math.max(1, countM ? Number(countM[1]) : 1),
     selector: selectorFromText(t, side),
     pickLowestHp: /% máu thấp nhất|thấp máu nhất/.test(t),
-    damage, dots, controls, heal,
+    damage, dots, controls, heal, hot,
     selfHealPctMaxHp: selfHeal && !allyHeal ? Number(selfHeal[1]) / 100 : 0,
     lifestealPct: steal ? Number(steal[1] ?? steal[2]) / 100 : 0,
     shield, buffs: statMods(t, "tăng"), debuffs: statMods(t, "giảm"),
@@ -214,16 +221,22 @@ export function parseSkill(text: string): SkillSpec {
 function reactionSpec(text: string, family: string): SkillReactionSpec {
   const t = text.replace(/\s+/g, " ");
   const out: SkillReactionSpec = {};
-  if (family === "self_armor_reflect" || family === "mirror_reflect") {
-    const reflected = /phản\s+(?:(\d+(?:\.\d+)?)%\s+)?sát thương\s+(vật lý|phép)(?:\s+nhận vào)?\s+trong\s+(\d+)\s+lượt/i.exec(t);
-    if (reflected) {
-      const debuff = /giảm\s+(\d+(?:\.\d+)?)\s+ATK\s+hoặc\s+MATK\s+theo vai trò\s+trong\s+(\d+)\s+lượt/i.exec(t);
-      out.reflect = {
-        damageType: reflected[2] === "vật lý" ? "physical" : "magic",
-        pct: Math.min(1, Math.max(0, reflected[1] === undefined ? 1 : Number(reflected[1]) / 100)),
-        turns: Number(reflected[3]),
-        ...(debuff ? { offenseDebuff: { value: Number(debuff[1]), turns: Number(debuff[2]), mode: "autoByRole" as const } } : {}),
-      };
+  if (family === "self_armor_reflect" || family === "mirror_reflect" || family === "pangolin_reflect") {
+    const duration = /phản[^.]*?trong\s+(\d+)\s+lượt/i.exec(t);
+    if (duration) {
+      const pctByDamageType: Partial<Record<DamageType, number>> = {};
+      for (const reflected of t.matchAll(/(?:(\d+(?:\.\d+)?)%\s+)?sát thương\s+(vật lý|phép)(?:\s+nhận vào)?/gi)) {
+        const type: DamageType = reflected[2] === "vật lý" ? "physical" : "magic";
+        pctByDamageType[type] = Math.max(0, reflected[1] === undefined ? 1 : Number(reflected[1]) / 100);
+      }
+      if (Object.keys(pctByDamageType).length) {
+        const debuff = /giảm\s+(\d+(?:\.\d+)?)\s+ATK\s+hoặc\s+MATK\s+theo vai trò\s+trong\s+(\d+)\s+lượt/i.exec(t);
+        out.reflect = {
+          pctByDamageType,
+          turns: Number(duration[1]),
+          ...(debuff ? { offenseDebuff: { value: Number(debuff[1]), turns: Number(debuff[2]), mode: "autoByRole" as const } } : {}),
+        };
+      }
     }
   }
   if (family === "rhino_counter") {

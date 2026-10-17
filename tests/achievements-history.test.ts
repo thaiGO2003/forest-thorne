@@ -3,16 +3,30 @@ import { NORMAL_UNITS } from "../src/content/catalog";
 import {
   ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_COMPLETION_CLAIM_ID, ACHIEVEMENT_COMPLETION_SKIN_ID,
   ACHIEVEMENT_REWARDS, ACHIEVEMENT_THRESHOLDS, CATALOG_SKIN_DEFINITIONS, CATALOG_SKIN_UNLOCK_ERRORS,
-  FREE_COLLECTION_SKIN_IDS, achievementRows, claimAchievementCompletionSkin, claimAchievementSkin,
-  claimSkinReward, createAchievementProfile, createCollectionProfile, equipCollectionSkin, equipUnitSkin,
-  normalizeCollectionProfile, parseAuthoredSkinUnlock, rankAchievementRows, recordEndlessAchievementEvent,
+  FREE_COLLECTION_SKIN_IDS, achievementRows, buildAuthoredAchievementRewardCatalog,
+  claimAchievementCompletionSkin, claimAchievementSkin, claimSkinReward, createAchievementProfile,
+  createCollectionProfile, equipCollectionSkin, equipUnitSkin, normalizeCollectionProfile,
+  parseAuthoredSkinUnlock, rankAchievementRows, recordEndlessAchievementEvent,
   unlockedAchievementCount, validateAchievementRewards, validateCatalogAchievementRewards,
 } from "../src/core/achievements";
+import { loadCollectionProfile, saveCollectionProfile } from "../src/core/save";
 import {
   COMBAT_HISTORY_CAP, createCombatHistory, createPlanningHistory, filterPlanningHistory, HISTORY_FILTERS,
   normalizeHistoryCategory, normalizeHistoryDetails, PLANNING_HISTORY_CAP, pushCombatHistory,
   pushPlanningHistory, RECENT_LOG_CAP,
 } from "../src/core/history";
+
+function memoryStorage(): Storage {
+  const data = new Map<string, string>();
+  return {
+    get length() { return data.size; },
+    clear: () => data.clear(),
+    getItem: (key) => data.get(key) ?? null,
+    key: (index) => [...data.keys()][index] ?? null,
+    removeItem: (key) => { data.delete(key); },
+    setItem: (key, value) => { data.set(key, value); },
+  };
+}
 
 describe("achievement + collection profile", () => {
   it("defines exactly 100 threshold achievements and tracks only Endless Classic", () => {
@@ -126,13 +140,30 @@ describe("achievement + collection profile", () => {
     expect(c.equippedSkinByUnitId[unitId]).toBeUndefined();
   });
 
-  it("validates achievement skin mapping invariants", () => {
-    const unitId = NORMAL_UNITS[0]!.id;
-    expect(validateAchievementRewards(
-      [{ achievementId: "runs_started_1", skinId: "s1", unitId }],
-      [{ id: "s1", unitId, unlockType: "achievement", appearanceStars: [1, 2, 3] }],
-    )).toEqual([]);
-    expect(validateAchievementRewards([], [{ id: "s1", unitId, unlockType: "achievement", appearanceStars: [1, 2, 3] }])).toContain("missing reward mapping for skin s1");
+  it("builds all authored rewards, exposes the one missing run-start reward, and rejects duplicate mappings", () => {
+    const catalog = buildAuthoredAchievementRewardCatalog();
+    expect(catalog.mappings).toHaveLength(99);
+    expect(catalog.skins.filter((skin) => skin.unlockType === "achievement")).toHaveLength(99);
+    expect(validateAchievementRewards(catalog.mappings, catalog.skins)).toEqual([
+      "missing reward mapping for achievement runs_started_10",
+    ]);
+    const first = catalog.mappings[0]!;
+    const duplicateErrors = validateAchievementRewards([...catalog.mappings, first], catalog.skins);
+    expect(duplicateErrors).toContain(`duplicate achievement mapping ${first.achievementId}`);
+    expect(duplicateErrors).toContain(`duplicate skin reward ${first.skinId}`);
+  });
+
+  it("persists claimed and equipped collection state through the canonical save owner", () => {
+    const storage = memoryStorage();
+    const catalog = buildAuthoredAchievementRewardCatalog();
+    const mapping = catalog.mappings.find((entry) => entry.achievementId === "runs_started_1")!;
+    const achievements = createAchievementProfile();
+    recordEndlessAchievementEvent(achievements, "EndlessPvEClassic", { type: "run_started" });
+    const collection = createCollectionProfile();
+    expect(claimSkinReward(achievements, collection, mapping)).toBe(true);
+    expect(equipCollectionSkin(collection, mapping.unitId, mapping.skinId)).toBe(true);
+    saveCollectionProfile(storage, collection);
+    expect(loadCollectionProfile(storage)).toEqual(collection);
   });
 });
 

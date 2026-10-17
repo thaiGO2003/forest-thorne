@@ -181,7 +181,7 @@ describe("game modes and run lifecycle", () => {
     s.gold = 0;
     const offer = s.shop.findIndex(Boolean);
     expect(offer).toBeGreaterThanOrEqual(0);
-    expect(buy(s, offer)).toBe(true);
+    expect(buy(s, offer)).toEqual({ merges: 0 });
     expect(refresh(s)).toBe(true);
     expect(buyXp(s)).toBe(true);
     expect(research(s, "vet")).toBe(true);

@@ -14,13 +14,16 @@ export const SLICE = {
 
 /** Art-pixel → CSS-pixel factor. Integer keeps pixel art crisp. */
 export const ART_SCALE = 2;
-export const FONT = `"Trebuchet MS", "Segoe UI", system-ui, sans-serif`;
+/** The supplied OTF faces are shared by DOM and canvas text. */
+export const FONT = `"Forest Body", "Noto Sans", sans-serif`;
+export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
 export const INK = "#1e120a";
 export const LABEL = "#fff8ec";
 
 const KIT_DIR = `${import.meta.env.BASE_URL}assets/ui/generated`;
 const images = new Map<string, HTMLImageElement>();
 const repaint = new Set<() => void>();
+const surfaceDisposers = new WeakMap<HTMLElement, Set<() => void>>();
 let ready: Promise<void> | null = null;
 
 /**
@@ -43,6 +46,12 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
       await promise;
       onProgress?.(++done / names.length);
     }));
+    if (typeof document !== "undefined" && document.fonts) {
+      await Promise.allSettled([
+        document.fonts.load(`16px ${FONT}`),
+        document.fonts.load(`16px ${HEADING_FONT}`),
+      ]);
+    }
     for (const fn of repaint) fn();
   })();
   return ready;
@@ -91,18 +100,19 @@ export function drawFit(g: CanvasRenderingContext2D, name: string, x: number, y:
 /** Outlined label text (white on dark chrome). `stroke: null` disables the outline (emoji glyphs). */
 export function label(
   g: CanvasRenderingContext2D, text: string, x: number, y: number,
-  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number },
+  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "body" },
 ) {
-  g.font = `${o.weight ?? 700} ${o.size}px ${FONT}`;
+  g.font = `${o.weight ?? 700} ${o.size}px ${o.font === "heading" ? HEADING_FONT : FONT}`;
   g.textAlign = o.align ?? "center";
   g.textBaseline = "middle";
-  if (o.stroke !== null) {
+  const fill = o.fill ?? INK;
+  if (o.stroke !== null && (o.stroke !== undefined || fill !== INK)) {
     g.lineJoin = "round";
     g.lineWidth = Math.max(2, o.size / 5);
     g.strokeStyle = o.stroke ?? INK;
     g.strokeText(text, x, y, o.maxW);
   }
-  g.fillStyle = o.fill ?? LABEL;
+  g.fillStyle = fill;
   g.fillText(text, x, y, o.maxW);
 }
 
@@ -120,7 +130,9 @@ export function surface(el: HTMLElement, painter: Painter): Surface {
   canvas.setAttribute("aria-hidden", "true");
   el.prepend(canvas);
   let p = painter;
+  let disposed = false;
   const paint = () => {
+    if (disposed) return;
     const w = el.clientWidth, h = el.clientHeight;
     if (!w || !h) return;
     const dpr = Math.min(2, Math.max(1, Math.round(devicePixelRatio || 1)));
@@ -136,11 +148,26 @@ export function surface(el: HTMLElement, painter: Painter): Surface {
   ro.observe(el);
   repaint.add(paint);
   paint();
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    ro.disconnect(); repaint.delete(paint); canvas.remove();
+    surfaceDisposers.get(el)?.delete(dispose);
+  };
+  const disposers = surfaceDisposers.get(el) ?? new Set<() => void>();
+  disposers.add(dispose); surfaceDisposers.set(el, disposers);
   return {
     el, canvas, paint,
     setPainter(np) { p = np; paint(); },
-    dispose() { ro.disconnect(); repaint.delete(paint); canvas.remove(); },
+    dispose,
   };
+}
+
+/** Release canvas/resize hooks, including modal chrome and controls, before detaching a UI tree. */
+export function disposeSurfaceTree(root: HTMLElement): void {
+  for (const el of [root, ...root.querySelectorAll<HTMLElement>("*")]) {
+    for (const dispose of surfaceDisposers.get(el) ?? []) dispose();
+  }
 }
 
 export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard";
@@ -162,6 +189,7 @@ export interface KitButton {
   setAria(name: string): void;
   setDisabled(v: boolean): void;
   setSelected(v: boolean): void;
+  dispose(): void;
 }
 
 /**
@@ -177,6 +205,10 @@ export function kitButton(o: {
   el.className = `kit-btn ${o.cls ?? ""}`.trim();
   let text = o.label ?? "", icon = o.icon ?? null, aria = o.aria ?? "", disabled = false, selected = false, hover = false, pressed = false;
   const skin = o.skin ?? "wood";
+  const measure = document.createElement("span");
+  measure.className = "kit-measure";
+  measure.setAttribute("aria-hidden", "true");
+  el.append(measure);
   const s = surface(el, (g, w, hh) => {
     const st: ButtonState = disabled ? "disabled" : pressed ? "pressed" : selected ? "selected" : hover ? "hover" : "normal";
     if (skin === "icon") nineSlice(g, `btn_icon_${st}`, SLICE.btn_icon, 0, 0, w, hh);
@@ -194,11 +226,17 @@ export function kitButton(o: {
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));
     if (icon && text) {
       label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, stroke: null });
-      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, maxW: w - hh - 8 });
-    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, stroke: null });
-    else label(g, text, w / 2, hh / 2 + dy, { size, fill, maxW: w - 12 });
+      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: INK, maxW: w - hh - 8, font: "heading" });
+    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, stroke: null, font: "heading" });
+    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: INK, maxW: w - 12, font: "heading" });
   });
-  const sync = () => { el.setAttribute("aria-label", aria || text || icon || ""); s.paint(); };
+  const sync = () => {
+    el.setAttribute("aria-label", aria || text || icon || "");
+    measure.textContent = text;
+    measure.style.display = text ? "block" : "none";
+    measure.classList.toggle("with-icon", !!icon);
+    s.paint();
+  };
   const flag = (k: "hover" | "pressed", v: boolean) => () => {
     if (k === "hover") { hover = v; if (!v) pressed = false; } else pressed = v;
     s.paint();
@@ -218,6 +256,7 @@ export function kitButton(o: {
     setAria(n) { aria = n; sync(); },
     setDisabled(v) { disabled = v; el.disabled = v; el.setAttribute("aria-disabled", String(v)); s.paint(); },
     setSelected(v) { selected = v; el.setAttribute("aria-pressed", String(v)); s.paint(); },
+    dispose() { s.dispose(); el.remove(); },
   };
 }
 

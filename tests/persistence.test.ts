@@ -250,7 +250,7 @@ describe("persistence A57", () => {
 describe("settings A35/A44", () => {
   it("defaults, clamps and per-mode AI legality", () => {
     const d = normalizeSettings({
-      volumeLevel: 99, musicVolume: 99, resolutionKey: "800x600", guiScale: 2,
+      language: "en", volumeLevel: 99, musicVolume: 99, resolutionKey: "800x600", guiScale: 2,
       fpsLimit: 144, renderScale: 0.2, batterySaver: true,
       tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" },
     });
@@ -270,9 +270,9 @@ describe("settings A35/A44", () => {
 
   it("keys: defaults use R and Right Shift; invalid → default, ESCAPE reserved, lower-case normalized", () => {
     const defaults = normalizeSettings(null).keys.planning;
-    expect([defaults.reroll, defaults.newRun, defaults.reroll === "D"]).toEqual(["R", "SHIFT_RIGHT", false]);
+    expect([defaults.reroll, defaults.newRun, defaults.reroll === "D"]).toEqual(["R", "SHIFTRIGHT", false]);
     const k = normalizeSettings({ keys: { planning: { reroll: "q", buyXp: "ESCAPE", sell: "F1", newRun: "SHIFT_LEFT" } } }).keys.planning;
-    expect([k.reroll, k.buyXp, k.sell, k.startCombat, k.newRun]).toEqual(["Q", "F", "E", "SPACE", "SHIFT_RIGHT"]);
+    expect([k.reroll, k.buyXp, k.sell, k.startCombat, k.newRun]).toEqual(["Q", "F", "E", "SPACE", "SHIFTRIGHT"]);
   });
 
   it("corrupt storage boots with defaults; preview notifies now, writes after 200 ms; resetKeys per context", () => {

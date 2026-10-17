@@ -6,7 +6,7 @@ import {
   buyXp as buyRunXp, chooseAugment as chooseRunAugment, consumeWeatherBlessings, craftRunItem, createModeRun, deployLimit,
   enemyPreview, equipItem, playerCombatBonus, refresh, research as researchTech, runSynergies,
   sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
-  unequipItem, type RoundResultInput, type RoundResultSummary, type RunState,
+  unequipItem, unequipAll, type RoundResultInput, type RoundResultSummary, type RunState,
 } from "../core/run";
 import { applyFinishFast } from "../core/combatFast";
 import {
@@ -17,7 +17,7 @@ import {
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor, type EnvironmentId } from "../core/environment";
-import { cloneFighter, makeFighter, simulate, sumSideBonuses, type CombatEvent, type Fighter, type Placement, type SideBonus } from "../core/combat";
+import { cloneFighter, materializeCombat, simulate, snapshotFighter, sumSideBonuses, type CombatEvent, type CombatInspectionFrame, type Fighter, type Placement, type SideBonus } from "../core/combat";
 import {
   currentTutorialStep, dismissTutorialStep, recordTutorialEvent, skipTutorial as skipTutorialState,
   tutorialActionAllowed, type TutorialAction, type TutorialActionContext, type TutorialInspectionContext,
@@ -49,6 +49,7 @@ export interface CombatSession {
   events: CombatEvent[];
   /** Full resolved snapshots for every combatant, including dead units; detached from simulator-owned objects. */
   fighters: readonly Fighter[];
+  inspectionFrames: CombatInspectionFrame[];
   /** Applies the result once (idempotent by combat id) and returns the normalized summary. */
   finish(): RoundResultSummary | null;
   /** Charges Finish Fast and applies the same canonical result; null when unavailable or already applied. */
@@ -88,6 +89,7 @@ export interface Bridge {
   move(from: { kind: "bench" | "board"; index: number }, to: { kind: "bench" | "board"; index: number }): boolean;
   equip(itemId: string, where: "bench" | "board", index: number): boolean;
   unequip(where: "bench" | "board", index: number, equippedIndex: number): boolean;
+  unequipAll(where: "bench" | "board", index: number): boolean;
   craftStaging(): readonly (string | null)[];
   stageCraft(index: number, itemId: string | null): boolean;
   craft(): string | null;
@@ -356,6 +358,11 @@ export function createBridge(store: KV = localStorage): Bridge {
       commit("EVENT", `Tháo trang bị ${itemId}`);
       return true;
     },
+    unequipAll(where, index) {
+      if (!state || !unequipAll(state, where, index)) return false;
+      commit("EVENT", "Tháo toàn bộ trang bị");
+      return true;
+    },
     craftStaging() {
       syncCraftStaging();
       return craftStaging.slice();
@@ -415,17 +422,21 @@ export function createBridge(store: KV = localStorage): Bridge {
       const combatSeed = (baseSeed ^ Math.imul(round, 0x45d9f3b)) | 0;
       const combatId = `solo:${round}:${combatSeed >>> 0}`;
       const environment = environmentFor(round);
-      const playerBonus = playerSideBonus(s);
       const ai = AI_PROFILE[s.aiMode];
-      const enemyBonus = enemySideBonus(s, preview.source);
-
+      const configuredScale = preview.source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(round);
+      const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
       if (beginCombat(s) !== null) return null;
-      // The charged heart must survive a reload even if simulation/presentation is interrupted.
+      // Persist the charged heart before presentation; reload replays the deterministic encounter.
       persist();
-      const roster: RosterEntry[] = [
-        ...left.map((placement) => makeFighter(placement, "L", playerBonus, environment)),
-        ...right.map((placement) => makeFighter(placement, "R", enemyBonus, environment)),
-      ].map((fighter) => ({
+      const fighters = materializeCombat(left, right, {
+        rightAi: { hp: ai.hp, atk: ai.atk, matk: ai.matk },
+        rightModeScale: scale,
+        tutorialRightHpHalving: s.aiMode === "TUTORIAL" && round >= 1 && round <= 8,
+        leftPersistent: playerCombatBonus(s),
+        environment,
+        synergy: { L: synergyCombatBonus(s) },
+      });
+      const roster: RosterEntry[] = fighters.map((fighter) => ({
         uid: fighter.uid,
         baseId: fighter.baseId,
         star: fighter.star,
@@ -435,11 +446,12 @@ export function createBridge(store: KV = localStorage): Bridge {
         rage: fighter.rage,
         rageMax: fighter.rageMax,
         shield: fighter.shield,
+        inspection: snapshotFighter(fighter),
       }));
-      const result = simulate(left, right, {
+      const result = simulate(fighters, {
         seed: combatSeed,
+        captureInspection: true,
         gold: { L: s.gold },
-        bonus: { L: playerBonus, R: enemyBonus },
         rageGain: { R: ai.rageGain },
         environment,
         orderedBlessings: [...s.blessingQueue],
@@ -493,6 +505,7 @@ export function createBridge(store: KV = localStorage): Bridge {
         roster,
         fighters: sessionFighters.map(cloneFighter),
         events: result.events,
+        inspectionFrames: result.inspectionFrames ?? [],
         finish() {
           if (state !== s) return null;
           return publishResult(applyRoundResult(s, roundResultInput));

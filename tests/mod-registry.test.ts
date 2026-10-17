@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  MOD_LOCAL_KEY,
   MOD_PROFILE_KEY,
   createModManager,
   inspectModIndex,
@@ -176,7 +177,7 @@ describe("mod registry A50", () => {
     expect(parseLocalModPackage("demo.ftunit", JSON.stringify({ id: "", name: "Bad" }))).toEqual({ ok: false, kind: "invalid-manifest" });
 
     expect(manager.importLocalPackage("weather.ftlogic", JSON.stringify({
-      id: "weather-plus", name: "Weather Plus", version: "1.0.0", source: "workshop", packageType: ".ftunit",
+      id: "weather-plus", name: "Weather Plus", version: "1.0.0", source: "workshop", packageType: ".ftlogic",
     }))).toMatchObject({
       ok: true,
       manifest: { id: "weather-plus", name: "Weather Plus", source: "local", packageType: ".ftlogic" },
@@ -199,6 +200,99 @@ describe("mod registry A50", () => {
     expect(manager.getRegistryWarnings()).toEqual([{ kind: "fetch-failed", message: expect.any(String) }]);
     expect(manager.enable("local-only").enabledIds).toEqual(["local-only"]);
     expect(manager.validateEnabled()).toEqual([{ kind: "unknown-enabled-mod", modId: "local-only" }]);
+  });
+  it("strictly parses the three local package extensions and forces local source", () => {
+    for (const extension of [".ftunit", ".ftlogic", ".ftmodpack"] as const) {
+      expect(parseLocalModPackage(`demo${extension}`, JSON.stringify({
+        id: `demo-${extension}`,
+        name: " Demo ",
+        source: "workshop",
+        packageType: extension,
+        requires: ["dep"],
+      }))).toEqual({
+        ok: true,
+        manifest: expect.objectContaining({
+          id: `demo-${extension}`,
+          name: "Demo",
+          source: "local",
+          packageType: extension,
+          requires: ["dep"],
+        }),
+      });
+    }
+    expect(parseLocalModPackage("demo.zip", JSON.stringify({ id: "demo", name: "Demo" }))).toEqual({ ok: false, kind: "unsupported-extension" });
+    expect(parseLocalModPackage("demo.ftunit", JSON.stringify({ id: "demo", name: "Demo", packageType: ".ftlogic" }))).toEqual({ ok: false, kind: "invalid-manifest" });
+    expect(parseLocalModPackage("demo.ftunit", JSON.stringify({ id: "demo", name: "Demo", requires: "dep" }))).toEqual({ ok: false, kind: "invalid-manifest" });
+  });
+
+  it("imports atomically, rejects duplicate ids, and validates imported enabled mods through the canonical index", async () => {
+    const storage = memoryStorage();
+    const manager = await createModManager(storage, async () => ({ ok: true, json: async () => validIndex }));
+    const beforeIndex = manager.getIndex();
+    const beforeProfile = manager.getProfile();
+
+    expect(manager.importLocalPackage("broken.zip", JSON.stringify({ id: "local-demo", name: "Local Demo" }))).toEqual({ ok: false, kind: "unsupported-extension" });
+    expect(manager.getIndex()).toEqual(beforeIndex);
+    expect(manager.getProfile()).toEqual(beforeProfile);
+
+    expect(manager.importLocalPackage("local-demo.ftlogic", JSON.stringify({
+      id: "local-demo",
+      name: "Local Demo",
+      source: "workshop",
+      packageType: ".ftlogic",
+    }))).toMatchObject({
+      ok: true,
+      manifest: expect.objectContaining({ id: "local-demo", source: "local", packageType: ".ftlogic" }),
+    });
+    expect(manager.getIndex().mods.map((mod) => mod.id)).toContain("local-demo");
+    expect(manager.importLocalPackage("duplicate.ftlogic", JSON.stringify({ id: "local-demo", name: "Duplicate" }))).toEqual({ ok: false, kind: "duplicate-id" });
+    expect(manager.getIndex().mods.filter((mod) => mod.id === "local-demo")).toHaveLength(1);
+
+    manager.enable("local-demo");
+    expect(manager.validateEnabled()).toEqual([]);
+  });
+
+
+  it("persists imported local mods, their enabled order, and removes them after reload", async () => {
+    const storage = memoryStorage();
+    const fetcher = async () => ({ ok: true, json: async () => validIndex });
+    const first = await createModManager(storage, fetcher);
+    expect(first.importLocalPackage("saved.ftunit", JSON.stringify({ id: "saved", name: "Đã nhập", packageType: ".ftunit" }))).toMatchObject({ ok: true });
+    expect(first.importLocalPackage("second.ftlogic", JSON.stringify({ id: "second", name: "Thứ hai", packageType: ".ftlogic" }))).toMatchObject({ ok: true });
+    first.enable("saved");
+    first.enable("second");
+    first.move("second", -1);
+
+    const restored = await createModManager(storage, fetcher);
+    expect(restored.getIndex().mods.filter((mod) => mod.source === "local").map((mod) => mod.id))
+      .toContain("saved");
+    expect(restored.getProfile().loadOrder).toEqual(["second", "saved"]);
+    expect(restored.validateEnabled()).toEqual([]);
+    expect(restored.removeLocal("saved")).toBe(true);
+    expect(restored.removeLocal("saved")).toBe(false);
+    expect(restored.removeLocal("logic-plus")).toBe(false);
+    expect(restored.getProfile().enabledIds).toEqual(["second"]);
+    const afterRemoval = await createModManager(storage, fetcher);
+    expect(afterRemoval.getIndex().mods.map((mod) => mod.id)).not.toContain("saved");
+    expect(afterRemoval.getIndex().mods.map((mod) => mod.id)).toContain("second");
+    expect(afterRemoval.getProfile().loadOrder).toEqual(["second"]);
+    expect(JSON.parse(storage.getItem(MOD_LOCAL_KEY) ?? "null")).toMatchObject([{ id: "second" }]);
+  });
+
+  it("ignores malformed stored local manifests and bundled ID collisions", async () => {
+    const storage = memoryStorage();
+    storage.setItem(MOD_LOCAL_KEY, JSON.stringify([
+      { id: "logic-plus", name: "Conflict", packageType: ".ftlogic" },
+      { id: "safe", name: "Safe", packageType: ".ftunit" },
+      { id: "safe", name: "Duplicate", packageType: ".ftunit" },
+      { id: "broken", name: "Broken", packageType: ".zip" },
+      { id: "invalid", packageType: ".ftunit" },
+    ]));
+    const manager = await createModManager(storage, async () => ({ ok: true, json: async () => validIndex }));
+    expect(manager.getIndex().mods.filter((mod) => mod.id === "logic-plus")).toHaveLength(1);
+    expect(manager.getIndex().mods.filter((mod) => mod.id === "safe")).toHaveLength(1);
+    expect(manager.getIndex().mods.map((mod) => mod.id)).not.toContain("broken");
+    expect(manager.getIndex().mods.map((mod) => mod.id)).not.toContain("invalid");
   });
 
   it("isolates dependency/conflict problems as validation issues instead of throwing", () => {

@@ -64,10 +64,13 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
     if (!listening) return;
     e.preventDefault();
     e.stopPropagation(); // capture must not leak to Escape-close or board shortcuts (A95.3)
-    const raw = e.code === "ShiftRight" ? "SHIFT_RIGHT" : e.key === " " ? "SPACE" : e.key;
+    const raw = e.code === "ShiftRight" ? "SHIFTRIGHT" : e.key === " " ? "SPACE" : e.key;
     const k = normalizeKey(raw);
     if (!k || k === "ESCAPE") { note = t("settings.reserved"); listening = null; render(); return; }
     const s = store.get(), { ctx, action } = listening;
+    if (Object.entries(s.keys[ctx]).some(([other, value]) => other !== action && value === k)) {
+      note = t("settings.keyConflict"); listening = null; render(); return;
+    }
     listening = null; note = ""; // clear first: save() notifies subscribers, which re-render immediately
     store.save({ keys: { ...s.keys, [ctx]: { ...s.keys[ctx], [action]: k } } });
   };
@@ -88,6 +91,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
     switch (tab) {
       case "audio": {
         field("settings.sound", toggle(s.audioEnabled && !s.audioMuted, (v) => store.save({ audioEnabled: true, audioMuted: !v })));
+        field("settings.music", toggle(s.musicEnabled, (v) => store.save({ musicEnabled: v })));
         field("settings.volume", stepper([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.volumeLevel, (v) => `${v}/10`, (v) => store.save({ volumeLevel: v })));
         field("settings.narration", toggle(s.narrationEnabled, (v) => store.save({ narrationEnabled: v })));
         field("settings.musicVolume", stepper([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.musicVolume, (v) => `${v}/10`, (v) => store.save({ musicVolume: v })));
@@ -117,9 +121,8 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         break;
       }
       case "display":
-        field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v, (v) => store.save({ resolutionKey: v })));
-        field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => t(`tooltip.${v}` as MsgKey), (v) => store.save({ tooltipMode: v })));
-        field("menu.language", stepper(["vi", "en"] as const, s.language, (v) => (v === "vi" ? "Tiếng Việt" : "English"), (v) => store.save({ language: v })));
+        field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v === "adaptive" ? t("settings.resolution.adaptive") : v, (v) => store.save({ resolutionKey: v })));
+        field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => t(`settings.tooltip.${v}` as MsgKey), (v) => store.save({ tooltipMode: v })));
         field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
         field("settings.renderScale", stepper(RENDER_SCALES, s.renderScale, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
         field("settings.fpsLimit", stepper(FPS_LIMITS, s.fpsLimit, (v) => `${v} FPS`, (v) => store.save({ fpsLimit: v })));
@@ -142,6 +145,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
           body.append(reset.el);
         }
         break;
+
       case "data": {
         const exported = kitButton({ skin: "wood", label: t("settings.exportSave"), cls: "wide-btn", onClick: () => {
           const file = o.exportRun();

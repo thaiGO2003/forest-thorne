@@ -183,7 +183,14 @@ function diagnosticEffects(fighter: Fighter): UnitDiagnosticEffect[] {
   for (const mod of fighter.mods) {
     effects.push({ kind: "modifier", key: mod.stat, turns: mod.turns, value: mod.value, pct: mod.pct, detail: mod.stackKey });
   }
-  if (fighter.reflect) effects.push({ kind: "reaction", key: "reflect", turns: fighter.reflect.turns, value: fighter.reflect.pct });
+  if (fighter.reflect) {
+    const reflected = Object.entries(fighter.reflect.pctByDamageType);
+    effects.push({
+      kind: "reaction", key: "reflect", turns: fighter.reflect.turns,
+      value: Math.max(0, ...reflected.map(([, pct]) => pct ?? 0)),
+      detail: reflected.map(([type, pct]) => `${type}: ${Math.round((pct ?? 0) * 100)}%`).join(", "),
+    });
+  }
   if (fighter.counterTurns > 0) effects.push({ kind: "reaction", key: "counter", turns: fighter.counterTurns, value: 0 });
   if (fighter.phoenix.armed || fighter.phoenix.used) effects.push({ kind: "reaction", key: fighter.phoenix.used ? "phoenix-used" : "phoenix", turns: 0, value: fighter.phoenix.revivePct });
   if (fighter.berserk) effects.push({ kind: "reaction", key: "berserk", turns: fighter.berserk.turns, value: fighter.berserk.lifestealPct });

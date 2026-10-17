@@ -5,7 +5,7 @@ import { normalizeBillboard, type BillboardState } from "../src/units/billboard"
 import { Kit } from "../src/units/kit";
 import toad from "../src/units/roster/toadPoison";
 import jaguar from "../src/units/roster/jaguarHunt";
-import { createUnit } from "../src/units/registry";
+import { createUnit, hasRig } from "../src/units/registry";
 const RIGS = { toad_poison: toad, jaguar_hunt: jaguar };
 
 const base: BillboardState = { name: "x", star: 2, hp: 50, maxHp: 100, rage: 0, rageMax: 4, side: "L", statuses: [] };
@@ -79,6 +79,24 @@ describe("Library combat-idle authored poses", () => {
       expect(unit.state()).toBe("idle");
       unit.dispose(); unit.dispose();
     } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it("revives an authored rig without replacing the current procedural model", () => {
+    vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => null }) });
+    let unit: ReturnType<typeof createUnit> | undefined;
+    try {
+      unit = createUnit("jaguar_hunt", 1);
+      const root = unit.root;
+      unit.die();
+      for (let frame = 0; frame < 7; frame++) unit.update(.1);
+      expect(root.visible).toBe(false);
+      unit.setHpRatio(.5); unit.update(.016);
+      expect(root.visible).toBe(true);
+      expect(unit.root).toBe(root);
+      expect(unit.state()).toBe("idle");
+    } finally {
+      unit?.dispose();
       vi.unstubAllGlobals();
     }
   });

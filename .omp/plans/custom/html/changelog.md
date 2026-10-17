@@ -47,6 +47,14 @@
 
 - forest-throne-v5-enhancement-master-plan.html rendered from pending source.
 
+## 2026-10-10T02:10:50.311Z
+
+- remaining-menu-utilities-plan.html rendered from pending source.
+
+## 2026-10-10T02:56:47.166Z
+
+- remaining-menu-utilities-plan.html re-rendered with DONE status.
+
 ## 2026-10-10T12:27:42.608Z
 
 - forest-throne-2026-10-10-backlog-plan.html rendered from pending source.

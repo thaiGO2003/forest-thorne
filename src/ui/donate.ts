@@ -26,11 +26,11 @@ export const DONATE_QR_ADD_INFO_MESSAGES = [
 const VIETQR_BASE = `https://img.vietqr.io/image/${DONATE_BANK_ID}-${DONATE_ACCOUNT}-compact2.png`;
 
 export function buildDonateVietQrUrl(amount: number, addInfo: string): string {
-  const query = new URLSearchParams({
-    amount: String(Math.trunc(amount)),
-    addInfo,
-    accountName: DONATE_ACCOUNT_NAME,
-  });
+  const query = new URLSearchParams({ addInfo, accountName: DONATE_ACCOUNT_NAME });
+  if (Number.isFinite(amount) && amount > 0) {
+    const wholeAmount = Math.trunc(amount);
+    if (wholeAmount > 0) query.set("amount", String(wholeAmount));
+  }
   return `${VIETQR_BASE}?${query.toString()}`;
 }
 

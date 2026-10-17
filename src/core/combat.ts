@@ -1,12 +1,12 @@
 // Deterministic combat engine (spec A11–A18, A73, A74, A120). Pure: no rendering, timers or audio.
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
-import { getUnit, type Element, type Role } from "../content/catalog";
+import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
-import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
-import { sumVariantBonuses, type VariantTraitRef } from "./variants";
+import { slotCapForUnit, sumEquipmentBonuses, type EquipmentBonuses } from "./equipment";
+import { sumVariantBonuses, type VariantBonuses, type VariantTraitRef } from "./variants";
 import type { WeatherBlessingId } from "./blessings";
 
 export type Side = "L" | "R";
@@ -44,8 +44,7 @@ export interface TimedStatus {
 }
 
 export interface ReflectReactionState {
-  damageType: "physical" | "magic" | "all";
-  pct: number;
+  pctByDamageType: Partial<Record<DamageType, number>>;
   turns: number;
   offenseDebuff?: { value: number; turns: number; mode: "autoByRole" };
 }
@@ -71,7 +70,10 @@ type SkillStatusOrigin = Omit<SkillStatusSource, "turns" | "value">;
 
 export interface Fighter {
   uid: string; baseId: string; star: number; side: Side; row: number; col: number;
-  role: Role; element: Element;
+  role: Role; element: Element; faction: Faction; species: string;
+  basicDamageType: "physical" | "magic";
+  skillFamily: string;
+  skill: SkillSpec;
   maxHp: number; hp: number; atk: number; def: number; matk: number; mdef: number;
   range: number; rageMax: number; rage: number; shield: number; alive: boolean;
   crit: number; critDmg: number; accuracy: number; evade: number; lifesteal: number; rageGainPct: number; healPct: number;
@@ -100,6 +102,7 @@ export function cloneFighter(fighter: Fighter): Fighter {
     mods: fighter.mods.map((mod) => ({ ...mod })),
     reflect: fighter.reflect ? {
       ...fighter.reflect,
+      pctByDamageType: { ...fighter.reflect.pctByDamageType },
       offenseDebuff: fighter.reflect.offenseDebuff ? { ...fighter.reflect.offenseDebuff } : undefined,
     } : null,
     phoenix: { ...fighter.phoenix },
@@ -109,7 +112,7 @@ export function cloneFighter(fighter: Fighter): Fighter {
 }
 
 
-/** Flat/percent start-of-combat bonuses from synergy, tech and augments (summed by caller). */
+/** Staged start-of-combat bonuses from persistent state or final-formation synergy. */
 export type SideBonus = Partial<Record<
   "def" | "mdef" | "atkPct" | "matkPct" | "hpPct" | "defPct" | "mdefPct" | "healPct" | "startShield" | "startRage"
   | "burn" | "poison" | "critPct" | "evadePct" | "lifestealPct" | "rageGainPct", number>>;
@@ -161,13 +164,37 @@ export interface CombatResult {
   survivors: Fighter[];
   /** Ordered weather blessings consumed at surviving-cycle boundaries. */
   consumedBlessings: WeatherBlessingId[];
+  /** Optional read-only action boundaries for presentation; never saved as run state. */
+  inspectionFrames?: CombatInspectionFrame[];
+}
+
+export interface CombatUnitSnapshot {
+  uid: string;
+  hp: number; maxHp: number; atk: number; matk: number; def: number; mdef: number;
+  atkBeforePassive: number;
+  rage: number; rageMax: number; shield: number; range: number;
+  evade: number; crit: number; accuracy: number; alive: boolean;
+  lifesteal: number; healPct: number; rageGainPct: number; onHitBurn: number; onHitPoison: number;
+  status: Record<string, TimedStatus>;
+  mods: StatMod[];
+  reflect: ReflectReactionState | null;
+  counterTurns: number;
+  phoenix: PhoenixReactionState;
+  berserk: BerserkReactionState | null;
+}
+
+export interface CombatInspectionFrame {
+  /** Exclusive event boundary: publish only after these events have finished animating. */
+  eventIndex: number;
+  cycle: number;
+  units: CombatUnitSnapshot[];
 }
 
 export interface CombatOptions {
   seed: number;
+  captureInspection?: boolean;
   /** Owner gold per side for the A13 gold-reserve skill multiplier. */
   gold?: Partial<Record<Side, number>>;
-  bonus?: Partial<Record<Side, SideBonus>>;
   /** Basic-hit attacker rage per side; AI difficulty sets R (A74). */
   rageGain?: Partial<Record<Side, number>>;
   /** A32 active battlefield environment for this round. */
@@ -180,50 +207,193 @@ export interface CombatOptions {
   deterministicTargeting?: boolean;
 }
 
+export interface RightMaterializationScale {
+  hp: number;
+  atk: number;
+  matk: number;
+}
+
+export interface CombatMaterializationOptions {
+  /** A77 stage 2. AI multipliers are applied before mode scaling. */
+  rightAi?: RightMaterializationScale;
+  /** A77 stage 2. Caller passes 1 for Creative/manual formations. */
+  rightModeScale?: number;
+  /** A77 stage 2. Tutorial rounds 1..8 halve already-resolved RIGHT HP. */
+  tutorialRightHpHalving?: boolean;
+  /** A77 stage 3. Persistent run/augment/technology state, LEFT only. */
+  leftPersistent?: SideBonus;
+  /** A77 stage 7. One environment identity shared by the formation. */
+  environment?: EnvironmentId;
+  /** A77 stage 8. Final-formation synergy, kept separate from persistent state. */
+  synergy?: Partial<Record<Side, SideBonus>>;
+}
+
 /** A13: 1.0 at ≤10 gold; +1% per 2 gold above 10; capped at 2.0. */
 export function goldMultiplier(gold: number): number {
   if (!(gold > 10)) return 1;
   return Math.min(2, 1 + (gold - 10) / 2 / 100);
 }
 
-export function makeFighter(p: Placement, side: Side, b: SideBonus = {}, environment?: EnvironmentId): Fighter {
+interface OpeningResources { rage: number; shield: number }
+
+const finite = (value: number | undefined, fallback = 0) => Number.isFinite(value) ? value! : fallback;
+const scalePct = (value: number, pct: number | undefined) => Math.round(value * (1 + finite(pct) / 100));
+
+function freshFighter(p: Placement, side: Side): Fighter {
   const u = getUnit(p.baseId);
-  const env = environmentMods(environment, u.element);
-  const m = STAR_STAT[p.star] ?? 1;
+  const star = Math.max(1, Math.min(3, Math.round(Number.isFinite(p.star) ? p.star : 1)));
+  const m = STAR_STAT[star] ?? 1;
   const st = u.stats;
-  const equipment = sumEquipmentBonuses(p.equips ?? [], p.star, slotCapForUnit(u, p.star));
-  const traits = sumVariantBonuses(u.role, p.traits ?? []);
-  const hpPct = (b.hpPct ?? 0) + (equipment.hpPct ?? 0) + (traits.hpPct ?? 0);
-  const atkPct = (b.atkPct ?? 0) + (equipment.atkPct ?? 0) + (traits.atkPct ?? 0);
-  const matkPct = (b.matkPct ?? 0) + (equipment.matkPct ?? 0) + (traits.matkPct ?? 0);
-  const maxHp = Math.round(st.hp * m * (1 + hpPct / 100));
-  // Scaled base-stat evasion: +5pp at 2★, +10pp at 3★, capped 60% (A12).
-  const evadePct = (b.evadePct ?? 0) + (equipment.evadePct ?? 0) + (traits.evadePct ?? 0);
-  const evade = Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (p.star - 1) * 0.05) + evadePct / 100 + env.evade;
-  const rageMax = Math.max(1, u.skill.rageCost[p.star - 1] ?? st.rageMax);
-  const equipmentRage = Math.min(4, Math.max(0, Math.round(equipment.startingRage ?? 0)));
-  const pendingRage = Math.min(4, Math.max(0, Math.round((b.startRage ?? 0) + (traits.startingRage ?? 0) + env.startRage)));
+  const resolvedSkill = skillSpec(p.baseId, star);
+  const authoredCost = u.skill.rageCost[star - 1];
+  const rageMax = Number.isFinite(authoredCost) ? Math.max(1, authoredCost!) : Number.isFinite(st.rageMax) ? Math.max(1, st.rageMax!) : 3;
+  const maxHp = Math.max(1, Math.round(st.hp * m));
   return {
-    uid: p.uid, baseId: p.baseId, star: p.star, side, row: p.row, col: p.col, role: u.role, element: u.element,
+    uid: p.uid, baseId: p.baseId, star, side, row: p.row, col: p.col,
+    role: u.role, element: u.element, faction: u.faction, species: u.species,
+    basicDamageType: u.basic.damageType, skillFamily: u.skill.family, skill: resolvedSkill,
     maxHp, hp: maxHp,
-    atk: Math.max(1, Math.round(st.atk * m * (1 + atkPct / 100) * (1 + env.atkPct))),
-    def: Math.round(st.def * m * (1 + (b.defPct ?? 0) / 100) + (b.def ?? 0) + (equipment.def ?? 0) + (traits.def ?? 0) + env.def),
-    matk: Math.max(1, Math.round(st.matk * m * (1 + matkPct / 100) * (1 + env.matkPct))),
-    mdef: Math.round(st.mdef * m * (1 + (b.mdefPct ?? 0) / 100) + (b.mdef ?? 0) + (equipment.mdef ?? 0) + (traits.mdef ?? 0) + env.mdef),
-    range: st.range, rageMax,
-    rage: Math.min(rageMax, equipmentRage + pendingRage),
-    shield: (b.startShield ?? 0) + (equipment.startingShield ?? 0) + (traits.startingShield ?? 0) + env.startShield, alive: true,
-    crit: ROLE_CRIT[u.role] + (st.crit ?? 0) + ((b.critPct ?? 0) + (equipment.critPct ?? 0) + (traits.critPct ?? 0)) / 100 + env.critPct,
+    atk: Math.max(1, Math.round(st.atk * m)),
+    def: Math.round(st.def * m),
+    matk: Math.max(1, Math.round(st.matk * m)),
+    mdef: Math.round(st.mdef * m),
+    range: st.range, rageMax, rage: 0, shield: 0, alive: true,
+    crit: ROLE_CRIT[u.role] + (st.crit ?? 0),
     critDmg: st.critDmg ?? 1.5,
     accuracy: st.accuracy ?? 0.95,
-    evade, lifesteal: Math.max(0, ((b.lifestealPct ?? 0) + (equipment.lifestealPct ?? 0) + (traits.lifestealPct ?? 0)) / 100 + env.lifesteal),
-    rageGainPct: (b.rageGainPct ?? 0) / 100 + env.rageGainPct,
-    healPct: ((b.healPct ?? 0) + (equipment.healPct ?? 0) + (traits.healPct ?? 0)) / 100 + env.healPct,
-    onHitBurn: (b.burn ?? 0) + (equipment.burnOnHit ?? 0) + env.burnOnHit,
-    onHitPoison: (b.poison ?? 0) + (equipment.poisonOnHit ?? 0) + env.poisonOnHit,
+    evade: Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (star - 1) * 0.05),
+    lifesteal: 0, rageGainPct: 0, healPct: 0, onHitBurn: 0, onHitPoison: 0,
     status: {}, mods: [], tauntBy: null, casting: false,
-    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, env,
+    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null,
+    env: environmentMods(undefined, u.element),
   };
+}
+
+function applyStatBonus(f: Fighter, b: SideBonus | undefined) {
+  if (!b) return;
+  f.maxHp = Math.max(1, scalePct(f.maxHp, b.hpPct)); f.hp = f.maxHp;
+  f.atk = Math.max(1, scalePct(f.atk, b.atkPct));
+  f.matk = Math.max(1, scalePct(f.matk, b.matkPct));
+  f.def = scalePct(f.def, b.defPct) + finite(b.def);
+  f.mdef = scalePct(f.mdef, b.mdefPct) + finite(b.mdef);
+  f.healPct += finite(b.healPct) / 100;
+  f.crit += finite(b.critPct) / 100;
+  f.evade += finite(b.evadePct) / 100;
+  f.lifesteal = Math.max(0, f.lifesteal + finite(b.lifestealPct) / 100);
+  f.rageGainPct += finite(b.rageGainPct) / 100;
+  f.onHitBurn += finite(b.burn);
+  f.onHitPoison += finite(b.poison);
+}
+
+function applyPersistentBonus(f: Fighter, b: SideBonus | undefined) {
+  applyStatBonus(f, b);
+  f.rage = Math.min(f.rageMax, Math.max(0, Math.round(finite(b?.startRage))));
+  f.shield = Math.max(0, finite(b?.startShield));
+}
+
+function queueOpening(b: SideBonus | undefined, opening: OpeningResources) {
+  opening.rage += finite(b?.startRage);
+  opening.shield += finite(b?.startShield);
+}
+
+function applyEquipment(f: Fighter, b: EquipmentBonuses, opening: OpeningResources) {
+  f.maxHp = Math.max(1, scalePct(f.maxHp, b.hpPct)); f.hp = f.maxHp;
+  f.atk = Math.max(1, scalePct(f.atk, b.atkPct));
+  f.matk = Math.max(1, scalePct(f.matk, b.matkPct));
+  f.def += finite(b.def); f.mdef += finite(b.mdef);
+  f.healPct += finite(b.healPct) / 100;
+  f.crit += finite(b.critPct) / 100; f.evade += finite(b.evadePct) / 100;
+  f.lifesteal = Math.max(0, f.lifesteal + finite(b.lifestealPct) / 100);
+  f.onHitBurn += finite(b.burnOnHit); f.onHitPoison += finite(b.poisonOnHit);
+  const equipmentRage = Math.min(4, Math.max(0, Math.round(finite(b.startingRage))));
+  f.rage = Math.min(f.rageMax, f.rage + equipmentRage);
+  opening.shield += Math.max(0, finite(b.startingShield));
+}
+
+function applyVariants(f: Fighter, b: VariantBonuses, opening: OpeningResources) {
+  f.maxHp = Math.max(1, scalePct(f.maxHp, b.hpPct)); f.hp = f.maxHp;
+  f.atk = Math.max(1, scalePct(f.atk, b.atkPct));
+  f.matk = Math.max(1, scalePct(f.matk, b.matkPct));
+  f.def += finite(b.def); f.mdef += finite(b.mdef);
+  f.healPct += finite(b.healPct) / 100;
+  f.crit += finite(b.critPct) / 100; f.evade += finite(b.evadePct) / 100;
+  f.lifesteal = Math.max(0, f.lifesteal + finite(b.lifestealPct) / 100);
+  opening.rage += finite(b.startingRage);
+  opening.shield += finite(b.startingShield);
+}
+
+function applyEnvironment(f: Fighter, environment: EnvironmentId | undefined, opening: OpeningResources) {
+  const env = environmentMods(environment, f.element);
+  f.env = env;
+  f.atk = Math.max(1, Math.round(f.atk * (1 + env.atkPct)));
+  f.matk = Math.max(1, Math.round(f.matk * (1 + env.matkPct)));
+  f.def += env.def; f.mdef += env.mdef; f.evade += env.evade; f.crit += env.critPct;
+  f.healPct += env.healPct; f.lifesteal = Math.max(0, f.lifesteal + env.lifesteal); f.rageGainPct += env.rageGainPct;
+  f.onHitBurn += env.burnOnHit; f.onHitPoison += env.poisonOnHit;
+  opening.rage += env.startRage; opening.shield += env.startShield;
+}
+
+interface MaterializationEntry {
+  fighter: Fighter;
+  placement: Placement;
+  opening: OpeningResources;
+}
+
+/**
+ * A77 authoritative battle-start materialization. Each persistent placement creates one Fighter; all later combat
+ * systems mutate those exact records rather than rebuilding them from Planning state.
+ */
+export function materializeCombat(left: Placement[], right: Placement[], o: CombatMaterializationOptions = {}): Fighter[] {
+  const entries: MaterializationEntry[] = [
+    ...left.map((placement) => ({ fighter: freshFighter(placement, "L"), placement, opening: { rage: 0, shield: 0 } })),
+    ...right.map((placement) => ({ fighter: freshFighter(placement, "R"), placement, opening: { rage: 0, shield: 0 } })),
+  ];
+  const ai = o.rightAi ?? { hp: 1, atk: 1, matk: 1 };
+  const aiHp = Number.isFinite(ai.hp) && ai.hp > 0 ? ai.hp : 1;
+  const aiAtk = Number.isFinite(ai.atk) && ai.atk > 0 ? ai.atk : 1;
+  const aiMatk = Number.isFinite(ai.matk) && ai.matk > 0 ? ai.matk : 1;
+  const modeScale = Number.isFinite(o.rightModeScale) && o.rightModeScale! > 0 ? o.rightModeScale! : 1;
+
+  for (const { fighter: f } of entries) {
+    if (f.side === "R") {
+      f.maxHp = Math.max(1, Math.round(f.maxHp * aiHp));
+      f.atk = Math.max(1, Math.round(f.atk * aiAtk));
+      f.matk = Math.max(1, Math.round(f.matk * aiMatk));
+      f.maxHp = Math.max(1, Math.round(f.maxHp * modeScale));
+      f.atk = Math.max(1, Math.round(f.atk * modeScale));
+      f.matk = Math.max(1, Math.round(f.matk * modeScale));
+      if (o.tutorialRightHpHalving) f.maxHp = Math.max(1, Math.round(f.maxHp / 2));
+      f.hp = f.maxHp;
+    } else {
+      applyPersistentBonus(f, o.leftPersistent);
+    }
+  }
+
+  for (const { fighter: f, placement, opening } of entries) {
+    const u = getUnit(f.baseId);
+    applyEquipment(f, sumEquipmentBonuses(placement.equips ?? [], f.star, slotCapForUnit(u, f.star)), opening);
+    applyVariants(f, sumVariantBonuses(f.role, placement.traits ?? []), opening);
+  }
+  for (const { fighter, opening } of entries) applyEnvironment(fighter, o.environment, opening);
+  for (const { fighter, opening } of entries) {
+    applyStatBonus(fighter, o.synergy?.[fighter.side]);
+    queueOpening(o.synergy?.[fighter.side], opening);
+  }
+  for (const { fighter: f, opening } of entries) {
+    const openingRage = Math.min(4, Math.max(0, Math.round(opening.rage)));
+    f.rage = Math.min(f.rageMax, f.rage + openingRage);
+    f.shield += Math.max(0, opening.shield);
+  }
+  return entries.map(({ fighter }) => fighter);
+}
+
+/** Isolated canonical materialization for planning/unit diagnostics. */
+export function makeFighter(placement: Placement, side: Side, bonus: SideBonus = {}, environment?: EnvironmentId): Fighter {
+  return materializeCombat(
+    side === "L" ? [placement] : [],
+    side === "R" ? [placement] : [],
+    { environment, synergy: { [side]: bonus } },
+  )[0]!;
 }
 
 const dist = (a: Fighter, b: Fighter) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
@@ -235,19 +405,52 @@ const rowRank = (from: number, to: number) => {
 /** Column distance from the front line of the defender's side (front = col 4 for L, 5 for R). */
 const depth = (f: Fighter) => (f.side === "L" ? 4 - f.col : f.col - 5);
 
-export function combatStat(f: Fighter, s: BuffStat): number {
+function modifiedStat(f: Fighter, s: BuffStat): number {
   const base = s === "evade" ? f.evade : f[s];
   let flat = 0;
   let pct = 0;
   for (const m of f.mods) if (m.stat === s) m.pct ? (pct += m.value) : (flat += m.value);
-  let v = base * (1 + pct / 100) + (s === "evade" ? flat / 100 : flat);
+  return base * (1 + pct / 100) + (s === "evade" ? flat / 100 : flat);
+}
+
+function fighterHealthAttack(atk: number, maxHp: number, hp: number): number {
+  const missingPct = Math.min(1, Math.max(0, (maxHp - hp) / Math.max(1, maxHp)));
+  return Math.round(atk * (1 + missingPct));
+}
+
+export function combatStat(f: Fighter, s: BuffStat): number {
+  let v = modifiedStat(f, s);
   // FIGHTER: +1% ATK per 1% missing HP (A14).
   if (s === "atk" && f.role === "FIGHTER") {
-    const missingPct = Math.min(1, Math.max(0, (f.maxHp - f.hp) / f.maxHp));
-    v = Math.round(v * (1 + missingPct));
+    v = fighterHealthAttack(v, f.maxHp, f.hp);
   }
   if (s === "evade") return Math.min(0.75, Math.max(0, v));
   return s === "atk" || s === "matk" ? Math.max(1, v) : Math.max(0, v);
+}
+
+/** Copy the actual resolved stats, including temporary modifiers and missing-HP passives. */
+export function snapshotFighter(f: Fighter): CombatUnitSnapshot {
+  return {
+    uid: f.uid, hp: f.hp, maxHp: f.maxHp, atk: combatStat(f, "atk"), matk: combatStat(f, "matk"),
+    atkBeforePassive: modifiedStat(f, "atk"),
+    def: combatStat(f, "def"), mdef: combatStat(f, "mdef"), range: f.range,
+    rage: f.rage, rageMax: f.rageMax, shield: f.shield, evade: combatStat(f, "evade"),
+    crit: f.crit, accuracy: Math.max(0, f.accuracy + f.env.accuracy), alive: f.alive,
+    lifesteal: f.lifesteal, healPct: f.healPct, rageGainPct: f.rageGainPct, onHitBurn: f.onHitBurn, onHitPoison: f.onHitPoison,
+    status: structuredClone(f.status), mods: f.mods.map((mod) => ({ ...mod })),
+    reflect: f.reflect ? structuredClone(f.reflect) : null, counterTurns: f.counterTurns,
+    phoenix: { ...f.phoenix }, berserk: f.berserk ? { ...f.berserk } : null,
+  };
+}
+
+/** Resource changes land during animations; keep health-dependent stats correct at that same impact. */
+export function snapshotWithResources(snapshot: CombatUnitSnapshot, resources: Pick<CombatUnitSnapshot, "hp" | "maxHp" | "rage" | "rageMax" | "shield">, role: Role): CombatUnitSnapshot {
+  const { hp, maxHp, rage, rageMax, shield } = resources;
+  return {
+    ...snapshot, hp, maxHp, rage, rageMax, shield,
+    atk: role === "FIGHTER" ? Math.max(1, fighterHealthAttack(snapshot.atkBeforePassive, maxHp, hp)) : snapshot.atk,
+    alive: hp > 0,
+  };
 }
 
 type AutoCastRole = "TANKER" | "SUPPORT";
@@ -429,13 +632,15 @@ function activeBerserk(f: Fighter): BerserkReactionState | null {
   return f.berserk?.turns && f.berserk.turns > 0 ? f.berserk : null;
 }
 
-function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType: "physical" | "magic" | "true", actualHpDamage: number) {
+function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType: DamageType, actualHpDamage: number): boolean {
   const reflect = defender.reflect;
-  if (!reflect || reflect.turns <= 0 || actualHpDamage <= 0) return;
-  if (reflect.damageType !== "all" && reflect.damageType !== incomingType) return;
-  const dmg = Math.max(1, Math.round(actualHpDamage * reflect.pct));
+  if (!reflect || reflect.turns <= 0 || actualHpDamage <= 0) return false;
+  const pct = reflect.pctByDamageType[incomingType] ?? 0;
+  if (!(pct > 0)) return false;
+  const dmg = Math.max(1, Math.round(actualHpDamage * pct));
   applyDamage(c, attacker, dmg, defender,
     (absorbed) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg, absorbed }), true);
+  return true;
 }
 
 function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualHpDamage: number) {
@@ -450,8 +655,7 @@ interface StrikeOptions {
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
-  const u = getUnit(src.baseId);
-  const magic = src.role === "MAGE" || src.role === "SUPPORT" || u.basic.damageType === "magic";
+  const magic = src.role === "MAGE" || src.role === "SUPPORT" || src.basicDamageType === "magic";
   return strike(c, src, dst, combatStat(src, magic ? "matk" : "atk"), magic ? "magic" : "physical", false, options);
 }
 
@@ -530,11 +734,11 @@ function strike(
   if (resolved.hp > 0) {
     if (src.onHitBurn > 0) applyStatus(c, dst, "burn", 2, src.onHitBurn);
     if (src.onHitPoison > 0) applyStatus(c, dst, "poison", 2, src.onHitPoison);
-    applyReflect(c, dst, src, type, resolved.hp);
-    applyReflectOffenseDebuff(dst, src, resolved.hp);
-    if (options.allowCounter ?? true) resolveCounter(c, dst, src);
+    const reflected = applyReflect(c, dst, src, type, resolved.hp);
+    if (reflected && src.hp > 0) applyReflectOffenseDebuff(dst, src, resolved.hp);
+    if (src.hp > 0 && dst.hp > 0 && (options.allowCounter ?? true)) resolveCounter(c, dst, src);
     const lifesteal = src.lifesteal + (activeBerserk(src)?.lifestealPct ?? 0);
-    if (lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
+    if (src.hp > 0 && lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
   }
 
   resolveLethal(c, src, dst);
@@ -553,10 +757,8 @@ function afterDefender(c: Ctx, dst: Fighter, attacker: Fighter) {
 function autoCastReady(c: Ctx, f: Fighter, role: AutoCastRole): boolean {
   if (!f.alive || f.role !== role || (f.status.silence?.turns ?? 0) > 0) return false;
   if (!Number.isFinite(f.rage) || !Number.isFinite(f.rageMax) || f.rage < f.rageMax) return false;
-  if (!getUnit(f.baseId).skill.family) return false;
-  const sp = skillSpec(f.baseId, f.star);
-  // A74 SUPPORT fallback still permits the cast when its ordinary enemy selector has no target.
-  return role === "SUPPORT" || sp.side !== "enemy" || foes(c, f).length > 0;
+  if (!f.skillFamily) return false;
+  return role === "SUPPORT" || f.skill.side !== "enemy" || foes(c, f).length > 0;
 }
 
 function scheduleAutoCast(c: Ctx, f: Fighter, role: AutoCastRole, preferred?: Fighter) {
@@ -733,9 +935,8 @@ interface CastSkillOptions {
 }
 
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
-  const sp = skillSpec(f.baseId, f.star);
-  const skill = getUnit(f.baseId).skill;
-  const family = skill.family;
+  const sp = f.skill;
+  const family = f.skillFamily;
   const statusSource: SkillStatusOrigin = {
     skillId: family,
     unitUid: f.uid,
@@ -752,7 +953,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
     if (options.trigger) castEvent.trigger = options.trigger;
     c.events.push(castEvent);
-    if (sp.reaction.reflect) f.reflect = { ...sp.reaction.reflect };
+    if (sp.reaction.reflect) f.reflect = {
+      ...sp.reaction.reflect,
+      pctByDamageType: { ...sp.reaction.reflect.pctByDamageType },
+    };
     if (sp.reaction.counter) f.counterTurns = sp.reaction.counter.turns;
     if (sp.reaction.phoenix && !f.phoenix.used) {
       f.phoenix.armed = true;
@@ -809,6 +1013,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
         : a.maxHp * sp.heal!.pctMaxHp;
       heal(c, f, a, Math.floor(raw));
     }
+    if (sp.hot && sp.hot.turns > 0 && sp.hot.totalPctMaxHp > 0) {
+      const perTurnPct = sp.hot.totalPctMaxHp / sp.hot.turns;
+      for (const a of allies) if (a.alive) applyStatus(c, a, "hot", sp.hot.turns, perTurnPct, statusSource);
+    }
     for (const a of allies) {
       if (!a.alive) continue;
       if (sp.shield) {
@@ -840,40 +1048,60 @@ interface TurnGate {
   disarmed: boolean;
 }
 
+/** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
+ * New statuses applied during that cycle cannot tick until the next boundary. */
+function startCycle(c: Ctx) {
+  // Snapshot active effects before any disease spread applies new ones to other fighters.
+  const activeDots = c.all.map((f) => DOTS.map((kind) => f.status[kind] ?? null));
+  for (let i = 0; i < c.all.length; i++) {
+    const f = c.all[i]!;
+    if (!f.alive) continue;
+    for (let j = 0; j < DOTS.length; j++) {
+      const k = DOTS[j]!;
+      const s = activeDots[i]![j];
+      if (!s?.turns) continue;
+      const fireVulnerability = k === "burn"
+        ? f.env.fireVuln * ((f.status.fireVulnerability?.turns ?? 0) > 0 ? Math.max(1, f.status.fireVulnerability!.value) : 1)
+        : 1;
+      const dmg = Math.max(1, Math.round(s.value * fireVulnerability * c.globalMult));
+      applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: k, dmg }));
+      if (k === "disease" && dmg > 0) {
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+          const neighbor = c.all.find((x) => x.alive && x.side === f.side && x.row === f.row + dr && x.col === f.col + dc);
+          if (neighbor && !((neighbor.status.disease?.turns ?? 0) > 0)) applyStatus(c, neighbor, "disease", 2, dmg);
+        }
+      }
+      if (--s.turns <= 0) delete f.status[k];
+      if (!f.alive) break;
+    }
+    if (!f.alive || f.env.poisonAura <= 0) continue;
+    const dmg = f.env.poisonAura;
+    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
+  }
+}
+
 /** A79: capture control state first, then resolve timed triggers and one canonical duration tick. */
 function startTurn(c: Ctx, f: Fighter): TurnGate {
   const skip = CONTROL_PRIORITY.find((k) => (f.status[k]?.turns ?? 0) > 0) ?? null;
   const silenced = (f.status.silence?.turns ?? 0) > 0;
   const disarmed = (f.status.disarm?.turns ?? 0) > 0;
-  for (const k of DOTS) {
-    const s = f.status[k];
-    if (!s?.turns) continue;
-    const fireVulnerability = k === "burn"
-      ? f.env.fireVuln * ((f.status.fireVulnerability?.turns ?? 0) > 0 ? Math.max(1, f.status.fireVulnerability!.value) : 1)
-      : 1;
-    const dmg = Math.max(1, Math.round(s.value * fireVulnerability * c.globalMult));
-    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: k, dmg }));
-    if (k === "disease" && dmg > 0) {
-      for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
-        const neighbor = c.all.find((x) => x.alive && x.side === f.side && x.row === f.row + dr && x.col === f.col + dc);
-        if (neighbor && !((neighbor.status.disease?.turns ?? 0) > 0)) applyStatus(c, neighbor, "disease", 2, dmg);
-      }
-    }
-    if (--s.turns <= 0) delete f.status[k];
-    if (!f.alive) return { canAct: false, silenced, disarmed };
+  // DOT damage and DOT duration expiry are owned by startCycle, never by this action.
+  const hot = f.status.hot;
+  if (hot?.turns && f.alive) {
+    const healer = hot.source
+      ? c.all.find((candidate) => candidate.uid === hot.source!.unitUid) ?? f
+      : f;
+    heal(c, healer, f, f.maxHp * hot.value);
+    if (--hot.turns <= 0) delete f.status.hot;
   }
-  // A32 SWARM aura: non-matching units take 4 true damage per turn.
-  if (f.env.poisonAura > 0) {
-    const dmg = f.env.poisonAura;
-    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
-    if (!f.alive) return { canAct: false, silenced, disarmed };
-  }
+  // Environment aura damage shares the cycle boundary with DOTs.
   f.mods = f.mods.filter((m) => --m.turns > 0);
   if (f.reflect && --f.reflect.turns <= 0) f.reflect = null;
   if (f.counterTurns > 0) f.counterTurns -= 1;
   if (f.berserk && --f.berserk.turns <= 0) f.berserk = null;
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
+    if (k === "hot") continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
       delete f.status[k];
@@ -893,8 +1121,7 @@ function act(c: Ctx, f: Fighter) {
     c.events.push({ t: "skip", src: f.uid, reason: "no-target" });
     return;
   }
-  const u = getUnit(f.baseId);
-  if (f.rage >= f.rageMax && !gate.silenced && u.skill.family) {
+  if (f.rage >= f.rageMax && !gate.silenced && f.skillFamily) {
     castSkill(c, f, target);
     return;
   }
@@ -968,14 +1195,16 @@ function mulberry(seed: number) {
 }
 
 /**
- * Run a full combat. LEFT placements use cols 0..4, RIGHT 5..9 (caller maps board → battlefield).
- * Deterministic for identical inputs + seed.
+ * Run a full combat from already-materialized authoritative Fighters.
+ * Deterministic for identical freshly-materialized input + seed.
  */
-export function simulate(left: Placement[], right: Placement[], o: CombatOptions): CombatResult {
-  const all = [
-    ...left.map((p) => makeFighter(p, "L", o.bonus?.L, o.environment)),
-    ...right.map((p) => makeFighter(p, "R", o.bonus?.R, o.environment)),
-  ];
+export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
+  const inspectionFrames: CombatInspectionFrame[] | undefined = o.captureInspection
+    ? [{ eventIndex: 0, cycle: 1, units: all.map(snapshotFighter) }] : undefined;
+  const total = {
+    L: all.filter((f) => f.side === "L").length,
+    R: all.filter((f) => f.side === "R").length,
+  };
   const c: Ctx = {
     all, rng: mulberry(o.seed), events: [], globalMult: 1,
     gold: { L: o.gold?.L ?? 0, R: o.gold?.R ?? 0 },
@@ -995,6 +1224,10 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
     const blessing = o.orderedBlessings?.[consumedBlessings.length];
     if (blessing) consumedBlessings.push(blessing);
     c.events.push({ t: "cycle", cycle: cycle + 1 });
+    // DOTs resolve at one shared boundary before either side acts.
+    startCycle(c);
+    inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
+    if (!count("L") || !count("R")) break outer;
     for (const entry of turnTimeline(all)) {
       if (!count("L") || !count("R")) break outer;
       if (entry.kind === "empty" || !entry.fighter.alive) {
@@ -1005,6 +1238,7 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
       }
       act(c, entry.fighter);
       flushDeferredAutoCasts(c);
+      inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
       actions++;
       // A17 anti-stall: after action 100, every 5th action +0.2 global damage.
       if (actions > 100 && actions % 5 === 0) c.globalMult += 0.2;
@@ -1013,9 +1247,10 @@ export function simulate(left: Placement[], right: Placement[], o: CombatOptions
   const alive = { L: count("L"), R: count("R") };
   return {
     winner: alive.L && !alive.R ? "L" : alive.R && !alive.L ? "R" : null,
-    alive, total: { L: left.length, R: right.length }, bounty: c.bounty, bountyKills: c.bountyKills, actions, events: c.events,
+    alive, total, bounty: c.bounty, bountyKills: c.bountyKills, actions, events: c.events,
     consumedBlessings,
     fighters: all.map(cloneFighter),
     survivors: all.filter((f) => f.alive).map(cloneFighter),
+    ...(inspectionFrames ? { inspectionFrames } : {}),
   };
 }
