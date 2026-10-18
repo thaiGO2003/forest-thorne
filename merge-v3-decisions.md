@@ -4,7 +4,7 @@ Ngày cập nhật: 2026-10-17. **Trạng thái: candidate đã resolve hết co
 
 ## Quy tắc phân xử
 
-Ưu tiên (1) lựa chọn mới nhất của người dùng ngày 15/10/2026, (2) `.omp/plans/pending/feat/ui-ux/gameplay.md` ngày 14/10/2026 (trước đây là `docs/plan-ui-ux-gameplay.md`), (3) authored/canonical contracts, (4) các hành vi đã được kiểm chứng. Chỉ chọn **một owner** cho mỗi UI/store/API. Ma trận dưới đây ghi source ownership; bằng chứng gate/runtime phải lấy từ phần trạng thái quan sát ở cuối tài liệu, không suy diễn từ staged state hay audit lịch sử.
+Ưu tiên (1) lựa chọn mới nhất của người dùng ngày 15/10/2026, (2) `.omp/plans/pending/feat.ui-ux.gameplay.md` ngày 14/10/2026 (trước đây là `docs/plan-ui-ux-gameplay.md`), (3) authored/canonical contracts, (4) các hành vi đã được kiểm chứng. Chỉ chọn **một owner** cho mỗi UI/store/API. Ma trận dưới đây ghi source ownership; bằng chứng gate/runtime phải lấy từ phần trạng thái quan sát ở cuối tài liệu, không suy diễn từ staged state hay audit lịch sử.
 
 ## Ma trận quyết định
 

@@ -1,4 +1,4 @@
-# Forest Throne — Bá chủ khu rừng
+﻿# Forest Throne — Bá chủ khu rừng
 
 Tactical voxel auto-battler for the browser. Collect, upgrade, position, equip and command forest creatures across repeated Planning and Combat rounds.
 
@@ -44,9 +44,9 @@ Gameplay rules live only in `src/game`; rendering and UI read and stage that sta
 
 ## Spec
 
-The product contract is `.omp/plans/pending/docs/spec/forest-thorne-rebuild.md`.
+The product contract is `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`.
 
-*Hợp đồng sản phẩm: `.omp/plans/pending/docs/spec/forest-thorne-rebuild.md`.*
+*Hợp đồng sản phẩm: `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`.*
 
 ## Contributing / Đóng góp
 

@@ -3,7 +3,7 @@
 - **Ngày lập:** 14/10/2026. **Cập nhật bố cục:** 18/10/2026 (gom vào `.omp/plans`, thống nhất bố cục file plan; nội dung không đổi).
 - **Trạng thái:** đang triển khai; các checkbox là việc cần kiểm tra và thực hiện, không phải xác nhận lỗi đã được tái hiện.
 - **Nhánh đích:** tên file = tên nhánh — `feat/ui-ux/gameplay`.
-- **File spec tham chiếu:** `.omp/plans/pending/docs/spec/forest-thorne-rebuild.md`. Nếu yêu cầu mới khác spec cũ, ưu tiên yêu cầu mới trong kế hoạch này.
+- **File spec tham chiếu:** `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`. Nếu yêu cầu mới khác spec cũ, ưu tiên yêu cầu mới trong kế hoạch này.
 
 ## Mục tiêu và phạm vi
 

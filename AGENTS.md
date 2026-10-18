@@ -7,15 +7,14 @@
 
 Chi tiết: `.omp/rules/plans-workflow.md`.
 
-- Plan markdown nằm ở `pending/` (đang làm) hoặc `done/` (hoàn tất); đặt tên
-  file = tên nhánh git tương lai, 3 cấp `động từ/group/nội dung code`
-  (ví dụ `feat/planning-screen/font.md` → nhánh `feat/planning-screen/font`).
+- Plan markdown nằm phẳng trong `pending/` (đang làm) hoặc `done/` (hoàn tất);
+  tên file = tên nhánh git tương lai với dấu `/` thay bằng dấu `.`, 3 phần
+  `động từ.tiêu đề nhánh.nội dung nhánh.md`
+  (ví dụ `feat.ui-ux.gameplay.md` → nhánh `feat/ui-ux/gameplay`).
 - Hook `.omp/hooks/pre/plans-sync.ts` mirror plan ghi trong plan mode
-  (`local://<đường-dẫn>-plan.md`) vào `pending/`, render HTML vào
-  `custom/html/pending/|done/` và sinh `custom/html/agent-index.html`.
-- `/plan-done <đường-dẫn-hoặc-tên-leaf>` заверш chuyển sang `done/`.
-- `custom/plan.css` là CSS duy nhất cho mọi trang HTML; chỉ sửa trang HTML do
-  hook sinh được phép ghi đè tự động.
+  (`local://<đường-dẫn>-plan.md`) vào `pending/`.
+- `/plan-done <tên-file-hoặc-slug>` chuyển plan sang `done/`.
+- Không có HTML/custom/index: markdown trong `pending/`/`done/` là nguồn duy nhất.
 - Không di chuyển file trong `.omp/plans` bằng tay trừ khi hook lỗi.
 
 ## UI Asset-First Rules

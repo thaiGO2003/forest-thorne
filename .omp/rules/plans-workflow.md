@@ -1,44 +1,33 @@
 ---
-description: Plan file workflow (pending/done/custom)
+description: Plan file workflow (pending/done, tên phẳng 3 phần)
 ---
 
 # Plans (`.omp/plans/`)
 
 ## Quy tắc đặt tên plan file
 
-- Tên file = **tên nhánh git** tương lai, dạng 3 cấp `động từ/group/nội dung code`:
-  - Động từ: `feat` / `fix` / `refactor` / `docs` / `chore` / `test` / `build`.
-  - Group: khu vực code chịu tác động chính (screen/system), ví dụ `planning-screen`, `library`, `combat`, `mod-manager`.
-  - Nội dung: việc cụ thể, ví dụ `font`, `tooltip`, `billboard`.
-  - Ví dụ: `feat/planning-screen/font.md` → nhánh `feat/planning-screen/font`.
-- File nằm trong `pending/` hoặc `done/` (bảo toàn cây thư mục trên):
-  `.omp/plans/pending/feat/planning-screen/font.md`,
-  `.omp/plans/done/fix/library/tooltip.md`.
+- Tên file = tên nhánh git tương lai với dấu `/` thay bằng dấu `.`, gồm 3 phần
+  `động từ.tiêu đề nhánh.nội dung nhánh.md`:
+  - **Động từ**: `feat` / `fix` / `refactor` / `docs` / `chore` / `test` / `build`.
+  - **Tiêu đề nhánh**: khu vực/hạng mục chính, ví dụ `ui-ux`, `library`, `combat`.
+  - **Nội dung nhánh**: việc cụ thể, ví dụ `gameplay`, `tooltip`, `font`.
+  - Ví dụ: `feat.ui-ux.gameplay.md` → nhánh `feat/ui-ux/gameplay`;
+    `docs.spec.forest-throne-rebuild.md` → nhánh `docs/spec/forest-throne-rebuild`.
+- **File nằm phẳng** trong `pending/` hoặc `done/` — KHÔNG tạo thư mục con
+  trong `pending/`/`done/`. Tên file tự chứa đủ 3 phần.
+- Slug 1 phần giữ tương thích cũ: `<slug>-plan.md`.
+- Plan cũ đang mang tên legacy vẫn hoạt động; đổi tên dần khi chạm tới.
 
 ## Vòng đời
 
 - `pending/` — plan markdown chuẩn của agent, chờ duyệt / đang thực hiện.
-  Plan mode tự sync qua hook `.omp/hooks/pre/plans-sync.ts`: mọi plan ghi vào
-  `local://<dường-dẫn>-plan.md` (có thể nhiều cấp, ví dụ
-  `local://feat/planning-screen/font-plan.md`) được mirror vào
-  `.omp/plans/pending/<tên-file>.md` và render HTML tương ứng.
-- Slug 1 cấp giữ tương thích cũ: `local://<slug>-plan.md` →
-  `.omp/plans/pending/<slug>-plan.md`.
-- `done/` — plan đã hoàn tất. Khi hoàn thành, chạy
-  `/plan-done <đường-dẫn-hoặc-tên-leaf>`; hook dời file (giữ nguyên cây thư mục),
-  render HTML vào group `done` với badge DONE, xoá HTML pending tương ứng.
-  Không di chuyển tay trừ khi hook lỗi.
-- Plan file legacy (tên phẳng sẵn có trong `pending/`/`done/`) vẫn hoạt động
-  nguyên vẹn; đổi tên dần quy tắc mới khi chạm tới.
+  Plan mode tự sync qua hook `.omp/hooks/pre/plans-sync.ts`: plan ghi vào
+  `local://<đường-dẫn>-plan.md` (ví dụ `local://feat/ui-ux/gameplay-plan.md`)
+  được mirror thành `.omp/plans/pending/feat.ui-ux.gameplay.md`.
+- `done/` — plan đã hoàn tất. Khi xong, chạy `/plan-done <tên-file-hoặc-slug>`;
+  hook dời file sang `done/`. Không di chuyển tay trừ khi hook lỗi.
 
-## Custom (trang HTML đọc cho người dùng)
+## Nguồn sự thật
 
-- `custom/plan.css` là **CSS duy nhất** cho mọi trang HTML trong `custom/html/` —
-  cần style gì thì bổ sung vào đúng file đó, không tạo CSS riêng.
-- `custom/html/` có đúng **2 nhóm**: `pending/` và `done/`, mirror cây file plan
-  (`custom/html/pending/feat/planning-screen/font.html` ↔
-  `custom/html/done/...`), kèm `custom/html/agent-index.html` (hook sinh, gồm
-  đúng 2 section Pending/Done + mục Custom viết tay).
-- Chỉ `agent-index.html` và HTML do hook render được ghi đè tự động; trang viết
-  tay (ví dụ `pending/wbs.html`) không bị hook đè.
-- Nội dung plan chuẩn luôn là markdown trong `pending/`/`done/`.
+- Markdown trong `pending/`/`done/` là **nguồn duy nhất**; hook chỉ mirror file,
+  không render HTML và không có thư mục `custom/` hay trang index.

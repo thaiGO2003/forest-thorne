@@ -7,12 +7,12 @@ Your task is to rebuild the visual/presentation experience of **Bá Chủ Khu R�
 The visual implementation may be radically redesigned. The functional contract may not be silently reduced.
 
 The intended result is a production-quality browser auto-battler with a cohesive 3D voxel forest-fantasy identity, strong tactical readability, expressive animal characters, asset-driven medieval UI, responsive desktop/mobile composition, and clean technical ownership.
-> **Bố cục file plan (18/10/2026):** file này được tổ chức theo quy tắc đặt tên 3 cấp `động từ/group/nội dung code`; tên file = tên nhánh `docs/spec/forest-thorne-rebuild`, đặt tại `.omp/plans/pending/docs/spec/`. Nội dung thân giữ nguyên văn, đóng vai **Nội dung công việc — tham chiếu chi tiết** theo khung bố cục bên dưới.
+> **Bố cục file plan (18/10/2026):** file này đặt phẳng tại `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`, tên file = tên nhánh git `docs/spec/forest-throne-rebuild` với dấu `/` thay bằng dấu `.` (3 phần `động từ.tiêu đề nhánh.nội dung nhánh.md`). Nội dung thân giữ nguyên văn, đóng vai **Nội dung công việc — tham chiếu chi tiết** theo khung bố cục bên dưới.
 >
 > - **Nguồn / ngày lập:** mega prompt V3; tổ chức lại thành file plan thống nhất bố cục ngày 18/10/2026 (thân tài liệu giữ nguyên văn).
 > - **Trạng thái:** hợp đồng sản phẩm/kỹ thuật tham chiếu, không phải checklist thực thi trực tiếp; triển khai qua các file plan riêng, mỗi file là một nhánh.
 > - **Nhánh đích:** tên file = tên nhánh — `docs/spec/forest-thorne-rebuild`.
-> - **Plan thực thi liên quan:** `.omp/plans/pending/feat/ui-ux/gameplay.md` (kế hoạch UI/UX, thư viện, thú, âm thanh, đồ họa, giao tranh).
+> - **Plan thực thi liên quan:** `.omp/plans/pending/feat.ui-ux.gameplay.md` (kế hoạch UI/UX, thư viện, thú, âm thanh, đồ họa, giao tranh).
 >
 > ## Mục tiêu và phạm vi
 >
@@ -9760,5 +9760,5 @@ The target is **Forest Throne rebuilt as a visually coherent, expressive, produc
 ## Nghiệm thu và bàn giao
 
 - Tài liệu này là hợp đồng tham chiếu: nghiệm thu cuối cùng là chứng minh **mọi mục "Definition of Done" / capability** trong phần thân bằng hành vi game thật (evidence runtime/browser) và targeted tests, cùng census capability với zero `missing`/`stale`/`duplicate` (mục 56).
-- Triển khai từng gói công việc theo file plan riêng dưới `.omp/plans/`; mỗi file plan = một nhánh, đặt tên 3 cấp `động từ/group/nội dung code`, nằm trong `pending/` hoặc `done/` theo tiến độ.
-- Đối chiếu giao (mapping nguồn → checklist) nằm trong plan thực thi tương ứng, ví dụ Phụ lục A của `.omp/plans/pending/feat/ui-ux/gameplay.md`; khi yêu cầu mới đính chính spec này, ghi đính chính vào plan thực thi theo nguyên tắc đính chính mới nhất ưu tiên.
+- Triển khai từng gói công việc theo file plan riêng dưới `.omp/plans/`; mỗi file plan = một nhánh, tên file `động từ.tiêu đề nhánh.nội dung nhánh.md` (dấu `/` của nhánh thay bằng dấu `.`), nằm phẳng trong `pending/` hoặc `done/` theo tiến độ.
+- Đối chiếu giao (mapping nguồn → checklist) nằm trong plan thực thi tương ứng, ví dụ Phụ lục A của `.omp/plans/pending/feat.ui-ux.gameplay.md`; khi yêu cầu mới đính chính spec này, ghi đính chính vào plan thực thi theo nguyên tắc đính chính mới nhất ưu tiên.

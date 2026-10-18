@@ -4,21 +4,19 @@
 
 Chi tiết đầy đủ: `.omp/rules/plans-workflow.md`.
 
-- Tên file plan = tên nhánh git tương lai, 3 cấp `động từ/group/nội dung code`
-  (ví dụ `feat/planning-screen/font.md`), đặt trong `pending/` hoặc `done/`.
+- Tên file plan = tên nhánh git tương lai, dấu `/` thay bằng dấu `.`, 3 phần
+  `động từ.tiêu đề nhánh.nội dung nhánh.md` (ví dụ `feat.ui-ux.gameplay.md`
+  → nhánh `feat/ui-ux/gameplay`).
+- File nằm **phẳng** trong `pending/` hoặc `done/` — không tạo thư mục con.
 - `pending/` — plan markdown chuẩn của agent, chờ duyệt / đang thực hiện.
-  Plan mode tự sync qua hook `.omp/hooks/pre/plans-sync.ts`: mọi plan ghi vào
-  `local://<đường-dẫn>-plan.md` được mirror vào đây và render HTML vào
-  `custom/html/pending/` (slug 1 cấp giữ định dạng legacy `<slug>-plan.md`).
+  Plan mode tự sync qua hook `.omp/hooks/pre/plans-sync.ts`: plan ghi vào
+  `local://<đường-dẫn>-plan.md` được mirror vào đây (slug 1 phần giữ định dạng
+  legacy `<slug>-plan.md`).
 - `done/` — plan đã hoàn tất. Khi hoàn thành plan, chạy
-  `/plan-done <đường-dẫn-hoặc-tên-leaf>` (hook chuyển file, cập nhật badge
-  HTML, xoá HTML pending và index). Không di chuyển tay trừ khi hook lỗi.
-- `custom/html/` có đúng 2 nhóm: `pending/` và `done/` (mirror cây plan);
-  `custom/plan.css` là **CSS duy nhất** cho tất cả — cần style gì thì bổ sung
-  vào đúng file đó, không tạo CSS riêng.
-- `custom/html/agent-index.html` — index do hook sinh ra, không sửa tay.
-- Trang HTML sinh tự động sẽ bị ghi đè khi plan đổi — nội dung plan chuẩn luôn
-  là file markdown trong `pending/`/`done/`.
+  `/plan-done <tên-file-hoặc-slug>` (hook dời file sang `done/`). Không di
+  chuyển tay trừ khi hook lỗi.
+- Markdown trong `pending/`/`done/` là nguồn duy nhất; không có HTML, không có
+  `custom/`, không có trang index.
 ## UI Asset-First Rules
 
 - Với UI production của game, CSS chỉ dùng cho layout/toạ độ/responsive; không dùng CSS để tô màu hoặc dựng chrome/texture.
