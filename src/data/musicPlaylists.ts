@@ -26,6 +26,11 @@ export const MUSIC_TRACKS: Readonly<Record<string, MusicTrack>> = {
     key: "menu_leaf_01",
     sources: ["/assets/audio/menu/menu_leaf_01.mp3"],
   },
+  menu_magic_world_01: {
+    key: "menu_magic_world_01",
+    sources: ["/assets/audio/menu/menu_magic_world_01.mp3"],
+    longPlay: true,
+  },
   planning_forest_01: {
     key: "planning_forest_01",
     sources: ["/assets/audio/planning/planning_forest_01.ogg", "/assets/audio/planning/planning_forest_01.mp3"],
@@ -49,7 +54,7 @@ export const MUSIC_TRACKS: Readonly<Record<string, MusicTrack>> = {
 };
 
 export const MUSIC_PLAYLISTS: Readonly<Record<MusicContext, MusicPlaylist>> = {
-  menu: { id: "menu", tracks: ["menu_forest_01", "menu_forest_02", "menu_leaf_01"], shuffle: true },
+  menu: { id: "menu", tracks: ["menu_forest_01", "menu_forest_02", "menu_leaf_01", "menu_magic_world_01"], shuffle: true },
   planning: { id: "planning", tracks: ["planning_forest_01"], shuffle: false },
   combat: { id: "combat", tracks: ["combat_forest_01", "combat_dynasty_01"], shuffle: true },
   victory: { id: "victory", tracks: [], shuffle: false },
