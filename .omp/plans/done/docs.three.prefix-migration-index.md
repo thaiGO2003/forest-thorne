@@ -1,6 +1,8 @@
 # Three* Prefix Deprecation & Canonical Renaming Index
 
 Dự án đã thuần Three.js, prefix `Three*` ở 367 files trong `src/three/` là redundant (di sản thời kỳ migration song song với Phaser).
+
+> **Verify 2026-10-18 — OUTDATE một phần:** đã xác nhận `src/` **không còn file `Three*.ts` nào** (0 file) ⇒ phần đổi tên đạt. NHƯNG repo sau đó đã tái cấu trúc sang các thư mục domain (`src/app`, `src/core`, `src/units`, `src/world`, `src/board`, `src/round`, `src/ui`, `src/data`, `src/content`, `src/audio`, `src/network`, `src/platform`, `src/mods`) và **thư mục `src/three/` không còn tồn tại**. Vì vậy cột "tên canonical" (`src/three/*.ts`) trong bảng là **OUTDATED**: một số dòng có thể vẫn đúng tên file nhưng sai đường dẫn, một số đã đổi tiếp. Dùng `git log`/`git mv` history làm nguồn khi cần đối chiếu; không coi bảng này là danh sách đường dẫn hiện hành.
 > **Trạng thái: ĐÃ THỰC HIỆN (2026-09-25).** Toàn bộ 110 file `Three*.ts` trong `src/three/` đã rename theo bảng dưới (commit `3cf9ddbd`, kèm `d9944fa5`), 210 file import/type cập nhật theo. `src/` không còn file `Three*`; tên `Three*` còn lại chỉ thuộc `old_src/` (legacy read-only). Bảng giữ nguyên làm hồ sơ đối chiếu tên cũ → tên canonical.
 
 | STT | File hiện tại | Tên canonical chuẩn | Module / Domain |
