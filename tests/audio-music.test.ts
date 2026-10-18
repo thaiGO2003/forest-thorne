@@ -126,6 +126,33 @@ describe("music director A45", () => {
     director.dispose();
   });
 
+  it("preserves the saved music toggle across master sound changes", () => {
+    const settings = createSettingsStore(memoryStorage());
+    settings.save({
+      audioEnabled: true,
+      audioMuted: false,
+      volumeLevel: 10,
+      musicEnabled: true,
+      musicVolume: 10,
+    });
+    const audio = audioFactory();
+    const director = createMusicDirector({ settings, playlists, createAudioElement: audio.factory });
+    director.play("planning");
+    expect(audio.created[0]?.volume).toBe(1);
+
+    settings.save({ audioMuted: true });
+    expect(audio.created[0]?.volume).toBe(0);
+
+    settings.save({ musicEnabled: false });
+    settings.save({ audioMuted: false });
+    expect(settings.get().musicEnabled).toBe(false);
+    expect(audio.created[0]?.volume).toBe(0);
+
+    settings.save({ musicEnabled: true });
+    expect(audio.created[0]?.volume).toBe(1);
+    director.dispose();
+  });
+
   it("never keeps more than two live elements across rapid transitions", () => {
     const settings = createSettingsStore(memoryStorage());
     const audio = audioFactory();

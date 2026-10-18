@@ -1,0 +1,88 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as THREE from "three";
+
+const kitMocks = vi.hoisted(() => ({
+  label: vi.fn(),
+}));
+
+vi.mock("../src/ui/kit", () => ({
+  LABEL: "#fff8ec",
+  SLICE: { shell_billboard: 1, tile_status: 1 },
+  drawFit: vi.fn(),
+  kitImage: vi.fn(() => ({})),
+  label: kitMocks.label,
+  nineSlice: vi.fn(),
+  onKitReady: vi.fn(() => () => {}),
+  threeSlice: vi.fn(),
+}));
+
+import { createBillboard } from "../src/units/billboard";
+
+describe("billboard presentation", () => {
+  let context: CanvasRenderingContext2D;
+  let canvas: HTMLCanvasElement;
+
+  beforeEach(() => {
+    kitMocks.label.mockClear();
+    context = {
+      setTransform() {},
+      clearRect() {},
+      fillRect() {},
+      imageSmoothingEnabled: true,
+      fillStyle: "",
+    } as unknown as CanvasRenderingContext2D;
+    canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => context),
+    } as unknown as HTMLCanvasElement;
+    vi.stubGlobal("devicePixelRatio", 1);
+    vi.stubGlobal("document", {
+      createElement: vi.fn((tag: string) => {
+        expect(tag).toBe("canvas");
+        return canvas;
+      }),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders HP heart readout above the rage lightning readout", () => {
+    const anchor = new THREE.Object3D();
+    const billboard = createBillboard(anchor);
+
+    billboard.set({
+      name: "Unit",
+      star: 2,
+      hp: 25,
+      maxHp: 100,
+      rage: 3,
+      rageMax: 4,
+      side: "L",
+      statuses: [],
+    });
+
+    const heartCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("25%"));
+    const rageCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("3/4 · 75%"));
+    expect(heartCall).toBeDefined();
+    expect(rageCall).toBeDefined();
+    expect(heartCall![3]).toBeLessThan(rageCall![3]);
+
+    billboard.dispose();
+  });
+
+  it("raises and restores sprite render order without replacing the billboard", () => {
+    const anchor = new THREE.Object3D();
+    const billboard = createBillboard(anchor);
+
+    expect(billboard.sprite.renderOrder).toBe(10);
+    billboard.setPriority(true);
+    expect(billboard.sprite.renderOrder).toBe(20);
+    billboard.setPriority(false);
+    expect(billboard.sprite.renderOrder).toBe(10);
+
+    billboard.dispose();
+  });
+});

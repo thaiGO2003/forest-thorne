@@ -3,7 +3,7 @@
 // (9/3-slice); only fills and text are dynamic. One canvas + texture per unit, redrawn on change.
 import * as THREE from "three";
 import { ICONS } from "../core/emojiIcon";
-import { drawFit, kitImage, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
+import { drawFit, kitImage, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
 
 export interface BillboardStatus { key: string; positive: boolean }
 
@@ -22,6 +22,8 @@ export interface BillboardState {
 export const BILLBOARD_W = 512, BILLBOARD_H = 176;
 const MAX_PER_SIDE = 3, MAX_SEGMENTS = 10;
 const WORLD_W = 1.85;
+const BASE_RENDER_ORDER = 10;
+const HOVER_RENDER_ORDER = 20;
 
 export interface Normalized extends BillboardState { segments: number; filled: number; pos: string[]; neg: string[] }
 
@@ -51,6 +53,7 @@ export interface Billboard {
   sprite: THREE.Sprite;
   set(s: BillboardState): void;
   setVisible(v: boolean): void;
+  setPriority(v: boolean): void;
   dispose(): void;
 }
 
@@ -66,7 +69,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(WORLD_W, (WORLD_W * BILLBOARD_H) / BILLBOARD_W, 1);
   sprite.center.set(0.5, 0);
-  sprite.renderOrder = 10;
+  sprite.renderOrder = BASE_RENDER_ORDER;
   sprite.raycast = () => {};
   anchor.add(sprite); // follows the unit through movement/staging automatically
   let state: Normalized | null = null;
@@ -100,10 +103,12 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     // Name + stars.
     const ally = s.side === "L";
     for (let i = 0; i < s.star; i++) drawFit(g, "star", 18 + i * 26, sy + 12, 24, 24);
-    label(g, s.name, BILLBOARD_W / 2 + 20, sy + 24, { size: 28, weight: 800, maxW: BILLBOARD_W - 140, fill: ally ? "#fff8ec" : "#ffd6cc" });
+    label(g, s.name, BILLBOARD_W / 2 + 20, sy + 24, { size: 28, weight: 800, maxW: BILLBOARD_W - 140, fill: LABEL });
 
-    // HP bar: trough → live fill → authored frame on top.
-    const bx = 14, bw = BILLBOARD_W - 28, by = sy + 44, bh = 34;
+    // HP and rage share one right-hand readout column: heart above lightning.
+    const bx = 14, readoutW = 150, readoutGap = 10;
+    const bw = BILLBOARD_W - bx * 2 - readoutW - readoutGap;
+    const by = sy + 44, bh = 34;
     nineSlice(g, "bar_trough", 1, bx + 6, by + 6, bw - 12, bh - 12);
     const pct = s.hp / s.maxHp, fw = Math.round((bw - 12) * pct);
     g.fillStyle = ally ? (pct > 0.5 ? "#5fd04a" : pct > 0.25 ? "#e8c23a" : "#e0503a") : "#e0503a";
@@ -111,19 +116,20 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     g.fillStyle = "rgba(255,255,255,0.35)";
     g.fillRect(bx + 6, by + 6, fw, 5);
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
-    label(g, `${s.hp}/${s.maxHp} · ${Math.round(pct * 100)}%`, BILLBOARD_W / 2, by + bh / 2, { size: 20 });
+    label(g, `${s.hp}/${s.maxHp}`, bx + bw / 2, by + bh / 2, { size: 20 });
+    label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, BILLBOARD_W - 14, by + bh / 2, { size: 18, align: "right", fill: LABEL });
 
-    // Rage: segmented cells (3-slice frames) + precise numeric value.
-    const ry = by + bh + 4, rh = 24, numW = 174, gap = 4;
-    const cw = (BILLBOARD_W - 28 - numW - gap * (s.segments - 1)) / s.segments;
+    // Rage: segmented cells aligned under HP, with the lightning readout under the heart.
+    const ry = by + bh + 4, rh = 24, gap = 4;
+    const cw = (bw - gap * (s.segments - 1)) / s.segments;
     for (let i = 0; i < s.segments; i++) {
-      const x = 14 + i * (cw + gap);
+      const x = bx + i * (cw + gap);
       nineSlice(g, "bar_trough", 1, x + 3, ry + 3, cw - 6, rh - 6);
       if (i < s.filled) { g.fillStyle = "#ffcf3a"; g.fillRect(x + 3, ry + 3, cw - 6, rh - 6); }
       threeSlice(g, "frame_rage_cell", 2, x, ry, cw, rh);
     }
     const ragePercent = s.rageMax > 0 ? Math.round((s.rage / s.rageMax) * 100) : 0;
-    label(g, `${ICONS.rage}${s.rage}/${s.rageMax} · ${ragePercent}%`, BILLBOARD_W - 14, ry + rh / 2, { size: 17, align: "right" });
+    label(g, `${ICONS.rage} ${s.rage}/${s.rageMax} · ${ragePercent}%`, BILLBOARD_W - 14, ry + rh / 2, { size: 17, align: "right", fill: LABEL });
     tex.needsUpdate = true;
   };
 
@@ -137,6 +143,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       draw();
     },
     setVisible(v) { sprite.visible = v; },
+    setPriority(v) { sprite.renderOrder = v ? HOVER_RENDER_ORDER : BASE_RENDER_ORDER; },
     dispose() { offKit(); sprite.removeFromParent(); tex.dispose(); mat.dispose(); state = null; },
   };
 }

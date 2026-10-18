@@ -191,6 +191,7 @@ describe("Planning drag controller", () => {
         if (uid === "enemy-preview") return { root: enemyRoot };
         return undefined;
       },
+      setHovered: vi.fn(),
     };
 
     const setHighlights = vi.fn();
@@ -295,8 +296,10 @@ describe("Planning drag controller", () => {
       target: { kind: "board", index: boardAIndex },
       valid: false,
     });
+    const invalidMoveCount = moves.length;
     canvas.dispatchPointer("pointerup", sameCell.clientX + 8, sameCell.clientY, 9);
     expect(controller.targetState()).toBeNull();
+    expect(moves).toHaveLength(invalidMoveCount);
     expect(targetStates.some((state) => state?.valid === false && state.target?.kind === "board")).toBe(true);
     const boardB = { col: 3, row: 1 };
     const boardBWorld = cellToWorld(toVisual(boardB.col, boardB.row), "solo");
@@ -304,6 +307,11 @@ describe("Planning drag controller", () => {
       new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z),
       new THREE.Vector3(boardBWorld.x, TILE_HEIGHT, boardBWorld.z),
       2,
+      "mouse",
+      () => {
+        renderFrame(0.1);
+        expect(playerRoot.position.distanceTo(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z))).toBeGreaterThan(0.1);
+      },
     );
     const boardBIndex = boardB.row * 5 + boardB.col;
     expect(run.board[boardAIndex]).toBeNull();
@@ -418,20 +426,24 @@ describe("Planning drag controller", () => {
       visual(id: string) {
         return id === uid ? { root } : undefined;
       },
+      setHovered: vi.fn(),
     };
     const setHighlights = vi.fn();
     const clearHighlights = vi.fn();
     const setBenchHighlights = vi.fn();
     const clearBenchHighlights = vi.fn();
+    let renderFrame: (dt: number) => void = () => {};
     const stage = {
       renderer: { domElement: canvas },
       camera,
       arena: { tiles, setHighlights, clearHighlights, setBenchHighlights, clearBenchHighlights },
       scene,
+      onFrame(callback: (dt: number) => void) { renderFrame = callback; return () => { renderFrame = () => {}; }; },
     };
     const preview = vi.fn();
     const previewEnd = vi.fn();
     const move = vi.fn(() => false);
+    let enabled = true;
     const controller = createPlanningDragController({
       stage: stage as never,
       board: boardView as never,
@@ -439,24 +451,59 @@ describe("Planning drag controller", () => {
       move,
       preview,
       previewEnd,
-      enabled: () => true,
+      enabled: () => enabled,
     });
+    const hover = scene.children.find((object) => object instanceof THREE.Mesh
+      && object.geometry instanceof THREE.PlaneGeometry) as THREE.Mesh | undefined;
+    expect(hover).toBeDefined();
+
+    const grassWorld = cellToWorld(toVisual(2, 2), "solo");
+    const grassPoint = clientPointForWorld(new THREE.Vector3(grassWorld.x, TILE_HEIGHT, grassWorld.z), camera, rect);
+    canvas.dispatchPointer("pointermove", grassPoint.clientX, grassPoint.clientY);
+    expect(hover?.visible).toBe(true);
+    expect(hover?.position.x).toBeCloseTo(grassWorld.x, 6);
+    expect(hover?.position.z).toBeCloseTo(grassWorld.z, 6);
+
+    const riverWorld = cellToWorld({ x: 5, z: 2 }, "solo");
+    const riverPoint = clientPointForWorld(new THREE.Vector3(riverWorld.x, TILE_HEIGHT, riverWorld.z), camera, rect);
+    canvas.dispatchPointer("pointermove", riverPoint.clientX, riverPoint.clientY);
+    expect(hover?.visible).toBe(true);
+    expect(hover?.position.x).toBeCloseTo(riverWorld.x, 6);
+    expect(hover?.position.z).toBeCloseTo(riverWorld.z, 6);
 
     const benchPoint = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
     canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
+    expect(hover?.visible).toBe(true);
+    expect(hover?.position.x).toBeCloseTo(bench[0]!.x, 6);
+    expect(hover?.position.z).toBeCloseTo(bench[0]!.z, 6);
     expect(preview).toHaveBeenCalledWith({ kind: "bench", index: 0 }, expect.anything());
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(uid);
     expect(setBenchHighlights.mock.calls.at(-1)?.[0]).toEqual([{ index: 0, role: "hover" }]);
     canvas.dispatchPointer("pointerleave", benchPoint.clientX, benchPoint.clientY);
     expect(previewEnd).toHaveBeenCalledTimes(1);
     expect(clearBenchHighlights).toHaveBeenCalled();
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(uid);
+    enabled = false;
+    canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    enabled = true;
+    run.phase = "COMBAT";
+    canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    run.phase = "PLANNING";
 
+    const previewCallsBeforeLongPress = preview.mock.calls.length;
     canvas.dispatchPointer("pointerdown", benchPoint.clientX, benchPoint.clientY, 7, "touch");
     vi.advanceTimersByTime(420);
-    expect(preview).toHaveBeenCalledTimes(2);
+    expect(preview).toHaveBeenCalledTimes(previewCallsBeforeLongPress + 1);
     const target = { col: 2, row: 1 };
     const targetWorld = cellToWorld(toVisual(target.col, target.row), "solo");
     const targetPoint = clientPointForWorld(new THREE.Vector3(targetWorld.x, TILE_HEIGHT, targetWorld.z), camera, rect);
     canvas.dispatchPointer("pointermove", targetPoint.clientX, targetPoint.clientY, 7, "touch");
+    renderFrame(0.1);
+    expect(root.position.distanceTo(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z))).toBeGreaterThan(0.1);
     canvas.dispatchPointer("pointerup", targetPoint.clientX, targetPoint.clientY, 7, "touch");
     expect(move).toHaveBeenCalledWith(
       { kind: "bench", index: 0 },
@@ -467,12 +514,35 @@ describe("Planning drag controller", () => {
       row: target.row,
       role: "invalid",
     }]);
+    expect(root.position.distanceTo(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z))).toBeLessThan(1e-6);
 
+    canvas.dispatchPointer("pointerdown", benchPoint.clientX, benchPoint.clientY, 8, "touch");
+    canvas.dispatchPointer("pointermove", targetPoint.clientX, targetPoint.clientY, 8, "touch");
+    renderFrame(0.1);
+    expect(canvas.hasPointerCapture(8)).toBe(true);
+    canvas.dispatchPointer("pointercancel", targetPoint.clientX, targetPoint.clientY, 8, "touch");
+    expect(controller.targetState()).toBeNull();
+    expect(root.position.distanceTo(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z))).toBeLessThan(1e-6);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    expect(canvas.hasPointerCapture(8)).toBe(false);
+
+    canvas.dispatchPointer("pointerdown", benchPoint.clientX, benchPoint.clientY, 9, "touch");
+    canvas.dispatchPointer("pointermove", targetPoint.clientX, targetPoint.clientY, 9, "touch");
+    renderFrame(0.1);
+    expect(canvas.hasPointerCapture(9)).toBe(true);
+    canvas.releasePointerCapture(9);
+    canvas.dispatchPointer("lostpointercapture", targetPoint.clientX, targetPoint.clientY, 9, "touch");
+    expect(controller.targetState()).toBeNull();
+    expect(root.position.distanceTo(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z))).toBeLessThan(1e-6);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+
+    const previewCallsBeforeBlur = preview.mock.calls.length;
+    const previewEndCallsBeforeBlur = previewEnd.mock.calls.length;
     placeRoot(root, bench[0]!.x, bench[0]!.z, scene);
     canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
-    expect(preview).toHaveBeenCalledTimes(3);
+    expect(preview).toHaveBeenCalledTimes(previewCallsBeforeBlur + 1);
     for (const listener of windowListeners.get("blur") ?? []) listener(new Event("blur"));
-    expect(previewEnd).toHaveBeenCalledTimes(3);
+    expect(previewEnd).toHaveBeenCalledTimes(previewEndCallsBeforeBlur + 1);
     expect(clearHighlights).toHaveBeenCalled();
     expect(clearBenchHighlights).toHaveBeenCalled();
 

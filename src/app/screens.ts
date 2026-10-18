@@ -1,20 +1,20 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
-import { BOARD_SIZE, boardCount, slotCap, type RoundResultSummary } from "../core/run";
+import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary } from "../core/run";
 import { activeIndices, matchRecipe, RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
-import { normalizeKey } from "../core/settings";
-import { h, kitButton, panelEl } from "../ui/kit";
+import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
+import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
 import { mountUnitInventory } from "../ui/unitInventory";
 import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
-import { snapshotWithResources } from "../core/combat";
+import { combatTargetPreview, snapshotWithResources } from "../core/combat";
 import { mountSettings } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
-import { mountHistory } from "../ui/history";
+import { mountHistory, mountHistoryView } from "../ui/history";
 import type { ModalHandle, ModalOptions } from "../ui/modal";
 import { applyLocale, registerPanel, registerScreen, registerUtility, type App } from "./app";
 import { runView } from "./bridge";
@@ -23,17 +23,18 @@ import { createPortraits } from "../units/portraits";
 import { createPlanningDragController } from "./planningDrag";
 import { getUnit } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
+import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
 import { teamStrength, unitDiagnostics, type UnitDiagnostics, type UnitStatSnapshot } from "../core/inspection";
 import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
+import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
 import { getGameSpeedDisplayMultiplier } from "../core/gameSpeed";
 import { finishFastCost } from "../core/combatFast";
 import { createModManager, type ModManager, type ModPackageType, type ModSource, type ModValidationIssue } from "../mods/ModRegistry";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
 import { createCombatFx, type CombatFx } from "../units/fx";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
-import type { TacticalHighlightCell } from "../world/arena";
 import { createVictoryFireworks, type VictoryFireworks, type VictoryFireworkOrigin } from "../world/victoryFireworks";
 import {
   DONATE_ACCOUNT,
@@ -148,7 +149,7 @@ function openDonate(app: App) {
   randomize.el.append(h("span", "kit-fit-measure", t("donate.randomize")));
   details.append(account, selectedAmount, presets, h("strong", "", t("donate.memo")), memoCopy, randomize.el);
 
-  const qrWrap = h("div", "donate-qr-wrap");
+  const qrWrap = panelEl("slot_well", "donate-qr-wrap");
   const qr = document.createElement("img");
   qr.className = "donate-qr";
   qr.alt = t("donate.qrAlt");
@@ -177,6 +178,9 @@ function openMods(app: App) {
       ? t("mods.issueMissingDependency", { modId: issue.modId, dependencyId: issue.dependencyId })
       : t("mods.issueConflict", { modId: issue.modId, conflictId: issue.conflictId });
   const listCopy = (values: string[]) => values.length ? values.join(", ") : t("mods.none");
+  type ModHubView = "installed" | "enabled" | "local";
+  let view: ModHubView = "installed";
+  let selectedModId: string | null = null;
   let importStatus = "";
   void modManager().then((manager) => {
     if (app.modals.active() !== "mods") return;
@@ -185,11 +189,41 @@ function openMods(app: App) {
       const index = manager.getIndex();
       const profile = manager.getProfile();
       const rank = new Map(profile.loadOrder.map((id, position) => [id, position]));
-      const manifests = [...index.mods].sort((a, b) =>
+      const allManifests = [...index.mods].sort((a, b) =>
         (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+      const manifests = allManifests.filter((manifest) =>
+        view === "installed" || (view === "enabled" ? manager.isEnabled(manifest.id) : manifest.source === "local"));
       const warnings = manager.getRegistryWarnings();
       const issues = manager.validateEnabled();
       const workshopStatus = index.workshop.status === "available" ? t("mods.workshopAvailable") : t("mods.workshopPlaceholder");
+      if (selectedModId && !manifests.some((manifest) => manifest.id === selectedModId)) selectedModId = null;
+      selectedModId ??= manifests[0]?.id ?? null;
+
+      const header = h("div", "stack mods-header");
+      const summary = h("div", "mods-summary");
+      summary.append(
+        h("div", "slot", t("mods.summary", { enabled: profile.enabledIds.length, total: allManifests.length })),
+        h("div", "slot", t("mods.workshop") + ": " + workshopStatus + (index.workshop.appId ? " · " + index.workshop.appId : "")),
+      );
+      const nav = h("div", "tabs mods-nav");
+      const navItems: Array<{ id: ModHubView; label: MsgKey }> = [
+        { id: "installed", label: "mods.installed" },
+        { id: "enabled", label: "mods.enabledOnly" },
+        { id: "local", label: "mods.localOnly" },
+      ];
+      for (const item of navItems) {
+        const button = kitButton({
+          skin: "wood",
+          label: t(item.label),
+          onClick: () => {
+            view = item.id;
+            selectedModId = null;
+            render();
+          },
+        });
+        button.setSelected(view === item.id);
+        nav.append(button.el);
+      }
       const importRow = h("div", "row mod-import");
       const importLabel = h("span", "", t("mods.import"));
       const importInput = document.createElement("input");
@@ -202,8 +236,11 @@ function openMods(app: App) {
         if (!file) return;
         try {
           const result = manager.importLocalPackage(file.name, await file.text());
-          if (result.ok) importStatus = t("mods.importSuccess", { name: result.manifest.name });
-          else {
+          if (result.ok) {
+            importStatus = t("mods.importSuccess", { name: result.manifest.name });
+            view = "local";
+            selectedModId = result.manifest.id;
+          } else {
             const key: Record<typeof result.kind, MsgKey> = {
               "unsupported-extension": "mods.importUnsupported",
               "invalid-json": "mods.importInvalidJson",
@@ -218,50 +255,42 @@ function openMods(app: App) {
         if (app.modals.active() === "mods") render();
       });
       importRow.append(importLabel, importInput);
-      root.append(importRow);
+      header.append(summary, nav, importRow);
       if (importStatus) {
         const status = h("div", "slot", importStatus);
         status.setAttribute("role", "status");
-        root.append(status);
+        header.append(status);
       }
-      const summary = h("div", "mods-summary");
-      summary.append(
-        h("div", "slot", t("mods.summary", { enabled: profile.enabledIds.length, total: manifests.length })),
-        h("div", "slot", t("mods.workshop") + ": " + workshopStatus + (index.workshop.appId ? " · " + index.workshop.appId : "")),
-      );
-      root.append(summary);
-      if (!manifests.length) root.append(h("div", "slot", t("mods.empty")));
+      root.append(header);
+
+      const layout = h("div", "mods-layout");
+      const list = h("div", "stack mods-list");
+      if (!allManifests.length) list.append(h("div", "slot", t("mods.empty")));
+      else if (!manifests.length) list.append(h("div", "slot", t("mods.filterEmpty")));
       for (const manifest of manifests) {
-        const card = h("div", "slot mod-row");
-        const copy = h("div", "grow mod-copy");
         const enabled = manager.isEnabled(manifest.id);
         const position = profile.loadOrder.indexOf(manifest.id);
+        const card = panelEl("panel_tooltip", "mod-row mod-card");
+        card.dataset.selected = String(manifest.id === selectedModId);
+        const icon = h("span", "mod-icon", ICONS.mods);
+        icon.setAttribute("aria-hidden", "true");
+        const copy = h("div", "grow mod-copy");
         copy.append(
           h("strong", "", manifest.name + " · v" + manifest.version),
-          h("div", "mod-state", t(enabled ? "mods.enabled" : "mods.disabled") + " · " + t("mods.loadOrder") + ": " + (position >= 0 ? String(position + 1) : "—")),
-          h("div", "", manifest.description),
+          h("div", "mod-state", manifest.author + " · " + t(enabled ? "mods.enabled" : "mods.disabled")
+            + " · " + t("mods.loadOrder") + ": " + (position >= 0 ? String(position + 1) : "—")),
+          h("small", "", t(MOD_PACKAGE_TYPE_COPY[manifest.packageType])),
         );
-        const meta = h("div", "mod-meta");
-        meta.append(
-          h("small", "", t("mods.packageType") + ": " + t(MOD_PACKAGE_TYPE_COPY[manifest.packageType])),
-          h("small", "", t("mods.source") + ": " + t(MOD_SOURCE_COPY[manifest.source])),
-          h("small", "", t("mods.author") + ": " + manifest.author),
-        );
-        const relations = h("div", "mod-relations");
-        relations.append(
-          h("small", "", t("mods.requires") + ": " + listCopy(manifest.requires)),
-          h("small", "", t("mods.conflicts") + ": " + listCopy(manifest.conflicts)),
-          h("small", "", t("mods.tags") + ": " + listCopy(manifest.tags)),
-        );
-        copy.append(meta, relations);
-        if (manifest.workshopId) copy.append(h("small", "", t("mods.workshop") + ": " + manifest.workshopId));
-        const packageIssues = issues.filter((issue) => issue.modId === manifest.id);
-        if (packageIssues.length) {
-          const packageValidation = h("div", "mod-package-issues");
-          for (const issue of packageIssues) packageValidation.append(h("small", "", issueCopy(issue)));
-          copy.append(packageValidation);
-        }
         const actions = h("div", "row mod-actions");
+        const details = kitButton({
+          skin: "wood",
+          label: t("mods.details"),
+          onClick: () => {
+            selectedModId = manifest.id;
+            render();
+          },
+        });
+        details.setSelected(manifest.id === selectedModId);
         const toggle = kitButton({
           skin: enabled ? "red" : "green",
           label: t(enabled ? "mods.disable" : "mods.enable"),
@@ -271,37 +300,109 @@ function openMods(app: App) {
             render();
           },
         });
-        const up = kitButton({ skin: "wood", label: t("mods.up"), onClick: () => { manager.move(manifest.id, -1); render(); } });
-        const down = kitButton({ skin: "wood", label: t("mods.down"), onClick: () => { manager.move(manifest.id, 1); render(); } });
+        actions.append(details.el, toggle.el);
+        card.append(icon, copy, actions);
+        list.append(card);
+      }
+
+      const detail = panelEl("panel_tooltip", "stack mod-detail");
+      const selected = allManifests.find((manifest) => manifest.id === selectedModId);
+      if (!selected) {
+        detail.append(h("div", "slot", allManifests.length ? t("mods.filterEmpty") : t("mods.empty")));
+      } else {
+        const enabled = manager.isEnabled(selected.id);
+        const position = profile.loadOrder.indexOf(selected.id);
+        const title = h("div", "mod-detail-title");
+        const icon = h("span", "mod-icon", ICONS.mods);
+        icon.setAttribute("aria-hidden", "true");
+        title.append(icon, h("strong", "", selected.name + " · v" + selected.version));
+        detail.append(title, h("div", "", selected.description || t("mods.noDescription")));
+        const meta = h("div", "mod-meta");
+        meta.append(
+          h("small", "", t("mods.packageType") + ": " + t(MOD_PACKAGE_TYPE_COPY[selected.packageType])),
+          h("small", "", t("mods.source") + ": " + t(MOD_SOURCE_COPY[selected.source])),
+          h("small", "", t("mods.author") + ": " + selected.author),
+        );
+        const relations = h("div", "mod-relations");
+        relations.append(
+          h("small", "", t("mods.requires") + ": " + listCopy(selected.requires)),
+          h("small", "", t("mods.conflicts") + ": " + listCopy(selected.conflicts)),
+          h("small", "", t("mods.tags") + ": " + listCopy(selected.tags)),
+        );
+        detail.append(meta, relations);
+        if (selected.workshopId) detail.append(h("small", "", t("mods.workshop") + ": " + selected.workshopId));
+        const packageIssues = issues.filter((issue) => issue.modId === selected.id);
+        if (packageIssues.length) {
+          const packageValidation = h("div", "mod-package-issues");
+          for (const issue of packageIssues) packageValidation.append(h("small", "", issueCopy(issue)));
+          detail.append(packageValidation);
+        }
+        const actions = h("div", "row mod-actions");
+        const toggle = kitButton({
+          skin: enabled ? "red" : "green",
+          label: t(enabled ? "mods.disable" : "mods.enable"),
+          onClick: () => {
+            if (manager.isEnabled(selected.id)) manager.disable(selected.id);
+            else manager.enable(selected.id);
+            render();
+          },
+        });
+        const up = kitButton({ skin: "wood", label: t("mods.up"), onClick: () => { manager.move(selected.id, -1); render(); } });
+        const down = kitButton({ skin: "wood", label: t("mods.down"), onClick: () => { manager.move(selected.id, 1); render(); } });
         up.setDisabled(!enabled || position <= 0);
         down.setDisabled(!enabled || position < 0 || position >= profile.loadOrder.length - 1);
         actions.append(toggle.el, up.el, down.el);
-        card.append(copy, actions);
-        root.append(card);
+        if (selected.source === "local") {
+          const remove = kitButton({
+            skin: "red",
+            label: t("mods.remove"),
+            onClick: () => {
+              if (manager.removeLocal(selected.id)) {
+                importStatus = t("mods.removeSuccess", { name: selected.name });
+                selectedModId = null;
+                render();
+              }
+            },
+          });
+          actions.append(remove.el);
+        }
+        detail.append(actions);
       }
+      layout.append(list, detail);
+      root.append(layout);
+
       const validation = h("div", "stack mod-validation");
       validation.append(h("strong", "", t("mods.validation")));
       if (!issues.length && !warnings.length) validation.append(h("div", "slot", t("mods.noIssues")));
       for (const issue of issues) validation.append(h("div", "slot", issueCopy(issue)));
-      for (const warning of warnings) validation.append(h("div", "slot", t("mods.warning") + ": " + warning.message));
+      for (const warning of warnings) {
+        const row = h("div", "slot", t("mods.warning") + ": " + warning.message);
+        row.setAttribute("role", "alert");
+        validation.append(row);
+      }
       root.append(validation);
     };
     render();
   });
 }
 
+
 function openInformation(app: App) {
   const m = app.modals.open({ id: "information", title: t("menu.information"), size: "full", closeLabel: t("ui.close") });
   const root = h("div", "info-modal");
   const tabs = h("div", "tabs");
   const body = h("div", "stack info-body");
-  type InfoTab = "overview" | "allies" | "enemies" | "inventory";
+  type InfoTab = "overview" | "weather" | "sides" | "formations" | "synergy" | "effects" | "history";
   let active: InfoTab = "overview";
+  let mountedHistory: { dispose(): void } | null = null;
   const tabDefs: Array<{ id: InfoTab; key: MsgKey }> = [
     { id: "overview", key: "info.overview" },
-    { id: "allies", key: "info.allies" },
-    { id: "enemies", key: "info.enemies" },
-    { id: "inventory", key: "info.inventory" },
+    { id: "weather", key: "info.weather" },
+    { id: "sides", key: "info.sides" },
+    { id: "formations", key: "info.formations" },
+    { id: "synergy", key: "info.synergy" },
+    { id: "effects", key: "info.effects" },
+    { id: "history", key: "info.history" },
   ];
   const tabButtons = tabDefs.map((tab) => {
     const button = kitButton({ skin: "blue", label: t(tab.key), onClick: () => { active = tab.id; render(); } });
@@ -309,26 +410,16 @@ function openInformation(app: App) {
     return { ...tab, button };
   });
 
-  const unitStrength = (units: Array<{ baseId: string; star: number }>) => {
-    const rows = units.map((entry) => {
-      const unit = getUnit(entry.baseId);
-      const scale = STAR_STAT[entry.star] ?? 1;
-      const hp = unit.stats.hp * scale;
-      return {
-        hp, maxHp: hp, shield: 0,
-        atk: unit.stats.atk * scale,
-        matk: unit.stats.matk * scale,
-        def: unit.stats.def * scale,
-        mdef: unit.stats.mdef * scale,
-        star: entry.star,
-        tier: unit.tier,
-        alive: true,
-      };
-    });
-    return {
-      power: teamStrength(rows).power,
-      hp: rows.reduce((sum, row) => sum + row.maxHp, 0),
-    };
+  const disposeTabContent = () => {
+    mountedHistory?.dispose();
+    mountedHistory = null;
+    body.replaceChildren();
+  };
+
+  const appendKv = (host: HTMLElement, label: string, value: string | number) => {
+    const row = panelEl("panel_tooltip", "info-kv");
+    row.append(h("strong", "", label), h("span", "", String(value)));
+    host.append(row);
   };
 
   const unitList = (entries: Array<{ uid: string; baseId: string; star: number; equips?: string[] }>, empty: string, detailId: (entry: { uid: string }) => string) => {
@@ -338,7 +429,7 @@ function openInformation(app: App) {
     }
     for (const entry of entries) {
       const unit = getUnit(entry.baseId);
-      const row = h("div", "slot info-unit");
+      const row = panelEl("panel_tooltip", "info-unit");
       const copy = h("div", "grow");
       copy.append(
         h("strong", "", `${unit.nameVi} ★${entry.star}`),
@@ -351,8 +442,50 @@ function openInformation(app: App) {
     }
   };
 
+  const compareMetric = (label: string, ally: number, enemy: number) => {
+    const card = panelEl("panel_tooltip", "info-compare");
+    const max = Math.max(1, ally, enemy);
+    const head = h("div", "info-compare-head");
+    head.append(
+      h("strong", "", label),
+      h("span", "", `${t("info.allies")}: ${Math.round(ally)} · ${t("info.enemies")}: ${Math.round(enemy)}`),
+    );
+    const bars = h("div", "info-compare-bars");
+    const meter = (side: "ally" | "enemy", value: number) => {
+      const el = h("div", "info-meter");
+      el.setAttribute("role", "meter");
+      el.setAttribute("aria-label", `${side === "ally" ? t("info.allies") : t("info.enemies")} · ${label}`);
+      el.setAttribute("aria-valuemin", "0");
+      el.setAttribute("aria-valuemax", String(Math.round(max)));
+      el.setAttribute("aria-valuenow", String(Math.round(value)));
+      surface(el, (g, w, hh) => {
+        nineSlice(g, "bar_trough", 1, 3, 3, Math.max(0, w - 6), Math.max(0, hh - 6));
+        const fw = Math.round(Math.max(0, w - 6) * Math.max(0, Math.min(1, value / max)));
+        g.fillStyle = side === "ally" ? "#55b86a" : "#d85f61";
+        g.fillRect(3, 3, fw, Math.max(0, hh - 6));
+        threeSlice(g, "frame_bar", 3, 0, 0, w, hh);
+      });
+      return el;
+    };
+    bars.append(meter("ally", ally), meter("enemy", enemy));
+    card.append(head, bars);
+    body.append(card);
+  };
+
+  const teamSnapshot = (entries: Array<{ uid: string }>, side: "L" | "R") => {
+    const diagnostics = entries.flatMap((entry) => {
+      const diagnostic = side === "L" ? ownedDiagnostics(app, entry.uid)?.diagnostics : enemyDiagnostics(app, entry.uid);
+      return diagnostic ? [diagnostic] : [];
+    });
+    return teamStrength(diagnostics.map((diagnostic) => ({
+      ...diagnostic.live,
+      star: diagnostic.star,
+      tier: getUnit(diagnostic.baseId).tier,
+    })));
+  };
+
   const render = () => {
-    body.replaceChildren();
+    disposeTabContent();
     for (const tab of tabButtons) tab.button.setSelected(tab.id === active);
     const run = app.bridge.run();
     if (!run) {
@@ -361,57 +494,121 @@ function openInformation(app: App) {
     }
     const preview = app.bridge.prepareEnemyPreview();
     const allies = run.board.filter((unit): unit is NonNullable<typeof unit> => unit !== null);
+    const ownedAllies = [...allies, ...run.bench];
     const enemies = preview?.units ?? run.enemyPreview;
+    const combat = app.bridge.combatSnapshot();
+
     if (active === "overview") {
-      const friendly = unitStrength(allies);
-      const enemy = unitStrength(enemies);
       const summary = h("div", "info-summary");
-      const compare = (ally: string | number, enemy: string | number) =>
-        `${t("info.allies")}: ${ally} · ${t("info.enemies")}: ${enemy}`;
-      const lines = [
-        [t("info.health"), compare(Math.round(friendly.hp), Math.round(enemy.hp))],
-        [t("info.power"), compare(friendly.power, enemy.power)],
-        [t("info.nextWeather"), t(`element.${environmentFor(run.round + 1)}` as MsgKey)],
-        [t("info.followingWeather"), t(`element.${environmentFor(run.round + 2)}` as MsgKey)],
-      ];
-      for (const [label, value] of lines) {
-        const row = h("div", "slot info-kv");
-        row.append(h("strong", "", label!), h("span", "", value!));
-        summary.append(row);
+      appendKv(summary, t("combat.round", { round: run.round }), t(`info.phase.${run.phase}` as MsgKey));
+      appendKv(summary, t("info.cycle"), app.presentation.combatCycle ?? "—");
+      appendKv(summary, t("info.level"), run.level);
+      appendKv(summary, t("info.gold"), run.gold);
+      appendKv(summary, t("info.hearts"), run.hp);
+      appendKv(summary, t("info.deployed"), allies.length);
+      appendKv(summary, t("info.environment"), t(`element.${combat?.environment ?? environmentFor(run.round)}` as MsgKey));
+      body.append(summary);
+      return;
+    }
+
+    if (active === "weather") {
+      const current = combat?.environment ?? environmentFor(run.round);
+      const rows = [
+        [t("info.currentWeather"), t(`element.${current}` as MsgKey), t("info.confirmed")],
+        [t("info.nextWeather"), t(`element.${environmentFor(run.round + 1)}` as MsgKey), t("info.forecast")],
+        [t("info.followingWeather"), t(`element.${environmentFor(run.round + 2)}` as MsgKey), t("info.forecast")],
+      ] as const;
+      for (const [label, value, certainty] of rows) {
+        const card = panelEl("panel_tooltip", "info-weather-card");
+        card.append(h("strong", "", label), h("span", "", value), h("small", "", certainty));
+        body.append(card);
       }
-      body.append(summary, h("strong", "", t("info.synergy")));
+      return;
+    }
+
+    if (active === "sides") {
+      const friendly = teamSnapshot(allies, "L");
+      const enemy = teamSnapshot(enemies, "R");
+      compareMetric(t("info.health"), friendly.hp, enemy.hp);
+      compareMetric(t("info.power"), friendly.power, enemy.power);
+      const counts = h("div", "info-summary");
+      appendKv(counts, t("info.allies"), friendly.units);
+      appendKv(counts, t("info.enemies"), enemy.units);
+      body.append(counts);
+      return;
+    }
+
+    if (active === "formations") {
+      body.append(h("strong", "", t("info.allies")));
+      unitList(ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+      body.append(h("strong", "", t("info.enemies")));
+      unitList(enemies, t("info.noUnits"), (entry) => enemyPanelId(entry.uid));
+      return;
+    }
+
+    if (active === "synergy") {
       const synergies = runView.synergies(run);
       if (!synergies.length) body.append(h("div", "slot", t("planning.empty")));
       for (const line of synergies) {
         const kind = t(line.kind === "class" ? "info.synergyClass" : line.kind === "element" ? "info.synergyElement" : "info.synergyFaction");
         const prefix = line.kind === "class" ? "role" : line.kind;
         const name = t(`${prefix}.${line.key}` as MsgKey);
-        body.append(h("div", "slot", `${kind}: ${name} · ${line.count} / ${line.next ?? line.active}`));
+        const row = panelEl("panel_tooltip", "info-kv");
+        row.append(h("strong", "", `${kind}: ${name}`), h("span", "", `${line.count} / ${line.next ?? line.active}`));
+        body.append(row);
       }
       return;
     }
-    if (active === "allies") {
-      unitList([
-        ...allies,
-        ...run.bench,
-      ], t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+
+    if (active === "effects") {
+      body.append(h("strong", "", t("info.activeEffects")));
+      if (!run.augments.length) body.append(h("div", "slot", t("planning.empty")));
+      for (const id of run.augments) {
+        const def = AUGMENT_BY_ID.get(id);
+        const row = panelEl("panel_tooltip", "info-kv");
+        row.append(h("strong", "", id), h("span", "", def ? `${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}` : id));
+        body.append(row);
+      }
+      body.append(h("strong", "", t("info.weatherOrder")));
+      if (!run.blessingQueue.length) body.append(h("div", "slot", t("planning.empty")));
+      run.blessingQueue.forEach((id, index) => {
+        const environment = WEATHER_BLESSING_ENVIRONMENT[id];
+        const row = panelEl("panel_tooltip", "info-kv");
+        const actions = h("div", "row");
+        const up = kitButton({
+          skin: "wood",
+          label: t("mods.up"),
+          onClick: () => {
+            if (app.bridge.reorderWeatherBlessing(index, index - 1)) render();
+          },
+        });
+        const down = kitButton({
+          skin: "wood",
+          label: t("mods.down"),
+          onClick: () => {
+            if (app.bridge.reorderWeatherBlessing(index, index + 1)) render();
+          },
+        });
+        const editable = run.phase === "PLANNING";
+        up.setDisabled(!editable || index === 0);
+        down.setDisabled(!editable || index === run.blessingQueue.length - 1);
+        actions.append(up.el, down.el);
+        row.append(h("strong", "", `#${index + 1}`), h("span", "", t(`element.${environment}` as MsgKey)), actions);
+        body.append(row);
+      });
       return;
     }
-    if (active === "enemies") {
-      unitList(enemies, t("info.noUnits"), (entry) => enemyPanelId(entry.uid));
-      return;
-    }
-    const bag = h("div", "stack");
-    bag.append(h("strong", "", t("planning.items")));
-    if (!run.itemBag.length) bag.append(h("div", "slot", t("planning.empty")));
-    for (const item of run.itemBag) bag.append(h("div", "slot", itemName(item)));
-    body.append(bag, h("strong", "", t("planning.boardUnits")));
-    unitList(allies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
-    body.append(h("strong", "", t("planning.benchUnits")));
-    unitList(run.bench, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+
+    mountedHistory = mountHistoryView(body, app.bridge.history());
   };
   root.append(tabs, body);
   m.body.append(root);
+  const off = app.modals.onChange((activeModal) => {
+    if (activeModal === "information") return;
+    off();
+    mountedHistory?.dispose();
+    for (const tab of tabButtons) tab.button.dispose();
+  });
   render();
 }
 
@@ -444,7 +641,7 @@ function mountInventory(app: App, host: HTMLElement) {
         const slot = h("div", "slot");
         const capacity = slotCap(unit.baseId, unit.star);
         const title = h("div", "", `${index + 1}. ${getUnit(unit.baseId).nameVi} ★${unit.star} · ${unit.equips.length}/${capacity}`);
-        const actions = h("div", "row");
+        const actions = h("div", "row button-row");
         const sell = kitButton({
           skin: "wood",
           label: t("planning.sell"),
@@ -452,12 +649,17 @@ function mountInventory(app: App, host: HTMLElement) {
         });
         buttons.push(sell);
         actions.append(sell.el);
+        const unequipCosts = unequipQuote(run, group.where, index);
         unit.equips.forEach((itemId, equippedIndex) => {
+          const cost = unequipCosts?.[equippedIndex];
           const unequip = kitButton({
             skin: "plum",
-            label: `${t("planning.unequip")} ${itemName(itemId)}`,
+            label: cost == null
+              ? `${t("planning.unequip")} ${itemName(itemId)}`
+              : `${t("inventory.unequip", { cost: `${cost} ${ICONS.gold}` })} ${itemName(itemId)}`,
             onClick: () => { app.bridge.unequip(group.where, index, equippedIndex); },
           });
+          unequip.setDisabled(cost == null || run.gold < cost);
           buttons.push(unequip);
           actions.append(unequip.el);
         });
@@ -516,7 +718,7 @@ function mountCraft(app: App, host: HTMLElement) {
       const title = material ? itemName(material) : t("planning.empty");
       const button = kitButton({
         skin: material ? "green" : "wood",
-        label: `${index + 1}. ${enabled ? title : "🔒"}`,
+        label: `${index + 1}. ${enabled ? title : ICONS.lock}`,
         onClick: () => {
           if (!enabled) return;
           const choice = selectedMaterial && remaining(selectedMaterial) > 0 ? selectedMaterial : null;
@@ -591,6 +793,24 @@ function mountRecipes(host: HTMLElement) {
   host.append(root);
 }
 
+function augmentChoiceCopy(id: string): string {
+  const def = AUGMENT_BY_ID.get(id);
+  if (!def) return id;
+  if (def.effect === "heart_recovery") {
+    return `Hồi tim tức thì · Hồi ngay ${def.value} ❤️, không vượt mức tim khởi đầu; không kích hoạt khi ván đã kết thúc.`;
+  }
+  if (def.effect === "heal_hearts_now") {
+    return `Phục hồi tim · Hồi ngay ${def.value} ❤️ cho run còn sống ở chế độ dùng tim, không vượt mức tim khởi đầu.`;
+  }
+  if (def.effect === "heal_hearts_on_win") {
+    return `Tim chiến thắng · Sau mỗi chiến thắng thực, hồi ${def.value} ❤️, không vượt mức tim khởi đầu.`;
+  }
+  if (def.effect === "heal_hearts_on_survived_loss") {
+    return `Tim sống sót · Sau một trận thua nhưng chưa kết thúc run, hồi ${def.value} ❤️, không vượt mức tim khởi đầu.`;
+  }
+  return `${id} · ${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}`;
+}
+
 function mountAugments(app: App, m: ModalHandle) {
   const render = () => {
     const run = app.bridge.run();
@@ -601,7 +821,7 @@ function mountAugments(app: App, m: ModalHandle) {
       const def = AUGMENT_BY_ID.get(id);
       const row = h("div", "slot augment-row");
       const copy = h("div", "augment-copy");
-      copy.textContent = def ? id + " · " + def.effect + " " + (def.value >= 0 ? "+" : "") + def.value : id;
+      copy.textContent = augmentChoiceCopy(id);
       const choose = kitButton({
         skin: "green",
         label: t("planning.choose"),
@@ -687,18 +907,39 @@ function enemyDiagnostics(app: App, uid: string) {
 const diagnosticStatLine = (stats: UnitStatSnapshot) =>
   `HP ${Math.round(stats.hp)}/${Math.round(stats.maxHp)} · ATK ${Math.round(stats.atk)} · DEF ${Math.round(stats.def)} · MATK ${Math.round(stats.matk)} · MDEF ${Math.round(stats.mdef)}`;
 
+function diagnosticTooltipContent(diagnostics: UnitDiagnostics) {
+  const unitDef = getUnit(diagnostics.baseId);
+  const lines = [
+    { text: `Hiện tại · ${diagnosticStatLine(diagnostics.live)}` },
+    { text: `Gốc · ${diagnosticStatLine(diagnostics.base)}` },
+    { text: `Suy ra · ${diagnosticStatLine(diagnostics.derived)}` },
+    { text: `Rage ${Math.round(diagnostics.live.rage)}/${Math.round(diagnostics.live.rageMax)} · Shield ${Math.round(diagnostics.live.shield)} · Range ${diagnostics.live.range}` },
+    { text: `CRIT ${Math.round(diagnostics.live.crit * 100)}% · ACC ${Math.round(diagnostics.live.accuracy * 100)}% · EVA ${Math.round(diagnostics.live.evade * 100)}% · LS ${Math.round(diagnostics.live.lifesteal * 100)}%` },
+    { text: `${t("library.basic")}: ${unitDef.basic.textVi}` },
+    { text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: diagnostics.derived.rageMax })})` },
+  ];
+  if (unitDef.skill.targetVi) lines.push({ text: `${t("library.target")}: ${unitDef.skill.targetVi}` });
+  if (unitDef.skill.shapeVi) lines.push({ text: `${t("library.shape")}: ${unitDef.skill.shapeVi}` });
+  for (const effect of diagnostics.effects) {
+    const value = effect.pct ? `${effect.value}%` : String(effect.value);
+    lines.push({ text: `${effect.kind} · ${effect.key} · ${value} · ${effect.turns}T${effect.detail ? ` · ${effect.detail}` : ""}` });
+  }
+  return {
+    title: `${unitDef.nameVi} ★${diagnostics.star}`,
+    subtitle: [
+      t(`role.${unitDef.role}` as MsgKey),
+      t(`element.${unitDef.element}` as MsgKey),
+      t(`faction.${unitDef.faction}` as MsgKey),
+    ].join(" · "),
+    lines,
+    body: `${unitDef.pitchVi}\n${unitDef.skill.starDetailVi[diagnostics.star - 1] ?? unitDef.skill.detailVi}`,
+  };
+}
+
 function appendDiagnosticSummary(app: App, root: HTMLElement, diagnostics: UnitDiagnostics) {
   const unitDef = getUnit(diagnostics.baseId);
   const heading = h("strong", "", `${unitDef.nameVi} ★${diagnostics.star}`);
-  app.tooltip.bind(heading, () => ({
-    title: `${unitDef.nameVi} ★${diagnostics.star}`,
-    subtitle: `${unitDef.role} · ${unitDef.element} · ${unitDef.faction}`,
-    lines: [
-      { text: diagnosticStatLine(diagnostics.live) },
-      { text: `Rage ${Math.round(diagnostics.live.rage)}/${Math.round(diagnostics.live.rageMax)} · Shield ${Math.round(diagnostics.live.shield)} · Range ${diagnostics.live.range}` },
-    ],
-    body: unitDef.pitchVi,
-  }));
+  app.tooltip.bind(heading, () => diagnosticTooltipContent(diagnostics));
   root.append(
     heading,
     h("div", "slot", `${unitDef.role} · ${unitDef.element} · ${unitDef.faction}`),
@@ -721,73 +962,6 @@ function appendDiagnosticSummary(app: App, root: HTMLElement, diagnostics: UnitD
   }
 }
 
-function openOwnedUnitDetail(app: App, uid: string) {
-  const initial = ownedDiagnostics(app, uid);
-  if (!initial) return;
-  const title = getUnit(initial.located.unit.baseId).nameVi;
-  openPanelModal(app, { id: "owned-unit-detail", title, size: "lg" }, (m) => {
-    const render = () => {
-      const current = ownedDiagnostics(app, uid);
-      if (!current) {
-        m.close();
-        return;
-      }
-      const { located, diagnostics } = current;
-      const capacity = slotCap(located.unit.baseId, located.unit.star);
-      const root = h("div", "stack owned-unit-detail");
-      appendDiagnosticSummary(app, root, diagnostics);
-      root.append(h("strong", "", `${t("planning.items")} · ${located.unit.equips.length}/${capacity}`));
-      if (!located.unit.equips.length) root.append(h("div", "slot", t("planning.empty")));
-      located.unit.equips.forEach((itemId, equippedIndex) => {
-        const row = h("div", "slot");
-        const item = getEquipment(itemId);
-        if (item) app.tooltip.bind(row, () => ({
-          title: itemName(itemId),
-          subtitle: t("library.tier", { tier: item.tier }),
-          lines: [{ text: item.id }],
-        }));
-        const unequip = kitButton({
-          skin: "plum",
-          label: `${t("planning.unequip")} ${itemName(itemId)}`,
-          onClick: () => { app.bridge.unequip(located.where, located.index, equippedIndex); },
-        });
-        row.append(h("span", "grow", itemName(itemId)), unequip.el);
-        root.append(row);
-      });
-      const equipmentBag = [...new Set(app.bridge.run()?.itemBag.filter((id) => getEquipment(id) !== null) ?? [])];
-      if (equipmentBag.length) {
-        const equipActions = h("div", "row");
-        for (const itemId of equipmentBag) {
-          const item = getEquipment(itemId);
-          if (!item) continue;
-          const equip = kitButton({
-            skin: "green",
-            label: `${t("planning.equip")} ${itemName(itemId)}`,
-            onClick: () => { app.bridge.equip(itemId, located.where, located.index); },
-          });
-          app.tooltip.bind(equip.el, () => ({
-            title: itemName(itemId),
-            subtitle: t("library.tier", { tier: item.tier }),
-            lines: [{ text: item.id }],
-          }));
-          equip.setDisabled(item.tier > located.unit.star || located.unit.equips.length >= capacity);
-          equipActions.append(equip.el);
-        }
-        root.append(equipActions);
-      }
-      const sell = kitButton({
-        skin: "wood",
-        label: t("planning.sell"),
-        onClick: () => { if (app.bridge.sell(located.where, located.index)) m.close(); },
-      });
-      root.append(sell.el);
-      m.body.replaceChildren(root);
-    };
-    const off = app.bridge.onChange(render);
-    render();
-    return { dispose: off };
-  });
-}
 
 function openEnemyUnitDetail(app: App, uid: string) {
   const initial = enemyDiagnostics(app, uid);
@@ -828,7 +1002,7 @@ registerPanel("achievements", (app) =>
   ));
 registerPanel("unit-detail", (app, id) => {
   if (id?.startsWith("owned:")) {
-    openOwnedUnitDetail(app, id.slice("owned:".length));
+    app.presentation.openOwnedInventory?.(id.slice("owned:".length));
     return;
   }
   if (id?.startsWith("enemy:")) {
@@ -905,11 +1079,14 @@ registerScreen("planning", (app) => {
   const board = createBoardView(stage);
   let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
   let resultFireworks: VictoryFireworks | null = null;
+  let planningEnemyPreview: ReturnType<typeof bridge.prepareEnemyPreview> = null;
   let selectedUid: string | null = null;
   let inventoryView: ReturnType<typeof mountUnitInventory> | null = null;
   let inventoryInspection: OwnedUnitInspection | null = null;
   let inventoryUid: string | null = null;
-  const liveRoster = new Map<string, RosterEntry>();
+  const liveRoster = app.presentation.liveRoster;
+  liveRoster.clear();
+  app.presentation.combatCycle = null;
   const withOwned = (uid: string, action: (where: "board" | "bench", index: number) => boolean) => {
     const run = bridge.run();
     const found = run ? findOwnedUnit(run, uid) : null;
@@ -939,6 +1116,7 @@ registerScreen("planning", (app) => {
       return { dispose() { view.dispose(); if (inventoryView === view) { inventoryView = null; inventoryUid = null; inventoryInspection = null; } } };
     });
   };
+  app.presentation.openOwnedInventory = openOwnedInventory;
   const drag = createPlanningDragController({
     stage,
     board,
@@ -959,20 +1137,28 @@ registerScreen("planning", (app) => {
       const run = bridge.run();
       const unit = source.kind === "bench" ? run?.bench[source.index] : run?.board[source.index];
       if (!unit) {
+        board.setTargetPreview?.(null);
         app.tooltip.hide();
         return;
       }
-      const definition = getUnit(unit.baseId);
-      app.tooltip.show(anchor, {
-        title: `${definition.nameVi} ★${unit.star}`,
-        subtitle: [
-          t(`role.${definition.role}` as MsgKey),
-          t(`element.${definition.element}` as MsgKey),
-          t(`faction.${definition.faction}` as MsgKey),
-        ].join(" · "),
-      });
+      const inspection = ownedDiagnostics(app, unit.uid);
+      if (!inspection) {
+        board.setTargetPreview?.(null);
+        app.tooltip.hide();
+        return;
+      }
+      app.tooltip.show(anchor, diagnosticTooltipContent(inspection.diagnostics));
+      if (source.kind !== "board" || run?.phase !== "PLANNING" || !planningEnemyPreview) {
+        board.setTargetPreview?.(null);
+        return;
+      }
+      const fighters = bridge.planningCombatProjection(planningEnemyPreview);
+      board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, unit.uid) : null);
     },
-    previewEnd: () => app.tooltip.hide(),
+    previewEnd: () => {
+      app.tooltip.hide();
+      board.setTargetPreview?.(null);
+    },
     enabled: () => !app.modals.blocking() && (bridge.run()?.phase === "PLANNING" || Boolean(combat)),
     inspectOnly: () => Boolean(combat),
   });
@@ -997,6 +1183,7 @@ registerScreen("planning", (app) => {
     if (selectedUid && !findOwnedUnit(run, selectedUid)) { selectedUid = null; board.setSelected?.(null); }
     if (inventoryUid) { inventoryInspection = inspectOwnedUnit(run, inventoryUid); inventoryView?.update(); }
     const preview = bridge.prepareEnemyPreview();
+    planningEnemyPreview = preview;
     const renderRun = preview && preview.units !== run.enemyPreview ? { ...run, enemyPreview: preview.units } : run;
     stage.arena.setEnvironment(environmentFor(run.round));
     stage.arena.setDayNight(dayNightForRound(run.round));
@@ -1020,10 +1207,11 @@ registerScreen("planning", (app) => {
   // Combat: logic resolves the battle; presentation swaps HUDs, replays events, then shows the result.
   const endCombat = () => {
     stage.arena.clearHighlights();
+    app.presentation.combatCycle = null;
+    liveRoster.clear();
     if (!combat) return;
     combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose();
     combat = null;
-    liveRoster.clear();
     if (app.modals.active() === "unit-inventory") app.modals.closeActive();
     board.setCombat(false);
     hud.el.hidden = false;
@@ -1033,6 +1221,7 @@ registerScreen("planning", (app) => {
     if (combat || app.modals.blocking()) return;
     const session = bridge.startCombat();
     if (!session) return;
+    app.presentation.combatCycle = 1;
     const run = bridge.run();
     hud.el.hidden = true;
     stage.setPhase("combat");
@@ -1079,25 +1268,8 @@ registerScreen("planning", (app) => {
     const player = playCombat({
       board, fx, roster: session.roster, events: session.events,
       inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
-      onEvent: (event) => {
-        if (event.t !== "cast") {
-          stage.arena.clearHighlights();
-          return;
-        }
-        const highlights: TacticalHighlightCell[] = [];
-        const source = board.slot(event.src);
-        if (source && source.row >= 0) highlights.push({ col: source.col, row: source.row, role: "source" });
-        event.targets.forEach((uid, index) => {
-          const target = board.slot(uid);
-          if (target && target.row >= 0) highlights.push({
-            col: target.col,
-            row: target.row,
-            role: index === 0 ? "direct" : "area",
-          });
-        });
-        stage.arena.setHighlights(highlights);
-      },
       onTick: (tk) => {
+        app.presentation.combatCycle = tk.cycle;
         for (const entry of tk.all) liveRoster.set(entry.uid, entry);
         inventoryView?.update();
         chud.update({
@@ -1135,6 +1307,20 @@ registerScreen("planning", (app) => {
     if (!recorded) sync();
   };
 
+  const shortcutActions: PlanningShortcutActions = {
+    startCombat: runCombat,
+    reroll: () => bridge.reroll(),
+    buyXp: () => bridge.buyXp(),
+    newRun: () => {
+      const current = bridge.run();
+      if (current) bridge.newRun(current.mode, current.aiMode);
+    },
+    settings: () => app.openPanel("settings"),
+    toggleAudio: () => {
+      const current = bridge.settings.get();
+      bridge.settings.save({ audioEnabled: true, audioMuted: !current.audioMuted });
+    },
+  };
   const onKeyDown = (event: KeyboardEvent) => {
     // The modal host may already have consumed Escape and closed its dialog.
     if (event.defaultPrevented || event.repeat || combat || app.modals.blocking()) return;
@@ -1142,44 +1328,30 @@ registerScreen("planning", (app) => {
     if (target instanceof HTMLElement && (
       target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
     )) return;
-    const key = normalizeKey(event.code === "ShiftRight" ? "SHIFTRIGHT" : event.key === " " ? "SPACE" : event.key);
-    if (!key) return;
-    const bindings = bridge.settings.get().keys.planning;
-    if (key === bindings.startCombat) {
-      event.preventDefault();
-      runCombat();
-    } else if (key === bindings.reroll) {
-      event.preventDefault();
-      bridge.reroll();
-    } else if (key === bindings.buyXp) {
-      event.preventDefault();
-      bridge.buyXp();
-    } else if (key === bindings.newRun) {
-      event.preventDefault();
-      const current = bridge.run();
-      if (current) bridge.newRun(current.mode, current.aiMode);
-    } else if (key === bindings.settings) {
-      event.preventDefault();
-      app.openPanel("settings");
-    } else if (key === bindings.toggleAudio) {
-      event.preventDefault();
-      const current = bridge.settings.get();
-      bridge.settings.save({ audioEnabled: true, audioMuted: !current.audioMuted });
-    }
+    if (dispatchPlanningShortcut(event, bridge.settings.get().keys.planning, shortcutActions)) event.preventDefault();
   };
   window.addEventListener("keydown", onKeyDown);
 
   const offs = [bridge.onChange(sync), app.modals.onChange(onModalChange), onLocaleChange(() => hud.refreshCopy())];
   sync();
-  return { dispose() { window.removeEventListener("keydown", onKeyDown); drag.dispose(); resultFireworks?.dispose(); resultFireworks = null; endCombat(); for (const o of offs) o(); hud.dispose(); board.dispose(); } };
+  return { dispose() {
+    window.removeEventListener("keydown", onKeyDown);
+    drag.dispose();
+    resultFireworks?.dispose();
+    resultFireworks = null;
+    endCombat();
+    if (app.presentation.openOwnedInventory === openOwnedInventory) app.presentation.openOwnedInventory = null;
+    for (const o of offs) o();
+    hud.dispose();
+    board.dispose();
+  } };
 });
 
 registerPanel("information", (app) => openInformation(app));
-registerUtility("information", (app) => openInformation(app));
 registerUtility("mods", (app) => openMods(app));
 registerUtility("donate", (app) => openDonate(app));
 registerUtility("tribute", (app) => openUndeveloped(app, "tribute"));
-registerUtility("social", (app) => openUndeveloped(app, "social"));
+registerUtility("social", () => { void openExternalHttpUrl("https://discord.gg/FH9bGFm9G", { window }); });
 
 // Language: one control opens the list; selecting refreshes copy immediately (A98).
 registerUtility("language", (app) => {

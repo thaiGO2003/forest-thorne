@@ -39,6 +39,16 @@ export const SEMANTIC_EMOJIS: Record<string, { char: string; slug?: string }> = 
   cross: { char: "❌", slug: "cross-mark" },
   info: { char: "ℹ️", slug: "information" },
   question: { char: "❔", slug: "white-question-mark" },
+  paw: { char: "🐾", slug: "paw-prints" },
+  mushroom: { char: "🍄", slug: "mushroom" },
+  chestnut: { char: "🌰", slug: "chestnut" },
+  bubbles: { char: "🫧", slug: "bubbles" },
+  fastForward: { char: "⏩", slug: "fast-forward-button" },
+  palette: { char: "🎨", slug: "artist-palette" },
+  sprout: { char: "🌱", slug: "seedling" },
+  shopfront: { char: "🏪", slug: "convenience-store" },
+  emptyBox: { char: "⬜", slug: "white-large-square" },
+  tree: { char: "🌳", slug: "deciduous-tree" },
 };
 
 // Inverted lookup map for glyph aliases -> semantic name
@@ -127,6 +137,117 @@ export async function fetchEmojiMetadata(semanticName: string): Promise<string |
   }
 }
 
+// Pinned image source for DOM/canvas/Three.js emoji rendering.
+// Twemoji graphics are licensed CC BY 4.0:
+// https://github.com/jdecked/twemoji/blob/v16.0.1/LICENSE-GRAPHICS
+export const EMOJI_IMAGE_SOURCE = {
+  name: "Twemoji",
+  version: "16.0.1",
+  license: "CC BY 4.0",
+  baseUrl: "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72",
+} as const;
+
+export const EMOJI_LOCAL_FALLBACK_IMAGE_URL =
+  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72"><rect x="10" y="10" width="52" height="52" rx="12" fill="#f3e5c7" stroke="#3f2d1f" stroke-width="6"/><path d="M20 50 32 37l8 8 8-10 7 8" fill="none" stroke="#3f2d1f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="27" cy="26" r="5" fill="#3f2d1f"/></svg>',
+  )}`;
+
+const IMAGE_CACHE = new Map<string, HTMLImageElement | null>();
+const IMAGE_PENDING = new Map<string, Promise<HTMLImageElement | null>>();
+const IMAGE_LISTENERS = new Set<() => void>();
+const EMOJI_SEQUENCE = /\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\u200D\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?)*/gu;
+
+export interface EmojiTextPart { kind: "text" | "emoji"; value: string }
+
+export function splitEmojiText(text: string): EmojiTextPart[] {
+  const parts: EmojiTextPart[] = [];
+  let at = 0;
+  EMOJI_SEQUENCE.lastIndex = 0;
+  for (const match of text.matchAll(EMOJI_SEQUENCE)) {
+    const index = match.index ?? 0;
+    if (index > at) parts.push({ kind: "text", value: text.slice(at, index) });
+    parts.push({ kind: "emoji", value: match[0] });
+    at = index + match[0].length;
+  }
+  if (at < text.length) parts.push({ kind: "text", value: text.slice(at) });
+  return parts.length ? parts : [{ kind: "text", value: text }];
+}
+
+export function getEmojiImageUrl(nameOrInput: string): string {
+  const char = resolveEmojiChar(nameOrInput);
+  return `${EMOJI_IMAGE_SOURCE.baseUrl}/${toCodepointKey(char).replaceAll("_", "-")}.png`;
+}
+
+const FALLBACK_IMAGE_URL = `${EMOJI_IMAGE_SOURCE.baseUrl}/${toCodepointKey(SEMANTIC_EMOJIS.question.char).replaceAll("_", "-")}.png`;
+
+function loadImageUrl(url: string): Promise<HTMLImageElement | null> {
+  if (typeof Image === "undefined") return Promise.resolve(null);
+  const { promise, resolve } = Promise.withResolvers<HTMLImageElement | null>();
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.decoding = "async";
+  img.onload = () => resolve(img);
+  img.onerror = () => resolve(null);
+  img.src = url;
+  return promise;
+}
+
+export function preloadEmojiImage(nameOrInput: string): Promise<HTMLImageElement | null> {
+  const key = getEmojiTextureKey(nameOrInput);
+  if (IMAGE_CACHE.has(key)) return Promise.resolve(IMAGE_CACHE.get(key)!);
+  const pending = IMAGE_PENDING.get(key);
+  if (pending) return pending;
+  const primary = getEmojiImageUrl(nameOrInput);
+  const promise = (async () => {
+    const image = await loadImageUrl(primary)
+      ?? (primary === FALLBACK_IMAGE_URL ? null : await loadImageUrl(FALLBACK_IMAGE_URL))
+      ?? await loadImageUrl(EMOJI_LOCAL_FALLBACK_IMAGE_URL);
+    IMAGE_CACHE.set(key, image);
+    IMAGE_PENDING.delete(key);
+    for (const listener of IMAGE_LISTENERS) listener();
+    return image;
+  })();
+  IMAGE_PENDING.set(key, promise);
+  return promise;
+}
+
+export function getCachedEmojiImage(nameOrInput: string): HTMLImageElement | null {
+  const key = getEmojiTextureKey(nameOrInput);
+  if (IMAGE_CACHE.has(key)) return IMAGE_CACHE.get(key)!;
+  void preloadEmojiImage(nameOrInput);
+  return null;
+}
+
+export function onEmojiAssetReady(listener: () => void): () => void {
+  IMAGE_LISTENERS.add(listener);
+  return () => IMAGE_LISTENERS.delete(listener);
+}
+
+export function setEmojiRichText(el: HTMLElement, text: string): void {
+  const parts = splitEmojiText(text);
+  if (!parts.some((part) => part.kind === "emoji")) {
+    el.textContent = text;
+    return;
+  }
+  el.replaceChildren();
+  for (const part of parts) {
+    if (part.kind === "text") {
+      el.append(document.createTextNode(part.value));
+      continue;
+    }
+    const img = document.createElement("img");
+    img.className = "emoji-inline";
+    img.alt = part.value;
+    img.decoding = "async";
+    img.draggable = false;
+    img.src = EMOJI_LOCAL_FALLBACK_IMAGE_URL;
+    void preloadEmojiImage(part.value).then((image) => {
+      if (image) img.src = image.src;
+    });
+    el.append(img);
+  }
+}
+
 // --- 3D Texture Management ---
 const TEXTURE_CACHE = new Map<string, THREE.CanvasTexture | THREE.Texture>();
 let isAtlasReady = false;
@@ -144,7 +265,6 @@ export function getOrCreateEmojiTexture(charOrName: string): THREE.Texture {
   if (cached) return cached;
 
   if (typeof document === "undefined" || !document.createElement) {
-    // Headless / SSR safe empty fallback
     const fallback = new THREE.Texture();
     fallback.name = key;
     TEXTURE_CACHE.set(key, fallback);
@@ -154,23 +274,23 @@ export function getOrCreateEmojiTexture(charOrName: string): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 96;
   canvas.height = 96;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.clearRect(0, 0, 96, 96);
-    ctx.font = '72px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(char, 48, 52);
-  }
-
   const tex = new THREE.CanvasTexture(canvas);
   tex.name = key;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
-  tex.needsUpdate = true;
-
   TEXTURE_CACHE.set(key, tex);
+
+  void preloadEmojiImage(char).then((image) => {
+    if (!image || TEXTURE_CACHE.get(key) !== tex) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, 96, 96);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(image, 8, 8, 80, 80);
+    tex.needsUpdate = true;
+  });
+
   return tex;
 }
 
@@ -190,6 +310,8 @@ export function disposeEmojiAtlas(): void {
     tex.dispose();
   }
   TEXTURE_CACHE.clear();
+  IMAGE_CACHE.clear();
+  IMAGE_PENDING.clear();
   isAtlasReady = false;
 }
 
@@ -197,18 +319,24 @@ export function disposeEmojiAtlas(): void {
 export const ICONS = {
   empty: "",
   gold: "🪙", xp: "✨", heart: "❤️", level: "⬆️", round: "🗓️", streakWin: "🔥", streakLoss: "🥶",
+  star: SEMANTIC_EMOJIS.star.char, crown: SEMANTIC_EMOJIS.crown.char, skull: SEMANTIC_EMOJIS.skull.char,
+  hourglass: SEMANTIC_EMOJIS.hourglass.char, fastForward: SEMANTIC_EMOJIS.fastForward.char,
+  palette: SEMANTIC_EMOJIS.palette.char, sprout: SEMANTIC_EMOJIS.sprout.char, shopfront: SEMANTIC_EMOJIS.shopfront.char,
+  check: SEMANTIC_EMOJIS.check.char, emptyBox: SEMANTIC_EMOJIS.emptyBox.char,
+  mushroom: SEMANTIC_EMOJIS.mushroom.char, chestnut: SEMANTIC_EMOJIS.chestnut.char,
+  bubbles: SEMANTIC_EMOJIS.bubbles.char, leaf: SEMANTIC_EMOJIS.leaf.char,
   reroll: "🔄", lock: "🔒", unlock: "🔓", start: "⚔️", sell: "💰", info: "📜", question: SEMANTIC_EMOJIS.question.char,
-  library: "📖", tech: "🌳", craft: "⚒️", recipe: "📕", inventory: "🎒", history: "🕰️", settings: "⚙️", home: "🏠",
+  library: "📖", tech: SEMANTIC_EMOJIS.tree.char, craft: "⚒️", recipe: "📕", inventory: "🎒", history: "🕰️", settings: "⚙️", home: "🏠",
   shop: "🛒", event: "✨", vet: "🩺", explore: "🧭",
   synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
-  social: "👥", donate: "💝", cortisol: "🧘",
+  social: "💬", donate: "💝", cortisol: "🧘",
   rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨",
   // Roles
   TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",
   // Factions
-  BEAST: "🐾", AVIAN: "🪶", INSECT: "🐞", REPTILE: "🦎", AQUATIC: "🐟", MYTHICAL: "🐉",
+  BEAST: SEMANTIC_EMOJIS.paw.char, AVIAN: "🪶", INSECT: "🐞", REPTILE: "🦎", AQUATIC: "🐟", MYTHICAL: "🐉",
   // Elements
-  STONE: "🪨", WIND: "🌪️", FIRE: "🔥", TIDE: "🌊", NIGHT: "🌙", SPIRIT: "👻", SWARM: "🐝", WOOD: "🌿",
+  STONE: "🪨", WIND: "🌪️", FIRE: SEMANTIC_EMOJIS.fire.char, TIDE: "🌊", NIGHT: "🌙", SPIRIT: "👻", SWARM: "🐝", WOOD: "🌿",
   // Statuses
   burn: "🔥", poison: "☠️", bleed: "🩸", freeze: "❄️", stun: "💫", sleep: "💤", silence: "🤐",
   shield: "🛡️", taunt: "📣", healBlock: "🚫", atkUp: "💪", atkDown: "🥀", defUp: "🧱", defDown: "🪓",

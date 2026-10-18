@@ -4,7 +4,7 @@
 import { t, type MsgKey } from "../core/i18n";
 import { canResearch, maxLevel, researchCost, TECH_BY_ID, TECH_NODES, type Branch, type TechNode } from "../core/tech";
 import { ICONS } from "../core/emojiIcon";
-import { h, kitButton, label, nineSlice, panelEl, SLICE } from "./kit";
+import { h, kitButton, LABEL, label, nineSlice, panelEl, SLICE } from "./kit";
 import type { ModalHandle } from "./modal";
 
 const FOCUS_KEY = "forest-throne:planning:last-tech-focus";
@@ -124,7 +124,7 @@ export function mountTechTree(modal: ModalHandle, model: TechModel, research: (i
       const p = pos.get(id)!, r = id === "root" ? NODE_R * 1.4 : NODE_R;
       nineSlice(g, skin, SLICE.btn_icon, p.x - r, p.y - r, r * 2, r * 2, 1.5);
       if (id === sel) { g.strokeStyle = "#ffe08a"; g.lineWidth = 3; g.strokeRect(p.x - r - 4, p.y - r - 4, r * 2 + 8, r * 2 + 8); }
-      label(g, glyph, p.x, p.y - 2, { size: r * 0.8, stroke: null });
+      label(g, glyph, p.x, p.y - 2, { size: r * 0.8, fill: LABEL, stroke: null });
       label(g, lvText, p.x, p.y + r + 10, { size: 12 });
     };
     nodeAt("root", "btn_icon_selected", ICONS.tech, t("tech.root"));
@@ -155,7 +155,7 @@ export function mountTechTree(modal: ModalHandle, model: TechModel, research: (i
     info.replaceChildren();
     const n = TECH_BY_ID.get(sel), p = panelEl("panel_tooltip", "lib-sec");
     if (!n) {
-      p.append(h("h3", "lib-h", `🌳 ${t("tech.root")}`));
+      p.append(h("h3", "lib-h", `${ICONS.tech} ${t("tech.root")}`));
       info.append(p);
       modal.setTitle(t("planning.tech"));
       return;
@@ -168,12 +168,12 @@ export function mountTechTree(modal: ModalHandle, model: TechModel, research: (i
     // LOGIC: replace raw stat keys with the canonical effect formatter (A111.5) once it exists.
     p.append(h("p", "lib-p", Object.entries(eff).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).join(" · ")));
     const reqs = h("div", "lib-p", `${t("tech.requires")}: `);
-    for (const r of n.requires) reqs.append(h("span", lvl(r) >= 1 ? "req-ok" : "req-no", ` ${lvl(r) >= 1 ? "✅" : "⬜"} ${name(r)}`));
+    for (const r of n.requires) reqs.append(h("span", lvl(r) >= 1 ? "req-ok" : "req-no", ` ${lvl(r) >= 1 ? ICONS.check : ICONS.emptyBox} ${name(r)}`));
     if (n.requires.length) p.append(reqs);
     info.append(p);
     const cost = l < max ? researchCost(n, l) : 0;
     const b = kitButton({ skin: st === "maxed" ? "wood" : "green", cls: "wide-btn",
-      label: st === "maxed" ? t("tech.maxed") : st === "locked" ? t("tech.locked") : `${ICONS.gold} ${t("tech.research", { cost })}`,
+      label: st === "maxed" ? t("tech.maxed") : st === "locked" ? t("tech.locked") : t("tech.research", { cost: `${cost} ${ICONS.gold}` }),
       onClick: () => research(n.id) });
     b.setDisabled(st !== "affordable");
     info.append(b.el);

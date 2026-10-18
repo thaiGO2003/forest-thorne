@@ -9,7 +9,7 @@ import type { RunState } from "../core/run";
 import type { SynergyLine } from "../core/synergy";
 import type { TutorialStep } from "../core/tutorial";
 import { createCard, type CardView, type PortraitProvider } from "./card";
-import { drawFit, h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { drawFit, h, kitButton, LABEL, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { Tooltip } from "./tooltip";
 
 export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
@@ -66,7 +66,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const root = h("div", "planning");
   root.dataset.screen = "planning";
 
-  // ---- top stats bar ----
+  // ---- compact planning summary, kept immediately left of the Start controls ----
   const stats = h("div", "pl-stats");
   const statsS = surface(stats, (g, w, hh) => {
     nineSlice(g, "panel_wood", SLICE.panel_wood, 0, 0, w, hh);
@@ -79,23 +79,27 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       `${ICONS.start} ${t("planning.deploy", { current: m.deployed, max: m.deployLimit })}`,
     ];
     const portrait = portraitPlanning.matches;
-    const cw = (w - 16) / cells.length;
-    const cy = portrait ? 18 : hh * 0.42;
-    const statSize = portrait ? Math.min(11, cw / 7) : Math.min(15, cw / 7);
-    cells.forEach((c, i) => label(g, c, 8 + cw * (i + 0.5), cy, { size: statSize, maxW: cw - 6 }));
+    if (portrait) {
+      const top = cells.slice(0, 3), bottom = cells.slice(3);
+      const topW = (w - 16) / top.length, bottomW = (w - 16) / bottom.length;
+      top.forEach((c, i) => label(g, c, 8 + topW * (i + 0.5), 18, { size: Math.min(11, topW / 6.5), maxW: topW - 6, fill: LABEL }));
+      bottom.forEach((c, i) => label(g, c, 8 + bottomW * (i + 0.5), 39, { size: Math.min(11, bottomW / 7), maxW: bottomW - 6, fill: LABEL }));
+    } else {
+      const cw = (w - 16) / cells.length;
+      cells.forEach((c, i) => label(g, c, 8 + cw * (i + 0.5), hh * 0.42, { size: Math.min(15, cw / 7), maxW: cw - 6, fill: LABEL }));
+    }
     // XP progress bar under the stats (dynamic fill inside authored frame).
     const need = xpToNext(r.level), pct = need > 0 ? Math.min(1, r.xp / need) : 1;
-    const bx = 14, bw = w - 28, by = portrait ? 38 : hh - 16, bh = portrait ? 8 : 10;
+    const bx = 14, bw = w - 28, by = portrait ? hh - 16 : hh - 16, bh = portrait ? 8 : 10;
     nineSlice(g, "bar_trough", 1, bx + 2, by + 2, bw - 4, bh - 4);
     g.fillStyle = "#7fc8ff";
     g.fillRect(bx + 2, by + 2, Math.round((bw - 4) * pct), bh - 4);
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
   });
 
-  // ---- top battle controls: START · xp · Low Cortisol; shop controls live in the dock header ----
+  // ---- top battle controls: summary on the left, Start/actions on the right ----
   const battle = panelEl("panel_wood", "pl-battle");
-  const portraitControls = h("div", "pl-portrait-controls");
-  stats.append(portraitControls);
+  const battleActions = h("div", "pl-battle-actions");
   const reroll = kitButton({ skin: "blue", icon: ICONS.reroll, cls: "pl-reroll", onClick: () => it.reroll() });
   const start = kitButton({ skin: "green", icon: ICONS.start, cls: "pl-start fit-btn", onClick: () => it.start() });
   const startMeasure = h("span", "kit-fit-measure");
@@ -103,13 +107,9 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const xp = kitButton({ skin: "plum", icon: ICONS.xp, onClick: () => it.buyXp() });
   const lock = kitButton({ skin: "icon", icon: ICONS.unlock, aria: t("planning.lock"), cls: "pl-lock", onClick: () => it.toggleLock() });
   const cortisol = kitButton({ skin: "plum", icon: ICONS.cortisol, cls: "pl-cortisol", onClick: () => it.cortisol() });
-  const syncPlanningComposition = () => {
-    const portrait = portraitPlanning.matches;
-    battle.hidden = portrait;
-    const host = portrait ? portraitControls : battle;
-    if (start.el.parentElement !== host) host.append(start.el, xp.el, cortisol.el);
-    statsS.paint();
-  };
+  battleActions.append(start.el, xp.el, cortisol.el);
+  battle.append(stats, battleActions);
+  const syncPlanningComposition = () => statsS.paint();
   portraitPlanning.addEventListener("change", syncPlanningComposition);
   syncPlanningComposition();
   tip.bind(lock.el, () => ({ title: t("planning.lock") }));
@@ -126,7 +126,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     rail.append(item);
     return { a, b, copy };
   });
-  const shopToggle = kitButton({ skin: "icon", icon: "🏪", cls: "pl-shop-toggle",
+  const shopToggle = kitButton({ skin: "icon", icon: ICONS.shopfront, cls: "pl-shop-toggle",
     aria: t("planning.shop"), onClick: () => { shopOpen = !shopOpen; syncShopVisibility(); } });
   tip.bind(shopToggle.el, () => ({ title: t("planning.shop") }));
   rail.append(shopToggle.el);
@@ -139,7 +139,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const rowH = 30, shown = Math.min(lines.length, Math.floor((hh - 34) / rowH));
     const ph = Math.max(48, 34 + shown * rowH);
     nineSlice(g, "panel_wood", SLICE.panel_wood, 0, 0, w, ph);
-    label(g, `${ICONS.synergy} ${t("planning.synergy")}`, w / 2, 18, { size: 13 });
+    label(g, `${ICONS.synergy} ${t("planning.synergy")}`, w / 2, 18, { size: 13, fill: LABEL });
     for (let i = 0; i < shown; i++) {
       const l = lines[i]!, y = 34 + i * rowH;
       nineSlice(g, l.active ? "tile_status" : "slot_well", SLICE.tile_status, 8, y, w - 16, rowH - 4);
@@ -214,7 +214,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const dockHead = h("div", "pl-shop-head");
   const headS = surface(dockHead, (g, w, hh) => {
     if (!m) return;
-    label(g, `${t("planning.shop")} · ${t("planning.bench", { current: m.run.bench.length, max: m.benchCap })}`, 10, hh / 2, { size: 13, align: "left" });
+    label(g, `${t("planning.shop")} · ${t("planning.bench", { current: m.run.bench.length, max: m.benchCap })}`, 10, hh / 2, { size: 13, align: "left", fill: LABEL });
   });
   const prev = kitButton({ skin: "wood", label: "‹", cls: "pl-page", onClick: () => { page = Math.max(0, page - 1); renderShop(); } });
   const next = kitButton({ skin: "wood", label: "›", cls: "pl-page", onClick: () => { page++; renderShop(); } });
@@ -272,7 +272,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   compactShop.addEventListener("change", onShopLayoutChange);
   syncShopVisibility();
 
-  root.append(stats, battle, rail, syn, joy, tutorial, dock);
+  root.append(battle, rail, syn, joy, tutorial, dock);
   host.append(root);
 
   function refreshCopy() {
@@ -291,18 +291,22 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   function update(nm: PlanningModel) {
     m = nm;
     const r = nm.run;
-    reroll.setLabel(`(${refreshCost(r.level, r.rollCostDelta)} ${ICONS.gold})`);
-    xp.setLabel(`(${xpBuyCost(r.xpCostDelta)} ${ICONS.gold})`);
-    const startText = `${t("planning.start")} · -1 ${ICONS.heart}`;
+    const rerollCost = refreshCost(r.level, r.rollCostDelta);
+    const buyXpCost = xpBuyCost(r.xpCostDelta);
+    const rerollLabel = t("planning.reroll", { cost: `${rerollCost} ${ICONS.gold}` });
+    const xpLabel = t("planning.buyXp", { cost: `${buyXpCost} ${ICONS.gold}` });
+    reroll.setLabel(rerollLabel);
+    xp.setLabel(xpLabel);
+    const startText = `${t("planning.start")} (-1 ${ICONS.heart})`;
     start.setLabel(startText);
     startMeasure.textContent = startText;
-    reroll.setAria(t("planning.reroll", { cost: refreshCost(r.level, r.rollCostDelta) }));
-    xp.setAria(t("planning.buyXp", { cost: xpBuyCost(r.xpCostDelta) }));
+    reroll.setAria(rerollLabel);
+    xp.setAria(xpLabel);
     lock.setIcon(r.shopLocked ? ICONS.lock : ICONS.unlock);
     lock.setSelected(r.shopLocked);
     for (const b of [reroll, xp, start, lock]) b.setDisabled(nm.locked);
-    reroll.setDisabled(nm.locked || r.shopLocked || r.gold < refreshCost(r.level, r.rollCostDelta));
-    xp.setDisabled(nm.locked || r.gold < xpBuyCost(r.xpCostDelta));
+    reroll.setDisabled(nm.locked || r.shopLocked || r.gold < rerollCost);
+    xp.setDisabled(nm.locked || r.gold < buyXpCost);
     renderTutorial();
     statsS.paint(); synS.paint();
     renderShop();

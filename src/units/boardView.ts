@@ -6,6 +6,7 @@ import { benchSlots, toVisual, type Profile } from "../board/geometry";
 import { getUnit } from "../content/catalog";
 import { STAR_STAT } from "../core/economy";
 import type { RunState } from "../core/run";
+import type { CombatTargetPreview } from "../core/combat";
 import { BLOCK, cellToWorld } from "../world/arena";
 import type { Stage } from "../world/stage";
 import { createBillboard, type Billboard, type BillboardState } from "./billboard";
@@ -46,9 +47,13 @@ export interface BoardView {
   startLowCortisol(): void;
   stopLowCortisol(): void;
   setSelected?(uid: string | null): void;
+  setHovered(uid: string | null): void;
   /** Combat and preview use the same tile colors: purple scan, red direct, yellow splash. */
+  flashCell?(col: number, row: number, kind: "scan" | "direct" | "splash"): void;
   flashTile?(uid: string, kind: "scan" | "direct" | "splash"): void;
   flashSkill?(uid: string): void;
+  /** Persistent Planning hover projection; null clears it without disturbing transient combat flashes. */
+  setTargetPreview?(preview: CombatTargetPreview | null): void;
   dispose(): void;
 }
 
@@ -61,6 +66,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const moveTweens = new Map<string, MoveTween>();
   const MOVE_DURATION_S = 0.22;
   let selected: string | null = null;
+  let hovered: string | null = null;
   const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .66, 40), new THREE.MeshBasicMaterial({ color: 0xffd36b, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2;
   ring.visible = false;
@@ -72,7 +78,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     splash: new THREE.MeshBasicMaterial({ color: 0xffd24e, transparent: true, opacity: .5, side: THREE.DoubleSide, depthWrite: false }),
   };
   const tilePriority = { scan: 1, splash: 2, direct: 3 };
-  const tileEffects = new Map<string, { mesh: THREE.Mesh; time: number; priority: number }>();
+  type TileKind = keyof typeof tileMaterials;
+  const tileEffects = new Map<number, { mesh: THREE.Mesh; time: number; kind: TileKind | null }>();
+  const previewCells = new Map<number, TileKind>();
   const rainbowMaterial = new THREE.MeshBasicMaterial({ color: 0xff568c, side: THREE.DoubleSide, depthWrite: false });
   const rainbow = new THREE.Mesh(new THREE.RingGeometry(.71, .83, 48), rainbowMaterial);
   rainbow.rotation.x = -Math.PI / 2;
@@ -80,6 +88,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   stage.scene.add(rainbow);
   let skillUid: string | null = null;
   let skillTime = 0;
+  let previewSkillUid: string | null = null;
   let rainbowHue = 0;
 
   const restoreCortisolUnit = (uid: string, s: Slot) => {
@@ -108,25 +117,70 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     if (cortisolRemainingMs === 0) stopLowCortisol();
   };
-  const flashTile = (uid: string, kind: "scan" | "direct" | "splash") => {
-    const slot = slots.get(uid);
-    if (!slot) return;
-    let effect = tileEffects.get(uid);
+  const setHovered = (uid: string | null) => {
+    if (hovered) slots.get(hovered)?.bb.setPriority(false);
+    hovered = uid && slots.has(uid) ? uid : null;
+    if (hovered) slots.get(hovered)?.bb.setPriority(true);
+  };
+  const renderTileEffect = (key: number, effect: { mesh: THREE.Mesh; time: number; kind: TileKind | null }) => {
+    const previewKind = previewCells.get(key);
+    const transientKind = effect.time > 0 ? effect.kind : null;
+    const visibleKind = transientKind && (!previewKind || tilePriority[transientKind] >= tilePriority[previewKind])
+      ? transientKind
+      : previewKind ?? null;
+    effect.mesh.visible = Boolean(visibleKind);
+    if (visibleKind) effect.mesh.material = tileMaterials[visibleKind];
+  };
+  const ensureTileEffect = (col: number, row: number) => {
+    const key = row * BOARD * 2 + col;
+    let effect = tileEffects.get(key);
     if (!effect) {
-      const mesh = new THREE.Mesh(tileGeometry, tileMaterials[kind]);
+      const mesh = new THREE.Mesh(tileGeometry, tileMaterials.scan);
       mesh.rotation.x = -Math.PI / 2;
       mesh.raycast = () => {};
+      const center = cellToWorld(toVisual(col, row), profile);
+      mesh.position.set(center.x, TILE_TOP + .045, center.z);
+      mesh.visible = false;
       stage.scene.add(mesh);
-      effect = { mesh, time: 0, priority: 0 };
-      tileEffects.set(uid, effect);
+      effect = { mesh, time: 0, kind: null };
+      tileEffects.set(key, effect);
     }
-    if (effect.time <= 0 || tilePriority[kind] >= effect.priority) {
-      effect.mesh.material = tileMaterials[kind];
-      effect.priority = tilePriority[kind];
-    }
-    effect.mesh.position.set(slot.x, TILE_TOP + .045, slot.z);
-    effect.mesh.visible = true;
+    return { key, effect };
+  };
+  const flashCell = (col: number, row: number, kind: TileKind) => {
+    if (row < 0 || row >= BOARD || col < 0 || col >= BOARD * 2) return;
+    const { key, effect } = ensureTileEffect(col, row);
+    if (effect.time <= 0 || !effect.kind || tilePriority[kind] >= tilePriority[effect.kind]) effect.kind = kind;
     effect.time = Math.max(effect.time, kind === "scan" ? .25 : .65);
+    renderTileEffect(key, effect);
+  };
+  const flashTile = (uid: string, kind: TileKind) => {
+    const slot = slots.get(uid);
+    if (!slot || slot.row < 0) return;
+    flashCell(slot.col, slot.row, kind);
+  };
+  const setTargetPreview = (preview: CombatTargetPreview | null) => {
+    previewCells.clear();
+    previewSkillUid = preview?.skillCasterUid ?? null;
+    const addCell = (col: number, row: number, kind: TileKind) => {
+      if (row < 0 || row >= BOARD || col < 0 || col >= BOARD * 2) return;
+      const key = row * BOARD * 2 + col;
+      const existing = previewCells.get(key);
+      if (!existing || tilePriority[kind] >= tilePriority[existing]) previewCells.set(key, kind);
+      ensureTileEffect(col, row);
+    };
+    if (preview) {
+      for (const cell of preview.scanCells) addCell(cell.col, cell.row, "scan");
+      for (const uid of preview.splashUids) {
+        const slot = slots.get(uid);
+        if (slot && slot.row >= 0) addCell(slot.col, slot.row, "splash");
+      }
+      for (const uid of preview.directUids) {
+        const slot = slots.get(uid);
+        if (slot && slot.row >= 0) addCell(slot.col, slot.row, "direct");
+      }
+    }
+    for (const [key, effect] of tileEffects) renderTileEffect(key, effect);
   };
   const off = stage.onFrame((dt) => {
     for (const [uid, move] of moveTweens) {
@@ -148,14 +202,17 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     const visual = selected ? slots.get(selected)?.v : undefined;
     ring.visible = Boolean(visual);
     if (visual) ring.position.set(visual.root.position.x, TILE_TOP + .015, visual.root.position.z);
-    for (const effect of tileEffects.values()) {
-      if (effect.time <= 0) continue;
-      effect.time -= dt;
-      if (effect.time <= 0) { effect.mesh.visible = false; effect.priority = 0; }
+    for (const [key, effect] of tileEffects) {
+      if (effect.time > 0) {
+        effect.time = Math.max(0, effect.time - dt);
+        if (effect.time === 0) effect.kind = null;
+      }
+      renderTileEffect(key, effect);
     }
     skillTime = Math.max(0, skillTime - dt);
-    const caster = skillUid ? slots.get(skillUid) : undefined;
-    rainbow.visible = Boolean(caster && skillTime > 0);
+    const activeSkillUid = skillTime > 0 ? skillUid : previewSkillUid;
+    const caster = activeSkillUid ? slots.get(activeSkillUid) : undefined;
+    rainbow.visible = Boolean(caster && (skillTime > 0 || previewSkillUid));
     if (rainbow.visible && caster) {
       rainbow.position.set(caster.x, TILE_TOP + .055, caster.z);
       rainbowHue = (rainbowHue + dt * 1.25) % 1;
@@ -183,6 +240,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const base: BillboardState = { name: u.nameVi, star: st, hp: maxHp, maxHp, rage: 0, rageMax: u.stats.rageMax, side: kind === "enemy" ? "R" : "L", statuses: [] };
       const bb = createBillboard(v.anchor);
       bb.set(base);
+      if (uid === hovered) bb.setPriority(true);
       s = { v, bb, key, kind, col, row, x, z, base };
       slots.set(uid, s);
       s.v.root.position.set(x, TILE_TOP, z);
@@ -258,12 +316,11 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
 
       for (const [uid, s] of slots) if (!seen.has(uid)) {
         restoreCortisolUnit(uid, s);
+        if (uid === hovered) hovered = null;
         moveTweens.delete(uid);
         s.v.dispose();
         s.bb.dispose();
         slots.delete(uid);
-        const effect = tileEffects.get(uid);
-        if (effect) { effect.mesh.removeFromParent(); tileEffects.delete(uid); }
       }
     },
     visual: (uid) => slots.get(uid)?.v,
@@ -273,8 +330,10 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     },
     cellCenter: (col, row) => cellToWorld(toVisual(col, row), profile),
     forEach(fn) { for (const [uid, s] of slots) fn(uid, s.v, s.kind); },
+    flashCell,
     flashTile,
     flashSkill(uid) { if (!slots.has(uid)) return; skillUid = uid; skillTime = .8; },
+    setTargetPreview,
     setLive(uid, live) {
       const s = slots.get(uid);
       if (!s) return;
@@ -282,6 +341,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       s.bb.set(s.base);
       s.v.setHpRatio(s.base.hp / Math.max(1, s.base.maxHp));
     },
+    setHovered,
     startLowCortisol() {
       stopLowCortisol();
       let phase = 0;
@@ -297,15 +357,17 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const entering = !combat && v;
       const leaving = combat && !v;
       if (entering || leaving) stopLowCortisol();
+      if (entering) setTargetPreview(null);
       combat = v;
       if (leaving) {
         moveTweens.clear();
         // A77: temporary combat state (HP, deaths, staging offsets) is discarded; next sync rebuilds fresh rigs.
         for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
         slots.clear();
+        hovered = null;
         for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
         tileEffects.clear();
-        skillUid = null; skillTime = 0; rainbow.visible = false;
+        skillUid = null; skillTime = 0; previewSkillUid = null; previewCells.clear(); rainbow.visible = false;
         return;
       }
       for (const s of slots.values()) s.v.setCombat(v);
@@ -322,6 +384,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       for (const material of Object.values(tileMaterials)) material.dispose();
       ring.removeFromParent(); ring.geometry.dispose(); ring.material.dispose();
       for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
+      hovered = null;
       slots.clear();
     },
   };

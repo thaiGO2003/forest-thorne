@@ -190,6 +190,17 @@ export interface CombatInspectionFrame {
   units: CombatUnitSnapshot[];
 }
 
+export interface CombatTargetPreview {
+  /** Candidate cells inspected by basic/skill targeting; target colors render above these scan cells. */
+  scanCells: Array<{ col: number; row: number }>;
+  /** Direct target(s) for the single action the fighter would currently perform. */
+  directUids: string[];
+  /** Area/secondary targets for that same action, excluding the primary direct target. */
+  splashUids: string[];
+  /** Present only when the fighter would currently cast its authored skill. */
+  skillCasterUid: string | null;
+}
+
 export interface CombatOptions {
   seed: number;
   captureInspection?: boolean;
@@ -917,6 +928,94 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter, su
   if (sp.area === "column") return pool.filter((x) => x.col === p.col);
   if (sp.area === "square") return pool.filter((x) => Math.abs(x.row - p.row) <= 1 && Math.abs(x.col - p.col) <= 1);
   return ordered;
+}
+
+function previewSeed(all: readonly Fighter[], sourceUid: string): number {
+  let hash = 0x811c9dc5;
+  const mixText = (value: string) => {
+    for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 0x01000193);
+  };
+  mixText(sourceUid);
+  for (const fighter of all) {
+    mixText(fighter.uid);
+    mixText(fighter.baseId);
+    hash = Math.imul(hash ^ fighter.star, 0x01000193);
+    hash = Math.imul(hash ^ fighter.row, 0x01000193);
+    hash = Math.imul(hash ^ fighter.col, 0x01000193);
+    hash = Math.imul(hash ^ Math.round(fighter.hp), 0x01000193);
+    hash = Math.imul(hash ^ Math.round(fighter.rage), 0x01000193);
+  }
+  return hash | 0;
+}
+
+/**
+ * Read-only Planning/Library target projection. It deliberately uses the live basicTarget/skillTargets
+ * rules, but owns a deterministic RNG so random selectors never advance the simulator RNG.
+ */
+export function combatTargetPreview(all: readonly Fighter[], sourceUid: string): CombatTargetPreview | null {
+  const source = all.find((fighter) => fighter.uid === sourceUid && fighter.alive);
+  if (!source) return null;
+  const fighters = [...all];
+  const c: Ctx = {
+    all: fighters,
+    rng: mulberry(previewSeed(fighters, sourceUid)),
+    events: [],
+    globalMult: 1,
+    gold: { L: 0, R: 0 },
+    rageGain: { L: 1, R: 1 },
+    rightRandomTargetChance: 0,
+    deterministicTargeting: true,
+    bounty: { L: 0, R: 0 },
+    bountyKills: { L: 0, R: 0 },
+    deferredAutoCasts: [],
+    autoCastInFlight: new Set(),
+  };
+  const basic = basicTarget(c, source);
+  if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null };
+
+  const skillPool = source.skill.side === "self"
+    ? [source]
+    : source.skill.side === "ally"
+      ? friends(c, source)
+      : foes(c, source);
+  const scanned = [...foes(c, source), ...skillPool];
+  const scanCells: Array<{ col: number; row: number }> = [];
+  const scanKeys = new Set<number>();
+  for (const fighter of scanned) {
+    const key = fighter.row * COLS + fighter.col;
+    if (scanKeys.has(key)) continue;
+    scanKeys.add(key);
+    scanCells.push({ col: fighter.col, row: fighter.row });
+  }
+
+  const hardControlled = CONTROL_PRIORITY.some((kind) => (source.status[kind]?.turns ?? 0) > 0);
+  const silenced = (source.status.silence?.turns ?? 0) > 0;
+  const disarmed = (source.status.disarm?.turns ?? 0) > 0;
+  const willCastSkill = !hardControlled
+    && source.rage >= source.rageMax
+    && !silenced
+    && Boolean(source.skillFamily);
+
+  if (hardControlled || (!willCastSkill && disarmed)) {
+    return { scanCells, directUids: [], splashUids: [], skillCasterUid: null };
+  }
+
+  if (!willCastSkill) {
+    return { scanCells, directUids: [basic.uid], splashUids: [], skillCasterUid: null };
+  }
+
+  const skillTargetsResolved = skillTargets(c, source, source.skill, basic);
+  const skillPrimary = skillTargetsResolved[0];
+  const directUids = skillPrimary ? [skillPrimary.uid] : [];
+  const splashUids = skillTargetsResolved.slice(1)
+    .map((fighter) => fighter.uid)
+    .filter((uid, index, allUids) => uid !== skillPrimary?.uid && allUids.indexOf(uid) === index);
+  return {
+    scanCells,
+    directUids,
+    splashUids,
+    skillCasterUid: source.uid,
+  };
 }
 
 function standardHealTargets(c: Ctx, f: Fighter, sp: SkillSpec): Fighter[] {

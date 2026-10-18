@@ -17,11 +17,17 @@ import { createMenu, type UtilityId } from "../ui/menu";
 import { createBridge, type Bridge } from "./bridge";
 import { createMusicDirector, type MusicDirector, type MusicPlaylists } from "../audio/MusicDirector";
 import { MUSIC_PLAYLISTS, MUSIC_TRACKS } from "../data/musicPlaylists";
+import type { RosterEntry } from "../units/combatPlayer";
 
 export type Route = "loading" | "menu" | "planning";
 
 export interface App {
   stage: Stage; modals: ModalHost; tooltip: Tooltip; bridge: Bridge; music: MusicDirector;
+  presentation: {
+    combatCycle: number | null;
+    liveRoster: Map<string, RosterEntry>;
+    openOwnedInventory: ((uid: string) => void) | null;
+  };
   route(): Route;
   go(r: Route): void;
   /** Open a registered panel (planning action, unit detail…); unknown ids are ignored. */
@@ -83,8 +89,9 @@ export async function boot(root: HTMLElement): Promise<App> {
   const applySettings = () => {
     const settings = bridge.settings.get();
     ui.style.zoom = String(settings.guiScale);
-    stage.setFpsLimit(settings.batterySaver ? Math.min(settings.fpsLimit, 30) : settings.fpsLimit);
+    stage.setFpsLimit(settings.fpsLimit);
     stage.setShadowQuality(settings.quality);
+    stage.setShadowsEnabled(settings.shadowsEnabled);
     stage.setRenderScale(settings.renderScale);
     tooltip.setMode(settings.tooltipMode);
     document.documentElement.lang = settings.language;
@@ -93,9 +100,14 @@ export async function boot(root: HTMLElement): Promise<App> {
   applySettings();
   let current: Route = "loading";
   let active: { dispose(): void } | null = null;
+  const presentation = {
+    combatCycle: null as number | null,
+    liveRoster: new Map<string, RosterEntry>(),
+    openOwnedInventory: null as ((uid: string) => void) | null,
+  };
 
   const app: App = {
-    stage, modals, tooltip, bridge, music, layers,
+    stage, modals, tooltip, bridge, music, layers, presentation,
     route: () => current,
     openPanel(id, arg) { panels[id]?.(app, arg); },
     go(r) {

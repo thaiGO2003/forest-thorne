@@ -71,7 +71,7 @@ export interface Settings {
   language: "vi"; tooltipMode: (typeof TOOLTIP_MODES)[number]; expandedTooltip: boolean;
   narrationEnabled: boolean; keys: KeyBindings;
   quality: (typeof QUALITY)[number]; fpsLimit: (typeof FPS_LIMITS)[number];
-  renderScale: number; batterySaver: boolean;
+  renderScale: number; shadowsEnabled: boolean;
 }
 
 const pick = <T>(list: readonly T[], v: unknown, def: T): T => (list.includes(v as T) ? (v as T) : def);
@@ -85,8 +85,8 @@ export function normalizeSettings(raw: unknown): Settings {
   const rawGuiScale = Number(r.guiScale);
   const rawFpsLimit = Number(r.fpsLimit);
   const rawRenderScale = Number(r.renderScale);
-  const batterySaver = bool(r.batterySaver, false);
-  const legacyFps = batterySaver ? 30 : 60;
+  const legacyBatterySaver = bool(r.batterySaver, false);
+  const legacyFps = legacyBatterySaver ? 30 : 60;
   const tooltipMode = pick(TOOLTIP_MODES, r.tooltipMode, "summary");
   const guiScale = (GUI_SCALES as readonly number[]).includes(rawGuiScale)
     ? rawGuiScale as Settings["guiScale"]
@@ -120,7 +120,7 @@ export function normalizeSettings(raw: unknown): Settings {
     quality: pick(QUALITY, r.quality, "high"),
     fpsLimit,
     renderScale: Number.isFinite(rawRenderScale) ? Math.min(1, Math.max(0.5, rawRenderScale)) : 1,
-    batterySaver,
+    shadowsEnabled: bool(r.shadowsEnabled, true),
   };
 }
 

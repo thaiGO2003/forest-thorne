@@ -191,7 +191,7 @@ export function createPlanningDragController({
     return result;
   };
 
-  const pickSource = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
+  const pickUnit = (clientX: number, clientY: number): { uid: string; kind: "board" | "bench" | "enemy" } | null => {
     if (!setRayFromClientPoint(canvas, clientX, clientY, stage.camera, sourceRaycaster, sourceNdc)) return null;
     // Picking must observe the latest formation, even before the next renderer frame.
     stage.scene.updateMatrixWorld(true);
@@ -206,10 +206,16 @@ export function createPlanningDragController({
     for (const hit of hits) {
       const uid = uidFromHit(hit.object);
       if (!uid) continue;
-      if (kindByUid.get(uid) === "enemy") return null;
-      return sourceForUid(run, uid);
+      const kind = kindByUid.get(uid);
+      if (kind) return { uid, kind };
     }
     return null;
+  };
+
+  const pickSource = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
+    const picked = pickUnit(clientX, clientY);
+    if (!picked || picked.kind === "enemy") return null;
+    return sourceForUid(run, picked.uid);
   };
 
   const pickBench = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
@@ -265,6 +271,7 @@ export function createPlanningDragController({
     boardPicker.clear();
     stage.arena.clearHighlights();
     stage.arena.clearBenchHighlights();
+    board.setHovered(null);
     clearPreview();
     clearTimeout(feedbackTimer);
     feedbackTimer = 0;
@@ -304,6 +311,7 @@ export function createPlanningDragController({
         stage.arena.clearHighlights();
         stage.arena.clearBenchHighlights();
         clearPreview();
+        board.setHovered(null);
         hover.visible = false;
       } else {
         const run = getRun();
@@ -311,10 +319,13 @@ export function createPlanningDragController({
           stage.arena.clearHighlights();
           stage.arena.clearBenchHighlights();
           clearPreview();
+          board.setHovered(null);
           hover.visible = false;
         } else {
           paintPointerCell(event.clientX, event.clientY, run);
-          showPreview(pickSource(event.clientX, event.clientY, run), event.clientX, event.clientY);
+          const picked = pickUnit(event.clientX, event.clientY);
+          board.setHovered(picked?.uid ?? null);
+          showPreview(picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
           updateHover(event.clientX, event.clientY);
         }
       }
@@ -329,6 +340,7 @@ export function createPlanningDragController({
       if (inspectOnly()) { cancel(); return; }
       dragging = true;
       clearPreview();
+      board.setHovered(null);
       canvas.setPointerCapture(event.pointerId);
       captured = true;
     }
@@ -378,6 +390,7 @@ export function createPlanningDragController({
     stage.arena.clearHighlights();
     stage.arena.clearBenchHighlights();
     clearPreview();
+    board.setHovered(null);
   };
 
   const onLostPointerCapture = (event: PointerEvent) => {

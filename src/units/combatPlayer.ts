@@ -46,6 +46,7 @@ export function playCombat(o: {
   let inspectionIndex = 0;
   let cycle = 1;
   let disposed = false;
+  let skillImpact: { src: string; fired: boolean; pending: (() => void)[]; targets: readonly string[] } | null = null;
   let complete = false;
   const { promise, resolve } = Promise.withResolvers<void>();
   const after = (ms: number, run: () => void) => { if (ms <= 0) run(); else timers.push({ remaining: ms, run }); };
@@ -124,12 +125,14 @@ export function playCombat(o: {
       return 0;
     }
     if (event.t === "empty") {
+      board.flashCell?.(event.col, event.row, "scan");
       o.onEvent?.(event);
       return getEmptyQueueDelayMs(speedLevel);
     }
     if (event.t === "basic" || event.t === "miss") {
       const actor = units.get(event.src), visual = board.visual(event.src);
       const semanticImpact = exactImpact(() => {
+        board.flashTile?.(event.dst, "direct");
         o.onEvent?.(event);
         if (event.t === "basic") land(event.src, event.dst, event.dmg, event.absorbed, event.crit);
         else fx.float(position(event.dst), "MISS", "miss");
@@ -204,16 +207,57 @@ export function playCombat(o: {
       });
       return timing.approachMs + attackMs + timing.retreatMs;
     }
+    if (event.t === "skill") {
+      const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => exactImpact(() => {
+        const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
+        const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
+        board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
+        o.onEvent?.(damageEvent);
+        land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
+      });
+      const window = skillImpact?.src === event.src ? skillImpact : null;
+      const semanticImpact = queueSkillDamage(event);
+      if (window && !window.fired) {
+        window.pending.push(semanticImpact);
+        while (index < o.events.length) {
+          const next = o.events[index];
+          if (next?.t !== "skill" || next.src !== event.src) break;
+          index++;
+          window.pending.push(queueSkillDamage(next));
+        }
+      } else {
+        semanticImpact();
+      }
+      return scaleCombatPresentationMs(100, speedLevel);
+    }
     o.onEvent?.(event);
     switch (event.t) {
-      case "skill": case "reflect": land(event.src, event.dst, event.dmg, event.absorbed, event.t === "skill" && event.crit); break;
-      case "cast": board.visual(event.src)?.play("skill"); break;
+      case "reflect": land(event.src, event.dst, event.dmg, event.absorbed); break;
+      case "cast": {
+        board.flashSkill?.(event.src);
+        event.targets.forEach((uid, targetIndex) => board.flashTile?.(uid, targetIndex === 0 ? "direct" : "splash"));
+        const visual = board.visual(event.src);
+        if (!visual) break;
+        const window = { src: event.src, fired: false, pending: [] as (() => void)[], targets: event.targets };
+        skillImpact = window;
+        visual.play("skill", {
+          onImpact: () => {
+            if (disposed || window.fired) return;
+            window.fired = true;
+            for (const impact of window.pending.splice(0)) impact();
+          },
+          onDone: () => {
+            if (skillImpact === window) skillImpact = null;
+          },
+        });
+        break;
+      }
       case "dot": {
         const unit = units.get(event.dst);
         const absorbed = unit ? Math.min(unit.shield, event.dmg) : 0;
         const hpDamage = event.dmg - absorbed;
         if (unit) { unit.shield -= absorbed; unit.hp = Math.max(0, unit.hp - hpDamage); push(event.dst); }
-        fx.float(position(event.dst), hpDamage > 0 ? `-${hpDamage}` : `🛡️${absorbed}`, "dot"); break;
+        fx.float(position(event.dst), hpDamage > 0 ? `-${hpDamage}` : `${ICONS.shield}${absorbed}`, "dot"); break;
       }
       case "heal": {
         const unit = units.get(event.dst); if (unit) { unit.hp = Math.min(unit.maxHp, unit.hp + event.amount); push(event.dst); }

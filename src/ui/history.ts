@@ -9,7 +9,7 @@ import type { ModalHandle } from "./modal";
 const FILTERS: HistoryFilter[] = ["ALL", ...HISTORY_CATEGORIES];
 const ICON: Record<HistoryFilter, string> = { ALL: ICONS.info, COMBAT: ICONS.start, SHOP: ICONS.shop, CRAFT: ICONS.craft, EVENT: ICONS.event };
 
-export function mountHistory(modal: ModalHandle, history: PlanningHistoryState): { dispose(): void } {
+export function mountHistoryView(host: HTMLElement, history: PlanningHistoryState): { dispose(): void } {
   let filter: HistoryFilter = "ALL";
   const root = h("div", "stack history");
   const tabs = h("div", "tabs");
@@ -21,7 +21,7 @@ export function mountHistory(modal: ModalHandle, history: PlanningHistoryState):
   const list = h("div", "history-list");
   list.setAttribute("role", "list");
   root.append(tabs, list);
-  modal.body.append(root);
+  host.append(root);
 
   function render() {
     for (const [f, b] of btns) b.setSelected(f === filter);
@@ -45,5 +45,9 @@ export function mountHistory(modal: ModalHandle, history: PlanningHistoryState):
     }
   }
   render();
-  return { dispose() { root.remove(); } };
+  return { dispose() { for (const [, button] of btns) button.dispose(); root.remove(); } };
+}
+
+export function mountHistory(modal: ModalHandle, history: PlanningHistoryState): { dispose(): void } {
+  return mountHistoryView(modal.body, history);
 }

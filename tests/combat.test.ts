@@ -90,6 +90,38 @@ describe("combat", () => {
     expect(sparseSemantic).toEqual(frontSemantic);
   });
 
+  it("ticks an existing burn exactly once at each cycle boundary and never again during turns", () => {
+    const fighters = materializeCombat(
+      [{ uid: "burned", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+      [{ uid: "enemy", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = 1_000_000;
+      fighter.hp = 1_000_000;
+      fighter.atk = 1;
+      fighter.matk = 1;
+    }
+    fighters[0]!.status.burn = { turns: 2, value: 7 };
+
+    const result = runCombat(fighters, { seed: 19 });
+    const burnEvents = result.events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.t === "dot" && event.dst === "burned" && event.kind === "burn");
+    expect(burnEvents).toHaveLength(2);
+    expect(burnEvents.map(({ event }) => event.t === "dot" ? event.dmg : 0)).toEqual([7, 7]);
+
+    const cycleForEvent = (eventIndex: number) => {
+      for (let index = eventIndex; index >= 0; index--) {
+        const event = result.events[index]!;
+        if (event.t === "cycle") return event.cycle;
+      }
+      return null;
+    };
+    expect(burnEvents.map(({ index }) => cycleForEvent(index))).toEqual([1, 2]);
+    expect(result.events.filter((event) => event.t === "cycle").length).toBeGreaterThan(2);
+    expect(result.fighters.find((fighter) => fighter.uid === "burned")?.status.burn).toBeUndefined();
+  });
+
   it("is deterministic for identical input + seed", () => {
     const l = team(ids.slice(0, 5), "L");
     const r = team(ids.slice(5, 10), "R");

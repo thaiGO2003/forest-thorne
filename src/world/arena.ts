@@ -76,6 +76,7 @@ export interface Arena {
   clearBenchHighlights(): void;
   setOccupied(col: number, row: number, occupied: boolean): void;
   setShadowQuality(q: ShadowQuality): void;
+  setShadowsEnabled(enabled: boolean): void;
   update(dt: number): void;
   dispose(): void;
 }
@@ -254,6 +255,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   let currentEnvironment: EnvironmentId = "FIRE";
   let currentDayNight: DayNightPhase = "day";
   let rayQualityGain = 1;
+  let shadowQuality: ShadowQuality = "high";
+  let shadowsEnabled = true;
   const applyLighting = () => {
     const phase = LIGHT_PRESETS[currentPhase];
     const environment = ENVIRONMENT_LIGHT[currentEnvironment];
@@ -353,7 +356,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       tufts.instanceMatrix.needsUpdate = true;
     },
     setShadowQuality(q) {
-      sun.castShadow = q !== "low";
+      shadowQuality = q;
+      sun.castShadow = shadowsEnabled && q !== "low";
       sunRays.visible = q !== "low";
       rayQualityGain = q === "high" ? 1 : q === "medium" ? 0.6 : 0;
       const size = q === "high" ? 2048 : 1024;
@@ -363,6 +367,10 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
         sun.shadow.mapSize.set(size, size);
       }
       applyLighting();
+    },
+    setShadowsEnabled(enabled) {
+      shadowsEnabled = enabled;
+      sun.castShadow = enabled && shadowQuality !== "low";
     },
     update(dt) {
       flowT += Math.max(0, dt) * FLOW_SPEED;

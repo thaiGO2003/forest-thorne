@@ -159,9 +159,10 @@ export function createPortraits(): Portraits {
       r.domElement.addEventListener("pointercancel", up);
       r.domElement.addEventListener("wheel", wheel, { passive: false });
 
-      const clock = new THREE.Clock();
-      r.setAnimationLoop(() => {
-        const dt = Math.min(0.1, clock.getDelta());
+      const timer = new THREE.Timer();
+      r.setAnimationLoop((now) => {
+        timer.update(now);
+        const dt = Math.min(0.1, timer.getDelta());
         if (!pointers.size) yaw += dt * 0.15;
         turn.rotation.set(pitch, yaw, 0, "YXZ");
         if (unit) {
@@ -220,6 +221,7 @@ export function createPortraits(): Portraits {
           combat = false;
           unit?.setCombat(false);
           r.setAnimationLoop(null);
+          timer.dispose();
           ro.disconnect();
           unit?.dispose();
           r.dispose();

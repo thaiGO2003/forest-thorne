@@ -3,7 +3,7 @@
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { GAME_MODES, MODE_CONFIG, type GameMode } from "../core/modes";
-import { h, kitButton, label, nineSlice, panelEl, SLICE, surface, type KitButton } from "./kit";
+import { h, INK, kitButton, label, nineSlice, panelEl, SLICE, surface, type KitButton } from "./kit";
 import type { ModalHost } from "./modal";
 import type { Tooltip } from "./tooltip";
 
@@ -23,14 +23,13 @@ export interface MenuIntents {
   openUtility(id: UtilityId): void;
 }
 
-export type UtilityId = "settings" | "library" | "language" | "achievements" | "mods" | "information" | "tribute" | "social" | "donate" | "debug";
+export type UtilityId = "settings" | "library" | "language" | "achievements" | "mods" | "tribute" | "social" | "donate" | "debug";
 
 const UTILITIES: { id: UtilityId; icon: string; key: MsgKey }[] = [
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
   { id: "library", icon: ICONS.library, key: "menu.library" },
   { id: "achievements", icon: ICONS.achievements, key: "menu.achievements" },
   { id: "mods", icon: ICONS.mods, key: "menu.mods" },
-  { id: "information", icon: ICONS.info, key: "menu.information" },
   { id: "language", icon: ICONS.language, key: "menu.language" },
   { id: "tribute", icon: ICONS.tribute, key: "menu.tribute" },
   { id: "social", icon: ICONS.social, key: "menu.social" },
@@ -49,8 +48,8 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   titleEl.setAttribute("aria-level", "1");
   const title = surface(titleEl, (g, w, hh) => {
     nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6, 3);
-    label(g, t("loading.title"), w / 2, hh * 0.45, { size: Math.min(56, w / 11), weight: 900, fill: "#fff8ec", maxW: w - 120, font: "heading" });
-    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.9, { size: Math.min(20, w / 28), fill: "#ffe08a", font: "body" });
+    label(g, t("loading.title"), w / 2, hh * 0.45, { size: Math.min(56, w / 11), weight: 900, fill: INK, maxW: w - 120, font: "heading" });
+    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.9, { size: Math.min(20, w / 28), fill: INK, font: "normal" });
   });
 
   const main = panelEl("panel_wood", "menu-main");
@@ -59,15 +58,24 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   saveEl.setAttribute("aria-live", "polite");
   const save = surface(saveEl, (g, w, hh) => {
     nineSlice(g, "slot_well", SLICE.slot_well, 0, 0, w, hh);
-    label(g, saveLine(), w / 2, hh / 2, { size: 13, fill: "#3b2414", stroke: null, maxW: w - 16 });
+    label(g, saveLine(), w / 2, hh / 2, { size: 13, fill: INK, stroke: null, maxW: w - 16 });
   });
   const broken = kitButton({ skin: "red", onClick: () => intents.clearBrokenRun() });
-  const fresh = kitButton({ skin: "blue", icon: "🌱", onClick: () => openSetup() });
+  const fresh = kitButton({ skin: "blue", icon: ICONS.sprout, onClick: () => openSetup() });
   main.append(cont.el, saveEl, broken.el, fresh.el);
 
   const util = panelEl("panel_wood", "menu-utility");
   const utilButtons = UTILITIES.map((u) => {
-    const b = kitButton({ skin: "icon", icon: u.icon, onClick: () => intents.openUtility(u.id) });
+    const social = u.id === "social";
+    const b = kitButton({ skin: "icon", icon: social ? undefined : u.icon, aria: t(u.key), onClick: () => intents.openUtility(u.id) });
+    if (social) {
+      const img = document.createElement("img");
+      img.className = "menu-utility-icon";
+      img.src = "/assets/ui/discord.svg";
+      img.alt = "";
+      img.setAttribute("aria-hidden", "true");
+      b.el.append(img);
+    }
     const copy = h("span", "menu-utility-label", t(u.key));
     const item = h("div", "menu-utility-item");
     tip.bind(b.el, () => ({ title: t(u.key) }));

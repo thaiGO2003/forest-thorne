@@ -7,7 +7,7 @@ import { itemDisplayName, itemSemanticIcon } from "../core/itemPresentation";
 import { groupDrops } from "../core/loot";
 import type { TeamStrength } from "../core/inspection";
 import type { RoundResultSummary } from "../core/run";
-import { h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
+import { h, INK, LABEL, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
 import type { ModalHost } from "./modal";
 
 export interface QueueEntry { name: string; side: "L" | "R"; icon: string }
@@ -50,23 +50,23 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
     nineSlice(g, "panel_wood", SLICE.panel_wood, 0, 0, w, hh);
     if (!m) return;
     const head = `${ICONS.round} ${t("combat.round", { round: m.round })}  ·  ${t("combat.cycle", { cycle: m.cycle })}`;
-    label(g, head, w / 2, 20, { size: 15 });
-    if (m.escalation > 1) label(g, `☠️ ${t("combat.escalation", { mult: m.escalation.toFixed(1) })}`, w - 16, 20, { size: 13, align: "right", fill: "#ffb38a" });
+    label(g, head, w / 2, 20, { size: 15, fill: LABEL });
+    if (m.escalation > 1) label(g, `${ICONS.skull} ${t("combat.escalation", { mult: m.escalation.toFixed(1) })}`, w - 16, 20, { size: 13, align: "right", fill: LABEL });
     const bw = (w - 60) / 2, by = 38;
     teamBar(g, 14, by, bw, 18, m.left.hpRatio, "#5fd04a", false);
     teamBar(g, w - 14 - bw, by, bw, 18, m.right.hpRatio, "#e0503a", true);
-    label(g, ICONS.start, w / 2, by + 9, { size: 16, stroke: null });
-    label(g, `${m.left.units} · ${ICONS.atk}${m.left.power}`, 18, by + 30, { size: 12, align: "left" });
-    label(g, `${ICONS.atk}${m.right.power} · ${m.right.units}`, w - 18, by + 30, { size: 12, align: "right" });
+    label(g, ICONS.start, w / 2, by + 9, { size: 16, stroke: null, fill: LABEL });
+    label(g, `${m.left.units} · ${ICONS.atk}${m.left.power}`, 18, by + 30, { size: 12, align: "left", fill: LABEL });
+    label(g, `${ICONS.atk}${m.right.power} · ${m.right.units}`, w - 18, by + 30, { size: 12, align: "right", fill: LABEL });
   });
 
   // Right rail: turn-order queue + short log with History access.
   const side = panelEl("panel_wood", "cb-side");
   const sideHead = h("div", "cb-side-head");
-  const speed = kitButton({ skin: "plum", icon: "⏩", cls: "cb-speed fit-btn", onClick: () => it.speed() });
-  const finishFast = kitButton({ skin: "red", label: t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }), cls: "cb-fast fit-btn", onClick: () => it.finishFast() });
+  const speed = kitButton({ skin: "plum", icon: ICONS.fastForward, cls: "cb-speed fit-btn", onClick: () => it.speed() });
+  const finishFast = kitButton({ skin: "red", label: t("combat.finishFast", { cost: `${FINISH_FAST_BASE_COST} ${ICONS.gold}` }), cls: "cb-fast fit-btn", onClick: () => it.finishFast() });
   const speedMeasure = h("span", "kit-fit-measure", "×1");
-  const fastMeasure = h("span", "kit-fit-measure", t("combat.finishFast", { cost: FINISH_FAST_BASE_COST }));
+  const fastMeasure = h("span", "kit-fit-measure", t("combat.finishFast", { cost: `${FINISH_FAST_BASE_COST} ${ICONS.gold}` }));
   speed.el.append(speedMeasure);
   finishFast.el.append(fastMeasure);
   const hist = kitButton({ skin: "icon", icon: ICONS.history, cls: "cb-hist", onClick: () => it.history() });
@@ -78,7 +78,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
     if (!m) return;
     const compact = w < COMPACT_W;
     const q = m.queue.slice(0, compact ? 3 : 8), log = m.log.slice(-(compact ? 3 : 4));
-    label(g, t("combat.queue"), 6, 12, { size: 12, align: "left" });
+    label(g, t("combat.queue"), 6, 12, { size: 12, align: "left", fill: LABEL });
     const rowH = 24;
     q.forEach((e, i) => {
       const y = 24 + i * (rowH + 2);
@@ -87,8 +87,8 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
       label(g, e.name, 30, y + rowH / 2, { size: 12, align: "left", maxW: w - 36, fill: e.side === "L" ? "#fff8ec" : "#3b2414", stroke: e.side === "L" ? undefined : null });
     });
     const ly = 24 + q.length * (rowH + 2) + 12;
-    label(g, t("combat.log"), 6, ly, { size: 12, align: "left" });
-    log.forEach((line, i) => label(g, line, 6, ly + 18 + i * 17, { size: 11, align: "left", maxW: w - 8, weight: 600 }));
+    label(g, t("combat.log"), 6, ly, { size: 12, align: "left", fill: LABEL });
+    log.forEach((line, i) => label(g, line, 6, ly + 18 + i * 17, { size: 11, align: "left", maxW: w - 8, weight: 600, fill: LABEL }));
     void hh;
   });
   side.append(sideHead, info);
@@ -102,7 +102,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
       speed.setLabel(speedLabel);
       speedMeasure.textContent = speedLabel;
       speed.setAria(t("combat.speed", { speed: nm.speed }));
-      const finishLabel = t("combat.finishFast", { cost: nm.finishFastCost });
+      const finishLabel = t("combat.finishFast", { cost: `${nm.finishFastCost} ${ICONS.gold}` });
       finishFast.setLabel(finishLabel);
       fastMeasure.textContent = finishLabel;
       finishFast.setAria(finishLabel);

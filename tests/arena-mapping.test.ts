@@ -94,6 +94,15 @@ describe("arena world mapping (A91.2)", () => {
     expect(rays.visible).toBe(true);
     expect(shadowLights).toHaveLength(1);
     expect(shadowLights[0]!.shadow.mapSize.x).toBe(2048);
+    arena.setShadowsEnabled(false);
+    shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+    expect(shadowLights).toHaveLength(0);
+    expect(rays.visible).toBe(true);
+    arena.setShadowsEnabled(true);
+    shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+    expect(shadowLights).toHaveLength(1);
     const highStrength = material.uniforms.strength!.value as number;
     const startTime = material.uniforms.time!.value as number;
     arena.update(0.5);
@@ -118,6 +127,15 @@ describe("arena world mapping (A91.2)", () => {
     shadowLights = arena.root.children
       .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
     expect(shadowLights).toHaveLength(0);
+    arena.setShadowsEnabled(false);
+    arena.setShadowQuality("high");
+    shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+    expect(shadowLights).toHaveLength(0);
+    arena.setShadowsEnabled(true);
+    shadowLights = arena.root.children
+      .filter((child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow);
+    expect(shadowLights).toHaveLength(1);
     arena.dispose();
   });
 

@@ -2,6 +2,7 @@
 // public/assets/ui/generated (built by scripts/gen-ui-kit.mjs) drawn via 9/3-slice on canvas.
 // CSS only positions/sizes hosts; colour, chrome and button text live in the art + canvas.
 
+import { getCachedEmojiImage, onEmojiAssetReady, setEmojiRichText, splitEmojiText } from "../core/emojiIcon";
 export type ButtonSkin = "green" | "red" | "blue" | "wood" | "plum";
 export type ButtonState = "normal" | "hover" | "pressed" | "disabled" | "selected";
 
@@ -15,14 +16,17 @@ export const SLICE = {
 /** Art-pixel → CSS-pixel factor. Integer keeps pixel art crisp. */
 export const ART_SCALE = 2;
 /** The supplied OTF faces are shared by DOM and canvas text. */
-export const FONT = `"Forest Body", "Noto Sans", sans-serif`;
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
-export const INK = "#1e120a";
+export const NORMAL_FONT = `"Forest Normal", "Noto Sans", sans-serif`;
+export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
+export const INK = "#111";
 export const LABEL = "#fff8ec";
+const BUTTON_INK = "#1e120a";
 
 const KIT_DIR = `${import.meta.env.BASE_URL}assets/ui/generated`;
 const images = new Map<string, HTMLImageElement>();
 const repaint = new Set<() => void>();
+onEmojiAssetReady(() => { for (const fn of repaint) fn(); });
 const surfaceDisposers = new WeakMap<HTMLElement, Set<() => void>>();
 let ready: Promise<void> | null = null;
 
@@ -48,8 +52,9 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
     }));
     if (typeof document !== "undefined" && document.fonts) {
       await Promise.allSettled([
-        document.fonts.load(`16px ${FONT}`),
         document.fonts.load(`16px ${HEADING_FONT}`),
+        document.fonts.load(`16px ${NORMAL_FONT}`),
+        document.fonts.load(`16px ${STORY_FONT}`),
       ]);
     }
     for (const fn of repaint) fn();
@@ -97,23 +102,62 @@ export function drawFit(g: CanvasRenderingContext2D, name: string, x: number, y:
   if (img) g.drawImage(img, x, y, w, h);
 }
 
-/** Outlined label text (white on dark chrome). `stroke: null` disables the outline (emoji glyphs). */
+/** Outlined label text; pictographic runs use cached image assets instead of system emoji fonts. */
 export function label(
   g: CanvasRenderingContext2D, text: string, x: number, y: number,
-  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "body" },
+  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "normal" | "story" },
 ) {
-  g.font = `${o.weight ?? 700} ${o.size}px ${o.font === "heading" ? HEADING_FONT : FONT}`;
-  g.textAlign = o.align ?? "center";
-  g.textBaseline = "middle";
-  const fill = o.fill ?? INK;
-  if (o.stroke !== null && (o.stroke !== undefined || fill !== INK)) {
-    g.lineJoin = "round";
-    g.lineWidth = Math.max(2, o.size / 5);
-    g.strokeStyle = o.stroke ?? INK;
-    g.strokeText(text, x, y, o.maxW);
+  const font = o.font === "heading" ? HEADING_FONT : o.font === "story" ? STORY_FONT : NORMAL_FONT;
+  g.font = `${o.weight ?? 700} ${o.size}px ${font}`;
+  const parts = splitEmojiText(text);
+  if (!parts.some((part) => part.kind === "emoji")) {
+    g.textAlign = o.align ?? "center";
+    g.textBaseline = "middle";
+    const fill = o.fill ?? INK;
+    if (o.stroke !== null && (o.stroke !== undefined || fill !== INK)) {
+      g.lineJoin = "round";
+      g.lineWidth = Math.max(2, o.size / 5);
+      g.strokeStyle = o.stroke ?? INK;
+      g.strokeText(text, x, y, o.maxW);
+    }
+    g.fillStyle = fill;
+    g.fillText(text, x, y, o.maxW);
+    return;
   }
+
+  const widths = parts.map((part) => part.kind === "emoji" ? o.size : g.measureText(part.value).width);
+  const naturalWidth = widths.reduce((sum, width) => sum + width, 0);
+  const scale = o.maxW && naturalWidth > o.maxW ? o.maxW / naturalWidth : 1;
+  const totalWidth = naturalWidth * scale;
+  const align = o.align ?? "center";
+  let cursor = align === "center" ? x - totalWidth / 2 : align === "right" || align === "end" ? x - totalWidth : x;
+  const fill = o.fill ?? INK;
+  g.save();
+  g.textAlign = "left";
+  g.textBaseline = "middle";
   g.fillStyle = fill;
-  g.fillText(text, x, y, o.maxW);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    const width = widths[i]! * scale;
+    if (part.kind === "emoji") {
+      const image = getCachedEmojiImage(part.value);
+      if (image) {
+        const size = o.size * scale;
+        g.drawImage(image, cursor + (width - size) / 2, y - size / 2, size, size);
+      }
+    } else {
+      const textX = cursor;
+      if (o.stroke !== null && (o.stroke !== undefined || fill !== INK)) {
+        g.lineJoin = "round";
+        g.lineWidth = Math.max(2, o.size / 5) * scale;
+        g.strokeStyle = o.stroke ?? INK;
+        g.strokeText(part.value, textX, y);
+      }
+      g.fillText(part.value, textX, y);
+    }
+    cursor += width;
+  }
+  g.restore();
 }
 
 export type Painter = (g: CanvasRenderingContext2D, w: number, h: number) => void;
@@ -177,6 +221,7 @@ export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `kit-panel ${cls}`.trim();
   el.dataset.skin = skin;
+  el.style.color = skin === "panel_wood" || skin === "shell_billboard" ? LABEL : INK;
   surface(el, (g, w, hh) => nineSlice(g, skin, SLICE[skin], 0, 0, w, hh));
   return el;
 }
@@ -223,12 +268,13 @@ export function kitButton(o: {
     }
     const dy = st === "pressed" ? 1 : -1;
     const fill = st === "disabled" ? "#d8d0c4" : LABEL;
+    const iconFill = skin === "wood" || skin === "icon" ? fill : BUTTON_INK;
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));
     if (icon && text) {
-      label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, stroke: null });
-      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: INK, maxW: w - hh - 8, font: "heading" });
-    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, stroke: null, font: "heading" });
-    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: INK, maxW: w - 12, font: "heading" });
+      label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null });
+      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: w - hh - 8, font: "heading" });
+    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "heading" });
+    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: w - 12, font: "heading" });
   });
   const sync = () => {
     el.setAttribute("aria-label", aria || text || icon || "");
@@ -283,6 +329,6 @@ export function closeButton(onClose: () => void, aria: string): HTMLButtonElemen
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   if (cls) el.className = cls;
-  if (text !== undefined) el.textContent = text;
+  if (text !== undefined) setEmojiRichText(el, text);
   return el;
 }

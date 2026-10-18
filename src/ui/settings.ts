@@ -124,9 +124,9 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         field("settings.resolution", stepper(RESOLUTIONS, s.resolutionKey, (v) => v === "adaptive" ? t("settings.resolution.adaptive") : v, (v) => store.save({ resolutionKey: v })));
         field("settings.tooltip", stepper(TOOLTIP_MODES, s.tooltipMode, (v) => t(`settings.tooltip.${v}` as MsgKey), (v) => store.save({ tooltipMode: v })));
         field("settings.quality", stepper(QUALITY, s.quality, (v) => t(`quality.${v}` as MsgKey), (v) => store.save({ quality: v })));
+        field("settings.shadows", toggle(s.shadowsEnabled, (v) => store.save({ shadowsEnabled: v })));
         field("settings.renderScale", stepper(RENDER_SCALES, s.renderScale, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ renderScale: v })));
-        field("settings.fpsLimit", stepper(FPS_LIMITS, s.fpsLimit, (v) => `${v} FPS`, (v) => store.save({ fpsLimit: v })));
-        field("settings.batterySaver", toggle(s.batterySaver, (v) => store.save({ batterySaver: v })));
+        field("settings.fpsLimit", stepper(FPS_LIMITS, s.fpsLimit, (v) => t("settings.fpsValue", { value: v }), (v) => store.save({ fpsLimit: v })));
         field("settings.guiScale", stepper(GUI_SCALES, s.guiScale, (v) => `${Math.round(v * 100)}%`, (v) => store.save({ guiScale: v })));
         break;
       case "keys":
@@ -141,7 +141,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
             b.setDisabled(reserved);
             field(`key.${action}` as MsgKey, b.el);
           }
-          const reset = kitButton({ skin: "red", label: `${t("settings.resetKeys")} · ${t(`ctx.${ctx}` as MsgKey)}`, cls: "wide-btn", onClick: () => { listening = null; store.resetKeys(ctx); } });
+          const reset = kitButton({ skin: "red", label: `${t("settings.resetKeys")} · ${t(`ctx.${ctx}` as MsgKey)}`, cls: "wide-btn shortcut-reset", onClick: () => { listening = null; store.resetKeys(ctx); } });
           body.append(reset.el);
         }
         break;

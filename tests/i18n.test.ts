@@ -13,7 +13,8 @@ describe("i18n", () => {
     expect(t("settings.quality.medium")).toBe("Trung bình");
     expect(t("settings.tooltip.expanded")).toBe("Đầy đủ");
     expect(t("settings.tooltip.off")).toBe("Tắt");
-    expect(t("settings.resolution.adaptive", {}, "vi")).toBe("Tự động");
+    expect(t("settings.resolution.adaptive", {}, "vi")).toBe("Thích nghi");
+    expect(t("settings.fpsValue", { value: 60 }, "vi")).toBe("60 Khung hình trên giây");
   });
 
   it("substitutes params, keeps unknown tokens, and keeps Vietnamese stable", () => {

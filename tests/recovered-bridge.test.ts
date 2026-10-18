@@ -92,6 +92,39 @@ describe("recovered application bridge", () => {
     expect(resumed.run()?.board[12]?.uid).toBe(run.board[12]?.uid);
   });
 
+  it("reorders weather blessings through the Bridge and persists the chosen order", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    run.blessingQueue = ["weather_fire", "weather_tide", "weather_wind"];
+    bridge.checkpoint("EVENT", "Seed weather blessing queue");
+
+    expect(bridge.reorderWeatherBlessing(2, 0)).toBe(true);
+    expect(run.blessingQueue).toEqual(["weather_wind", "weather_fire", "weather_tide"]);
+
+    const resumed = createBridge(store);
+    expect(resumed.continueRun()).toBe(true);
+    expect(resumed.run()?.blessingQueue).toEqual(["weather_wind", "weather_fire", "weather_tide"]);
+  });
+
+  it("keeps planning history across a completed combat round and clears it for a new run", () => {
+    const { bridge } = deployed();
+    const planningMessage = "Mốc lập kế hoạch cần giữ";
+    bridge.checkpoint("EVENT", planningMessage);
+    expect(bridge.history().entries.some((entry) => entry.message === planningMessage)).toBe(true);
+
+    const session = bridge.startCombat();
+    expect(session).not.toBeNull();
+    expect(session?.finish()).not.toBeNull();
+    expect(bridge.run()?.phase).toBe("PLANNING");
+    expect(bridge.run()?.round).toBe(2);
+    expect(bridge.history().entries.some((entry) => entry.message === planningMessage)).toBe(true);
+
+    bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    expect(bridge.history().entries).toEqual([]);
+    expect(bridge.history().recent).toEqual([]);
+  });
+
   it("replays an interrupted combat without paying its rewards twice", () => {
     const { store, bridge } = deployed();
     const original = bridge.startCombat();
@@ -208,6 +241,25 @@ describe("recovered application bridge", () => {
     expect(resumed.continueRun()).toBe(true);
     expect(resumed.run()?.enemyPreview).toEqual(preview?.units);
     expect(resumed.prepareEnemyPreview()?.source).toBe("saved");
+  });
+
+  it("materializes the prepared Planning fight without mutating or persisting combat state", () => {
+    const { store, bridge, run } = deployed();
+    const preview = bridge.prepareEnemyPreview();
+    expect(preview?.units.length).toBeGreaterThan(0);
+    if (!preview) throw new Error("enemy preview missing");
+    const runBefore = JSON.stringify(run);
+    const persistedBefore = store.getItem(PROGRESS_KEY);
+    const heartsBefore = run.hp;
+
+    const fighters = bridge.planningCombatProjection(preview);
+
+    expect(fighters?.some((fighter) => fighter.uid === run.board[12]?.uid && fighter.side === "L")).toBe(true);
+    expect(fighters?.filter((fighter) => fighter.side === "R").map((fighter) => fighter.uid)).toEqual(preview.units.map((unit) => unit.uid));
+    expect(run.phase).toBe("PLANNING");
+    expect(run.hp).toBe(heartsBefore);
+    expect(JSON.stringify(run)).toBe(runBefore);
+    expect(store.getItem(PROGRESS_KEY)).toBe(persistedBefore);
   });
 
   it("rejects combat on an empty board without mutating the run", () => {

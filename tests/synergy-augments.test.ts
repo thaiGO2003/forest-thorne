@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import { applyAugment, augmentBand, augmentScore, AUGMENT_BY_ID, AUGMENTS } from "../src/core/augments";
-import { createRun, playerCombatBonus } from "../src/core/run";
+import { applyRoundResult, createRun, playerCombatBonus, startCombat, type OwnedUnit } from "../src/core/run";
 import { computeSynergies, counterMultiplier } from "../src/core/synergy";
+import { skipTutorial } from "../src/core/tutorial";
 
 const tankers = NORMAL_UNITS.filter((u) => u.role === "TANKER").map((u) => u.id);
+const owned = (uid: string): OwnedUnit => ({ uid, baseId: NORMAL_UNITS[0]!.id, star: 1, equips: [] });
 
 describe("synergy A9", () => {
   it("thresholds 2/4/6 with current/active/next", () => {
@@ -63,6 +65,68 @@ describe("augments A10", () => {
     expect(applyAugment(s, "heart_recovery_2")).toBe(true);
     expect([s.hp, s.heartEscrow]).toEqual([max, 1]);
     expect(applyAugment(s, "heart_recovery_1")).toBe(false);
+  });
+  it("applies immediate heart restoration to living runs only and caps at the mode start value", () => {
+    const living = createRun(32);
+    living.hp = 1;
+    expect(applyAugment(living, "heart_restore_1")).toBe(true);
+    expect(living.hp).toBe(3);
+
+    const defeated = createRun(33);
+    defeated.hp = 0;
+    defeated.phase = "GAME_OVER";
+    expect(applyAugment(defeated, "heart_restore_2")).toBe(true);
+    expect(defeated.hp).toBe(0);
+  });
+  it("applies victory and survived-loss heart blessings on their exact round outcomes without reviving game over", () => {
+    const victory = createRun(34);
+    skipTutorial(victory);
+    victory.hp = 2;
+    victory.board[0] = owned("victory");
+    expect(applyAugment(victory, "heart_victory_1")).toBe(true);
+    expect(startCombat(victory)).toBeNull();
+    applyRoundResult(victory, {
+      combatId: "heart-win",
+      winner: "LEFT",
+      enemySurvivors: 0,
+      enemyStars: [],
+      bounty: 0,
+      drops: [],
+    });
+    expect(victory.hp).toBe(3);
+
+    const survived = createRun(35);
+    skipTutorial(survived);
+    survived.board[0] = owned("survived");
+    expect(applyAugment(survived, "heart_survivor_1")).toBe(true);
+    expect(startCombat(survived)).toBeNull();
+    const survivedResult = applyRoundResult(survived, {
+      combatId: "heart-survived-loss",
+      winner: "RIGHT",
+      enemySurvivors: 1,
+      enemyStars: [],
+      bounty: 0,
+      drops: [],
+    });
+    expect(survivedResult?.gameOver).toBe(false);
+    expect(survived.hp).toBe(3);
+
+    const defeated = createRun(36);
+    skipTutorial(defeated);
+    defeated.hp = 1;
+    defeated.board[0] = owned("defeated");
+    expect(applyAugment(defeated, "heart_survivor_1")).toBe(true);
+    expect(startCombat(defeated)).toBeNull();
+    const defeatedResult = applyRoundResult(defeated, {
+      combatId: "heart-game-over",
+      winner: "RIGHT",
+      enemySurvivors: 1,
+      enemyStars: [],
+      bounty: 0,
+      drops: [],
+    });
+    expect(defeatedResult?.gameOver).toBe(true);
+    expect([defeated.hp, defeated.phase]).toEqual([0, "GAME_OVER"]);
   });
   it("materializes persistent augment values into canonical run/combat fields", () => {
     const s = createRun(4);

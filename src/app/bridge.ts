@@ -4,7 +4,8 @@ import { getUnit } from "../content/catalog";
 import {
   applyRoundResult, benchCap, benchToBench, benchToBoard, boardToBench, boardToBoard, buy as buyUnit,
   buyXp as buyRunXp, chooseAugment as chooseRunAugment, consumeWeatherBlessings, craftRunItem, createModeRun, deployLimit,
-  enemyPreview, equipItem, playerCombatBonus, refresh, research as researchTech, runSynergies,
+  enemyPreview, equipItem, playerCombatBonus, refresh, reorderWeatherBlessing as reorderRunWeatherBlessing,
+  research as researchTech, runSynergies,
   sell as sellUnit, stageRunCraftItem, startCombat as beginCombat, toggleLock as toggleShopLock,
   unequipItem, unequipAll, type RoundResultInput, type RoundResultSummary, type RunState,
 } from "../core/run";
@@ -94,8 +95,11 @@ export interface Bridge {
   stageCraft(index: number, itemId: string | null): boolean;
   craft(): string | null;
   chooseAugment(id: string): boolean;
+  reorderWeatherBlessing(from: number, to: number): boolean;
   /** Ensure the canonical Planning encounter preview exists and is persisted before presentation syncs. */
   prepareEnemyPreview(): EnemyPreviewResult | null;
+  /** Materialize the prepared Planning encounter without charging hearts, simulating, consuming blessings, or persisting. */
+  planningCombatProjection(preview: EnemyPreviewResult): readonly Fighter[] | null;
   /** Resolve a battle from the current formation; null when illegal (phase/tutorial/empty board). */
   startCombat(): CombatSession | null;
   /** Read-only diagnostic projection for the currently presented combat, if one exists. */
@@ -219,6 +223,27 @@ export function createBridge(store: KV = localStorage): Bridge {
     equips: [...unit.equips],
     traits: [...(unit.traits ?? [])],
   }] : []);
+  const materializePreparedCombat = (s: RunState, preview: EnemyPreviewResult, left: Placement[]) => {
+    const right = preview.units.map((unit) => ({
+      ...unit,
+      equips: unit.equips ? [...unit.equips] : undefined,
+      traits: unit.traits ? [...unit.traits] : undefined,
+    }));
+    const round = s.round;
+    const environment = environmentFor(round);
+    const ai = AI_PROFILE[s.aiMode];
+    const configuredScale = preview.source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(round);
+    const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
+    const fighters = materializeCombat(left, right, {
+      rightAi: { hp: ai.hp, atk: ai.atk, matk: ai.matk },
+      rightModeScale: scale,
+      tutorialRightHpHalving: s.aiMode === "TUTORIAL" && round >= 1 && round <= 8,
+      leftPersistent: playerCombatBonus(s),
+      environment,
+      synergy: { L: synergyCombatBonus(s) },
+    });
+    return { fighters, environment, ai, right };
+  };
   const seededRng = (seed: number) => {
     let value = seed | 0;
     return () => {
@@ -390,11 +415,22 @@ export function createBridge(store: KV = localStorage): Bridge {
       commit("EVENT", `Chọn nâng cấp ${id}`, undefined, [{ type: "augment_chosen" }]);
       return true;
     },
+    reorderWeatherBlessing(from, to) {
+      if (!state || !reorderRunWeatherBlessing(state, from, to)) return false;
+      commit("EVENT", `Đổi thứ tự chúc phúc thời tiết #${from + 1} → #${to + 1}`);
+      return true;
+    },
     prepareEnemyPreview() {
       if (!state || state.phase !== "PLANNING") return null;
       const preview = enemyPreview(state);
       if (preview && preview.source !== "saved") persist();
       return preview;
+    },
+    planningCombatProjection(preview) {
+      if (!state || state.phase !== "PLANNING" || preview.round !== state.round || !preview.units.length) return null;
+      const left = boardPlacements(state);
+      if (!left.length) return null;
+      return materializePreparedCombat(state, preview, left).fighters;
     },
     combatSnapshot() {
       if (!combatDiagnostics) return null;
@@ -412,30 +448,14 @@ export function createBridge(store: KV = localStorage): Bridge {
       if (!left.length) return null;
       const preview = enemyPreview(s);
       if (!preview?.units.length) return null;
-      const right = preview.units.map((unit) => ({
-        ...unit,
-        equips: unit.equips ? [...unit.equips] : undefined,
-        traits: unit.traits ? [...unit.traits] : undefined,
-      }));
       const round = s.round;
       const baseSeed = s.rngSeed | 0;
       const combatSeed = (baseSeed ^ Math.imul(round, 0x45d9f3b)) | 0;
       const combatId = `solo:${round}:${combatSeed >>> 0}`;
-      const environment = environmentFor(round);
-      const ai = AI_PROFILE[s.aiMode];
-      const configuredScale = preview.source === "creative" ? 1 : MODE_CONFIG[s.mode].enemyScale(round);
-      const scale = Number.isFinite(configuredScale) && configuredScale > 0 ? configuredScale : 1;
       if (beginCombat(s) !== null) return null;
       // Persist the charged heart before presentation; reload replays the deterministic encounter.
       persist();
-      const fighters = materializeCombat(left, right, {
-        rightAi: { hp: ai.hp, atk: ai.atk, matk: ai.matk },
-        rightModeScale: scale,
-        tutorialRightHpHalving: s.aiMode === "TUTORIAL" && round >= 1 && round <= 8,
-        leftPersistent: playerCombatBonus(s),
-        environment,
-        synergy: { L: synergyCombatBonus(s) },
-      });
+      const { fighters, environment, ai, right } = materializePreparedCombat(s, preview, left);
       const roster: RosterEntry[] = fighters.map((fighter) => ({
         uid: fighter.uid,
         baseId: fighter.baseId,

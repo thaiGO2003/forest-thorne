@@ -16,6 +16,7 @@ export interface Stage {
   /** Cap rendered frames without creating a second timer/render loop. */
   setFpsLimit(fps: number): void;
   setShadowQuality(q: ShadowQuality): void;
+  setShadowsEnabled(enabled: boolean): void;
   /** Scale drawing-buffer resolution without changing logical/CSS layout size. */
   setRenderScale(scale: number): void;
   renderer: THREE.WebGLRenderer;
@@ -43,7 +44,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(effectivePixelRatio(devicePixelRatio, "high", 1));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   host.appendChild(renderer.domElement);
 
@@ -57,6 +58,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   let arena = createArena(scene, current);
   arena.setPhase("planning");
   let shadowQuality: ShadowQuality = "high";
+  let shadowsEnabled = true;
   let renderScale = 1;
   const applyPixelRatio = () => renderer.setPixelRatio(effectivePixelRatio(devicePixelRatio, shadowQuality, renderScale));
 
@@ -99,12 +101,13 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   let fpsLimit = 60;
   let lastRenderMs = Number.NEGATIVE_INFINITY;
 
-  const clock = new THREE.Clock();
+  const timer = new THREE.Timer();
   renderer.setAnimationLoop((now) => {
     const minFrameMs = 1000 / fpsLimit;
     if (now - lastRenderMs < minFrameMs - 0.5) return;
     lastRenderMs = now;
-    const dt = Math.max(0, clock.getDelta());
+    timer.update(now);
+    const dt = Math.max(0, timer.getDelta());
     let px = stick.x, py = stick.y;
     for (const k of held) { px += PAN_KEYS[k]![0]; py += PAN_KEYS[k]![1]; }
     if (px || py) {
@@ -141,6 +144,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       arena = createArena(scene, p);
       arena.setPhase("planning");
       arena.setShadowQuality(shadowQuality);
+      arena.setShadowsEnabled(shadowsEnabled);
       frame(false);
     },
     setPhase: (phase) => arena.setPhase(phase),
@@ -148,7 +152,7 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
     setFpsLimit(fps) {
       fpsLimit = Number.isFinite(fps) ? Math.max(1, fps) : 60;
       lastRenderMs = Number.NEGATIVE_INFINITY;
-      clock.getDelta();
+      timer.reset();
     },
     setRenderScale(scale) {
       renderScale = Number.isFinite(scale) ? Math.min(1, Math.max(0.5, scale)) : 1;
@@ -159,9 +163,15 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
       arena.setShadowQuality(q);
       applyPixelRatio();
     },
+    setShadowsEnabled(enabled) {
+      shadowsEnabled = enabled;
+      renderer.shadowMap.enabled = enabled;
+      arena.setShadowsEnabled(enabled);
+    },
     onFrame(fn) { frameFns.add(fn); return () => frameFns.delete(fn); },
     dispose() {
       renderer.setAnimationLoop(null);
+      timer.dispose();
       frameFns.clear();
       removeEventListener("keydown", keyDown);
       removeEventListener("keyup", keyUp);

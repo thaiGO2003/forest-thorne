@@ -251,21 +251,21 @@ describe("settings A35/A44", () => {
   it("defaults, clamps and per-mode AI legality", () => {
     const d = normalizeSettings({
       language: "en", volumeLevel: 99, musicVolume: 99, resolutionKey: "800x600", guiScale: 2,
-      fpsLimit: 144, renderScale: 0.2, batterySaver: true,
+      fpsLimit: 144, renderScale: 0.2, batterySaver: true, shadowsEnabled: "off",
       tooltipMode: "expanded", aiModeByGameMode: { FortressPvP4: "EASY" },
     });
     expect([
       d.volumeLevel, d.musicVolume, d.resolutionKey, d.expandedTooltip, d.language, d.guiScale, d.fpsLimit,
-      d.renderScale, d.batterySaver,
+      d.renderScale, d.shadowsEnabled,
     ]).toEqual([10, 10, "1600x900", true, "vi", 1, 30, 0.5, true]);
     expect(d.aiModeByGameMode).toEqual({
       EndlessPvEClassic: "TUTORIAL", EndlessPvEFortress: "MEDIUM", EndlessCreative: "TUTORIAL", FortressPvP4: "COOP4_MEDIUM",
     });
   });
 
-  it("persists battery saver independently and clamps arbitrary render scale", () => {
+  it("migrates legacy battery saver into the FPS default without preserving the retired setting", () => {
     const migrated = normalizeSettings({ batterySaver: true, subtitleEnabled: false, fpsLimit: 120, renderScale: 1.4 });
-    expect([migrated.fpsLimit, migrated.batterySaver, migrated.renderScale, migrated.narrationEnabled]).toEqual([120, true, 1, false]);
+    expect([migrated.fpsLimit, migrated.renderScale, migrated.narrationEnabled, "batterySaver" in migrated]).toEqual([120, 1, false, false]);
   });
 
   it("keys: defaults use R and Right Shift; invalid → default, ESCAPE reserved, lower-case normalized", () => {
@@ -284,11 +284,11 @@ describe("settings A35/A44", () => {
     const seen: number[] = [];
     store.subscribe((x) => seen.push(x.volumeLevel));
     store.preview({ volumeLevel: 7 });
-    store.preview({ volumeLevel: 8 });
+    store.preview({ volumeLevel: 8, shadowsEnabled: false });
     expect([seen, s.setItem.mock.calls.length]).toEqual([[7, 8], 0]);
     vi.advanceTimersByTime(200);
     expect(s.setItem).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(s.m[SETTINGS_KEY]!).volumeLevel).toBe(8);
+    expect([JSON.parse(s.m[SETTINGS_KEY]!).volumeLevel, JSON.parse(s.m[SETTINGS_KEY]!).shadowsEnabled]).toEqual([8, false]);
     store.save({ keys: { ...store.get().keys, combat: { step: "Z", settings: "ESCAPE", toggleAudio: "M" } } });
     store.resetKeys("combat");
     expect(store.get().keys.combat.step).toBe("SPACE");

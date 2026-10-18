@@ -75,7 +75,7 @@ export function mountAchievements(modal: ModalHandle, account: AchievementAccoun
       completionClaimed ? "achievements.claimed" : completionUnlocked ? "achievements.claimable" : "achievements.locked",
     )));
     if (completionUnlocked && !completionClaimed) {
-      const actions = h("div", "row");
+      const actions = h("div", "row button-row");
       const claim = kitButton({
         skin: "green",
         label: t("achievements.claim"),
@@ -112,7 +112,7 @@ export function mountAchievements(modal: ModalHandle, account: AchievementAccoun
       panel.append(h("p", "lib-p", t(stateKey)));
 
       if (row.claimable) {
-        const actions = h("div", "row");
+        const actions = h("div", "row button-row");
         const claim = kitButton({
           skin: "green",
           label: t("achievements.claim"),

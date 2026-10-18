@@ -229,7 +229,7 @@ export function mountLibrary(
     search.append(input);
     const roles = chipRow(ROLES, (r) => ICONS[r], (r) => t(`role.${r}` as MsgKey), () => f.role, (v) => { f.role = v; });
     const facs = chipRow(FACTIONS, (x) => ICONS[x], (x) => t(`faction.${x}` as MsgKey), () => f.faction, (v) => { f.faction = v; });
-    const tiers = chipRow(TIERS, (n) => (n === 6 ? "👑" : `${n}`), (n) => (n === 6 ? t("library.boss") : t("library.tier", { tier: n })), () => f.tier, (v) => { f.tier = v; });
+    const tiers = chipRow(TIERS, (n) => (n === 6 ? ICONS.crown : `${n}`), (n) => (n === 6 ? t("library.boss") : t("library.tier", { tier: n })), () => f.tier, (v) => { f.tier = v; });
     const reset = kitButton({ skin: "wood", label: t("library.reset"), cls: "lib-reset", onClick: () => { Object.assign(f, { q: "", role: null, faction: null, tier: null }); page = 0; renderBrowse(); } });
     bar.append(search, roles.row, facs.row, tiers.row, reset.el);
     const grid = h("div", "lib-grid");
@@ -310,7 +310,7 @@ export function mountLibrary(
     const actions = h("div", "lib-actions");
     const stateBtns: KitButton[] = [];
     for (const s of ACTION_STATES) {
-      const b = kitButton({ skin: s === "idle" ? "green" : "wood", label: t(STATE_KEY[s]), onClick: () => {
+      const b = kitButton({ skin: "green", label: t(STATE_KEY[s]), onClick: () => {
         relaxedIdle = s === "idle";
         viewer?.setCombat(false);
         viewer?.play(s);
@@ -320,15 +320,15 @@ export function mountLibrary(
       actions.append(b.el);
       stateBtns.push(b);
       if (s === "idle") {
-        const stance = kitButton({ skin: "wood", label: t("unit.combatIdle"), onClick: () => {
+        const beastForm = kitButton({ skin: "green", label: t("unit.beastForm"), onClick: () => {
           relaxedIdle = false;
           viewer?.setCombat(true);
           viewer?.play("idle");
           for (const x of stateBtns) x.setSelected(false);
           clearIdleTimer();
         } });
-        tip.bind(stance.el, () => ({ title: t("unit.combatIdle") }));
-        actions.append(stance.el);
+        tip.bind(beastForm.el, () => ({ title: t("unit.beastForm") }));
+        actions.append(beastForm.el);
       }
     }
     const stars = h("div", "lib-stars");
@@ -354,7 +354,12 @@ export function mountLibrary(
         for (const r of rows) if (r) p.append(h("p", "lib-p", r));
         info.append(p);
       };
-      sec(`${ICONS[u.role]} ${t(`role.${u.role}` as MsgKey)} · ${ICONS[u.faction]} ${t(`faction.${u.faction}` as MsgKey)} · ${ICONS[u.element as Element]} ${t(`element.${u.element}` as MsgKey)} · ${t("library.tier", { tier: u.tier })}`, u.pitchVi);
+      const identity = panelEl("panel_tooltip", "lib-sec");
+      identity.append(
+        h("h3", "lib-h", `${ICONS[u.role]} ${t(`role.${u.role}` as MsgKey)} · ${ICONS[u.faction]} ${t(`faction.${u.faction}` as MsgKey)} · ${ICONS[u.element as Element]} ${t(`element.${u.element}` as MsgKey)} · ${t("library.tier", { tier: u.tier })}`),
+        h("p", "lib-p lib-story", u.pitchVi),
+      );
+      info.append(identity);
       const ms = starStatMilestones(u);
       const table = h("table", "lib-table");
       const head = h("tr");
@@ -375,11 +380,11 @@ export function mountLibrary(
         s.targetVi && `${ICONS.range} ${t("library.target")}: ${s.targetVi}`,
         s.shapeVi && `▦ ${t("library.shape")}: ${s.shapeVi}`,
         s.countVi && `# ${t("library.targets")}: ${s.countVi}`,
-        s.durationVi && `⏳ ${t("library.duration")}: ${s.durationVi}`);
+        s.durationVi && `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}`);
       const skin = u.skin;
       if (skin) {
         const skinSec = panelEl("panel_tooltip", "lib-sec");
-        skinSec.append(h("h3", "lib-h", `🎨 ${t("library.skins")}`));
+        skinSec.append(h("h3", "lib-h", `${ICONS.palette} ${t("library.skins")}`));
         const skinActions = h("div", "lib-skin-actions");
         const base = kitButton({ skin: "wood", label: t("library.baseLook"), onClick: () => {
           if (account.equipCollectionSkin(u.id, null)) refreshCollection();

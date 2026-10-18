@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import type { RunState } from "../src/core/run";
 import { createBoardView, LOW_CORTISOL_DURATION_MS } from "../src/units/boardView";
@@ -29,12 +29,26 @@ vi.mock("../src/units/registry", () => ({
   }),
 }));
 
+const billboardMocks = vi.hoisted(() => ({
+  instances: [] as Array<{
+    set: ReturnType<typeof vi.fn>;
+    setVisible: ReturnType<typeof vi.fn>;
+    setPriority: ReturnType<typeof vi.fn>;
+    dispose: ReturnType<typeof vi.fn>;
+  }>,
+}));
+
 vi.mock("../src/units/billboard", () => ({
-  createBillboard: () => ({
-    set: vi.fn(),
-    setVisible: vi.fn(),
-    dispose: vi.fn(),
-  }),
+  createBillboard: () => {
+    const instance = {
+      set: vi.fn(),
+      setVisible: vi.fn(),
+      setPriority: vi.fn(),
+      dispose: vi.fn(),
+    };
+    billboardMocks.instances.push(instance);
+    return instance;
+  },
 }));
 
 function runWithBench(uid = "bench-1"): RunState {
@@ -54,16 +68,21 @@ function runWithBoard(uid = "board-1", index = 0): RunState {
 
 function stageHarness() {
   let frame: (dt: number) => void = () => {};
+  const sceneAdd = vi.fn();
   const stage = {
-    scene: { add: vi.fn() },
+    scene: { add: sceneAdd },
     arena: { setOccupied: vi.fn() },
     onFrame(callback: (dt: number) => void) {
       frame = callback;
       return vi.fn();
     },
   };
-  return { stage: stage as never, advance: (seconds: number) => frame(seconds) };
+  return { stage: stage as never, sceneAdd, advance: (seconds: number) => frame(seconds) };
 }
+
+beforeEach(() => {
+  billboardMocks.instances.length = 0;
+});
 
 describe("BoardView presentation", () => {
   it("faces bench animals toward the tactical center", () => {
@@ -151,6 +170,144 @@ describe("BoardView presentation", () => {
     expect(visual.root.position.y).toBe(baseY);
     expect(visual.root.rotation.y).toBe(baseYaw);
 
+    board.dispose();
+  });
+
+  it("keeps direct tile feedback above overlapping splash and scan feedback", () => {
+    const { stage, sceneAdd } = stageHarness();
+    const board = createBoardView(stage);
+    board.sync(runWithBoard());
+
+    board.flashTile!("board-1", "scan");
+    const tile = sceneAdd.mock.calls.at(-1)![0] as { material: { color: { getHex(): number } } };
+    expect(tile.material.color.getHex()).toBe(0x984cf5);
+
+    board.flashTile!("board-1", "splash");
+    expect(tile.material.color.getHex()).toBe(0xffd24e);
+
+    board.flashTile!("board-1", "direct");
+    expect(tile.material.color.getHex()).toBe(0xff4d58);
+
+    board.flashTile!("board-1", "splash");
+    board.flashTile!("board-1", "scan");
+    expect(tile.material.color.getHex()).toBe(0xff4d58);
+
+    board.dispose();
+  });
+
+  it("keeps Planning target preview persistent, prioritized, and clearable", () => {
+    const { stage, sceneAdd, advance } = stageHarness();
+    const board = createBoardView(stage);
+    const run = runWithBoard();
+    run.board[1] = { uid: "board-2", baseId: NORMAL_UNITS[1]!.id, star: 1, equips: [] };
+    board.sync(run);
+    const rainbow = sceneAdd.mock.calls[1]![0] as { visible: boolean };
+
+    board.setTargetPreview?.({
+      scanCells: [{ col: 0, row: 0 }, { col: 1, row: 0 }],
+      directUids: ["board-1"],
+      splashUids: ["board-2"],
+      skillCasterUid: "board-1",
+    });
+    const direct = sceneAdd.mock.calls.at(-2)![0] as { material: { color: { getHex(): number } }; visible: boolean };
+    const splash = sceneAdd.mock.calls.at(-1)![0] as { material: { color: { getHex(): number } }; visible: boolean };
+    expect(direct.visible).toBe(true);
+    expect(direct.material.color.getHex()).toBe(0xff4d58);
+    expect(splash.visible).toBe(true);
+    expect(splash.material.color.getHex()).toBe(0xffd24e);
+
+    advance(1);
+    expect(direct.visible).toBe(true);
+    expect(direct.material.color.getHex()).toBe(0xff4d58);
+    expect(splash.visible).toBe(true);
+    expect(rainbow.visible).toBe(true);
+
+    board.setTargetPreview?.(null);
+    advance(0);
+    expect(direct.visible).toBe(false);
+    expect(splash.visible).toBe(false);
+    expect(rainbow.visible).toBe(false);
+    board.dispose();
+  });
+
+  it("flashes sparse scan cells without requiring a unit and expires the overlay", () => {
+    const { stage, sceneAdd, advance } = stageHarness();
+    const board = createBoardView(stage);
+    const center = board.cellCenter(9, 4);
+
+    board.flashCell!(9, 4, "scan");
+    const tile = sceneAdd.mock.calls.at(-1)![0] as {
+      material: { color: { getHex(): number } };
+      position: { x: number; z: number };
+      visible: boolean;
+    };
+    expect(tile.material.color.getHex()).toBe(0x984cf5);
+    expect(tile.position.x).toBeCloseTo(center.x, 12);
+    expect(tile.position.z).toBeCloseTo(center.z, 12);
+    expect(tile.visible).toBe(true);
+
+    advance(0.26);
+    expect(tile.visible).toBe(false);
+    board.dispose();
+  });
+
+  it("shows and expires rainbow feedback on the skill caster", () => {
+    const { stage, sceneAdd, advance } = stageHarness();
+    const board = createBoardView(stage);
+    const rainbow = sceneAdd.mock.calls[1]![0] as {
+      material: { color: { getHex(): number } };
+      visible: boolean;
+    };
+    board.sync(runWithBoard());
+    const initialColor = rainbow.material.color.getHex();
+
+    board.flashSkill!("board-1");
+    advance(0.05);
+    expect(rainbow.visible).toBe(true);
+    expect(rainbow.material.color.getHex()).not.toBe(initialColor);
+
+    advance(0.8);
+    expect(rainbow.visible).toBe(false);
+    board.dispose();
+  });
+  it("raises the hovered billboard above peers and restores normal priority", () => {
+    const { stage } = stageHarness();
+    const board = createBoardView(stage);
+    const run = runWithBoard();
+    run.board[1] = { uid: "board-2", baseId: NORMAL_UNITS[1]!.id, star: 1, equips: [] };
+    board.sync(run);
+
+    const first = billboardMocks.instances[0]!;
+    const second = billboardMocks.instances[1]!;
+    board.setHovered("board-1");
+    expect(first.setPriority).toHaveBeenLastCalledWith(true);
+
+    board.setHovered("board-2");
+    expect(first.setPriority).toHaveBeenLastCalledWith(false);
+    expect(second.setPriority).toHaveBeenLastCalledWith(true);
+
+    board.setHovered(null);
+    expect(second.setPriority).toHaveBeenLastCalledWith(false);
+    board.dispose();
+  });
+
+  it("pushes live HP and rage updates into the billboard and unit HP ratio", () => {
+    const { stage } = stageHarness();
+    const board = createBoardView(stage);
+    board.sync(runWithBoard());
+    const billboard = billboardMocks.instances[0]!;
+    const visual = board.visual("board-1")!;
+    billboard.set.mockClear();
+
+    board.setLive("board-1", { hp: 25, maxHp: 100, rage: 3, rageMax: 4 });
+
+    expect(billboard.set).toHaveBeenCalledWith(expect.objectContaining({
+      hp: 25,
+      maxHp: 100,
+      rage: 3,
+      rageMax: 4,
+    }));
+    expect(visual.setHpRatio).toHaveBeenCalledWith(0.25);
     board.dispose();
   });
 });

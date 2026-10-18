@@ -66,7 +66,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
   const viewer = portraits.createViewer(portraitHost);
   viewer.setUnit(unit.id, model.inspection.unit.star);
   const name = h("h2", "ui-inventory-name", unit.nameVi);
-  const stars = h("div", "ui-inventory-stars", "⭐".repeat(model.inspection.unit.star));
+  const stars = h("div", "ui-inventory-stars", ICONS.star.repeat(model.inspection.unit.star));
   const identity = h("div", "ui-inventory-identity");
   identity.append(h("span", "", `${ICONS[unit.role]} ${t(`role.${unit.role}` as MsgKey)}`),
     h("span", "", `${ICONS[unit.faction]} ${t(`faction.${unit.faction}` as MsgKey)}`),
@@ -259,7 +259,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
       else if (!worn && own.equips.some((id) => getEquipment(id)?.nameKey === item.nameKey)) reason = t("inventory.duplicate");
       else if (!worn && own.equips.length >= cap) reason = t("inventory.slotFull");
       const button = kitButton({ skin: worn ? "wood" : "green", size: 12,
-        label: worn ? t("inventory.unequip", { cost: cost ?? 0 }) : t("inventory.equip"),
+        label: worn ? t("inventory.unequip", { cost: `${cost ?? 0} ${ICONS.gold}` }) : t("inventory.equip"),
         onClick: () => execute(() => worn ? intents.unequip(index) : intents.equip(itemId), worn ? "inventory.unequippedOk" : "inventory.equippedOk"),
       });
       button.setDisabled(Boolean(reason)); button.el.title = reason || itemName(itemId); itemButtons.push(button);
@@ -295,7 +295,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     gold.textContent = `${ICONS.gold} ${t("inventory.gold", { gold: model.run.gold })}`;
     const costs = unequipQuote(model.run, model.inspection.where, model.inspection.index);
     const totalCost = costs?.reduce((sum, cost) => sum + cost, 0) ?? 0;
-    removeAll.setLabel(t("inventory.unequipAll", { cost: totalCost }));
+    removeAll.setLabel(t("inventory.unequipAll", { cost: `${totalCost} ${ICONS.gold}` }));
     removeAll.setDisabled(!editable() || !costs?.length || !affordable(totalCost) || !allows("unequip_item"));
     removeAll.el.title = !affordable(totalCost) ? t("planning.notEnoughGold") : "";
     const own = model.inspection.unit;

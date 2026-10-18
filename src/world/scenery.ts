@@ -41,6 +41,12 @@ export function createScenery(
     const phase = cz < minZ ? 0.45 : 1.75;
     return RIVER_X + Math.round(Math.sin(distance * 0.52 + phase) * 1.35);
   };
+  const riverWidthForScenery = (cz: number) => {
+    if (cz >= minZ && cz <= maxZ) return 1;
+    const edge = cz < minZ ? minZ : maxZ;
+    const distance = Math.abs(cz - edge);
+    return 1.08 + Math.min(3, distance * 0.09);
+  };
 
   const box = own(new THREE.BoxGeometry(1, 1, 1));
   const white = (extra: THREE.MeshStandardMaterialParameters = {}) =>
@@ -69,7 +75,7 @@ export function createScenery(
     const d = Math.max(dx, dz);
     if (d === 0) continue;
     const w = toWorld({ x: cx, z: cz });
-    if (dx === 0 && cx === riverColumnForScenery(cz)) { bed.push(w); continue; } // outside-only meandering river channel
+    if (dx === 0 && Math.abs(cx - riverColumnForScenery(cz)) <= riverWidthForScenery(cz) / 2) { bed.push(w); continue; } // outside-only widening meandering river channel
     const flat = cz > maxZ ? APRON_CAMERA_SIDE : APRON;
     const valley = dx === 0 ? Math.min(1, Math.max(0, (Math.abs(cx - RIVER_X) - 1) / 5)) : 1;
     const wave = Math.sin(cx * 0.35) + Math.sin(cz * 0.29 + 1.3) + Math.sin((cx + cz) * 0.17);
@@ -105,7 +111,8 @@ export function createScenery(
     const a = toWorld({ x: riverColumnForScenery(cz), z: cz });
     const b = toWorld({ x: riverColumnForScenery(nextZ), z: nextZ });
     const dx = b.x - a.x, dz = b.z - a.z;
-    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, (a.z + b.z) / 2, 1.08, WATER_H, Math.hypot(dx, dz) + 0.18, Math.atan2(dx, dz));
+    const width = (riverWidthForScenery(cz) + riverWidthForScenery(nextZ)) / 2;
+    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, (a.z + b.z) / 2, width, WATER_H, Math.hypot(dx, dz) + 0.18, Math.atan2(dx, dz));
   });
 
   const pathCells = columns.filter((c) => {

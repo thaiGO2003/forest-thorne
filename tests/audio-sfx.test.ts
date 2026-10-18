@@ -50,9 +50,12 @@ describe("semantic SFX A45", () => {
 
     expect(await manager.play("attack")).toBe("sample");
     expect(play).toHaveBeenCalledWith("impact", 0.48);
+    settings.save({ musicEnabled: false });
+    expect(await manager.play("hit")).toBe("sample");
+    expect(play).toHaveBeenCalledTimes(2);
     settings.save({ audioMuted: true });
     expect(await manager.play("hit")).toBe("none");
-    expect(play).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledTimes(2);
     manager.dispose();
   });
 

@@ -42,6 +42,9 @@ function playback(events: CombatEvent[], inspectionFrames?: CombatInspectionFram
     };
     return [unit.uid, visual] as const;
   }));
+  const flashCell = vi.fn();
+  const flashTile = vi.fn();
+  const flashSkill = vi.fn();
   const board: BoardView = {
     sync() {},
     visual: (uid) => visuals.get(uid),
@@ -50,10 +53,14 @@ function playback(events: CombatEvent[], inspectionFrames?: CombatInspectionFram
       : uid === "b" ? { kind: "enemy", col: 5, row: 2 } : undefined,
     cellCenter: (col, row) => ({ x: col * 2, z: row * 2 }),
     forEach() {},
+    flashCell,
+    flashTile,
+    flashSkill,
     setLive: (uid, state) => { if (state.hp !== undefined) live.set(uid, state.hp); },
     setCombat() {},
     startLowCortisol() {},
     stopLowCortisol() {},
+    setHovered() {},
     dispose() {},
   };
   const fx: CombatFx = { float: vi.fn(), burst: vi.fn(), shot: vi.fn(), jolt: vi.fn(), update: vi.fn(), dispose: vi.fn() };
@@ -81,21 +88,67 @@ function playback(events: CombatEvent[], inspectionFrames?: CombatInspectionFram
     }
   };
   frame(0);
-  return { player, live, advance, off, fx, actor: roster[0], impact: (uid: string) => impacts.get(uid), cycles, current: () => currentRoster };
+  return {
+    player, live, advance, off, fx, actor: roster[0]!,
+    impact: (uid: string) => impacts.get(uid),
+    visual: (uid: string) => visuals.get(uid),
+    flashCell, flashTile, flashSkill,
+    cycles,
+    current: () => currentRoster,
+  };
 }
 
 describe("recovered combat presentation", () => {
-  it("applies melee HP only at the authored rig impact, then consumes reflect damage", async () => {
+  it("drives purple scan feedback from sparse empty-cell playback entries", () => {
+    const { player, flashCell } = playback([{ t: "empty", side: "R", row: 4, col: 9 }]);
+    expect(flashCell).toHaveBeenCalledWith(9, 4, "scan");
+    player.dispose();
+  });
+
+  it("uses the same red direct feedback for both team directions at authored basic impact", () => {
+    const left = playback([{ t: "basic", src: "a", dst: "b", dmg: 5, absorbed: 0, crit: false }]);
+    left.advance(2000);
+    expect(left.flashTile).toHaveBeenCalledWith("b", "direct");
+    left.player.dispose();
+
+    const right = playback([{ t: "basic", src: "b", dst: "a", dmg: 5, absorbed: 0, crit: false }]);
+    right.advance(2000);
+    expect(right.flashTile).toHaveBeenCalledWith("a", "direct");
+    right.player.dispose();
+  });
+
+  it("drives rainbow caster plus red direct and yellow splash feedback from cast targets", () => {
+    const { player, flashSkill, flashTile } = playback([{ t: "cast", src: "a", targets: ["b", "splash-target"] }]);
+    expect(flashSkill).toHaveBeenCalledWith("a");
+    expect(flashTile).toHaveBeenCalledWith("b", "direct");
+    expect(flashTile).toHaveBeenCalledWith("splash-target", "splash");
+    player.dispose();
+  });
+  it("finishes melee approach before attack and applies HP at the authored rig impact", async () => {
     const event = { t: "basic", src: "a", dst: "b", dmg: 20, absorbed: 0, crit: false } as const;
-    const { player, live, advance, actor, impact } = playback([event, { t: "reflect", src: "b", dst: "a", dmg: 7, absorbed: 0 }]);
+    const { player, live, advance, actor, impact, visual } = playback([event, { t: "reflect", src: "b", dst: "a", dmg: 7, absorbed: 0 }]);
     const timing = stageBasicCombatEvent(event, actor, 0).timing;
-    const attackImpactMs = timing.approachMs + (timing.preImpactMs + timing.postImpactMs) * 0.55;
+    const actorVisual = visual("a")!;
+    const play = vi.mocked(actorVisual.play);
+
+    expect(play.mock.calls.map(([state]) => state)).toEqual(["move"]);
+    advance(timing.approachMs - 5);
+    expect(play.mock.calls.map(([state]) => state)).toEqual(["move"]);
+    expect(actorVisual.root.position.x).toBeLessThan(8);
+
+    advance(5);
+    expect(actorVisual.root.position.x).toBeCloseTo(8);
+    expect(actorVisual.root.position.z).toBeCloseTo(4);
+    expect(play.mock.calls.map(([state]) => state)).toEqual(["move", "attack"]);
+
+    const attackImpactMs = (timing.preImpactMs + timing.postImpactMs) * 0.55;
     advance(attackImpactMs - 5);
     expect(live.has("b")).toBe(false);
+    advance(5);
+    expect(live.get("b")).toBe(80);
+
     const onImpact = impact("a");
     expect(onImpact).toBeTypeOf("function");
-    onImpact!();
-    expect(live.get("b")).toBe(80);
     onImpact!();
     expect(live.get("b")).toBe(80);
     advance(timing.totalMs + 1000);
@@ -119,6 +172,23 @@ describe("recovered combat presentation", () => {
     expect(live.get("b")).toBe(80);
     onImpact!();
     expect(live.get("b")).toBe(80);
+    player.dispose();
+  });
+
+  it("lands skill HP exactly from the authored skill impact callback", () => {
+    const events: CombatEvent[] = [
+      { t: "cast", src: "a", targets: ["b"] },
+      { t: "skill", src: "a", dst: "b", dmg: 24, absorbed: 0, crit: false },
+    ];
+    const { player, live, advance, impact } = playback(events);
+    advance(350);
+    expect(live.has("b")).toBe(false);
+    const onImpact = impact("a");
+    expect(onImpact).toBeTypeOf("function");
+    onImpact!();
+    expect(live.get("b")).toBe(76);
+    onImpact!();
+    expect(live.get("b")).toBe(76);
     player.dispose();
   });
 
