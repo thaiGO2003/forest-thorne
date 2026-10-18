@@ -774,3 +774,51 @@
 - Final focused verification: `pnpm exec vitest --run tests/i18n.test.ts tests/mod-registry.test.ts tests/achievements-history.test.ts tests/recovered-bridge.test.ts tests/persistence.test.ts tests/camera.test.ts` → **6 files / 69 tests passed**; `pnpm typecheck` **PASS**; `pnpm build` **PASS** with **82 modules transformed**; `git diff --check` **PASS**.
 - Reconciled the canonical backlog and WBS with the observed non-visual results: WBS-013 now records the quality/mod-metadata localization coverage, while WBS-082 records the now-existing `ModManager` owner and keeps broader dependency/conflict/load-order/reload/optional-CSV work explicitly open rather than marking the subsystem complete.
 - Fresh 1DevTool BrowserPanel smoke opened the live `Quản lý mod` dialog and observed the `Nhập gói cục bộ` upload control plus empty-state validation/status surfaces. No package was uploaded during this smoke, so localized per-package metadata values remain covered by the focused i18n regression rather than claimed from runtime rows.
+## 2026-10-18T08:49:52.374Z
+
+- zz-test-legacy-plan.md created by plans-sync.
+
+## 2026-10-18T08:49:52.389Z
+
+- feat/planning-screen/zztest.md created by plans-sync.
+
+## 2026-10-18T08:50:34.642Z
+
+- zz-test-legacy-plan.md created by plans-sync.
+
+## 2026-10-18T08:50:34.656Z
+
+- feat/planning-screen/zztest.md created by plans-sync.
+
+## 2026-10-18T08:52:36.433Z
+
+- zz-test-legacy-plan.md created by plans-sync.
+
+## 2026-10-18T08:52:36.450Z
+
+- feat/planning-screen/zztest.md created by plans-sync.
+
+## 2026-10-18T08:52:37.971Z
+
+- feat/planning-screen/zztest.md moved out of pending via /plan-done.
+
+## 2026-10-18T08:52:38.986Z
+
+- zz-test-legacy-plan.md moved out of pending via /plan-done.
+
+## 2026-10-18T08:57:51.906Z
+
+- zz-test-legacy-plan.md created by plans-sync.
+
+## 2026-10-18T08:57:51.917Z
+
+- feat/planning-screen/zztest.md created by plans-sync.
+
+## 2026-10-18T08:57:53.437Z
+
+- feat/planning-screen/zztest.md moved out of pending via /plan-done.
+
+## 2026-10-18T08:57:54.453Z
+
+- zz-test-legacy-plan.md moved out of pending via /plan-done.
+

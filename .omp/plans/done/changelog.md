@@ -11,3 +11,19 @@
 ## 2026-10-10T02:56:47.166Z
 
 - remaining-menu-utilities-plan.md moved into done via /plan-done.
+## 2026-10-18T08:52:37.971Z
+
+- feat/planning-screen/zztest.md moved into done via /plan-done.
+
+## 2026-10-18T08:52:38.986Z
+
+- zz-test-legacy-plan.md moved into done via /plan-done.
+
+## 2026-10-18T08:57:53.437Z
+
+- feat/planning-screen/zztest.md moved into done via /plan-done.
+
+## 2026-10-18T08:57:54.454Z
+
+- zz-test-legacy-plan.md moved into done via /plan-done.
+

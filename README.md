@@ -44,9 +44,9 @@ Gameplay rules live only in `src/game`; rendering and UI read and stage that sta
 
 ## Spec
 
-The product contract is `.omp/plans/docs/spec/forest-thorne-rebuild.md`.
+The product contract is `.omp/plans/pending/docs/spec/forest-thorne-rebuild.md`.
 
-*Hợp đồng sản phẩm: `.omp/plans/docs/spec/forest-thorne-rebuild.md`.*
+*Hợp đồng sản phẩm: `.omp/plans/pending/docs/spec/forest-thorne-rebuild.md`.*
 
 ## Contributing / Đóng góp
 

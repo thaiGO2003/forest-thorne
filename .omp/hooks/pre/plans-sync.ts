@@ -6,11 +6,21 @@
 // Slash command /plan-done <slug> moves a plan from pending/ to done/ once its
 // work is finished and re-renders the HTML with a DONE badge.
 //
+// Naming (user convention — see .omp/rules/plans-workflow.md):
+//   plan filenames are "<verb>/<group>/<content>" — exactly the future git
+//   branch name for the work, e.g.
+//     local://feat/planning-screen/font-plan.md
+//       -> .omp/plans/pending/feat/planning-screen/font.md
+//       -> custom/html/pending/feat/planning-screen/font.html
+//   Legacy single-segment slugs keep the old flat layout
+//   (.omp/plans/pending/<slug>-plan.md, html next to agent-index.html) so
+//   existing plan files keep working unchanged.
+//
 // Conventions (see .omp/AGENTS.md):
 //   .omp/plans/pending/  — plan markdown chuẩn của agent, chờ duyệt / đang làm
 //   .omp/plans/done/     — plan markdown đã hoàn tất
 //   .omp/plans/custom/   — trang HTML đọc được + plan.css dùng chung (1 CSS duy nhất)
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 
 const PLANS_DIR_SEGMENTS = [".omp", "plans"];
@@ -20,15 +30,20 @@ function plansRoot(cwd) {
   return join(cwd, ...PLANS_DIR_SEGMENTS);
 }
 
-function sanitizeSlug(raw) {
-  const slug = String(raw ?? "")
+function sanitizeSegment(raw) {
+  return String(raw ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
-  return slug || "plan";
 }
 
+// A plan slug may be a single segment (legacy) or "<verb>/<group>/<content>"
+// (user naming rule). Each segment is sanitized, empty segments removed.
+export function sanitizeSlugPath(raw) {
+  const parts = String(raw ?? "").split("/").map(sanitizeSegment).filter(Boolean);
+  return parts.length ? parts : null;
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -248,17 +263,62 @@ function mdToHtml(md) {
   return out;
 }
 
-function extractTitle(md, slug) {
+function extractTitle(md, mdRel) {
   const m = String(md).match(/^\s*#\s+(.+)$/m);
   if (m) return m[1].trim();
-  // humanize slug the same way omp names approved plans: separators → spaces
-  const t = String(slug ?? "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  // humanize the leaf the same way omp names approved plans
+  const leaf = String(mdRel ?? "").split("/").filter(Boolean).pop() ?? "";
+  const t = leaf.replace(/\.md$/, "").replace(/-plan$/, "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Plan";
+}
+
+/* ---------------- grouped plan locations ---------------- */
+
+// A plan is either legacy-flat (no slash in the mirror slug) or grouped by the
+// user's "<verb>/<group>/<content>" naming. Everything derived downstream
+// (markdown path, html path, css depth, index hrefs) flows from these helpers.
+
+function parentOf(fullPath) {
+  const cut = Math.max(fullPath.lastIndexOf("\\"), fullPath.lastIndexOf("/"));
+  return cut > 0 ? fullPath.slice(0, cut) : join(fullPath, "..");
+}
+
+function htmlRelFromMdRel(status, mdRel) {
+  // mdRel uses "/" separators. Every rendered page mounts under pending/ or
+  // done/ so custom/html has exactly two groups (user convention).
+  const cut = mdRel.lastIndexOf("/");
+  const leaf = mdRel.slice(cut + 1).replace(/\.md$/, "");
+  const mid = !mdRel.includes("/") ? "" : `${mdRel.slice(0, cut)}/`;
+  return `${status}/${mid}${leaf}.html`;
+}
+
+function cssHrefFromHtmlRel(htmlRel) {
+  // page sits at custom/html/<htmlRel>; stylesheet at custom/plan.css
+  const depth = htmlRel.split("/").length - 1; // directories above the page
+  return `${"../".repeat(depth + 1)}plan.css`;
+}
+
+function indexHrefForPage(htmlRel) {
+  return `${"../".repeat(htmlRel.split("/").length - 1)}agent-index.html`;
+}
+
+function readDirRecursive(root) {
+  const out = [];
+  if (!existsSync(root)) return out;
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else out.push(full);
+    }
+  };
+  walk(root);
+  return out;
 }
 
 /* ---------------- page templates ---------------- */
 
-function renderPlanPage({ title, status, bodyHtml, updated }) {
+function renderPlanPage({ title, status, bodyHtml, updated, htmlRel, mdRel }) {
   const badge = status === "done"
     ? '<span class="badge badge-done">✅ Done</span>'
     : '<span class="badge badge-pending">⏳ Pending</span>';
@@ -268,7 +328,7 @@ function renderPlanPage({ title, status, bodyHtml, updated }) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>${escapeHtml(title)} — Forest Throne plan</title>
-  <link rel="stylesheet" href="../plan.css" />
+  <link rel="stylesheet" href="${cssHrefFromHtmlRel(htmlRel)}" />
 </head>
 <body>
   <div class="doc">
@@ -278,9 +338,9 @@ function renderPlanPage({ title, status, bodyHtml, updated }) {
         ${badge}
         <span>Cập nhật ${escapeHtml(updated)}</span>
         <span>·</span>
-        <span>bản markdown: <code>.omp/plans/${status === "done" ? "done" : "pending"}/</code></span>
+        <span>bản markdown: <code>.omp/plans/${status === "done" ? "done" : "pending"}/${escapeHtml(mdRel)}</code></span>
         <span>·</span>
-        <a href="./agent-index.html">← Tất cả plan</a>
+        <a href="${indexHrefForPage(htmlRel)}">← Tất cả plan</a>
       </div>
     </div>
 ${bodyHtml}
@@ -290,20 +350,24 @@ ${bodyHtml}
 `;
 }
 
-function listPlanRows(dir, htmlDir) {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+function listPlanRows(statusDir, htmlDir, status) {
+  if (!existsSync(statusDir)) return [];
+  return readDirRecursive(statusDir)
     .filter((f) => f.endsWith(".md") && f !== CHANGELOG_FILE)
     .map((f) => {
-      const full = join(dir, f);
-      const htmlName = f.replace(/\.md$/, ".html");
+      const base = f.split(/[\\/]/).pop() ?? "";
+      if (base === CHANGELOG_FILE) return null;
+      const rel = f.slice(statusDir.length + 1).split("\\").join("/");
+      const htmlRel = htmlRelFromMdRel(status, rel);
       return {
-        name: f,
-        htmlName,
-        htmlExists: existsSync(join(htmlDir, htmlName)),
-        mtime: existsSync(full) ? statSync(full).mtimeMs : 0,
+        name: rel,
+        htmlRel,
+        htmlHref: `./${htmlRel}`,
+        htmlExists: existsSync(join(htmlDir, htmlRel)),
+        mtime: statSync(f).mtimeMs,
       };
     })
+    .filter(Boolean)
     .sort((a, b) => b.mtime - a.mtime);
 }
 
@@ -313,7 +377,7 @@ function renderIndex({ pending, done, customPages, updated }) {
       ? rows
           .map((r) =>
             r.htmlExists
-              ? `<a href="./${r.htmlName}">${escapeHtml(r.name.replace(/\.md$/, ""))}<small>${escapeHtml(new Date(r.mtime).toISOString().slice(0, 10))}</small></a>`
+              ? `<a href="${r.htmlHref}">${escapeHtml(r.name.replace(/\.md$/, ""))}<small>${escapeHtml(new Date(r.mtime).toISOString().slice(0, 10))}</small></a>`
               : `<a class="empty">${escapeHtml(r.name)}<small>chưa render HTML</small></a>`,
           )
           .join("\n      ")
@@ -323,7 +387,7 @@ function renderIndex({ pending, done, customPages, updated }) {
 
   const customLinks = customPages
     .filter((p) => existsSync(p.file))
-    .map((p) => `<a href="./${p.name}">${p.label}<small>viết tay</small></a>`)
+    .map((p) => `<a href="${p.href}">${p.label}<small>viết tay</small></a>`)
     .join("\n      ");
 
   return `<!DOCTYPE html>
@@ -339,7 +403,7 @@ function renderIndex({ pending, done, customPages, updated }) {
     <div class="doc-head">
       <h1>🌲 Forest Throne — Plans</h1>
       <div class="doc-meta">
-        <span>Plan markdown chuẩn của agent: <code>.omp/plans/pending</code> + <code>.omp/plans/done</code></span>
+        <span>Plan markdown chuẩn của agent: <code>.omp/plans/pending</code> + <code>.omp/plans/done</code> (đặt tên <code>động từ/group/nội dung</code>)</span>
         <span>·</span>
         <span>Cập nhật ${escapeHtml(updated)}</span>
       </div>
@@ -356,9 +420,10 @@ function renderIndex({ pending, done, customPages, updated }) {
 `;
 }
 
-function writeHtml(htmlDir, name, content) {
-  mkdirSync(htmlDir, { recursive: true });
-  writeFileSync(join(htmlDir, name), content, "utf8");
+function writeHtml(htmlDir, htmlRel, content) {
+  const full = join(htmlDir, htmlRel);
+  mkdirSync(parentOf(full), { recursive: true });
+  writeFileSync(full, content, "utf8");
 }
 
 /* ---------------- hook factory ---------------- */
@@ -368,11 +433,12 @@ export default function plansSync(pi) {
     try {
       const root = plansRoot(cwd);
       const htmlDir = join(root, "custom", "html");
-      const pending = listPlanRows(join(root, "pending"), htmlDir);
-      const done = listPlanRows(join(root, "done"), htmlDir);
+      const pending = listPlanRows(join(root, "pending"), htmlDir, "pending");
+      const done = listPlanRows(join(root, "done"), htmlDir, "done");
       const customPages = [
-        { name: "plan.html", label: "plan.html — thống kê + kế hoạch tổng quan", file: join(htmlDir, "plan.html") },
-        { name: "plan-code.html", label: "plan-code.html — plan code v2 (stack + modding)", file: join(htmlDir, "plan-code.html") },
+        { label: "pending/wbs.html — WBS 93 tasks theo Mega Prompt V3", href: "./pending/wbs.html", file: join(htmlDir, "pending", "wbs.html") },
+        { label: "pending/forest-throne-v5-enhancement-master-plan.html — master plan v5", href: "./pending/forest-throne-v5-enhancement-master-plan.html", file: join(htmlDir, "pending", "forest-throne-v5-enhancement-master-plan.html") },
+        { label: "done/remaining-menu-utilities-plan.html — menu utilities (hoàn tất)", href: "./done/remaining-menu-utilities-plan.html", file: join(htmlDir, "done", "remaining-menu-utilities-plan.html") },
       ];
       writeHtml(htmlDir, "agent-index.html", renderIndex({ pending, done, customPages, updated: today() }));
     } catch (err) {
@@ -380,12 +446,17 @@ export default function plansSync(pi) {
     }
   };
 
-  const renderPlan = (cwd, slug, md, status) => {
+  const pageMdRelFromSegments = (segments) =>
+    segments.length > 1 ? `${segments.join("/")}.md` : `${segments[0]}-plan.md`;
+
+  const renderPlanFromMd = (cwd, mdRel, md, status) => {
     const root = plansRoot(cwd);
     const htmlDir = join(root, "custom", "html");
     const body = mdToHtml(md);
-    const title = extractTitle(md, slug);
-    writeHtml(htmlDir, `${slug}-plan.html`, renderPlanPage({ title, status, bodyHtml: body, updated: today() }));
+    const title = extractTitle(md, mdRel);
+    const htmlRel = htmlRelFromMdRel(status, mdRel);
+    writeHtml(htmlDir, htmlRel, renderPlanPage({ title, status, bodyHtml: body, updated: today(), htmlRel, mdRel }));
+    return htmlRel;
   };
 
   pi.on("tool_result", async (event, ctx) => {
@@ -397,37 +468,38 @@ export default function plansSync(pi) {
       const content = event.input?.content;
       if (typeof content !== "string" || !content) return;
 
-      const slug = sanitizeSlug(m[1]);
+      const segments = sanitizeSlugPath(m[1]);
+      if (!segments) return;
       const root = plansRoot(ctx.cwd);
       const pendingDir = join(root, "pending");
       const doneDir = join(root, "done");
       mkdirSync(pendingDir, { recursive: true });
       mkdirSync(doneDir, { recursive: true });
 
-      const existed = existsSync(join(pendingDir, `${slug}-plan.md`));
+      const mdRel = pageMdRelFromSegments(segments);
+      const pendingMd = join(pendingDir, ...mdRel.split("/"));
+      const doneMd = join(doneDir, ...mdRel.split("/"));
+      const existed = existsSync(pendingMd);
       // plan re-proposed with the same slug: it is active again — drop stale done copy
-      const staleDone = join(doneDir, `${slug}-plan.md`);
-      if (existsSync(staleDone)) unlinkSync(staleDone);
+      if (existsSync(doneMd)) unlinkSync(doneMd);
+      mkdirSync(parentOf(pendingMd), { recursive: true });
 
-      writeFileSync(join(pendingDir, `${slug}-plan.md`), content, "utf8");
-      renderPlan(ctx.cwd, slug, content, "pending");
-      appendPlanChangelog(
-        pendingDir,
-        `${slug}-plan.md ${existed ? "updated" : "created"} by plans-sync.`
-      );
+      writeFileSync(pendingMd, content, "utf8");
+      const htmlRel = renderPlanFromMd(ctx.cwd, mdRel, content, "pending");
+      appendPlanChangelog(pendingDir, `${mdRel} ${existed ? "updated" : "created"} by plans-sync.`);
       appendPlanChangelog(
         join(root, "custom", "html"),
-        `${slug}-plan.html rendered from pending source.`
+        `custom/html/${htmlRel} rendered from pending source.`,
       );
       syncIndex(ctx.cwd);
 
       pi.sendMessage({
         customType: "plans-sync",
         content:
-          `📋 Plan <${slug}> đã sync → \`.omp/plans/pending/${slug}-plan.md\`` +
+          `📋 Plan <${mdRel.replace(/\.md$/, "")}> đã sync → \`.omp/plans/pending/${mdRel}\`` +
           `${existed ? " (cập nhật)" : ""}\n` +
-          `Bản đọc: \`.omp/plans/custom/html/${slug}-plan.html\` · Index: \`agent-index.html\`. ` +
-          `Khi hoàn tất: \`/plan-done ${slug}\`.`,
+          `Bản đọc: \`.omp/plans/custom/html/${htmlRel}\`. ` +
+          `Khi hoàn tất: \`/plan-done ${mdRel.replace(/\.md$/, "")}\`.`,
         display: true,
       });
     } catch (err) {
@@ -442,26 +514,30 @@ export default function plansSync(pi) {
         const root = plansRoot(ctx.cwd);
         const pendingDir = join(root, "pending");
         const doneDir = join(root, "done");
-        const query = sanitizeSlug(String(args ?? "").replace(/\.md$/, "").replace(/-plan$/, ""));
+        const query = String(args ?? "").replace(/\.md$/, "").replace(/-plan$/, "").toLowerCase();
 
-        if (!query || query === "plan") {
-          const pending = existsSync(pendingDir)
-            ? readdirSync(pendingDir).filter((f) => f.endsWith(".md") && f !== CHANGELOG_FILE)
-            : [];
+        if (!query) {
+          const pending = readDirRecursive(pendingDir)
+            .filter((f) => f.endsWith(".md") && f !== CHANGELOG_FILE)
+            .map((f) => f.slice(pendingDir.length + 1).split("\\").join("/"));
           const list = pending.length
-            ? `Plan đang pending:\n${pending.map((f) => `- ${f.replace(/\.md$/, "")} → \`/plan-done ${f.replace(/-plan\.md$/, "")}\``).join("\n")}`
+            ? `Plan đang pending:\n${pending.map((f) => `- ${f} → \`/plan-done ${f.replace(/\.md$/, "")}\``).join("\n")}`
             : "Không có plan nào trong .omp/plans/pending/.";
           ctx.ui.notify(list, "info");
           return;
         }
 
-        const candidates = [`plan-done: ${query}-plan.md`, `${query}-plan.md`, `${query}.md`];
+        // candidates: exact rel path, exact leaf, then substring on the leaf
+        const all = readDirRecursive(pendingDir).filter((f) => f.endsWith(".md") && f !== CHANGELOG_FILE);
+        const relOf = (f) => f.slice(pendingDir.length + 1).split("\\").join("/").toLowerCase();
+        const leafOf = (f) => relOf(f).slice(relOf(f).lastIndexOf("/") + 1);
         let file = null;
-        if (existsSync(pendingDir)) {
-          const files = readdirSync(pendingDir).filter((f) => f.endsWith(".md") && f !== CHANGELOG_FILE);
+        if (all.length) {
           file =
-            files.find((f) => candidates.includes(f)) ??
-            files.find((f) => f.toLowerCase().includes(query)) ??
+            all.find((f) => relOf(f) === `${query}.md`) ??
+            all.find((f) => leafOf(f) === `${query}.md`) ??
+            all.find((f) => leafOf(f) === `${query}-plan.md`) ??
+            all.find((f) => leafOf(f).includes(query)) ??
             null;
         }
         if (!file) {
@@ -469,20 +545,25 @@ export default function plansSync(pi) {
           return;
         }
 
-        const md = readFileSync(join(pendingDir, file), "utf8");
-        const slug = file.replace(/\.md$/, "").replace(/-plan$/, "");
+        const md = readFileSync(file, "utf8");
+        const rel = file.slice(pendingDir.length + 1).split("\\").join("/");
+        const mdRelNoMd = rel.replace(/\.md$/, "");
         mkdirSync(doneDir, { recursive: true });
-        renameSync(join(pendingDir, file), join(doneDir, file));
-        renderPlan(ctx.cwd, slug, md, "done");
-        appendPlanChangelog(pendingDir, `${file} moved out of pending via /plan-done.`);
-        appendPlanChangelog(doneDir, `${file} moved into done via /plan-done.`);
+        const doneFile = join(doneDir, ...rel.split("/"));
+        mkdirSync(parentOf(doneFile), { recursive: true });
+        renameSync(file, doneFile);
+        const htmlRel = renderPlanFromMd(ctx.cwd, rel, md, "done");
+        // drop the stale pending page so custom/html keeps only live groups
+        try { unlinkSync(join(join(root, "custom", "html"), htmlRelFromMdRel("pending", rel))); } catch {}
+        appendPlanChangelog(pendingDir, `${rel} moved out of pending via /plan-done.`);
+        appendPlanChangelog(doneDir, `${rel} moved into done via /plan-done.`);
         appendPlanChangelog(
           join(root, "custom", "html"),
-          `${slug}-plan.html re-rendered with DONE status.`
+          `custom/html/${htmlRel} re-rendered with DONE status.`,
         );
         syncIndex(ctx.cwd);
         ctx.ui.notify(
-          `✅ ${file} → .omp/plans/done/. HTML cập nhật: .omp/plans/custom/html/${slug}-plan.html`,
+          `✅ ${rel} → .omp/plans/done/${rel}. HTML cập nhật: .omp/plans/custom/html/${htmlRel}`,
           "info",
         );
       } catch (err) {

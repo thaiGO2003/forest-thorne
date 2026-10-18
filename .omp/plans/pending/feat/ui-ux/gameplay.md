@@ -1,6 +1,9 @@
 # Kế hoạch cập nhật Forest Throne
 
-Ngày lập: 14/10/2026. Trạng thái: chưa triển khai; các checkbox là việc cần kiểm tra và thực hiện, không phải xác nhận lỗi đã được tái hiện.
+- **Ngày lập:** 14/10/2026. **Cập nhật bố cục:** 18/10/2026 (gom vào `.omp/plans`, thống nhất bố cục file plan; nội dung không đổi).
+- **Trạng thái:** đang triển khai; các checkbox là việc cần kiểm tra và thực hiện, không phải xác nhận lỗi đã được tái hiện.
+- **Nhánh đích:** tên file = tên nhánh — `feat/ui-ux/gameplay`.
+- **File spec tham chiếu:** `.omp/plans/pending/docs/spec/forest-thorne-rebuild.md`. Nếu yêu cầu mới khác spec cũ, ưu tiên yêu cầu mới trong kế hoạch này.
 
 ## Mục tiêu và phạm vi
 
@@ -8,23 +11,29 @@ Triển khai toàn bộ yêu cầu UI/UX, thư viện, thú, âm thanh, đồ h�
 
 File này chỉ lập kế hoạch. Việc kéo code, sửa gameplay và nghiên cứu thiết kế trên mạng thuộc các bước triển khai bên dưới.
 
-## Quy định công cụ kiểm thử
+## Quy ước kiểm thử và công cụ
 
 - **Không được kiểm thử bằng Chrome**, kể cả Chrome headless hoặc automation chạy Chrome.
 - **Bắt buộc dùng 1DevTool Browser MCP** (`onedevtool` browser_* tools, BrowserPanel) cho kiểm thử trình duyệt: kiểm tra UI/UX, tương tác, responsive và chụp ảnh nghiệm thu.
 - Nếu 1DevTool Browser MCP chưa khả dụng, ghi rõ phần kiểm thử trình duyệt còn thiếu; không tự chuyển sang Chrome.
 - Các lệnh kiểm tra TypeScript, unit test và build vẫn chạy bằng `pnpm` như kế hoạch.
 
-## Hiện trạng và chuẩn bị
+## Vị trí chủ yếu cần sửa
+
+Trọng tâm sửa là mã nguồn TypeScript dưới `src/` (UI, core, units, world, app, data) cùng asset dưới `public/assets/` và font dưới `public/fonts/`. Cột "Điểm bắt đầu" dưới mỗi nhóm là danh sách rà soát chi tiết; đường dẫn là điểm khởi đầu, không giới hạn phạm vi sửa.
+
+### Chuẩn bị hiện trạng
 
 - Checkout đang có nhiều thay đổi chưa commit. Trước khi pull, kiểm tra branch, remote và diff; bảo toàn thay đổi hiện có bằng commit hoặc phương án lưu phù hợp, rồi cập nhật code và xử lý xung đột.
 - Font baseline cần cập nhật theo yêu cầu mới ngày 17/10/2026: giữ `public/fonts/Heading - MTD Amstrong.otf` cho Heading; đổi vai trò/tên `public/fonts/Normal - Bonestay.otf` thành `public/fonts/Story - Bonestay.otf` chỉ cho nội dung cốt truyện; nguồn font Normal mới là `/home/thaigo/Downloads/a30345f9cb9b8b72000575d5fdcd3390.zip` (chỉ lấy `MTD-Ampihan.otf` hoặc `MTD-Ampihan.ttf` theo một định dạng phù hợp, bỏ qua file `.url`).
 - Chưa thấy thư mục `old_src` trong checkout hiện tại. Tìm lại qua lịch sử Git, branch hoặc nguồn dự án cũ trước khi phục hồi bảng gacha, tooltip, màu ô và chế tạo 3×3. Không tự đoán dữ liệu cũ.
-- Tài liệu tham khảo của dự án: `docs/opus-5.5-forest-throne-rebuild-mega-prompt.md`. Nếu yêu cầu mới khác tài liệu cũ, ưu tiên yêu cầu mới trong kế hoạch này.
+- Tài liệu tham khảo của dự án: `.omp/plans/docs/spec/forest-throne-rebuild.md`. Nếu yêu cầu mới khác tài liệu cũ, ưu tiên yêu cầu mới trong kế hoạch này.
 - Nguồn yêu cầu nguyên văn để đối chiếu checklist là `/home/thaigo/.codex/attachments/60d585b4-181e-4b24-8a8b-ca5d6f83817f/Pasted text.txt`. Khi wording gốc mơ hồ hoặc có câu “thay vì” dễ đảo chiều, dùng đính chính rõ ràng mới nhất của người dùng làm nguồn quyết định; không dùng prompt cũ để ghi đè các đính chính mới hơn.
 - Đường dẫn code trong từng giai đoạn là điểm bắt đầu rà soát, không giới hạn phạm vi sửa.
 
-## 1. Cập nhật nguồn và chuẩn hóa giao diện
+## Nội dung công việc
+
+### 1. Cập nhật nguồn và chuẩn hóa giao diện
 
 Điểm bắt đầu: `src/ui/ui.css`, `src/ui/kit.ts`, `src/ui/modal.ts`, `src/ui/settings.ts`, `src/core/i18n.ts`, `src/core/settings.ts`.
 
@@ -41,7 +50,7 @@ Nghiệm thu: Heading / Normal / Story tải đúng vai trò; MTD Ampihan hiển
 - Trạng thái kiểm chứng 03A (18/10/2026): đã cài `Normal - MTD Ampihan.otf`, đổi asset Bonestay thành `Story - Bonestay.otf`, tách `Forest Heading` / `Forest Normal` / `Forest Story` cho DOM và canvas, và không gán Story cho History/tutorial/UI thường. `fc-query` xác nhận Ampihan có các dải ký tự tiếng Việt `0102-0103`, `0110-0111`, `01A0-01B0`, `1EA0-1EF9`. Gap Story consumer đã được sửa trên surface narrative thật: `src/ui/library.ts` render riêng `unitDef.pitchVi` bằng `lib-story`, còn skill/detail/tooltip/UI thường giữ Normal; search hiện chỉ có consumer Story production này ngoài plumbing chung. `pnpm typecheck` và `pnpm build` pass; BrowserPanel generation 16 mở detail Kiến Hộ Vệ và thấy đúng `pitchVi` "Giữ cùng hàng bằng giáp, khiên và che đòn cho đồng minh yếu máu." trên runtime. Giữ mục 03 mở vì screenshot BrowserPanel hiện bị runtime bridge trả `[image omitted: the active model does not support image input]`, nên chưa có pixel proof trực tiếp rằng Bonestay thực sự render đúng trên surface Story dù source/runtime state đã khép implementation gap.
 - Trạng thái kiểm chứng 04/06/08 (18/10/2026): BrowserPanel ảnh thật ở viewport 581×719 xác nhận tab/nút gỗ nâu dùng chữ trắng, label/ô giá trị trên nền bạch dương sáng dùng chữ đen; ở Cài đặt → Âm thanh, sau khi transition ổn định, nút trước/sau Bản nhạc có kích thước nhìn tương đương stepper `<`/`>` thường và panel không bị cắt mép. Phạm vi này chỉ bao phủ Settings tại 581×719: mục 04 còn cần kiểm tra nhất quán trên các surface khác; mục 06 còn cần nhãn dài/mobile landscape/desktop; mục 08 còn cần page-scroll, safe-area, cuộn nội bộ và overlap nút đóng.
 
-## 2. Menu, HUD, thao tác và âm thanh
+### 2. Menu, HUD, thao tác và âm thanh
 
 Điểm bắt đầu: `src/ui/menu.ts`, `src/ui/planning.ts`, `src/ui/combat.ts`, `src/app/screens.ts`, `src/app/app.ts`, `src/core/settings.ts`, `src/audio/`.
 
@@ -61,7 +70,7 @@ Nghiệm thu: Heading / Normal / Story tải đúng vai trò; MTD Ampihan hiển
 Nghiệm thu: trên mobile dọc sân không bị label/panel che; kích thước nút thích ứng đúng ngữ cảnh, nhãn dài/bản dịch không tràn hoặc lấn control bên cạnh và vẫn dễ bấm; nút Bắt đầu không để lại overlay; kiểm tra đủ tổ hợp bật/tắt Âm thanh và Âm nhạc; Shift trái không kích hoạt Ván mới.
 - Trạng thái kiểm chứng 12/14/17 (18/10/2026): Requirement 17 đã nghiệm thu bằng BrowserPanel ảnh thật 581×719 sau khi transition ổn định; nút trước/sau Bản nhạc có kích thước nhìn tương đương stepper `<`/`>` của Âm lượng/Âm lượng nhạc và panel không bị cắt mép. Requirement 12 và 14 vẫn mở vì QR bên phải + responsive, việc panel Bắt đầu biến mất hoàn toàn và HUD placement chưa có pixel acceptance trực tiếp.
 
-## 3. Thư viện, portrait, tooltip và hoạt ảnh thú
+### 3. Thư viện, portrait, tooltip và hoạt ảnh thú
 
 Điểm bắt đầu: `src/ui/library.ts`, `src/ui/card.ts`, `src/ui/tooltip.ts`, `src/units/portraits.ts`, `src/units/kit.ts`, `src/units/rig.ts`, `src/units/billboard.ts`, `src/core/economy.ts`.
 
@@ -79,7 +88,7 @@ Nghiệm thu: card shop và thư viện dùng chung cấu trúc; mọi thú quay
 - Trạng thái kiểm chứng 21–23/26: card parity/padding, portrait 360° + clipping/resize, action-state green visuals và tooltip rich vẫn cần runtime/pixel acceptance. Mục 25 đã nghiệm thu current-state: `scheduleIdle()` dùng cooldown ngẫu nhiên 4–9 giây; `Rảnh rỗi` đặt viewer về non-combat và giữ timer; `Thú thể` đặt combat pose, phát idle pose tương ứng rồi dừng timer. BrowserPanel sau reload hiển thị `Rảnh rỗi` và `Thú thể` liền nhau trong detail Kiến Hộ Vệ; keyboard focus/Enter đi qua control `Thú thể`. `pnpm exec vitest run tests/unit-visuals.test.ts` pass 8/8.
 - Trạng thái kiểm chứng 27–28 (17/10/2026): `tests/billboard-presentation.test.ts` chạy trực tiếp renderer production, xác nhận readout tim/HP% có tọa độ Y phía trên readout sét/nộ và `setPriority(true/false)` đổi `Sprite.renderOrder` 10→20→10. `tests/board-view-presentation.test.ts` xác nhận live HP/nộ được đẩy vào billboard + HP ratio và hover chuyển priority giữa các thú rồi reset khi hết hover. `tests/planning-drag.test.ts` cùng `tests/recovered-playback.test.ts` bảo toàn interaction/playback. Targeted run 5 files / 18 tests pass; `pnpm typecheck` pass.
 
-## 4. Giao tranh, thời điểm sát thương và màu ô
+### 4. Giao tranh, thời điểm sát thương và màu ô
 
 Điểm bắt đầu: `src/core/combat.ts`, `src/core/combatStaging.ts`, `src/core/skills.ts`, `src/core/preview.ts`, `src/core/environment.ts`, `src/units/combatPlayer.ts`, `src/units/boardView.ts`, `src/world/boardPicking.ts`, `src/app/planningDrag.ts`.
 
@@ -98,7 +107,7 @@ Nghiệm thu: card shop và thư viện dùng chung cấu trúc; mọi thú quay
 Nghiệm thu: không có attack trước khi di chuyển xong; damage nổi đúng mốc impact do animation gọi, không bị nhân đôi; Thiêu đốt tick đúng đầu chu kỳ; preview và combat thống nhất đỏ/vàng; hover và kéo thả đúng trên cả hai phe, các loại ô và dự bị.
 - Trạng thái kiểm chứng 33: source + targeted regressions đã hoàn tất cho scan tím, caster rainbow, direct đỏ, splash vàng, priority `direct > splash > scan`, đối xứng hai phe và preview read-only. Live Planning hover vẫn chưa nghiệm thu được vì save hiện có 0 thú triển khai; BrowserPanel hiện chỉ có exact-ref accessibility input, không có coordinate/pointer-move/drag primitive để kéo hợp lệ thú từ canvas bench lên board. Không inject/fabricate state để vượt blocker này.
 
-## 5. Loading, asset và đồ họa môi trường
+### 5. Loading, asset và đồ họa môi trường
 
 Điểm bắt đầu: `src/ui/loading.ts`, `src/core/emojiIcon.ts`, `src/core/equipment.ts`, `src/world/scenery.ts`, `src/world/arena.ts`, `src/world/stage.ts`, `src/core/settings.ts`, `public/assets/`.
 
@@ -114,7 +123,7 @@ Nghiệm thu: không có attack trước khi di chuyển xong; damage nổi đú
 Nghiệm thu: loading bắt đầu với title trắng và tiến độ tải thực làm đổi màu từng ký tự TITLE đúng thứ tự trái → phải, trên → dưới; SVG rõ ở slot nhỏ; emoji đồng nhất trên thiết bị; bóng đổ bật/tắt được và được lưu; đánh giá hiệu năng trên mobile khi bật bóng.
 - Trạng thái kiểm chứng visual 37/38/39: không nâng checkbox chỉ từ source/tests. 37 và 38 còn thiếu pixel proof ở slot/thiết bị; 39 đã có shadow toggle + persistence/quality independence và regression cho sông ngoài sân rộng dần, nhưng còn thiếu mobile performance và pixel proof đèn lồng.
 
-## 6. Thông tin trận, inventory thú và chế tạo
+### 6. Thông tin trận, inventory thú và chế tạo
 
 Điểm bắt đầu: `src/app/screens.ts`, `src/ui/modal.ts`, `src/core/inspection.ts`, `src/core/equipment.ts`, `src/core/craft.ts`, `src/core/synergy.ts`, `src/core/environment.ts`, `src/core/run.ts`.
 
@@ -137,7 +146,7 @@ Nghiệm thu: mở thú từ sân và từ tab đội hình cho cùng thông tin
 - Trạng thái kiểm chứng 41: source hiện có một luồng Inventory → Chế tạo → Công thức với bàn 3×3; staging không phá bag, `activeIndices(...)` giới hạn ô theo cấp bàn và `craft(...)` commit nguyên tử khi recipe + bag hợp lệ. Runtime crafting bằng dữ liệu gameplay thật vẫn cần nguyên liệu thật; không inject save/materials. Dataset đầy đủ 506 công thức chưa có nguồn authoritative trong repo: `RECIPES` hiện chỉ chứa tutorial recipe `blue_buff`, nên completeness của recipe catalog vẫn là dependency bên ngoài thay vì tự bịa dữ liệu.
 - Trạng thái kiểm chứng 42: enemy detail readonly đã được xác nhận live. Owned-unit inventory dùng chung owner/path trong source cho board selection và Information → Đội hình, nhưng nghiệm thu hai entry point trên một thú phe ta thật còn bị chặn bởi việc không thể triển khai thú qua BrowserPanel canvas trong session hiện tại.
 
-## 7. Chúc phúc hồi tim và thời tiết
+### 7. Chúc phúc hồi tim và thời tiết
 
 Điểm bắt đầu: `src/core/augments.ts`, `src/core/environment.ts`, `src/core/combat.ts`, `src/core/run.ts`, UI chúc phúc và tab Thông tin.
 
@@ -149,7 +158,7 @@ Nghiệm thu: mở thú từ sân và từ tab đội hình cho cùng thông tin
 
 Nghiệm thu: bốn chúc phúc phân bổ đúng bốn chu kỳ; thú đã chết không hưởng lượt mới; đổi thứ tự phản ánh đúng trên UI và runtime; load/replay không làm kích hoạt trùng.
 
-## 8. Trình quản lý gói mở rộng
+### 8. Trình quản lý gói mở rộng
 
 Điểm bắt đầu: `src/mods/ModRegistry.ts`, `src/app/screens.ts`, `src/ui/modal.ts`, `public/mods/index.json`.
 
@@ -172,7 +181,7 @@ Nghiệm thu: mở toàn màn hình đúng; điều hướng, lọc/chọn gói 
 
 Phụ thuộc quan trọng: dữ liệu `old_src` trước mục 24/26/33/41; component chung trước các màn hình thư viện và inventory; mô hình chu kỳ trước mục 32/44; nguồn emoji/SVG trước khi chốt nhãn tiêu hao và asset UI.
 
-## Đối chiếu prompt gốc → checklist hiện tại
+## Phụ lục A. Đối chiếu prompt gốc → checklist hiện tại
 
 Số ở cột “Nguồn” là thứ tự gạch đầu dòng trong `Pasted text.txt`; số ở cột “Plan” là requirement hiện tại. Việc gom/đổi số không làm thay đổi phạm vi. Các đính chính ngày 17/10/2026 luôn ưu tiên hơn wording gốc khi có xung đột.
 
@@ -230,7 +239,7 @@ Số ở cột “Nguồn” là thứ tự gạch đầu dòng trong `Pasted te
 
 Kết quả rà soát: không có gạch đầu dòng nguồn nào bị bỏ khỏi plan. Các chỗ diễn giải sai thật đã được sửa ở 04/05/06; 03/03A là yêu cầu bổ sung mới thay thế font Normal cũ; 36 được khóa ngoại lệ loading để quy tắc màu chung không ghi đè.
 
-## Task phát sinh trong quá trình thực hiện
+## Phụ lục B. Task phát sinh trong quá trình thực hiện
 
 - OMP và các agent cộng tác được chủ động tạo, ưu tiên và thực hiện task phát sinh liên quan khi có bằng chứng thực tế; phạm vi không bị giới hạn cứng ở Requirement 01–46 và không cần xin phép lại cho từng sửa chữa thông thường nằm trong goal đã giao.
 - Mỗi task phát sinh dùng ID ổn định dạng `PS-NNN` và phải ghi ngắn gọn: vấn đề; thực tế so với kỳ vọng; bằng chứng/cách tái hiện; ảnh hưởng/mức ưu tiên; phạm vi sửa; tiêu chí nghiệm thu; phụ thuộc/owner khi cần. Không đánh lại số 01–46.
@@ -245,7 +254,7 @@ Kết quả rà soát: không có gạch đầu dòng nguồn nào bị bỏ kh�
 - **PS-001 — Loại bỏ API Three.js đã bị deprecate/removed trong runtime.** Vấn đề đã xác minh: live BrowserPanel console lặp `THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.` và `THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead.`; source tương ứng nằm ở `src/world/stage.ts` và `src/units/portraits.ts`. Thực tế hiện tại: runtime tự fallback shadow type và phát warning mỗi lần khởi tạo; kỳ vọng: dùng API hợp lệ của Three 0.186 mà không đổi gameplay/render-loop ownership. Ảnh hưởng: **P2 / compatibility + console-noise**, có thể che lỗi thật và làm cấu hình shadow khác với tên constant source. Phạm vi sửa: thay `Clock` bằng `Timer` theo đúng `update()`/delta lifecycle, dùng shadow-map type còn hỗ trợ, dispose timer khi owner teardown. Nghiệm thu: targeted/typecheck/build phù hợp pass; reload BrowserPanel không còn hai warning này; FPS throttling, portrait auto-yaw và shadow toggle vẫn hoạt động. Owner: OMP; dependency: none.
   - **Trạng thái: hoàn tất.** Source đã chuyển `THREE.Clock` → `THREE.Timer`, `PCFSoftShadowMap` → `PCFShadowMap`, dừng animation loop trước dispose và dispose timer. Verify: targeted `camera/scenery/arena-mapping/performance-profiler` pass 4 files / 15 tests; typecheck/build trước đó pass; BrowserPanel reload generation 16 tạo main stage rồi mở portrait detail mà không có entry `THREE.Clock` hoặc `PCFSoftShadowMap` mới sau timestamp boundary `1792296672511`. Shadow enable/quality independence và FPS limiting paths được cover bởi targeted tests/source; portrait auto-yaw loop vẫn cập nhật yaw bằng Timer delta.
 
-## Các điểm cần xác minh khi triển khai
+## Phụ lục C. Các điểm cần xác minh khi triển khai
 
 - `thú thể`: giữ nguyên thuật ngữ được yêu cầu trong kế hoạch; xác nhận ý nghĩa và nhãn/tên biến phù hợp trước khi đổi rộng toàn code.
 - `sống bên ngoài`: đã chốt theo evidence source/runtime hiện có là typo `sông bên ngoài`; implementation chỉ nới rộng sông trang trí ngoài arena theo khoảng cách, không thay đổi gameplay grid hay sông trong arena.
@@ -253,7 +262,7 @@ Kết quả rà soát: không có gạch đầu dòng nguồn nào bị bỏ kh�
 - Chúc phúc thời tiết: quyết định có lặp lại hàng đợi sau lượt cuối hay không, thời hạn tác động và giới hạn chỉnh thứ tự.
 - Mọi việc độc lập tiếp tục được trong lúc xác minh các điểm trên; không chặn toàn bộ kế hoạch.
 
-## Kiểm tra và bàn giao
+## Nghiệm thu và bàn giao
 
 - [x] Toàn bộ kiểm thử trình duyệt và kiểm tra trực quan dùng 1DevTool Browser MCP, tuân thủ quy định công cụ kiểm thử ở trên.
 - [x] Chạy `pnpm typecheck`, `pnpm test`, `pnpm build` sau các thay đổi tương ứng; ghi lỗi baseline riêng nếu có. Final verification 18/10/2026 hiện tại: `pnpm typecheck` pass; `pnpm build` pass; `pnpm run test:changed` pass 28 files / 224 tests; `pnpm test` pass 51 files / 383 tests; targeted suites liên quan cũng pass.
