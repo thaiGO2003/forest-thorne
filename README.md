@@ -44,9 +44,9 @@ Gameplay rules live only in `src/game`; rendering and UI read and stage that sta
 
 ## Spec
 
-The product contract is `opus-5.5-forest-throne-rebuild-mega-prompt.md`.
+The product contract is `.omp/plans/docs/spec/forest-thorne-rebuild.md`.
 
-*Hợp đồng sản phẩm: `opus-5.5-forest-throne-rebuild-mega-prompt.md`.*
+*Hợp đồng sản phẩm: `.omp/plans/docs/spec/forest-thorne-rebuild.md`.*
 
 ## Contributing / Đóng góp
 
