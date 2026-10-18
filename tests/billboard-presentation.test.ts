@@ -65,7 +65,7 @@ describe("billboard presentation", () => {
     });
 
     const heartCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("25%"));
-    const rageCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("3/4 · 75%"));
+    const rageCall = kitMocks.label.mock.calls.find((call) => String(call[1]) === "⚡ 3/4");
     expect(heartCall).toBeDefined();
     expect(rageCall).toBeDefined();
     expect(heartCall![3]).toBeLessThan(rageCall![3]);
