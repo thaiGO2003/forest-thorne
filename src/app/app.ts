@@ -9,6 +9,37 @@ import { createTooltip, type Tooltip } from "../ui/tooltip";
 import { createLoading } from "../ui/loading";
 import { createMenu, type UtilityId } from "../ui/menu";
 import { createBridge, type Bridge } from "./bridge";
+import { createMusicDirector, type MusicDirector, type MusicPlaylists, type MusicTrack as DirectorTrack } from "../audio/MusicDirector";
+import { MUSIC_TRACKS, MUSIC_PLAYLISTS } from "../data/musicPlaylists";
+
+/** Map the authored catalog (track keys + alternating fallback sources) onto the director. */
+function authoredMusicPlaylists(): MusicPlaylists {
+  const probe = typeof Audio !== "undefined" ? new Audio() : null;
+  const firstSrc = (key: string) => {
+    const track = MUSIC_TRACKS[key];
+    if (!track) return null;
+    // Prefer the first source the current browser can actually decode (A45 source fallbacks).
+    for (const src of track.sources) {
+      if (!probe) return src;
+      const ext = src.slice(src.lastIndexOf(".") + 1);
+      const mime = ext === "ogg" ? "audio/ogg" : "audio/mpeg";
+      if (probe.canPlayType(mime) !== "") return src;
+    }
+    return track.sources[0] ?? null;
+  };
+  const toTracks = (keys: readonly string[]): DirectorTrack[] => keys.flatMap((key) => {
+    const src = firstSrc(key);
+    return src ? [{ key, src, longPlay: MUSIC_TRACKS[key]?.longPlay }] : [];
+  });
+  return {
+    menu: { id: "menu", tracks: toTracks(MUSIC_PLAYLISTS.menu.tracks), shuffle: MUSIC_PLAYLISTS.menu.shuffle },
+    planning: { id: "planning", tracks: toTracks(MUSIC_PLAYLISTS.planning.tracks), shuffle: MUSIC_PLAYLISTS.planning.shuffle },
+    combat: { id: "combat", tracks: toTracks(MUSIC_PLAYLISTS.combat.tracks), shuffle: MUSIC_PLAYLISTS.combat.shuffle },
+    victory: { id: "victory", tracks: [], shuffle: false },
+    defeat: { id: "defeat", tracks: [], shuffle: false },
+    ambient: { id: "ambient", tracks: [], shuffle: false },
+  };
+}
 
 export type Route = "loading" | "menu" | "planning";
 
@@ -46,6 +77,11 @@ export async function boot(root: HTMLElement): Promise<App> {
   const modals = createModalHost(layers.modal);
   const tooltip = createTooltip(layers.tooltip);
   const bridge = createBridge();
+  const music: MusicDirector = createMusicDirector({
+    settings: bridge.settings,
+    playlists: authoredMusicPlaylists(),
+    continuityStorage: typeof localStorage === "undefined" ? null : localStorage,
+  });
   let current: Route = "loading";
   let active: { dispose(): void } | null = null;
 
@@ -63,6 +99,8 @@ export async function boot(root: HTMLElement): Promise<App> {
       stage.setPhase(r === "planning" ? "planning" : "menu");
       if (r === "menu") active = mountMenu();
       else active = screens[r]?.(app) ?? null;
+      // Context-aware BGM (A45): scene/context change calls play(context).
+      if (r !== "loading") music.play(r);
     },
   };
 
