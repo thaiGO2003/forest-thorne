@@ -34,6 +34,7 @@ import { finishFastCost } from "../core/combatFast";
 import { createModManager, type ModManager, type ModPackageType, type ModSource, type ModValidationIssue } from "../mods/ModRegistry";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
 import { createCombatFx, type CombatFx } from "../units/fx";
+import { createCombatLowHpMusic } from "../audio/CombatLowHpMusic";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
 import { createVictoryFireworks, type VictoryFireworks, type VictoryFireworkOrigin } from "../world/victoryFireworks";
 import {
@@ -1077,7 +1078,7 @@ registerPanel("augment", (app) =>
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
   const board = createBoardView(stage);
-  let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx } | null = null;
+  let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx; lowHpMusic: { dispose(): void } } | null = null;
   let resultFireworks: VictoryFireworks | null = null;
   let planningEnemyPreview: ReturnType<typeof bridge.prepareEnemyPreview> = null;
   let selectedUid: string | null = null;
@@ -1210,7 +1211,7 @@ registerScreen("planning", (app) => {
     app.presentation.combatCycle = null;
     liveRoster.clear();
     if (!combat) return;
-    combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose();
+    combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose(); combat.lowHpMusic.dispose();
     combat = null;
     if (app.modals.active() === "unit-inventory") app.modals.closeActive();
     board.setCombat(false);
@@ -1228,6 +1229,11 @@ registerScreen("planning", (app) => {
     app.music.play("combat");
     board.setCombat(true);
     const fx = createCombatFx(stage.scene);
+    const lowHpMusic = createCombatLowHpMusic({
+      settings: bridge.settings,
+      allySrc: "/assets/audio/combat/combat_low_ally_01.mp3",
+      enemySrc: "/assets/audio/combat/combat_low_enemy_01.mp3",
+    });
     const speedLevel = run?.speedLevel ?? 0;
     const speedMultiplier = getGameSpeedDisplayMultiplier(speedLevel);
     const combatRound = run?.round ?? 1;
@@ -1269,6 +1275,12 @@ registerScreen("planning", (app) => {
       board, fx, roster: session.roster, events: session.events,
       inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
       onTick: (tk) => {
+        const hpRatio = (side: "L" | "R") => {
+          let hp = 0, maxHp = 0;
+          for (const r of tk.all) if (r.side === side) { hp += r.hp; maxHp += r.maxHp; }
+          return maxHp > 0 ? hp / maxHp : 1;
+        };
+        lowHpMusic.update(hpRatio("L"), hpRatio("R"));
         app.presentation.combatCycle = tk.cycle;
         for (const entry of tk.all) liveRoster.set(entry.uid, entry);
         inventoryView?.update();
@@ -1284,7 +1296,7 @@ registerScreen("planning", (app) => {
       },
     });
     player.setSpeed(speedLevel);
-    combat = { player, hud: chud, fx };
+    combat = { player, hud: chud, fx, lowHpMusic };
     void player.done.then(() => {
       if (!combat || combat.player !== player) return;
       const summary = session.finish();
