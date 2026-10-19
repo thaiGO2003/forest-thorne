@@ -64,3 +64,9 @@
 - Existing `Settings.quality` now owns both the directional shadow pass and sun-ray cost: low disables both, medium uses a 1024 shadow map with reduced ray gain, high uses 2048 with full ray gain.
 - The directional shadow camera now refreshes its projection matrix after bounds changes; targeted `arena-mapping` coverage proves the largest `coop4` board stays inside the frustum.
 - `NODE_OPTIONS='--localstorage-file=.vitest-ls.json' pnpm exec vitest --run tests/arena-mapping.test.ts` passed 1 file / 6 tests. Headed screenshot verification remains unverified because the current OMP shared Chromium daemon cannot launch; no browser PASS is claimed.
+
+## 2026-10-19 — WBS-033 geometry verification
+
+- Expanded `tests/geometry.test.ts` to exercise every logical↔visual mapping in solo, coop2, and coop4 and reject river/fractional/out-of-bounds coordinates; assert the 36-cell brown ring and 44 bench cells.
+- Verified `corepack pnpm exec vitest --run tests/geometry.test.ts tests/arena-mapping.test.ts`: 2 test files, 12 tests passed. `corepack pnpm typecheck` passed.
+- Three.js arena scene construction and coordinate round-trips were exercised by targeted tests; live browser WebGL-rendering was not demonstrated in this verification.
