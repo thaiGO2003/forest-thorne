@@ -70,3 +70,9 @@
 - Expanded `tests/geometry.test.ts` to exercise every logical↔visual mapping in solo, coop2, and coop4 and reject river/fractional/out-of-bounds coordinates; assert the 36-cell brown ring and 44 bench cells.
 - Verified `corepack pnpm exec vitest --run tests/geometry.test.ts tests/arena-mapping.test.ts`: 2 test files, 12 tests passed. `corepack pnpm typecheck` passed.
 - Three.js arena scene construction and coordinate round-trips were exercised by targeted tests; live browser WebGL-rendering was not demonstrated in this verification.
+
+## 2026-10-19 — WBS-019 deterministic combat verification
+
+- Added sparse multi-unit interleaving and hard 20-cycle regression coverage to `tests/combat.test.ts`; the existing `src/core/combat.ts` implementation already satisfies the WBS-019 ordering contract.
+- Verified `corepack pnpm exec vitest --run tests/combat.test.ts` (38 passed) and `corepack pnpm typecheck` (passed).
+- Executed the production combat engine with Bun: a balanced one-vs-one simulation produced 20 cycles, 40 actions, and no winner; rendered presentation timing has not been visually verified.
