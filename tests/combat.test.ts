@@ -90,6 +90,74 @@ describe("combat", () => {
     expect(sparseSemantic).toEqual(frontSemantic);
   });
 
+  it("interleaves multi-unit sparse chunks without letting empty slots reorder attacks", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "L-back", baseId: "titan_earth", star: 1, row: 2, col: 2 },
+        { uid: "L-front-low", baseId: "titan_earth", star: 1, row: 3, col: 4 },
+        { uid: "L-front-high", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+      ],
+      [
+        { uid: "R-back", baseId: "titan_earth", star: 1, row: 1, col: 8 },
+        { uid: "R-middle", baseId: "titan_earth", star: 1, row: 4, col: 6 },
+        { uid: "R-front", baseId: "titan_earth", star: 1, row: 2, col: 5 },
+      ],
+    );
+    expect(turnOrder(fighters).map((fighter) => fighter.uid)).toEqual([
+      "L-front-high", "R-front", "L-front-low", "R-middle", "L-back", "R-back",
+    ]);
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    const result = runCombat(fighters, { seed: 29, rageGain: { L: 0, R: 0 } });
+    const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    expect(cycleTwo).toBeGreaterThan(0);
+    const chunks: string[][] = [];
+    let emptySlots: string[] = [];
+    for (const event of result.events.slice(1, cycleTwo)) {
+      if (event.t === "empty") emptySlots.push(`${event.side}${event.col}:${event.row}`);
+      if (event.t === "basic" || event.t === "miss" || event.t === "skip") {
+        chunks.push([...emptySlots, event.src]);
+        emptySlots = [];
+      }
+    }
+    expect(chunks).toEqual([
+      ["L-front-high"],
+      ["R5:0", "R5:1", "R-front"],
+      ["L4:1", "L4:2", "L-front-low"],
+      ["R5:3", "R5:4", "R6:0", "R6:1", "R6:2", "R6:3", "R-middle"],
+      ["L4:4", "L3:0", "L3:1", "L3:2", "L3:3", "L3:4", "L2:0", "L2:1", "L-back"],
+      ["R7:0", "R7:1", "R7:2", "R7:3", "R7:4", "R8:0", "R-back"],
+    ]);
+    expect(emptySlots).toEqual([
+      "L2:3", "L2:4", "L1:0", "L1:1", "L1:2", "L1:3", "L1:4",
+      "L0:0", "L0:1", "L0:2", "L0:3", "L0:4",
+      "R8:2", "R8:3", "R8:4", "R9:0", "R9:1", "R9:2", "R9:3", "R9:4",
+    ]);
+  });
+
+  it("stops after exactly 20 full cycles when both sides survive", () => {
+    const fighters = materializeCombat(
+      [{ uid: "L", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+      [{ uid: "R", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    const result = runCombat(fighters, { seed: 53, rageGain: { L: 0, R: 0 } });
+    expect(result.events.filter((event) => event.t === "cycle").map((event) => event.cycle))
+      .toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+    expect(result.actions).toBe(40);
+    expect(result.alive).toEqual({ L: 1, R: 1 });
+    expect(result.winner).toBeNull();
+  });
+
   it("ticks an existing burn exactly once at each cycle boundary and never again during turns", () => {
     const fighters = materializeCombat(
       [{ uid: "burned", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
