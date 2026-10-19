@@ -77,3 +77,8 @@
 - Corrected flow-marker wrap arithmetic after reproducing a `update(0)` position jump in `tests/arena-mapping.test.ts`; the regression now asserts zero-delta continuity and forward motion.
 - Verified `corepack pnpm exec vitest --run tests/arena-mapping.test.ts` (8 passed) and `corepack pnpm typecheck` (passed).
 - The standalone Bun arena smoke command could not run without a browser DOM (`document is not defined` from `src/world/sky.ts`); headless scene tests passed, but live WebGL pixels remain unverified.
+## 2026-10-19 — WBS-019 deterministic combat verification
+
+- Added sparse multi-unit interleaving and hard 20-cycle regression coverage to `tests/combat.test.ts`; the existing `src/core/combat.ts` implementation already satisfies the WBS-019 ordering contract.
+- Verified `corepack pnpm exec vitest --run tests/combat.test.ts` (38 passed) and `corepack pnpm typecheck` (passed).
+- Executed the production combat engine with Bun: a balanced one-vs-one simulation produced 20 cycles, 40 actions, and no winner; rendered presentation timing has not been visually verified.
