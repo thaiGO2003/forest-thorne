@@ -159,4 +159,57 @@ describe("arena world mapping (A91.2)", () => {
     }
     arena.dispose();
   });
+  it("builds the river, ring and bench as owned geometry with animated water cues", () => {
+    const scene = new THREE.Scene();
+    const arena = createArena(scene, "solo");
+    const ring = arena.root.getObjectByName("brown-ring") as THREE.InstancedMesh;
+    const bench = arena.root.getObjectByName("bench-perimeter") as THREE.InstancedMesh;
+    const water = arena.root.getObjectByName("river-water") as THREE.Mesh;
+    const markers = arena.root.children.filter((child) => child.name === "river-flow-marker");
+    const ringDispose = vi.spyOn(ring, "dispose");
+
+    expect(arena.tiles).toBeInstanceOf(THREE.InstancedMesh);
+    expect(arena.tiles.count).toBe(50);
+    expect(ring).toBeInstanceOf(THREE.InstancedMesh);
+    expect(ring.count).toBe(36);
+    expect(bench).toBeInstanceOf(THREE.InstancedMesh);
+    expect(bench.count).toBe(44);
+    expect(water.position.x).toBe(0);
+    expect(markers).toHaveLength(7);
+    const markerPosition = markers[0]!.position.z;
+    arena.update(0);
+    expect(markers[0]!.position.z).toBeCloseTo(markerPosition);
+    arena.update(0.5);
+    expect(markers[0]!.position.z).toBeCloseTo(markerPosition + 0.5 * 0.62);
+    const riverLen = (water.geometry as THREE.BoxGeometry).parameters.depth;
+    arena.update(riverLen / 7 / 0.62 - 0.5);
+    expect(markers[6]!.position.z).toBeCloseTo(markerPosition);
+
+    arena.dispose();
+    expect(ringDispose).toHaveBeenCalledOnce();
+    expect(scene.children).not.toContain(arena.root);
+  });
+
+  it("switches lighting by phase and restores an existing scene environment on disposal", () => {
+    const scene = new THREE.Scene();
+    const originalFog = new THREE.Fog(0x335577, 10, 80);
+    const originalBackground = new THREE.Color(0x223344);
+    scene.fog = originalFog;
+    scene.background = originalBackground;
+    const arena = createArena(scene, "solo");
+    const sun = arena.root.children.find(
+      (child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight && child.castShadow,
+    )!;
+    arena.setPhase("menu");
+    const menuIntensity = sun.intensity;
+    arena.setPhase("planning");
+    const planningIntensity = sun.intensity;
+    arena.setPhase("combat");
+    expect(menuIntensity).toBeLessThan(planningIntensity);
+    expect(sun.intensity).toBeGreaterThan(planningIntensity);
+
+    arena.dispose();
+    expect(scene.fog).toBe(originalFog);
+    expect(scene.background).toBe(originalBackground);
+  });
 });

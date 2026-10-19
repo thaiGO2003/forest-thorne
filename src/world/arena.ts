@@ -88,6 +88,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const disposables: { dispose(): void }[] = [];
   const own = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
   const m4 = new THREE.Matrix4();
+  const instancePosition = new THREE.Vector3();
   const rows = totalRows(p);
 
   const blockGeo = own(new THREE.BoxGeometry(BLOCK, BLOCK, BLOCK));
@@ -131,11 +132,13 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const tuftGeo = own(new THREE.ConeGeometry(0.06, 0.22, 4));
   const tufts = new THREE.InstancedMesh(tuftGeo, mat(0x86d45a), n * 3);
   const tuftOffsets = [[-0.28, -0.22], [0.25, 0.1], [-0.05, 0.3]] as const;
-  for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) {
+  for (let i = 0; i < n; i++) {
     tiles.getMatrixAt(i, m4);
-    const pos = new THREE.Vector3().setFromMatrixPosition(m4);
-    const [ox, oz] = tuftOffsets[k]!;
-    tufts.setMatrixAt(i * 3 + k, new THREE.Matrix4().makeTranslation(pos.x + ox, TILE_H + 0.1, pos.z + oz));
+    instancePosition.setFromMatrixPosition(m4);
+    for (let k = 0; k < 3; k++) {
+      const [ox, oz] = tuftOffsets[k]!;
+      tufts.setMatrixAt(i * 3 + k, m4.makeTranslation(instancePosition.x + ox, TILE_H + 0.1, instancePosition.z + oz));
+    }
   }
   tufts.raycast = () => {};
   root.add(tufts);
@@ -149,7 +152,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     root.add(mesh);
     return mesh;
   };
-  ringTiles(brownRing(p), 0x8a5a34, TILE_H / 2);
+  const ring = ringTiles(brownRing(p), 0x8a5a34, TILE_H / 2);
+  ring.name = "brown-ring";
   const benchCells = benchPerimeter(p);
   const bench = ringTiles(benchCells, 0xb48a5c, TILE_H / 2 + 0.02);
   bench.name = "bench-perimeter";
@@ -168,6 +172,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const riverLen = riverCells(p).length * BLOCK;
   const waterMat = mat(0x3aa0d8, { roughness: 0.25, metalness: 0.1 });
   const water = new THREE.Mesh(own(new THREE.BoxGeometry(BLOCK, 0.5, riverLen)), waterMat);
+  water.name = "river-water";
   water.position.set(0, -0.3, 0);
   water.raycast = () => {};
   root.add(water);
@@ -175,6 +180,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const markerMat = mat(0xd8f2ff, { transparent: true, opacity: 0.7 });
   const markers = Array.from({ length: 7 }, (_, i) => {
     const m = new THREE.Mesh(markerGeo, markerMat);
+    m.name = "river-flow-marker";
     m.position.set(((i % 3) - 1) * 0.25, -0.04, -riverLen / 2 + ((i + 0.5) * riverLen) / 7);
     m.raycast = () => {};
     root.add(m);
@@ -248,6 +254,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   root.add(hemi, sun, rim);
   const fog = new THREE.Fog(0xa8dcff, 45, 120);
   const background = new THREE.Color(0xa8dcff);
+  const previousFog = scene.fog;
+  const previousBackground = scene.background;
   scene.fog = fog;
   scene.background = background;
 
@@ -348,10 +356,10 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       const i = tileIndex[`${col},${row}`];
       if (i === undefined) return;
       tiles.getMatrixAt(i, m4);
-      const pos = new THREE.Vector3().setFromMatrixPosition(m4);
+      instancePosition.setFromMatrixPosition(m4);
       for (let k = 0; k < 3; k++) {
         const [ox, oz] = tuftOffsets[k]!;
-        tufts.setMatrixAt(i * 3 + k, m4.makeTranslation(pos.x + ox, occupied ? -10 : TILE_H + 0.1, pos.z + oz));
+        tufts.setMatrixAt(i * 3 + k, m4.makeTranslation(instancePosition.x + ox, occupied ? -10 : TILE_H + 0.1, instancePosition.z + oz));
       }
       tufts.instanceMatrix.needsUpdate = true;
     },
@@ -378,16 +386,17 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       scenery.update(Math.max(0, dt));
       sky.update(Math.max(0, dt));
       markers.forEach((m, i) => {
-        m.position.z = (((-riverLen / 2 + ((i + 0.5) * riverLen) / 7 + flowT) % riverLen) + riverLen) % riverLen - riverLen / 2;
+        m.position.z = ((((i + 0.5) * riverLen) / 7 + flowT) % riverLen + riverLen) % riverLen - riverLen / 2;
       });
     },
     dispose() {
       restoreHighlights();
       sun.shadow.map?.dispose();
       for (const d of disposables) d.dispose();
-      for (const o of [soil, tiles, tufts, bench, benchHighlights]) o.dispose();
+      for (const o of [soil, tiles, tufts, ring, bench, benchHighlights]) o.dispose();
       scene.remove(root);
-      scene.fog = null;
+      if (scene.fog === fog) scene.fog = previousFog;
+      if (scene.background === background) scene.background = previousBackground;
     },
   };
 }

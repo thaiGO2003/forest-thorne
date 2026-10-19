@@ -70,3 +70,10 @@
 - Expanded `tests/geometry.test.ts` to exercise every logical↔visual mapping in solo, coop2, and coop4 and reject river/fractional/out-of-bounds coordinates; assert the 36-cell brown ring and 44 bench cells.
 - Verified `corepack pnpm exec vitest --run tests/geometry.test.ts tests/arena-mapping.test.ts`: 2 test files, 12 tests passed. `corepack pnpm typecheck` passed.
 - Three.js arena scene construction and coordinate round-trips were exercised by targeted tests; live browser WebGL-rendering was not demonstrated in this verification.
+
+## 2026-10-19 — WBS-034 arena lifecycle verification
+
+- Reused scratch Three.js objects during grass tuft instance updates; added river/ring names, ring disposal, and conditional restoration of pre-existing scene fog/background in `src/world/arena.ts`.
+- Corrected flow-marker wrap arithmetic after reproducing a `update(0)` position jump in `tests/arena-mapping.test.ts`; the regression now asserts zero-delta continuity and forward motion.
+- Verified `corepack pnpm exec vitest --run tests/arena-mapping.test.ts` (8 passed) and `corepack pnpm typecheck` (passed).
+- The standalone Bun arena smoke command could not run without a browser DOM (`document is not defined` from `src/world/sky.ts`); headless scene tests passed, but live WebGL pixels remain unverified.
