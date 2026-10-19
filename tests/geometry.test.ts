@@ -19,19 +19,29 @@ describe("board geometry (A31.1)", () => {
     expect(logical.size).toBe(50);
   });
 
-  it("logical↔visual round-trips and skips the river", () => {
-    for (let col = 0; col < 10; col++) {
-      const v = toVisual(col, 2);
-      expect(v.x).not.toBe(RIVER_X);
-      expect(toLogical(v.x, v.z)).toEqual({ col, row: 2 });
+  it("logical↔visual bijection covers every cell and excludes river across profiles", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      for (let row = 0; row < totalRows(profile); row++) {
+        const mapped = new Set<number>();
+        for (let col = 0; col < 10; col++) {
+          const visual = toVisual(col, row);
+          expect(visual.x).not.toBe(RIVER_X);
+          expect(toLogical(visual.x, visual.z, profile)).toEqual({ col, row });
+          mapped.add(visual.x);
+        }
+        expect(mapped.size).toBe(10);
+        expect(toLogical(RIVER_X, row, profile)).toBeNull();
+      }
+      expect(toLogical(0, totalRows(profile), profile)).toBeNull();
+      expect(toLogical(-1, 0, profile)).toBeNull();
+      expect(toLogical(0.5, 0, profile)).toBeNull();
     }
-    expect(toLogical(RIVER_X, 0)).toBeNull();
-    expect(toLogical(-1, 0)).toBeNull();
   });
 
   it("brown ring and bench perimeter are disjoint, unique, and bench is 44", () => {
     const ring = brownRing().map(key);
     const bench = benchPerimeter().map(key);
+    expect(ring.length).toBe(36);
     expect(new Set(ring).size).toBe(ring.length);
     expect(new Set(bench).size).toBe(44);
     expect(bench.length).toBe(44);
