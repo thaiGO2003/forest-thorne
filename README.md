@@ -44,15 +44,15 @@ Gameplay rules live only in `src/game`; rendering and UI read and stage that sta
 
 ## Spec
 
-The product contract is `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`.
+The product contract is `.agents/plans/pending/docs.spec.forest-throne-rebuild.md`.
 
-*Hợp đồng sản phẩm: `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`.*
+*Hợp đồng sản phẩm: `.agents/plans/pending/docs.spec.forest-throne-rebuild.md`.*
 
 ## Contributing / Đóng góp
 
-Follow `.omp/rules/commits.md` for commit messages. Use `pnpm` for every command.
+Follow `.agents/rules/commits.md` for commit messages. Use `pnpm` for every command.
 
-*Commit theo `.omp/rules/commits.md`. Mọi lệnh dùng `pnpm`.*
+*Commit theo `.agents/rules/commits.md`. Mọi lệnh dùng `pnpm`.*
 
 ## License / Giấy phép
 
