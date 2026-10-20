@@ -8,7 +8,7 @@ import type { BoardView } from "../src/units/boardView";
 import type { CombatFx } from "../src/units/fx";
 import type { UnitVisual } from "../src/units/rig";
 
-function playback(events: CombatEvent[], inspectionFrames?: CombatInspectionFrame[], shield = 0, baseId?: string) {
+function playback(events: CombatEvent[], inspectionFrames?: CombatInspectionFrame[], shield = 0, baseId?: string, onEvent?: (event: CombatEvent) => void) {
   const melee = NORMAL_UNITS.find((unit) => unit.basic.delivery === "melee")!;
   const roster: RosterEntry[] = ["a", "b"].map((uid) => ({ uid, baseId: baseId ?? melee.id, star: 1, side: uid === "a" ? "L" : "R", hp: 100, maxHp: 100, rage: 0, rageMax: 3, shield }));
   const live = new Map<string, number>();
@@ -73,6 +73,7 @@ function playback(events: CombatEvent[], inspectionFrames?: CombatInspectionFram
     fx,
     roster,
     events,
+    onEvent,
     inspectionFrames,
     onFrame: (callback) => { frame = callback; return off; },
     onTick(tick) {
@@ -190,6 +191,33 @@ describe("recovered combat presentation", () => {
     onImpact!();
     expect(live.get("b")).toBe(76);
     player.dispose();
+  });
+
+  it("emits basic and multi-target skill SFX events only at animation impact", () => {
+    const basicEvent = { t: "basic", src: "a", dst: "b", dmg: 12, absorbed: 0, crit: false } as const;
+    const basicEvents: CombatEvent[] = [];
+    const basic = playback([basicEvent], undefined, 0, undefined, (event) => basicEvents.push(event));
+    const approach = stageBasicCombatEvent(basicEvent, basic.actor, 0).timing.approachMs;
+    basic.advance(approach);
+    expect(basicEvents).toEqual([]);
+    basic.impact("a")!();
+    basic.impact("a")!();
+    expect(basicEvents).toEqual([basicEvent]);
+    basic.player.dispose();
+
+    const skillEvents: CombatEvent[] = [
+      { t: "cast", src: "a", targets: ["a", "b"] },
+      { t: "skill", src: "a", dst: "a", dmg: 6, absorbed: 0, crit: false },
+      { t: "skill", src: "a", dst: "b", dmg: 16, absorbed: 0, crit: false },
+    ];
+    const observed: CombatEvent[] = [];
+    const skill = playback(skillEvents, undefined, 0, undefined, (event) => observed.push(event));
+    skill.advance(350);
+    expect(observed).toEqual([skillEvents[0]]);
+    skill.impact("a")!();
+    skill.impact("a")!();
+    expect(observed).toEqual(skillEvents);
+    skill.player.dispose();
   });
 
   it("cancels pending authored impact callbacks and removes the frame hook on teardown", async () => {

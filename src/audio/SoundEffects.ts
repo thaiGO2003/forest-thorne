@@ -7,6 +7,7 @@ export const SEMANTIC_SFX_EVENTS = [
 export type SemanticSfxEvent = (typeof SEMANTIC_SFX_EVENTS)[number];
 
 const EVENT_SET = new Set<string>(SEMANTIC_SFX_EVENTS);
+const UI_SFX_EVENTS: Partial<Record<SemanticSfxEvent, true>> = { buy: true, reroll: true, click: true };
 const SFX_ALIASES: Readonly<Record<string, SemanticSfxEvent>> = {
   attack: "hit",
   shop_buy: "buy",
@@ -118,6 +119,7 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
   let disposed = false;
   interface Voice {
     oscillator: SfxOscillatorNodeLike;
+    category: "ui" | "combat";
     gain: SfxGainNodeLike;
     timer: number | NodeJS.Timeout | undefined;
   }
@@ -139,7 +141,12 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
   const unsubscribe = options.settings.subscribe((next) => {
     currentSettings = next;
     if (normalizedMasterVolume(next) <= 0) stopVoices();
+    else for (const voice of voices) {
+      if (!(voice.category === "ui" ? next.uiSfxEnabled : next.combatSfxEnabled)) releaseVoice(voice, true);
+    }
   });
+  const categoryEnabled = (category: "ui" | "combat") => normalizedMasterVolume(currentSettings) > 0
+    && (category === "ui" ? currentSettings.uiSfxEnabled : currentSettings.combatSfxEnabled);
 
   const getContext = () => {
     if (context?.state === "closed") {
@@ -156,7 +163,9 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
     async play(rawEvent, profile = {}) {
       if (disposed) return "none";
       const event = normalizeSemanticSfxEvent(rawEvent);
-      if (!event || normalizedMasterVolume(currentSettings) <= 0) return "none";
+      if (!event) return "none";
+      const category = UI_SFX_EVENTS[event] ? "ui" : "combat";
+      if (!categoryEnabled(category)) return "none";
       const baseGain = event === "ko" ? 0.8 : 0.6;
       const sampleKey = profile.sampleKey ?? options.eventSamples?.[event];
       if (sampleKey && options.samples) {
@@ -164,13 +173,13 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
           if (options.samples.has(sampleKey)) {
             const gain = Math.min(1, normalizedMasterVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
             await options.samples.play(sampleKey, gain);
-            return disposed || normalizedMasterVolume(currentSettings) <= 0 ? "none" : "sample";
+            return disposed || !categoryEnabled(category) ? "none" : "sample";
           }
         } catch {
           // A failed sample lookup/play remains eligible for procedural fallback.
         }
       }
-      if (disposed || normalizedMasterVolume(currentSettings) <= 0) return "none";
+      if (disposed || !categoryEnabled(category)) return "none";
 
       const audioContext = getContext();
       if (!audioContext || audioContext.state === "closed") return "none";
@@ -180,7 +189,7 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
         return "none";
       }
       // resume() can settle after disposal, muting, or a different settings update.
-      if (disposed || normalizedMasterVolume(currentSettings) <= 0 || audioContext.state === "closed") return "none";
+      if (disposed || !categoryEnabled(category) || audioContext.state === "closed") return "none";
       if (voices.size >= MAX_SFX_VOICES) return "none";
 
       let oscillator: SfxOscillatorNodeLike | null = null;
@@ -197,7 +206,7 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
         gainNode.gain.exponentialRampToValueAtTime(0.0001, now + SFX_DURATION_SECONDS);
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        const startedVoice: Voice = { oscillator, gain: gainNode, timer: undefined };
+        const startedVoice: Voice = { oscillator, gain: gainNode, timer: undefined, category };
         voice = startedVoice;
         oscillator.onended = () => releaseVoice(startedVoice, false);
         voices.add(startedVoice);

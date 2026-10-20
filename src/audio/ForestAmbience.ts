@@ -55,7 +55,7 @@ export function createForestAmbience(options: ForestAmbienceOptions): ForestAmbi
   const voices = new Set<AmbientVoice>();
 
   const wanted = () => !disposed && desiredActive && !target?.hidden
-    && normalizedMasterVolume(settings) > 0;
+    && settings.ambientEnabled && normalizedMasterVolume(settings) > 0;
 
   const clearTick = () => {
     clearTimeout(tickTimer);

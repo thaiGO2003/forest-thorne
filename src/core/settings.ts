@@ -63,7 +63,8 @@ export const MODE_AI: Record<GameMode, { allowed: readonly AiMode[]; def: AiMode
 };
 
 export interface Settings {
-  audioEnabled: boolean; audioMuted: boolean; musicEnabled: boolean; volumeLevel: number; musicVolume: number;
+  audioEnabled: boolean; audioMuted: boolean; musicEnabled: boolean; ambientEnabled: boolean;
+  uiSfxEnabled: boolean; combatSfxEnabled: boolean; volumeLevel: number; musicVolume: number;
   musicSource: (typeof MUSIC_SOURCES)[number]; musicTrack: string;
   aiMode: AiMode; aiModeByGameMode: Record<GameMode, AiMode>;
   loseCondition: "NO_HEARTS" | "NO_UNITS";
@@ -98,6 +99,9 @@ export function normalizeSettings(raw: unknown): Settings {
     audioEnabled: bool(r.audioEnabled, true),
     audioMuted: bool(r.audioMuted, false),
     musicEnabled: bool(r.musicEnabled, true),
+    ambientEnabled: bool(r.ambientEnabled, true),
+    uiSfxEnabled: bool(r.uiSfxEnabled, true),
+    combatSfxEnabled: bool(r.combatSfxEnabled, true),
     volumeLevel: Number.isFinite(vol) ? Math.min(10, Math.max(1, vol)) : 5,
     musicVolume: Number.isFinite(musicVol) ? Math.min(10, Math.max(0, musicVol)) : 5,
     musicSource: pick(MUSIC_SOURCES, r.musicSource, "local"),

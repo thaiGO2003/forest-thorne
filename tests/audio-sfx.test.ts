@@ -236,4 +236,64 @@ describe("semantic SFX A45", () => {
     manager.dispose();
   });
 
+  it("mutes UI and combat sample categories independently without changing music", async () => {
+    const settings = createSettingsStore(memoryStorage());
+    const samplePlay = vi.fn();
+    const manager = createSemanticSfxManager({
+      settings,
+      samples: { has: () => true, play: samplePlay },
+      eventSamples: { buy: "purchase", hit: "impact" },
+      createAudioContext: () => { throw new Error("sample-only test"); },
+    });
+    settings.save({ uiSfxEnabled: false });
+    expect(await manager.play("shop_buy")).toBe("none");
+    expect(await manager.play("hit")).toBe("sample");
+    expect(samplePlay).toHaveBeenCalledExactlyOnceWith("impact", 0.3);
+    settings.save({ uiSfxEnabled: true, combatSfxEnabled: false, musicEnabled: false });
+    expect(await manager.play("hit")).toBe("none");
+    expect(await manager.play("buy")).toBe("sample");
+    expect(samplePlay).toHaveBeenCalledTimes(2);
+    expect(settings.get().musicEnabled).toBe(false);
+    settings.save({ audioMuted: true });
+    expect(await manager.play("buy")).toBe("none");
+    manager.dispose();
+  });
+
+  it("stops only the muted procedural category and cancels pending category resume", async () => {
+    const settings = createSettingsStore(memoryStorage());
+    const nodes: Array<{ stop: () => void; disconnect: () => void }> = [];
+    let finishResume = () => {};
+    let state: AudioContextState = "running";
+    const createOscillator = vi.fn(() => {
+      const node = {
+        type: "sine" as OscillatorType, frequency: { value: 0 },
+        connect: vi.fn(), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(),
+      };
+      nodes.push(node);
+      return node;
+    });
+    const context: SfxAudioContextLike = {
+      currentTime: 0, destination: {}, get state() { return state; },
+      resume: () => new Promise<void>((resolve) => { finishResume = resolve; }),
+      createOscillator,
+      createGain: () => ({ gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() }),
+    };
+    const manager = createSemanticSfxManager({ settings, createAudioContext: () => context });
+    expect(await manager.play("buy")).toBe("oscillator");
+    expect(await manager.play("hit")).toBe("oscillator");
+    settings.save({ uiSfxEnabled: false });
+    expect(nodes[0]!.stop).toHaveBeenCalledTimes(2);
+    expect(nodes[0]!.disconnect).toHaveBeenCalledOnce();
+    expect(nodes[1]!.stop).toHaveBeenCalledOnce();
+    expect(await manager.play("hit")).toBe("oscillator");
+    state = "suspended";
+    const pending = manager.play("skill");
+    settings.save({ combatSfxEnabled: false });
+    finishResume();
+    await expect(pending).resolves.toBe("none");
+    expect(createOscillator).toHaveBeenCalledTimes(3);
+    expect(nodes[1]!.stop).toHaveBeenCalledTimes(2);
+    expect(nodes[2]!.stop).toHaveBeenCalledTimes(2);
+    manager.dispose();
+  });
 });

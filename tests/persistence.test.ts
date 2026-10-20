@@ -263,6 +263,21 @@ describe("settings A35/A44", () => {
     });
   });
 
+  it("preserves independent audio category flags on reload while legacy saves default them on", () => {
+    const storage = mem();
+    storage.m[SETTINGS_KEY] = JSON.stringify({ musicEnabled: false, audioMuted: false });
+    const migrated = loadSettings(storage);
+    expect([migrated.musicEnabled, migrated.ambientEnabled, migrated.uiSfxEnabled, migrated.combatSfxEnabled])
+      .toEqual([false, true, true, true]);
+
+    const settings = createSettingsStore(storage);
+    settings.save({ ambientEnabled: false, uiSfxEnabled: false, combatSfxEnabled: true });
+    const loaded = loadSettings(storage);
+    expect([loaded.musicEnabled, loaded.ambientEnabled, loaded.uiSfxEnabled, loaded.combatSfxEnabled])
+      .toEqual([false, false, false, true]);
+    expect(createSettingsStore(storage).get()).toEqual(loaded);
+  });
+
   it("migrates legacy battery saver into the FPS default without preserving the retired setting", () => {
     const migrated = normalizeSettings({ batterySaver: true, subtitleEnabled: false, fpsLimit: 120, renderScale: 1.4 });
     expect([migrated.fpsLimit, migrated.renderScale, migrated.narrationEnabled, "batterySaver" in migrated]).toEqual([120, 1, false, false]);

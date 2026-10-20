@@ -304,4 +304,38 @@ describe("procedural forest ambience", () => {
     expect(() => headless.setActive(true)).not.toThrow();
     headless.dispose();
   });
+  it("mutes ambient independently, stops live voices, and resumes after re-enabling", async () => {
+    vi.useFakeTimers();
+    const settings = createSettingsStore(memoryStorage());
+    const target = makeTarget();
+    const { context, oscillators } = makeContext();
+    const createAudioContext = vi.fn(() => context as unknown as AudioContext);
+    const ambient = createForestAmbience({ settings, eventTarget: target, createAudioContext, random: () => 0.5 });
+    ambient.setActive(true);
+    settings.save({ ambientEnabled: false });
+    target.emit("pointerdown");
+    expect(createAudioContext).not.toHaveBeenCalled();
+    expect(target.count("pointerdown")).toBe(0);
+
+    settings.save({ ambientEnabled: true, musicEnabled: false, uiSfxEnabled: false });
+    target.emit("pointerdown");
+    await Promise.resolve();
+    vi.advanceTimersByTime(4800);
+    expect(oscillators).toHaveLength(1);
+    settings.save({ ambientEnabled: false });
+    expect(oscillators[0]!.disconnect).toHaveBeenCalledOnce();
+    expect(context.suspend).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(4800);
+    expect(oscillators).toHaveLength(1);
+
+    settings.save({ ambientEnabled: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(4800);
+    expect(oscillators).toHaveLength(2);
+    expect(settings.get().musicEnabled).toBe(false);
+    ambient.dispose();
+  });
 });
