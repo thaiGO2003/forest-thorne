@@ -1,21 +1,27 @@
 # Forest Throne — agent instructions
 
-> Tài liệu đầy đủ cho agent làm việc trong repo này: [`./.omp/AGENTS.md`](.omp/AGENTS.md).
-> File gốc nằm ở `.omp/AGENTS.md`; file này dùng để mọi agent đọc repo mặc định từ root đều có instruction nhất quán.
+> Tài liệu đầy đủ cho agent làm việc trong repo này: [`./.agents/AGENTS.md`](.agents/AGENTS.md).
+> File gốc nằm ở `.agents/AGENTS.md`; file này giúp agent đọc repo từ root tìm đúng instructions.
 
-## Plans (`.omp/plans/`)
+## Plans (`.agents/plans/`)
 
-Chi tiết: `.omp/rules/plans-workflow.md`.
+Chi tiết: `.agents/rules/plans-workflow.md`.
 
 - Plan markdown nằm phẳng trong `pending/` (đang làm) hoặc `done/` (hoàn tất);
   tên file = tên nhánh git tương lai với dấu `/` thay bằng dấu `.`, 3 phần
   `động từ.tiêu đề nhánh.nội dung nhánh.md`
   (ví dụ `feat.ui-ux.gameplay.md` → nhánh `feat/ui-ux/gameplay`).
-- Hook `.omp/hooks/pre/plans-sync.ts` mirror plan ghi trong plan mode
+- Hook `.agents/hooks/pre/plans-sync.ts` mirror plan ghi trong plan mode
   (`local://<đường-dẫn>-plan.md`) vào `pending/`.
 - `/plan-done <tên-file-hoặc-slug>` chuyển plan sang `done/`.
 - Không có HTML/custom/index: markdown trong `pending/`/`done/` là nguồn duy nhất.
-- Không di chuyển file trong `.omp/plans` bằng tay trừ khi hook lỗi.
+- Không di chuyển file trong `.agents/plans` bằng tay trừ khi hook lỗi.
+
+## Tool safety checks
+
+- Khi gặp `This tool call was blocked by OpenAI's safety checks.`, đọc skill `.agents/skills/safety-check-triage/SKILL.md`.
+- Giữ nguyên từ chối; không chuyển thao tác bị chặn sang OpenCode hoặc provider khác để vượt kiểm tra.
+- Chỉ giao việc **độc lập, được phép** qua 1DevTool nếu orchestration khả dụng; báo người dùng khi tính năng bị tắt.
 
 ## UI Asset-First Rules
 
@@ -36,6 +42,6 @@ Chi tiết: `.omp/rules/plans-workflow.md`.
 
 ## Commit Rules
 
-- Tuân thủ quy chuẩn chi tiết tại `.omp/rules/commits.md`.
+- Tuân thủ quy chuẩn chi tiết tại `.agents/rules/commits.md`.
 - Mỗi commit bắt buộc có body giải thích rõ nguyên nhân và lý do thay đổi, liệt kê file chỉnh sửa và bằng chứng kiểm thử; không commit message một dòng cụt ngủn.
 - Mỗi commit một mục tiêu duy nhất, không gom thay đổi không liên quan.
