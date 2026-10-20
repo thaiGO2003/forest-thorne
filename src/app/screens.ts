@@ -1163,11 +1163,26 @@ registerScreen("planning", (app) => {
     enabled: () => !app.modals.blocking() && (bridge.run()?.phase === "PLANNING" || Boolean(combat)),
     inspectOnly: () => Boolean(combat),
   });
+  const buyUnit = (slot: number) => {
+    const bought = bridge.buy(slot);
+    if (bought) void app.sfx.play("buy");
+    return bought;
+  };
+  const rerollShop = () => {
+    const rerolled = bridge.reroll();
+    if (rerolled) void app.sfx.play("reroll");
+    return rerolled;
+  };
+  const purchaseXp = () => {
+    const purchased = bridge.buyXp();
+    if (purchased) void app.sfx.play("buy");
+    return purchased;
+  };
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
-    buy: (slot) => bridge.buy(slot),
+    buy: buyUnit,
     details: (id) => app.openPanel("unit-detail", id),
-    reroll: () => bridge.reroll(),
-    buyXp: () => bridge.buyXp(),
+    reroll: rerollShop,
+    buyXp: purchaseXp,
     toggleLock: () => bridge.toggleLock(),
     start: () => runCombat(),
     action: (id) => app.openPanel(id),
@@ -1222,6 +1237,7 @@ registerScreen("planning", (app) => {
     if (combat || app.modals.blocking()) return;
     const session = bridge.startCombat();
     if (!session) return;
+    app.ambience.setActive(false);
     app.presentation.combatCycle = 1;
     const run = bridge.run();
     hud.el.hidden = true;
@@ -1246,6 +1262,7 @@ registerScreen("planning", (app) => {
           reserveOrigins.push({ x: visual.root.position.x, y: visual.root.position.y, z: visual.root.position.z });
         });
       }
+      void app.sfx.play(summary.winner === "LEFT" ? "victory" : summary.winner === "RIGHT" ? "defeat" : "draw");
       endCombat();
       resultFireworks?.dispose();
       resultFireworks = summary.winner === "LEFT" && reserveOrigins.length
@@ -1256,7 +1273,7 @@ registerScreen("planning", (app) => {
         resultFireworks?.dispose();
         resultFireworks = null;
         if (summary.gameOver) app.go("menu");
-        else { app.music.play("planning"); sync(); }
+        else { app.music.play("planning"); app.ambience.setActive(true); sync(); }
       });
       return true;
     };
@@ -1274,6 +1291,14 @@ registerScreen("planning", (app) => {
     const player = playCombat({
       board, fx, roster: session.roster, events: session.events,
       inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
+      onEvent: (event) => {
+        switch (event.t) {
+          case "basic": void app.sfx.play("hit"); break;
+          case "skill": void app.sfx.play("skill"); break;
+          case "heal": void app.sfx.play("heal"); break;
+          case "death": void app.sfx.play("ko"); break;
+        }
+      },
       onTick: (tk) => {
         const hpRatio = (side: "L" | "R") => {
           let hp = 0, maxHp = 0;
@@ -1303,6 +1328,7 @@ registerScreen("planning", (app) => {
       if (showResult(summary)) return;
       endCombat();
       app.music.play("planning");
+      app.ambience.setActive(true);
       sync();
     });
   }
@@ -1321,8 +1347,8 @@ registerScreen("planning", (app) => {
 
   const shortcutActions: PlanningShortcutActions = {
     startCombat: runCombat,
-    reroll: () => bridge.reroll(),
-    buyXp: () => bridge.buyXp(),
+    reroll: rerollShop,
+    buyXp: purchaseXp,
     newRun: () => {
       const current = bridge.run();
       if (current) bridge.newRun(current.mode, current.aiMode);

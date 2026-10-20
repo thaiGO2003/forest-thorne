@@ -22,6 +22,14 @@ pnpm test       # unit tests
 pnpm build      # production build -> dist/
 ```
 
+## Audio / Âm thanh
+
+- `src/audio/MusicDirector.ts` transitions BGM between menu, planning and combat contexts, using the existing settings store for volume and mute control.
+- `src/audio/ForestAmbience.ts` creates sparse procedural birds and breeze while planning. A pointer/keyboard gesture unlocks Web Audio; a hidden tab, mute, or route change suspends ambience and releases its active voices.
+- `src/audio/SoundEffects.ts` plays semantic `buy`, `reroll`, `hit`, `skill`, `heal`, `ko`, `victory`, `defeat` and `draw` cues. It uses available authored samples when supplied, otherwise a bounded, short procedural oscillator tone. Failed audio initialization/resume does not abort gameplay; later interactions retry when possible.
+- Planning cues fire only after successful shop actions. Combat cues are dispatched by presentation impact callbacks rather than simulation timestamps so playback follows the displayed impact even at a changed game speed.
+- On teardown the app disposes its audio managers, closes owned AudioContexts, and cleans up modal keyboard listeners. The audio-specific Vitest regressions cover transient failures, externally closed contexts and late asynchronous resume/suspend settlements.
+
 ## Layout / Cấu trúc
 
 ```
