@@ -60,12 +60,13 @@ Cả bốn worktree không có thay đổi chưa commit tại thời điểm kh�
 
 - `origin/temp/backup-pre-reset-2026-10-20` vẫn tồn tại tại `8c979dbbd3b63e44b6cbb08425d7b8a347afec12`, **không xóa**.
 - Remote `main` được kiểm tra tại `9eb406c`; remote `dev` tại `d77892d` trước khi đồng bộ các commit khôi phục.
-- Final sync policy: chỉ `git push origin dev` khi local `dev` kế thừa remote HEAD, sau đó đối chiếu `git rev-parse dev` với `git ls-remote origin refs/heads/dev`; không dùng force-push.
+- **Checkpoint sau push đầu tiên (2026-10-21):** `git push origin dev` fast-forward `d77892d..0226019` (không force); `git ls-remote` xác nhận `origin/dev = 0226019aee4f45ce2768dddb1b0ec46ba1cd4c52`, bằng local `dev` tại checkpoint. `origin/main = 9eb406cd5ed9f3abdbf5696252fcf2e6812354cc`, backup branch vẫn `8c979dbbd3b63e44b6cbb08425d7b8a347afec12`. Addendum báo cáo này sẽ tạo commit mới sau checkpoint; xác minh remote HEAD của commit mới riêng sau push.
 - Không force-push, không đưa `.env`, secret hoặc artifacts build vào Git.
+- Sau checkpoint trên, cả bốn worktree `main`, `dev`, WBS-034 và WBS-080 đều sạch (`git status --short --branch` chỉ hiển thị branch header, không có file thay đổi).
 
 ## 6. Việc cần xử lý / giới hạn bằng chứng
 
 - WBS-080: source fixes và automated integration verification hoàn thành; BrowserPanel xác nhận independent controls. Acceptance audible music/ambient/UI/combat playback, permission recovery và impact synchronization vẫn pending. WBS-049 source fixes, smoke và menu desktop/mobile đã có evidence; vẫn cần pixel review loading/card/modal/combat/planning, trạng thái button và responsive thật.
 - Kiểm chứng UI ở các màn chưa cover, WebGL gameplay pixels và audible playback / resume / impact synchronization bằng môi trường có khả năng quan sát tương ứng. Screenshot tĩnh không thay thế kiểm thử interaction/animation hoặc nghe âm thanh.
 - Chỉ chuyển plan sang `done/` khi đủ acceptance evidence; với plan chưa đầy đủ phải giữ `pending/` và ghi rõ nguyên nhân.
-- Sau audit và commit tài liệu, cập nhật remote `dev` theo fast-forward và xác nhận remote HEAD, working tree cleanliness.
+- Sau khi ghi addendum checkpoint, push `dev` fast-forward lần cuối và xác minh remote HEAD bằng `git ls-remote` so với `git rev-parse dev` (không tự đóng WBS-049/WBS-080).
