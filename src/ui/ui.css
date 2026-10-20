@@ -343,6 +343,13 @@
   .pl-synergy { height: calc(100% - 330px); }
   .pl-joystick { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 190px); width: 96px; height: 96px; }
 }
+@media (min-width: 761px) and (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
+  /* Reserve a right rail instead of overlaying the top actions and shop. */
+  .pl-battle { left: 8px; transform: none; width: calc(100% - 96px); }
+  .pl-actions { top: 84px; transform: none; gap: 2px; padding: 6px; }
+  .pl-actions .kit-btn { width: 40px; height: 40px; }
+  .pl-shop { left: 8px; transform: none; width: calc(100% - 90px); }
+}
 
 /* ---------- library ---------- */
 /* The library has six distinct tabs; do not reuse the five-action button grid. */
@@ -425,6 +432,11 @@
   .cb-top { height: 80px; }
   .cb-side { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: 50%; right: auto; transform: translateX(-50%); width: fit-content; min-width: min(300px, calc(100% - 16px)); max-width: calc(100% - 16px); }
   .cb-info { min-height: 200px; }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  /* Preserve the whole combat rail in short viewports; the canvas paints a compact queue below. */
+  .cb-side { height: calc(100% - 120px); }
+  .cb-info { min-height: 0; }
 }
 
 /* ---------- settings ---------- */

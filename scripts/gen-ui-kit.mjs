@@ -1,9 +1,10 @@
 // Generates the approved pixel-art UI kit (medieval forest) as PNGs under public/assets/ui/generated/.
-// Usage: node scripts/gen-ui-kit.mjs   — deterministic output; commit the PNGs, not a runtime painter.
+// Usage: pnpm exec node scripts/gen-ui-kit.mjs [--icons-only] (deterministic PNGs).
 // Slice values here must match KIT in src/ui/kit.ts.
 import { deflateSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 
+const iconsOnly = process.argv.includes("--icons-only");
 const OUT = "public/assets/ui/generated";
 mkdirSync(OUT, { recursive: true });
 
@@ -43,7 +44,11 @@ class Img {
     this.d[i] = c[0]; this.d[i + 1] = c[1]; this.d[i + 2] = c[2]; this.d[i + 3] = c[3];
   }
   rect(x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) this.px(i, j, c); }
-  save(name) { writeFileSync(`${OUT}/${name}.png`, png(this)); manifest.push(name); }
+  save(name) {
+    if (iconsOnly && !name.startsWith("btn_icon_")) return;
+    writeFileSync(`${OUT}/${name}.png`, png(this));
+    manifest.push(name);
+  }
 }
 const manifest = [];
 
@@ -114,6 +119,47 @@ function button(w, h, base, state, opts = {}) {
   return im;
 }
 
+/**
+ * At a 40px destination, the 10px nine-slice corners fill each half of the
+ * icon button. State cues therefore belong in those corners (0..9/30..39),
+ * not solely in the source centre, which can disappear when drawn at 40x40.
+ */
+function iconButton(state) {
+  const base = state === "pressed" ? shade(C.wood, 0.78)
+    : state === "selected" ? shade(C.wood, 1.08) : C.wood;
+  const im = button(40, 40, base, state, { round: 6, gold: state !== "disabled" });
+  const rail = (light, shadow) => {
+    for (let p = 6; p < 34; p++) {
+      im.px(p, 3, light); im.px(3, p, light);
+      im.px(p, 36, shadow); im.px(36, p, shadow);
+    }
+  };
+  if (state === "hover") {
+    // Raised, warm gold bezel with four small polished corner glints.
+    rail(C.goldL, C.gold);
+    for (const [x, y] of [[7, 7], [31, 7], [7, 31], [31, 31]]) {
+      im.rect(x, y, 2, 2, C.goldL);
+    }
+  } else if (state === "pressed") {
+    // Reverse the upper/lower bevel: a visibly sunk, darker wooden button.
+    rail(C.woodD, C.woodH);
+    for (const [x, y] of [[7, 7], [31, 7], [7, 31], [31, 31]]) {
+      im.rect(x, y, 2, 2, C.woodD);
+    }
+  } else if (state === "selected") {
+    // Persistent forest-green inlaid corner jewels distinguish selection
+    // from both the gold hover glints and the ordinary gilded bezel.
+    rail(C.goldL, C.gold);
+    const leaf = shade(C.green, 1.4), shine = hex("#c8f09a");
+    for (const [x, y] of [[7, 7], [31, 7], [7, 31], [31, 31]]) {
+      im.rect(x - 1, y - 1, 4, 4, C.goldD);
+      im.rect(x, y, 2, 2, leaf);
+      im.px(x, y, shine);
+    }
+  }
+  return im;
+}
+
 // ---------- panels ----------
 panel(48, 48, { border: 4, band: C.wood, bandL: C.woodH, bandD: C.woodD, grain: true, fill: C.parch, fillS: C.parchS, fillD: C.parchD, texture: true, fillShadow: C.parchS, rivets: true }).save("panel_parchment");
 panel(48, 48, { border: 4, band: C.wood, bandL: C.woodH, bandD: C.woodD, grain: true, fill: hex("#4a2e1a"), fillS: hex("#553521"), fillD: hex("#3f2716"), texture: true, rivets: true }).save("panel_wood");
@@ -141,8 +187,8 @@ const STATES = ["normal", "hover", "pressed", "disabled", "selected"];
 for (const [name, base] of Object.entries({ green: C.green, red: C.red, blue: C.blue, wood: C.wood, plum: C.plum })) {
   for (const s of STATES) button(48, 24, base, s).save(`btn_${name}_${s}`);
 }
-// Round action icon backer (side action stack).
-for (const s of STATES) button(40, 40, C.wood, s, { round: 6, gold: s !== "disabled" }).save(`btn_icon_${s}`);
+// Round action icon backer: the five states remain legible after 40x40 nine-slicing.
+for (const s of STATES) iconButton(s).save(`btn_icon_${s}`);
 // Close control: minus motif, never an X (A22).
 for (const s of ["normal", "hover", "pressed"]) {
   const im = button(24, 24, C.red, s, { round: 4 });
@@ -194,5 +240,5 @@ disc(32, hex("#9fe3ff", 90), hex("#e8fbff", 220), { rimW: 2, shine: hex("#ffffff
   im.save("star");
 }
 
-writeFileSync(`${OUT}/manifest.json`, JSON.stringify(manifest.sort(), null, 1));
+if (!iconsOnly) writeFileSync(`${OUT}/manifest.json`, JSON.stringify(manifest.sort(), null, 1));
 console.log(`ui kit: ${manifest.length} PNGs → ${OUT}`);

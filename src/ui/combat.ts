@@ -28,8 +28,9 @@ export interface CombatHudModel {
 export interface CombatHudIntents { speed(): void; finishFast(): void; history(): void; information(): void; settings(): void }
 export interface CombatHudView { update(m: CombatHudModel): void; dispose(): void }
 
-/** A95 density: normal 8 queue / 4 log, compact 3 / 3 below this panel width. */
+/** A95 density: normal 8 queue / 4 log, compact 3 / 3 in narrow or short panels. */
 const COMPACT_W = 320;
+const COMPACT_H = 280;
 
 function teamBar(g: CanvasRenderingContext2D, x: number, y: number, w: number, hh: number, ratio: number, fill: string, flip: boolean) {
   nineSlice(g, "bar_trough", 1, x + 3, y + 3, w - 6, hh - 6);
@@ -76,7 +77,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
   const info = h("div", "cb-info");
   const infoS = surface(info, (g, w, hh) => {
     if (!m) return;
-    const compact = w < COMPACT_W;
+    const compact = w < COMPACT_W || hh < COMPACT_H;
     const q = m.queue.slice(0, compact ? 3 : 8), log = m.log.slice(-(compact ? 3 : 4));
     label(g, t("combat.queue"), 6, 12, { size: 12, align: "left", fill: LABEL });
     const rowH = 24;
