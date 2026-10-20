@@ -16,6 +16,8 @@ import { createLoading } from "../ui/loading";
 import { createMenu, type UtilityId } from "../ui/menu";
 import { createBridge, type Bridge } from "./bridge";
 import { createMusicDirector, type MusicDirector, type MusicPlaylists, type MusicTrack as DirectorTrack } from "../audio/MusicDirector";
+import { createSemanticSfxManager, type SemanticSfxManager } from "../audio/SoundEffects";
+import { createForestAmbience, type ForestAmbience } from "../audio/ForestAmbience";
 import { MUSIC_TRACKS, MUSIC_PLAYLISTS } from "../data/musicPlaylists";
 import type { RosterEntry } from "../units/combatPlayer";
 
@@ -52,6 +54,7 @@ export type Route = "loading" | "menu" | "planning";
 
 export interface App {
   stage: Stage; modals: ModalHost; tooltip: Tooltip; bridge: Bridge; music: MusicDirector;
+  sfx: SemanticSfxManager; ambience: ForestAmbience;
   presentation: {
     combatCycle: number | null;
     liveRoster: Map<string, RosterEntry>;
@@ -59,6 +62,7 @@ export interface App {
   };
   route(): Route;
   go(r: Route): void;
+  dispose(): void;
   /** Open a registered panel (planning action, unit detail…); unknown ids are ignored. */
   openPanel(id: string, arg?: string): void;
   layers: { screen: HTMLElement; hud: HTMLElement; modal: HTMLElement; tooltip: HTMLElement };
@@ -103,6 +107,8 @@ export async function boot(root: HTMLElement): Promise<App> {
     playlists: authoredMusicPlaylists(),
     continuityStorage: typeof localStorage === "undefined" ? null : localStorage,
   });
+  const sfx = createSemanticSfxManager({ settings: bridge.settings });
+  const ambience = createForestAmbience({ settings: bridge.settings });
   const applySettings = () => {
     const settings = bridge.settings.get();
     ui.style.zoom = String(settings.guiScale);
@@ -113,10 +119,11 @@ export async function boot(root: HTMLElement): Promise<App> {
     tooltip.setMode(settings.tooltipMode);
     document.documentElement.lang = settings.language;
   };
-  bridge.settings.subscribe(applySettings);
+  const offSettings = bridge.settings.subscribe(applySettings);
   applySettings();
   let current: Route = "loading";
   let active: { dispose(): void } | null = null;
+  let disposed = false;
   const presentation = {
     combatCycle: null as number | null,
     liveRoster: new Map<string, RosterEntry>(),
@@ -124,10 +131,11 @@ export async function boot(root: HTMLElement): Promise<App> {
   };
 
   const app: App = {
-    stage, modals, tooltip, bridge, music, layers, presentation,
+    stage, modals, tooltip, bridge, music, sfx, ambience, layers, presentation,
     route: () => current,
-    openPanel(id, arg) { panels[id]?.(app, arg); },
+    openPanel(id, arg) { if (!disposed) panels[id]?.(app, arg); },
     go(r) {
+      if (disposed) return;
       active?.dispose();
       active = null;
       modals.closeActive();
@@ -135,11 +143,24 @@ export async function boot(root: HTMLElement): Promise<App> {
       current = r;
       root.dataset.route = r;
       stage.setPhase(r === "planning" ? "planning" : "menu");
-      music.play(r === "planning" ? "planning" : "menu");
+      ambience.setActive(r === "planning");
+      music.play(r === "loading" ? "menu" : r);
       if (r === "menu") active = mountMenu();
       else active = screens[r]?.(app) ?? null;
-      // Context-aware BGM (A45): scene/context change calls play(context).
-      if (r !== "loading") music.play(r);
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      active?.dispose();
+      active = null;
+      modals.dispose();
+      tooltip.hide();
+      offSettings();
+      ambience.dispose();
+      sfx.dispose();
+      music.dispose();
+      stage.dispose();
+      ui.remove();
     },
   };
 

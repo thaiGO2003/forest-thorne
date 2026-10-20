@@ -38,7 +38,9 @@ export interface SfxSamplePlayer {
 export interface SfxOscillatorNodeLike {
   type: OscillatorType;
   frequency: { value: number };
+  onended?: ((this: AudioScheduledSourceNode, event: Event) => void) | null;
   connect(destination: unknown): unknown;
+  disconnect?(): void;
   start(when?: number): void;
   stop(when?: number): void;
 }
@@ -49,6 +51,7 @@ export interface SfxGainNodeLike {
     exponentialRampToValueAtTime(value: number, time: number): void;
   };
   connect(destination: unknown): unknown;
+  disconnect?(): void;
 }
 
 export interface SfxAudioContextLike {
@@ -106,14 +109,44 @@ function finitePositive(value: number | undefined, fallback = 1): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+const MAX_SFX_VOICES = 12;
+const SFX_DURATION_SECONDS = 0.08;
+
 export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticSfxManager {
   let currentSettings = options.settings.get();
   let context: SfxAudioContextLike | null | undefined;
   let disposed = false;
-  const unsubscribe = options.settings.subscribe((next) => { currentSettings = next; });
+  interface Voice {
+    oscillator: SfxOscillatorNodeLike;
+    gain: SfxGainNodeLike;
+    timer: number | NodeJS.Timeout | undefined;
+  }
+  const voices = new Set<Voice>();
+
+  const releaseVoice = (voice: Voice, stop: boolean) => {
+    if (!voices.delete(voice)) return;
+    clearTimeout(voice.timer);
+    voice.oscillator.onended = null;
+    if (stop) {
+      try { voice.oscillator.stop(); } catch { /* already stopped or never started */ }
+    }
+    try { voice.oscillator.disconnect?.(); } catch { /* no-op */ }
+    try { voice.gain.disconnect?.(); } catch { /* no-op */ }
+  };
+  const stopVoices = () => {
+    for (const voice of voices) releaseVoice(voice, true);
+  };
+  const unsubscribe = options.settings.subscribe((next) => {
+    currentSettings = next;
+    if (normalizedMasterVolume(next) <= 0) stopVoices();
+  });
 
   const getContext = () => {
-    if (context !== undefined) return context;
+    if (context?.state === "closed") {
+      stopVoices();
+      context = null;
+    }
+    if (context) return context;
     try { context = (options.createAudioContext ?? defaultAudioContextFactory)(); }
     catch { context = null; }
     return context;
@@ -123,40 +156,66 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
     async play(rawEvent, profile = {}) {
       if (disposed) return "none";
       const event = normalizeSemanticSfxEvent(rawEvent);
-      if (!event) return "none";
-
-      const master = normalizedMasterVolume(currentSettings);
-      if (master <= 0) return "none";
+      if (!event || normalizedMasterVolume(currentSettings) <= 0) return "none";
       const baseGain = event === "ko" ? 0.8 : 0.6;
-      const gain = Math.min(1, master * baseGain * finitePositive(profile.gainMultiplier));
       const sampleKey = profile.sampleKey ?? options.eventSamples?.[event];
-
-      if (sampleKey && options.samples?.has(sampleKey)) {
+      if (sampleKey && options.samples) {
         try {
-          await options.samples.play(sampleKey, gain);
-          return "sample";
+          if (options.samples.has(sampleKey)) {
+            const gain = Math.min(1, normalizedMasterVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
+            await options.samples.play(sampleKey, gain);
+            return disposed || normalizedMasterVolume(currentSettings) <= 0 ? "none" : "sample";
+          }
         } catch {
-          // A failed sample remains eligible for the procedural fallback.
+          // A failed sample lookup/play remains eligible for procedural fallback.
         }
       }
+      if (disposed || normalizedMasterVolume(currentSettings) <= 0) return "none";
 
       const audioContext = getContext();
-      if (!audioContext) return "none";
+      if (!audioContext || audioContext.state === "closed") return "none";
       try {
         if (audioContext.state === "suspended") await audioContext.resume?.();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+      } catch {
+        return "none";
+      }
+      // resume() can settle after disposal, muting, or a different settings update.
+      if (disposed || normalizedMasterVolume(currentSettings) <= 0 || audioContext.state === "closed") return "none";
+      if (voices.size >= MAX_SFX_VOICES) return "none";
+
+      let oscillator: SfxOscillatorNodeLike | null = null;
+      let gainNode: SfxGainNodeLike | null = null;
+      let voice: Voice | null = null;
+      try {
+        oscillator = audioContext.createOscillator();
+        gainNode = audioContext.createGain();
         const now = audioContext.currentTime;
+        const gain = Math.min(1, normalizedMasterVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
         oscillator.type = profile.waveform ?? "sine";
         oscillator.frequency.value = FALLBACK_FREQUENCIES[event] * finitePositive(profile.pitchMultiplier);
         gainNode.gain.setValueAtTime(Math.max(0.0001, gain), now);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + SFX_DURATION_SECONDS);
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
+        const startedVoice: Voice = { oscillator, gain: gainNode, timer: undefined };
+        voice = startedVoice;
+        oscillator.onended = () => releaseVoice(startedVoice, false);
+        voices.add(startedVoice);
         oscillator.start(now);
-        oscillator.stop(now + 0.08);
+        oscillator.stop(now + SFX_DURATION_SECONDS);
+        // Also release mocks and implementations that fail to dispatch "ended".
+        if (voices.has(startedVoice)) {
+          startedVoice.timer = setTimeout(() => releaseVoice(startedVoice, false), SFX_DURATION_SECONDS * 1000 + 250);
+        }
         return "oscillator";
       } catch {
+        if (voice) {
+          releaseVoice(voice, true);
+        } else {
+          try { oscillator?.stop(); } catch { /* no-op */ }
+          try { oscillator?.disconnect?.(); } catch { /* no-op */ }
+          try { gainNode?.disconnect?.(); } catch { /* no-op */ }
+        }
         return "none";
       }
     },
@@ -164,10 +223,11 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
       if (disposed) return;
       disposed = true;
       unsubscribe();
+      stopVoices();
       const ownedContext = context;
       context = null;
       if (ownedContext) {
-        try { void ownedContext.close?.(); } catch { /* no-op */ }
+        try { void Promise.resolve(ownedContext.close?.()).catch(() => {}); } catch { /* no-op */ }
       }
     },
   };

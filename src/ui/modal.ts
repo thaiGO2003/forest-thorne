@@ -26,6 +26,7 @@ export interface ModalOptions {
 export interface ModalHost {
   open(o: ModalOptions): ModalHandle;
   closeActive(): void;
+  dispose(): void;
   active(): string | null;
   /** True when any modal owns input; board/HUD input must check this (A88). */
   blocking(): boolean;
@@ -52,9 +53,10 @@ export function createModalHost(layer: HTMLElement): ModalHost {
     emit();
   };
 
-  addEventListener("keydown", (e) => {
+  const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape" && current && current.o.dismissible !== false) { e.preventDefault(); close(); }
-  });
+  };
+  addEventListener("keydown", onKeyDown);
 
   return {
     open(o) {
@@ -116,6 +118,11 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       return handle;
     },
     closeActive: close,
+    dispose() {
+      close();
+      removeEventListener("keydown", onKeyDown);
+      listeners.clear();
+    },
     active: () => current?.o.id ?? null,
     blocking: () => current !== null,
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
