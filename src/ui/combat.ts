@@ -82,7 +82,8 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
     const rowH = 24;
     q.forEach((e, i) => {
       const y = 24 + i * (rowH + 2);
-      nineSlice(g, e.side === "L" ? "tile_status" : "slot_well", SLICE.tile_status, 0, y, w, rowH, 1.5);
+      const skin = e.side === "L" ? "tile_status" : "slot_well";
+      nineSlice(g, skin, SLICE[skin], 0, y, w, rowH, 1.5);
       label(g, e.icon, 14, y + rowH / 2, { size: 13, stroke: null });
       label(g, e.name, 30, y + rowH / 2, { size: 12, align: "left", maxW: w - 36, fill: e.side === "L" ? "#fff8ec" : "#3b2414", stroke: e.side === "L" ? undefined : null });
     });
@@ -125,7 +126,7 @@ export function openResult(modals: ModalHost, round: number, r: RoundResultSumma
   const body = h("div", "stack cb-result");
   const banner = h("div", "cb-banner");
   surface(banner, (g, w, hh) => {
-    nineSlice(g, "ribbon", SLICE.ribbon, 0, 4, w, hh - 8, 2);
+    threeSlice(g, "ribbon", SLICE.ribbon, 0, 4, w, hh - 8);
     label(g, t("combat.result", { round }), w / 2, hh / 2 - 2, { size: 16 });
   });
   const row = (icon: string, k: string, v: string) => {

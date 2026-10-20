@@ -80,7 +80,7 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
   let tipIndex = 0;
 
   const titleS = surface(titleEl, (g, w, hh) => {
-    nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.12, w, hh * 0.62, 2.5);
+    threeSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.12, w, hh * 0.62);
     drawLoadingTitle(g, title, progress, w, hh);
     label(g, failed ?? (tips.length ? tips[tipIndex % tips.length]! : hint), w / 2, hh * 0.9, { size: 14, maxW: w - 20 });
   });

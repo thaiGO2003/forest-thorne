@@ -23,7 +23,7 @@
   font-display: swap;
 }
 
-.ui-root { position: absolute; inset: 0; pointer-events: none; font-family: "Forest Normal", "Noto Sans", sans-serif; color: #111; }
+.ui-root { position: absolute; inset: 0; pointer-events: none; font-family: "Forest Normal", "Noto Sans", sans-serif; }
 .ui-root :is(h1, h2, h3, h4, h5, h6), .tt-title { font-family: "Forest Heading", "Noto Sans", sans-serif; }
 .ui-root * { box-sizing: border-box; }
 .layer { position: absolute; inset: 0; pointer-events: none; }
@@ -132,7 +132,7 @@
 .tooltip[data-open="false"] { visibility: hidden; }
 .tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.35; font-family: "Forest Normal", "Noto Sans", sans-serif; }
 .tt-title { font-weight: 800; font-size: 15px; }
-.tt-sub { font-size: 12px; opacity: 0.8; font-style: italic; }
+.tt-sub { font-size: 12px; font-style: italic; }
 .tt-line { display: flex; gap: 6px; align-items: baseline; }
 .tt-icon { flex: none; width: 1.3em; text-align: center; }
 .tt-body { margin-top: 4px; font-size: 12px; font-style: italic; }

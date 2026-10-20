@@ -3,7 +3,7 @@
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { GAME_MODES, MODE_CONFIG, type GameMode } from "../core/modes";
-import { h, INK, kitButton, label, nineSlice, panelEl, SLICE, surface, type KitButton } from "./kit";
+import { h, INK, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { ModalHost } from "./modal";
 import type { Tooltip } from "./tooltip";
 
@@ -47,7 +47,7 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   titleEl.setAttribute("role", "heading");
   titleEl.setAttribute("aria-level", "1");
   const title = surface(titleEl, (g, w, hh) => {
-    nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6, 3);
+    threeSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6);
     label(g, t("loading.title"), w / 2, hh * 0.45, { size: Math.min(56, w / 11), weight: 900, fill: INK, maxW: w - 120, font: "heading" });
     label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.9, { size: Math.min(20, w / 28), fill: INK, font: "normal" });
   });

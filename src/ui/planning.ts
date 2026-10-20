@@ -142,7 +142,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     label(g, `${ICONS.synergy} ${t("planning.synergy")}`, w / 2, 18, { size: 13, fill: LABEL });
     for (let i = 0; i < shown; i++) {
       const l = lines[i]!, y = 34 + i * rowH;
-      nineSlice(g, l.active ? "tile_status" : "slot_well", SLICE.tile_status, 8, y, w - 16, rowH - 4);
+      const skin = l.active ? "tile_status" : "slot_well";
+      nineSlice(g, skin, SLICE[skin], 8, y, w - 16, rowH - 4);
       const ic = ICONS[l.key as keyof typeof ICONS] ?? ICONS.question;
       label(g, ic, 24, y + rowH / 2 - 2, { size: 15, stroke: null });
       const tier = l.next ? `${l.count}/${l.next}` : `${l.count} ★`;
