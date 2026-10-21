@@ -153,6 +153,23 @@ Agent RangedAudiovisualJourney đã bàn giao báo cáo cuối tại `/tmp/ft-ra
 
 **Overall LIMITED:** canonical purchase/deploy, ranged projectiles và nonzero PCM PASS; impact differential, complete rendered skill/impact timeline, native realtime completion và synchronized audiovisual journey chưa đạt. **UNVERIFIED:** physical speaker audibility và real permission-denial recovery. Attack-0 trước đó lệch oscillator **+159.9 ms** / PCM **+170.4 ms**; warm/preflight lần này +0.3 ms có thể phù hợp giả thuyết cold-start **[INFERENCE]**, nhưng chưa xác định root cause, không sửa production timing từ suy đoán. Không chạy lại canonical ranged probes đã được delegated agent hoàn tất.
 
+### 3.8 Collapsible Combat HUD — nghiệm thu viewport sau commit `4cd53dc`
+
+Commit `4cd53dc fix(combat-ui): collapse detail rail to expose battlefield` giữ sáu controls trong một hàng, cho phép đóng/mở queue và combat log qua nút asset-first `kitButton` với `aria-expanded`, `aria-controls` và selected state; mặc định collapsed. `disposeSurfaceTree(root)` giải phóng surface resources. Không thay camera hay Combat scheduler. Bằng chứng: `/tmp/ft-combat-hud-collapse-20261021/report.json` và sáu ảnh `{portrait,landscape,desktop}-{collapsed,expanded}.png` cùng thư mục.
+
+| Runtime metric | 390×844 portrait | 844×390 landscape | 1280×720 desktop |
+| --- | ---: | ---: | ---: |
+| Collapsed → expanded → collapsed rail height (px) | 112 → 318 → 112 | 64 → 270 → 64 | 64 → 400 → 64 |
+| Six controls / no control overlaps | PASS | PASS | PASS |
+| Toggle, `aria-expanded`, viewport containment | PASS | PASS | PASS |
+| Authentic WebGL framebuffer observed | PASS | PASS | PASS |
+| GPU errors | 0 | 0 | 0 |
+| Unit-label readability | LIMITED | LIMITED | LIMITED |
+| Battlefield occlusion (labels/props/expanded rail) | LIMITED | LIMITED | LIMITED |
+
+Kết quả targeted verification của source đúng commit `4cd53dc`: `pnpm exec vitest run tests/combat.test.ts tests/combat-staging.test.ts` **45/45 PASS**, `pnpm typecheck` **PASS**, `pnpm build` **PASS** (94 modules). Desktop startup screenshot lần đầu timeout nhưng retry desktop riêng đã hoàn thành; không coi timeout là WebGL failure. Desktop report ghi hai console HTTP 404 chưa có resource URL nên **chưa attribution**, cùng Vite HMR WebSocket handshake HTTP 200; BrowserPanel passive console hiện tại vẫn báo Vite HMR WebSocket fail nhưng không có hai URL 404. Những console observations chưa chứng minh production asset hoặc Combat logic lỗi. HUD footprint đã giảm, nhưng không nâng readability/occlusion thành PASS nếu chưa đo label pixel height, intersections và geometry/prop masking.
+
+
 ## 4. WBS acceptance
 
 - **WBS-034**: đã tích hợp code và targeted tests đạt; game board WebGL xuất hiện trong screenshots menu desktop/mobile (không blank/đen, không thấy lỗi rõ ràng). Chưa chứng minh gameplay pixel correctness, scene animation hoặc performance trong trận.
