@@ -51,8 +51,8 @@ export interface UnitRigDef<P> {
 export const defineUnit = <P>(d: UnitRigDef<P>) => d as unknown as UnitRigDef<unknown>;
 
 export const VOXEL = 0.1;
-const DUR: Record<ActionState, number> = { idle: 4, attack: 0.9, skill: 1.5, hit: 0.5, move: 0.8 };
-const IMPACT = { attack: 0.55, skill: 0.6 };
+export const RIG_DEFAULT_DURATIONS: Readonly<Record<ActionState, number>> = { idle: 4, attack: 0.9, skill: 1.5, hit: 0.5, move: 0.8 };
+export const RIG_DEFAULT_IMPACT: Readonly<Record<"attack" | "skill", number>> = { attack: 0.55, skill: 0.6 };
 const REST_Y: Record<Motion, number> = { ground: 0, hover: 0.22, fly: 0.42, water: -0.03 };
 const LOOPING: Record<ActionState, boolean> = { idle: false, move: true, attack: false, skill: false, hit: false };
 /** A90.3 canonical local formations: [x, z, scale]. */
@@ -164,11 +164,11 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
   };
 
   let state: ActionState = "idle", t = 0, time = sig * 10, combat = false, alive = true;
-  let visible = bodies.length, impactFired = false, opts: PlayOpts = {}, dur = DUR.idle;
+  let visible = bodies.length, impactFired = false, opts: PlayOpts = {}, dur = RIG_DEFAULT_DURATIONS.idle;
   let idlePlayback = false;
   let dying = -1, onDeath: (() => void) | undefined;
 
-  const durationOf = (s: ActionState) => def.durations?.[s] ?? DUR[s];
+  const durationOf = (s: ActionState) => def.durations?.[s] ?? RIG_DEFAULT_DURATIONS[s];
 
   return {
     id: def.id, star, root, anchor,
@@ -219,7 +219,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
       const looping = LOOPING[state];
       const p = state === "idle" && !idlePlayback ? 1 : looping ? t / dur : Math.min(1, t / dur);
       if (!looping) {
-        const at = state === "attack" || state === "skill" ? def.impact?.[state] ?? IMPACT[state] : 1;
+        const at = state === "attack" || state === "skill" ? def.impact?.[state] ?? RIG_DEFAULT_IMPACT[state] : 1;
         if (!impactFired && p >= at) { impactFired = true; opts.onImpact?.(); }
         if (p >= 1 && (state !== "idle" || idlePlayback)) {
           const done = opts.onDone;

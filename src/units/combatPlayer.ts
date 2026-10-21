@@ -13,6 +13,7 @@ import {
 } from "../core/combatStaging";
 import {
   getEmptyQueueDelayMs,
+  getGameSpeedDisplayMultiplier,
   normalizeGameSpeedLevel,
   scaleCombatPresentationMs
 } from "../core/gameSpeed";
@@ -20,11 +21,12 @@ import { ICONS } from "../core/emojiIcon";
 import type { BillboardStatus } from "./billboard";
 import type { BoardView } from "./boardView";
 import type { CombatFx } from "./fx";
+import { RIGS } from "./registry";
+import { RIG_DEFAULT_DURATIONS, RIG_DEFAULT_IMPACT } from "./rig";
 export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; inspection?: CombatUnitSnapshot }
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
-const PROJECTILE_BASE_MS = 240;
 const PROJECTILE_COLOR = 0xffd36a;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
@@ -161,7 +163,7 @@ export function playCombat(o: {
             position(event.src),
             position(event.dst),
             PROJECTILE_COLOR,
-            scaleCombatPresentationMs(PROJECTILE_BASE_MS, speedLevel) / 1000,
+            (attackMs * (RIGS[actor.baseId]?.impact?.attack ?? RIG_DEFAULT_IMPACT.attack)) / 1000,
             PRESENTATION_ONLY,
           );
         }
@@ -240,7 +242,10 @@ export function playCombat(o: {
         if (!visual) break;
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
+        const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
+          / getGameSpeedDisplayMultiplier(speedLevel);
         visual.play("skill", {
+          duration: skillSeconds,
           onImpact: () => {
             if (disposed || window.fired) return;
             window.fired = true;

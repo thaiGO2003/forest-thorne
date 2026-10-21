@@ -21,7 +21,7 @@ interface Shot { mesh: THREE.Mesh; t: number; dur: number; from: THREE.Vector3; 
 export interface CombatFx {
   float(at: THREE.Vector3, text: string, kind: FloatKind): void;
   burst(at: THREE.Vector3, color: number): void;
-  /** Projectile from → to over `seconds`; `onArrive` is the semantic impact point (A16). */
+  /** Projectile from → to over `seconds`; arrival callback is presentation-only, never canonical damage. */
   shot(from: THREE.Vector3, to: THREE.Vector3, color: number, seconds: number, onArrive: () => void, arc?: number): void;
   /** Hit jolt (A112.1): push `root` away from `fromX` briefly, restoring origin; only for real HP damage. */
   jolt(root: THREE.Object3D, fromX: number, speed: number): void;
@@ -104,7 +104,7 @@ export function createCombatFx(scene: THREE.Scene): CombatFx {
     shot(from, to, color, seconds, onArrive, arc = 0.6) {
       const s = shots[nextShot]!;
       nextShot = (nextShot + 1) % SHOT_POOL;
-      s.done?.(); // a recycled in-flight shot still resolves its impact (never drop a canonical hit)
+      s.done?.(); // a recycled in-flight shot completes its presentation callback before reuse
       s.from.copy(from); s.to.copy(to);
       s.dur = Math.max(0.05, seconds); s.arc = arc; s.t = 0; s.done = onArrive;
       (s.mesh.material as THREE.MeshBasicMaterial).color.setHex(color);
