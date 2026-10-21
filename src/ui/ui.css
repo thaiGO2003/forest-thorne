@@ -406,11 +406,12 @@
 .combat > * { position: absolute; pointer-events: auto; }
 .cb-top { top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 16px)); height: 86px; }
 .cb-side { right: max(8px, env(safe-area-inset-right)); top: calc(max(8px, env(safe-area-inset-top)) + 96px); width: fit-content; min-width: 220px; max-width: min(440px, calc(100% - 16px)); max-height: calc(100% - 120px); display: flex; flex-direction: column; gap: 6px; padding: 10px; }
-.cb-side-head { position: relative; display: flex; gap: 6px; justify-content: flex-end; flex: none; flex-wrap: wrap; align-self: flex-end; max-width: 100%; }
+.cb-side-head { position: relative; display: flex; gap: 4px; justify-content: flex-end; flex: none; flex-wrap: wrap; align-self: flex-end; max-width: 100%; }
 .cb-speed, .cb-fast { width: max-content; height: 40px; }
 .cb-speed .kit-fit-measure { padding: 0 12px 0 48px; }
-.cb-hist, .cb-info-btn, .cb-settings { width: 40px; height: 40px; }
+.cb-details, .cb-hist, .cb-info-btn, .cb-settings { width: 40px; height: 40px; }
 .cb-info { position: relative; flex: 1 1 auto; min-height: 330px; width: 100%; }
+.cb-info[hidden] { display: none; }
 .cb-result { align-items: stretch; }
 .cb-banner { position: relative; height: 48px; }
 .cb-row { display: flex; justify-content: space-between; align-items: center; min-height: 40px; padding: 6px 12px; font-size: 15px; }
@@ -434,8 +435,8 @@
   .cb-info { min-height: 200px; }
 }
 @media (max-height: 560px) and (orientation: landscape) {
-  /* Preserve the whole combat rail in short viewports; the canvas paints a compact queue below. */
-  .cb-side { height: calc(100% - 120px); }
+  /* Keep the default rail compact; let its optional detail panel use available height. */
+  .cb-side[data-expanded="true"] { height: calc(100% - 120px); }
   .cb-info { min-height: 0; }
 }
 

@@ -7,7 +7,7 @@ import { itemDisplayName, itemSemanticIcon } from "../core/itemPresentation";
 import { groupDrops } from "../core/loot";
 import type { TeamStrength } from "../core/inspection";
 import type { RoundResultSummary } from "../core/run";
-import { h, INK, LABEL, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
+import { disposeSurfaceTree, h, INK, LABEL, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
 import type { ModalHost } from "./modal";
 
 export interface QueueEntry { name: string; side: "L" | "R"; icon: string }
@@ -73,8 +73,22 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
   const hist = kitButton({ skin: "icon", icon: ICONS.history, cls: "cb-hist", onClick: () => it.history() });
   const information = kitButton({ skin: "icon", icon: ICONS.info, cls: "cb-info-btn", onClick: () => it.information() });
   const settings = kitButton({ skin: "icon", icon: ICONS.settings, cls: "cb-settings", onClick: () => it.settings() });
-  sideHead.append(speed.el, finishFast.el, hist.el, information.el, settings.el);
+  const details = kitButton({ skin: "icon", icon: ICONS.library, cls: "cb-details", onClick: () => {
+    const expanded = info.hidden;
+    info.hidden = !expanded;
+    side.dataset.expanded = String(expanded);
+    details.setSelected(expanded);
+    details.el.setAttribute("aria-expanded", String(expanded));
+    if (expanded) infoS.paint();
+  } });
+  details.setAria(`${t("combat.queue")} / ${t("combat.log")}`);
+  details.el.setAttribute("aria-controls", "combat-turn-details");
+  details.el.setAttribute("aria-expanded", "false");
+  sideHead.append(speed.el, finishFast.el, details.el, hist.el, information.el, settings.el);
   const info = h("div", "cb-info");
+  info.id = "combat-turn-details";
+  info.hidden = true;
+  side.dataset.expanded = "false";
   const infoS = surface(info, (g, w, hh) => {
     if (!m) return;
     const compact = w < COMPACT_W || hh < COMPACT_H;
@@ -113,7 +127,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
       settings.setAria(t("menu.settings"));
       topS.paint(); infoS.paint();
     },
-    dispose() { root.remove(); },
+    dispose() { disposeSurfaceTree(root); root.remove(); },
   };
 }
 
