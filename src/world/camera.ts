@@ -8,7 +8,8 @@ export const MIN_DISTANCE = 6;
 export const BASE_MAX_DISTANCE = 50;
 export const DOLLY_HEADROOM = 5;
 export const MAX_POLAR = Math.PI / 2.05;
-const MIN_ASPECT = 0.55;
+// Guard only against zero-sized viewports; using a phone-width floor crops the bench.
+const MIN_ASPECT = 0.01;
 const MARGIN = 1.18;
 /** Bench perimeter sits 2 blocks outside the battlefield on every side. */
 const OUTER = 2;
