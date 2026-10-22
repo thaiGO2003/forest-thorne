@@ -9,7 +9,7 @@ import type { RunState } from "../core/run";
 import type { CombatTargetPreview } from "../core/combat";
 import { BLOCK, cellToWorld } from "../world/arena";
 import type { Stage } from "../world/stage";
-import { createBillboard, type Billboard, type BillboardState } from "./billboard";
+import { BILLBOARD_H, BILLBOARD_W, createBillboard, type Billboard, type BillboardState } from "./billboard";
 import { createUnit } from "./registry";
 import type { Star, UnitVisual } from "./rig";
 
@@ -20,6 +20,8 @@ export const LOW_CORTISOL_DURATION_MS = 120_000;
 
 
 interface Slot { v: UnitVisual; bb: Billboard; key: string; kind: "board" | "bench" | "enemy"; col: number; row: number; x: number; z: number; base: BillboardState }
+interface LabelRect { left: number; top: number; right: number; bottom: number }
+interface LabelCandidate extends LabelRect { uid: string; depth: number; priority: number; anchorX: number; width: number; worldWidth: number }
 interface MoveTween {
   fromX: number;
   fromZ: number;
@@ -67,6 +69,144 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const MOVE_DURATION_S = 0.22;
   let selected: string | null = null;
   let hovered: string | null = null;
+  // One reusable projection/candidate pool for the Stage's existing frame callback.
+  // HUD chrome is DOM, but labels remain depth-tested Three.js sprites.
+  const projected = new THREE.Vector3();
+  const eyePoint = new THREE.Vector3();
+  const candidates: LabelCandidate[] = [];
+  const candidatePool: LabelCandidate[] = [];
+  const accepted: LabelCandidate[] = [];
+  const hudRects: LabelRect[] = [];
+  const labelCenters = [0.5, 0, 1] as const;
+  let candidateCount = 0, acceptedCount = 0, hudCount = 0;
+  const canvas = stage.renderer.domElement;
+  const camera = stage.camera;
+  // HUD roots survive panel updates; walk live child collections instead of
+  // allocating a querySelectorAll NodeList on every Stage render frame.
+  let hudLayer: HTMLElement | null = null;
+  let tooltipLayer: HTMLElement | null = null;
+  let modalLayer: HTMLElement | null = null;
+  const includeOccluder = (el: HTMLElement) => {
+    if (el.hidden || el.dataset.open === "false") return;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return;
+    const h = hudRects[hudCount] ?? (hudRects[hudCount] = { left: 0, top: 0, right: 0, bottom: 0 });
+    h.left = r.left; h.top = r.top; h.right = r.right; h.bottom = r.bottom;
+    hudCount++;
+  };
+  const labelOverlap = (a: LabelRect, b: LabelRect, margin = 0) =>
+    a.left < b.right + margin && a.right + margin > b.left &&
+    a.top < b.bottom + margin && a.bottom + margin > b.top;
+  const layoutLabels = () => {
+    if (!slots.size) return;
+    const view = canvas.getBoundingClientRect();
+    if (!view.width || !view.height) {
+      for (const s of slots.values()) s.bb.setVisible(false);
+      return;
+    }
+    // Use the painted planning/combat panels rather than their transparent
+    // full-screen overlay parents. The modal root deliberately blocks all labels.
+    hudLayer ??= document.querySelector<HTMLElement>(".layer-hud");
+    tooltipLayer ??= document.querySelector<HTMLElement>(".layer-tooltip");
+    modalLayer ??= document.querySelector<HTMLElement>(".layer-modal");
+    hudCount = 0;
+    if (hudLayer) for (let i = 0; i < hudLayer.children.length; i++) {
+      const root = hudLayer.children.item(i) as HTMLElement | null;
+      if (!root || root.hidden) continue;
+      for (let j = 0; j < root.children.length; j++) {
+        const panel = root.children.item(j) as HTMLElement | null;
+        if (panel) includeOccluder(panel);
+      }
+    }
+    if (tooltipLayer) for (let i = 0; i < tooltipLayer.children.length; i++) {
+      const tooltip = tooltipLayer.children.item(i) as HTMLElement | null;
+      if (tooltip) includeOccluder(tooltip);
+    }
+    if (modalLayer?.dataset.open === "true") for (let i = 0; i < modalLayer.children.length; i++) {
+      const modal = modalLayer.children.item(i) as HTMLElement | null;
+      if (modal) includeOccluder(modal);
+    }
+    camera.updateMatrixWorld();
+    const worldPerPixelAtDepth = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / view.height;
+    const compactWidth = Math.min(128, Math.max(106, view.width * (slots.size > 24 ? .20 : .25)), Math.max(1, view.width - 12));
+    const detailedWidth = Math.min(252, Math.max(202, view.width * .43), Math.max(1, view.width - 12));
+    candidateCount = 0;
+    for (const [uid, s] of slots) {
+      if (s.kind === "bench" || !s.v.root.visible || !s.v.anchor.visible) {
+        s.bb.setVisible(false);
+        continue;
+      }
+      const priority = uid === selected ? 2 : uid === hovered ? 1 : 0;
+      // The rig's head anchor is directly above its root; avoid updating all
+      // creature matrices just to project fifty labels each frame.
+      projected.set(s.v.root.position.x, s.v.root.position.y + s.v.anchor.position.y * s.v.root.scale.y, s.v.root.position.z);
+      eyePoint.copy(projected).applyMatrix4(camera.matrixWorldInverse);
+      const depth = -eyePoint.z;
+      if (depth <= camera.near || depth >= camera.far) { s.bb.setVisible(false); continue; }
+      projected.project(camera);
+      if (Math.abs(projected.x) > 1.1 || Math.abs(projected.y) > 1.1 || projected.z < -1 || projected.z > 1) {
+        s.bb.setVisible(false);
+        continue;
+      }
+      const worldPerPixel = worldPerPixelAtDepth * depth;
+      const requestedWidth = priority ? detailedWidth : compactWidth;
+      // Camera-depth scaling makes glyphs legible on portrait, landscape and desktop
+      // without changing the shared billboard/world dimensions or the arena.
+      const worldWidth = requestedWidth * worldPerPixel;
+      const width = requestedWidth;
+      const x = view.left + (projected.x + 1) * view.width * .5;
+      const y = view.top + (1 - projected.y) * view.height * .5;
+      const rect = candidatePool[candidateCount] ?? (candidatePool[candidateCount] = {
+        uid, left: 0, top: 0, right: 0, bottom: 0, priority: 0, depth: 0, anchorX: 0, width: 0, worldWidth: 0,
+      });
+      candidates[candidateCount] = rect;
+      rect.uid = uid;
+      rect.priority = priority;
+      rect.depth = depth;
+      rect.anchorX = x;
+      rect.width = width;
+      rect.worldWidth = worldWidth;
+      rect.left = x - width / 2; rect.right = x + width / 2;
+      rect.top = y - width * (BILLBOARD_H / BILLBOARD_W); rect.bottom = y;
+      candidateCount++;
+      s.bb.setVisible(false);
+    }
+    // Selected then hovered, then nearest tactical units. Only accepted cards
+    // block later cards, so dense 50-unit setups never draw a pile of text.
+    candidates.length = candidateCount;
+    candidates.sort((a, b) => b.priority - a.priority || a.depth - b.depth);
+    acceptedCount = 0;
+    for (const c of candidates) {
+      if (c.top < view.top + 6 || c.bottom > view.bottom - 6) continue;
+      // Priority cards can pivot around their unit's head to the left/right if
+      // the centered card would clip or cover HUD. The Sprite stays attached to
+      // that same 3D anchor and retains normal depth testing.
+      for (let trial = 0; trial < (c.priority ? labelCenters.length : 1); trial++) {
+        const center = labelCenters[trial]!;
+        c.left = c.anchorX - c.width * center;
+        c.right = c.left + c.width;
+        if (c.left < view.left + 6 || c.right > view.right - 6) continue;
+        let blocked = false;
+        for (let i = 0; i < hudCount; i++) {
+          if (labelOverlap(c, hudRects[i]!, 3)) { blocked = true; break; }
+        }
+        if (blocked) continue;
+        for (let i = 0; i < acceptedCount; i++) {
+          if (labelOverlap(c, accepted[i]!, 6)) { blocked = true; break; }
+        }
+        if (blocked) continue;
+        const bb = slots.get(c.uid)?.bb;
+        if (!bb) break;
+        bb.setDetailed(c.priority > 0);
+        bb.setPriority(c.priority > 0);
+        bb.sprite.center.x = center;
+        bb.sprite.scale.set(c.worldWidth, c.worldWidth * (BILLBOARD_H / BILLBOARD_W), 1);
+        bb.setVisible(true);
+        accepted[acceptedCount++] = c;
+        break;
+      }
+    }
+  };
   const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .66, 40), new THREE.MeshBasicMaterial({ color: 0xffd36b, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2;
   ring.visible = false;
@@ -117,11 +257,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     if (cortisolRemainingMs === 0) stopLowCortisol();
   };
-  const setHovered = (uid: string | null) => {
-    if (hovered) slots.get(hovered)?.bb.setPriority(false);
-    hovered = uid && slots.has(uid) ? uid : null;
-    if (hovered) slots.get(hovered)?.bb.setPriority(true);
-  };
+  const setHovered = (uid: string | null) => { hovered = uid && slots.has(uid) ? uid : null; };
   const renderTileEffect = (key: number, effect: { mesh: THREE.Mesh; time: number; kind: TileKind | null }) => {
     const previewKind = previewCells.get(key);
     const transientKind = effect.time > 0 ? effect.kind : null;
@@ -199,6 +335,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     for (const s of slots.values()) s.v.update(dt);
     updateCortisol(dt);
+    layoutLabels();
     const visual = selected ? slots.get(selected)?.v : undefined;
     ring.visible = Boolean(visual);
     if (visual) ring.position.set(visual.root.position.x, TILE_TOP + .015, visual.root.position.z);
@@ -240,7 +377,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const base: BillboardState = { name: u.nameVi, star: st, hp: maxHp, maxHp, rage: 0, rageMax: u.stats.rageMax, side: kind === "enemy" ? "R" : "L", statuses: [] };
       const bb = createBillboard(v.anchor);
       bb.set(base);
-      if (uid === hovered) bb.setPriority(true);
+      if (uid === hovered || uid === selected) { bb.setPriority(true); bb.setDetailed(true); }
       s = { v, bb, key, kind, col, row, x, z, base };
       slots.set(uid, s);
       s.v.root.position.set(x, TILE_TOP, z);

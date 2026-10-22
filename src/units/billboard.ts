@@ -3,7 +3,7 @@
 // (9/3-slice); only fills and text are dynamic. One canvas + texture per unit, redrawn on change.
 import * as THREE from "three";
 import { ICONS } from "../core/emojiIcon";
-import { drawFit, kitImage, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
+import { drawFit, INK, kitImage, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
 
 export interface BillboardStatus { key: string; positive: boolean }
 
@@ -53,6 +53,8 @@ export interface Billboard {
   sprite: THREE.Sprite;
   set(s: BillboardState): void;
   setVisible(v: boolean): void;
+  /** Switch between readable compact labels and full detail for hovered/selected units. */
+  setDetailed(v: boolean): void;
   setPriority(v: boolean): void;
   dispose(): void;
 }
@@ -73,6 +75,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
   sprite.raycast = () => {};
   anchor.add(sprite); // follows the unit through movement/staging automatically
   let state: Normalized | null = null;
+  let detailed = false;
 
   const draw = () => {
     const g = canvas.getContext("2d");
@@ -83,17 +86,62 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     g.clearRect(0, 0, BILLBOARD_W, BILLBOARD_H);
     if (!kitImage("shell_billboard")) return; // redrawn by onKitReady once art arrives
 
+    // Nearby ordinary units only need a legible name and health silhouette; selected/hovered
+    // units retain the full status/rage readouts. Both modes reuse this one canvas and kit art.
+    if (!detailed) {
+      nineSlice(g, "shell_billboard", SLICE.shell_billboard, 0, 0, BILLBOARD_W, BILLBOARD_H - 3, 3);
+      for (let i = 0; i < s.star; i++) drawFit(g, "star", 12 + i * 29, 27, 27, 27);
+      // Preserve glyph width for long Vietnamese names instead of squeezing
+      // every word into a 390px single line on a 106px portrait projection.
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.lineJoin = "round";
+      g.lineWidth = 3;
+      g.strokeStyle = INK;
+      g.fillStyle = LABEL;
+      g.font = '800 68px "Noto Sans", sans-serif';
+      const words = s.name.trim().split(/\s+/);
+      if (words.length < 2 || g.measureText(s.name).width <= 390) {
+        g.strokeText(s.name, 304, 72, 390);
+        g.fillText(s.name, 304, 72, 390);
+      } else {
+        g.font = '800 60px "Noto Sans", sans-serif';
+        let split = 1;
+        let narrowest = Infinity;
+        for (let i = 1; i < words.length; i++) {
+          const left = words.slice(0, i).join(" ");
+          const right = words.slice(i).join(" ");
+          const widest = Math.max(g.measureText(left).width, g.measureText(right).width);
+          if (widest < narrowest) { narrowest = widest; split = i; }
+        }
+        const top = words.slice(0, split).join(" ");
+        const bottom = words.slice(split).join(" ");
+        g.strokeText(top, 304, 43, 390);
+        g.fillText(top, 304, 43, 390);
+        g.strokeText(bottom, 304, 93, 390);
+        g.fillText(bottom, 304, 93, 390);
+      }
+      const x = 16, y = 116, w = BILLBOARD_W - 32, h = 32;
+      const pct = s.hp / s.maxHp;
+      nineSlice(g, "bar_trough", 1, x + 6, y + 6, w - 12, h - 12);
+      g.fillStyle = s.side === "R" ? "#e0503a" : pct > .5 ? "#5fd04a" : pct > .25 ? "#e8c23a" : "#e0503a";
+      g.fillRect(x + 6, y + 6, Math.round((w - 12) * pct), h - 12);
+      threeSlice(g, "frame_bar", 3, x, y, w, h);
+      tex.needsUpdate = true;
+      return;
+    }
+
     // Status row (top): positive group from the left, negative from the right.
     const tile = 40, ty = 2;
     s.pos.forEach((k, i) => {
       const x = 8 + i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
-      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
+      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 30, stroke: null });
     });
     s.neg.forEach((k, i) => {
       const x = BILLBOARD_W - 8 - s.neg.length * tile - (s.neg.length - 1) * 4 + i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
-      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
+      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 30, stroke: null });
     });
 
     // Shell.
@@ -103,7 +151,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     // Name + stars.
     const ally = s.side === "L";
     for (let i = 0; i < s.star; i++) drawFit(g, "star", 18 + i * 26, sy + 12, 24, 24);
-    label(g, s.name, BILLBOARD_W / 2 + 20, sy + 24, { size: 28, weight: 800, maxW: BILLBOARD_W - 140, fill: LABEL });
+    label(g, s.name, 308, sy + 24, { size: 38, weight: 800, maxW: 390, fill: LABEL });
 
     // HP bar with the heart and lightning readouts adjacent (no gutter between bar and readouts).
     const bx = 14, readoutW = 72, readoutGap = 6;
@@ -117,8 +165,8 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     g.fillStyle = "rgba(255,255,255,0.35)";
     g.fillRect(bx + 6, by + 6, fw, 5);
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
-    label(g, `${s.hp}/${s.maxHp}`, bx + bw / 2, by + bh / 2, { size: 20 });
-    label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, readoutX + readoutW / 2, by + bh / 2, { size: 18, align: "center", fill: LABEL });
+    label(g, `${s.hp}/${s.maxHp}`, bx + bw / 2, by + bh / 2, { size: 27 });
+    label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, readoutX + readoutW / 2, by + bh / 2, { size: 23, align: "center", fill: LABEL });
 
     // Rage: segmented cells aligned under HP, with the lightning readout beside them.
     const ry = by + bh + 2, rh = 24, gap = 4;
@@ -129,7 +177,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       if (i < s.filled) { g.fillStyle = "#ffcf3a"; g.fillRect(x + 3, ry + 3, cw - 6, rh - 6); }
       threeSlice(g, "frame_rage_cell", 2, x, ry, cw, rh);
     }
-    label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, readoutX + readoutW / 2, ry + rh / 2, { size: 17, align: "center", fill: LABEL });
+    label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, readoutX + readoutW / 2, ry + rh / 2, { size: 23, align: "center", fill: LABEL });
     tex.needsUpdate = true;
   };
 
@@ -144,6 +192,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     },
     setVisible(v) { sprite.visible = v; },
     setPriority(v) { sprite.renderOrder = v ? HOVER_RENDER_ORDER : BASE_RENDER_ORDER; },
+    setDetailed(v) { if (detailed === v) return; detailed = v; draw(); },
     dispose() { offKit(); sprite.removeFromParent(); tex.dispose(); mat.dispose(); state = null; },
   };
 }

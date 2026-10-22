@@ -1,20 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
+import * as THREE from "three";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import type { RunState } from "../src/core/run";
 import { createBoardView, LOW_CORTISOL_DURATION_MS } from "../src/units/boardView";
 
 vi.mock("../src/units/registry", () => ({
   createUnit: vi.fn((id: string, star: number) => {
-    const root = {
-      userData: {} as Record<string, unknown>,
-      position: { x: 0, y: 0, z: 0, set(x: number, y: number, z: number) { this.x = x; this.y = y; this.z = z; } },
-      rotation: { y: 0 },
-    };
+    const root = new THREE.Group();
+    const anchor = new THREE.Object3D();
+    anchor.position.y = 1.8;
+    root.add(anchor);
     return {
       id,
       star,
       root,
-      anchor: {},
+      anchor,
       play: vi.fn(),
       state: () => "idle",
       setCombat: vi.fn(),
@@ -31,18 +32,23 @@ vi.mock("../src/units/registry", () => ({
 
 const billboardMocks = vi.hoisted(() => ({
   instances: [] as Array<{
-    set: ReturnType<typeof vi.fn>;
-    setVisible: ReturnType<typeof vi.fn>;
-    setPriority: ReturnType<typeof vi.fn>;
-    dispose: ReturnType<typeof vi.fn>;
+    sprite: THREE.Sprite;
+    set: Mock;
+    setVisible: Mock;
+    setDetailed: Mock;
+    setPriority: Mock;
+    dispose: Mock;
   }>,
 }));
 
-vi.mock("../src/units/billboard", () => ({
+vi.mock("../src/units/billboard", async (importOriginal) => ({
+  ...await importOriginal(),
   createBillboard: () => {
     const instance = {
+      sprite: new THREE.Sprite(),
       set: vi.fn(),
       setVisible: vi.fn(),
+      setDetailed: vi.fn(),
       setPriority: vi.fn(),
       dispose: vi.fn(),
     };
@@ -69,20 +75,32 @@ function runWithBoard(uid = "board-1", index = 0): RunState {
 function stageHarness() {
   let frame: (dt: number) => void = () => {};
   const sceneAdd = vi.fn();
+  const camera = new THREE.PerspectiveCamera(45, 1280 / 720, 0.1, 1000);
+  camera.position.set(0, 12, 22);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
   const stage = {
     scene: { add: sceneAdd },
+    camera,
+    renderer: {
+      domElement: {
+        getBoundingClientRect: () => ({ left: 0, top: 0, right: 1280, bottom: 720, width: 1280, height: 720 }),
+      },
+    },
     arena: { setOccupied: vi.fn() },
     onFrame(callback: (dt: number) => void) {
       frame = callback;
       return vi.fn();
     },
   };
+  vi.stubGlobal("document", { querySelector: () => null });
   return { stage: stage as never, sceneAdd, advance: (seconds: number) => frame(seconds) };
 }
 
 beforeEach(() => {
   billboardMocks.instances.length = 0;
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe("BoardView presentation", () => {
   it("faces bench animals toward the tactical center", () => {
@@ -271,22 +289,25 @@ describe("BoardView presentation", () => {
     board.dispose();
   });
   it("raises the hovered billboard above peers and restores normal priority", () => {
-    const { stage } = stageHarness();
+    const { stage, advance } = stageHarness();
     const board = createBoardView(stage);
     const run = runWithBoard();
-    run.board[1] = { uid: "board-2", baseId: NORMAL_UNITS[1]!.id, star: 1, equips: [] };
+    run.board[24] = { uid: "board-2", baseId: NORMAL_UNITS[1]!.id, star: 1, equips: [] };
     board.sync(run);
-
+    advance(1 / 60);
     const first = billboardMocks.instances[0]!;
     const second = billboardMocks.instances[1]!;
     board.setHovered("board-1");
+    advance(1 / 60);
     expect(first.setPriority).toHaveBeenLastCalledWith(true);
 
     board.setHovered("board-2");
-    expect(first.setPriority).toHaveBeenLastCalledWith(false);
+    advance(1 / 60);
+    expect(second.setDetailed).toHaveBeenLastCalledWith(true);
     expect(second.setPriority).toHaveBeenLastCalledWith(true);
 
     board.setHovered(null);
+    advance(1 / 60);
     expect(second.setPriority).toHaveBeenLastCalledWith(false);
     board.dispose();
   });
