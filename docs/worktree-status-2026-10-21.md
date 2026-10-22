@@ -200,6 +200,40 @@ Reports/screenshots: `/tmp/ft-billboard-acceptance-20261022/report.json`, `/tmp/
 
 **Gates còn mở:** native realtime Combat natural completion (**UNVERIFIED**), canonical full skill/impact pixel attribution (**LIMITED**), repeatable same-clock rendered-frame/PCM sync (**LIMITED**), physical speaker audibility (**UNVERIFIED**), portrait/landscape exact Vietnamese diacritics và natural terrain/pixel-perfect HUD/text occlusion (**LIMITED/UNVERIFIED**). Controlled billboard depth, selection, bench hiding và resource disposal đã **PASS** theo worker; không nhập nhằng với các pixel-perfect/natural-scene gates còn mở. WBS-049/WBS-080 giữ `pending/`; recovery goal chưa đóng. Targeted 59/59, typecheck, production build PASS sau typography production edit cuối cùng; không chạy lại khi chỉ cập nhật tài liệu.
 
+### 3.11 Canonical Vietnamese glyph trên Planning framebuffer — 2026-10-22
+
+**Sửa attribution của checkpoint cũ:** helper tạm thời chọn Sprite visible đầu tiên thực ra đã đo `unit:tiger_fang`, không phải `unit:ant_guard` hay `unit:dove_peace`. Các con số cũ không được sử dụng làm bằng chứng nhận dạng dấu tiếng Việt của Ant/Dove. Probe mới xác nhận đúng chủ sở hữu qua `sprite.parent?.parent?.name`, UID `u1`/`u3`, `visible=true`, và production `CanvasTexture` 512×164 trong Chromium WebGL2; `gl.getError()=0` ở cả bốn phép đo.
+
+| Canonical Sprite | Viewport | Presentation | Width CSS | Changed pixels >12 / >48 | Repeated baseline >12 / >48 |
+| --- | --- | --- | ---: | ---: | ---: |
+| `unit:dove_peace` | 844×390 | detailed, selected | 252px | 196 / 71 | 65 / 6 |
+| `unit:dove_peace` | 390×844 | detailed, selected | 202px | 81 / 42 | 0 / 0 |
+| `unit:ant_guard` | 390×844 | compact, unselected | 106px | 40 / 22 | 18 / 1 |
+| `unit:ant_guard` | 844×390 | detailed, selected | 252px | 196 / 82 | 0 / 0 |
+
+So sánh các cặp `Bồ Câu Hòa Bình`/`Bồ Câu Hỏa Bình` và `Kiến Hộ Vệ`/`Kiên Hộ Vệ` cho pixel-differential dương trên đúng Sprite: **PASS** đối với khả năng phân biệt texture/glyph trong bốn mẫu trên. Portrait Dove và landscape Ant có repeated baseline bằng 0; landscape Dove và portrait Ant có nonzero baseline, do đó kết quả của hai mẫu sau mang giới hạn **temporal contamination**, không phải phép chứng minh pixel-perfect độc lập. Diagnostic chỉ đổi texture tạm thời trong runtime, đã khôi phục vật liệu; stats/HP của fixture không đại diện đầy đủ cho toàn bộ canonical states.
+
+**Đọc trực tiếp native screenshots:** landscape Dove `/tmp/omp-sshots-15afedf570bb501c.png` đọc đúng **Bồ Câu Hòa Bình**; portrait `/tmp/omp-sshots-15afee7669bb501d.png` đọc đúng cả **Kiến Hộ Vệ** và **Bồ Câu Hòa Bình**; landscape selected Ant `/tmp/omp-sshots-15afef25edfb501e.png` đọc đúng **Kiến Hộ Vệ**, đủ các dấu, legible và không thấy HUD clipping. **PASS** exact transcription ở các ảnh này; các nhận xét LIMITED tại §3.10 là checkpoint ảnh trước đó và không phủ định kết quả owner-correct mới. Chưa kiểm chứng mọi tổ hợp compact/detailed, selected/unselected tại cả ba viewport, nên **comprehensive typography = PARTIAL**, không nâng lên PASS.
+
+**Visibility arbitration là production behavior, không phải lỗi font:** landscape 844×390 đã ghi nhận `pl-shop` chiếm vùng [8,197.20,762,382]; candidate Ant tại [304.64,164.22,432.64,205.22] bị HUD exclusion. Candidate Dove tại [307.26,130.39,435.26,171.39] bị label collision với Tiger ưu tiên phía trước. Thao tác **Chọn** qua inventory UI thật đặt `renderOrder=20`, làm đúng selected Sprite visible; runtime-only move của Ant tới slot 4 và selection cũng xác nhận detailed landscape. Không bypass HUD/collision culling, không đổi scale hoặc `depthTest=true`.
+
+**Ranh giới nghiệm thu:** projected overlap/HUD clipping smoke ba viewport, genuine mesh raycast, selected priority, bench hiding, GPU disposal và controlled depth fixture đã **PASS** (§3.10); exact Ant/Dove screenshot transcription tại portrait/landscape **PASS**. Pixel-perfect text/star/HP alpha containment, rendered-pixel HUD masking và natural terrain occlusion vẫn **UNVERIFIED**; controlled occluder không thay thế địa hình thật. Canonical impact/full ranged skill **LIMITED**, repeatable rendered-frame/PCM synchronization **LIMITED**, native uninterrupted realtime Combat finish **UNVERIFIED**, speaker acoustic audibility **UNVERIFIED**. Controlled Result → Planning và Game Over → Menu có exactly-one `session.finish()` **PASS** nhưng không phải native realtime proof. Giữ WBS-049/WBS-080 ở `pending/` và recovery goal mở; không chỉnh production source từ phép đo này.
+
+### 3.12 Natural terrain depth và framebuffer/HUD exclusion — 2026-10-22
+
+**Independent genuine-scene Chromium/SwiftShader probe:** `/tmp/ft-natural-depth-native-coldboot-20261022/report.json` (portrait/desktop, screenshots `portrait.png`, `desktop.png`), `/tmp/ft-natural-depth-followup-20261022/report.json` (landscape). Mỗi sample so sánh bốn framebuffer captures đồng bộ: scene gốc, ẩn billboards, ẩn scenery tự nhiên, ẩn cả hai. **Không thêm occluder giả**, không đổi production source; measured drawing buffers khớp 390×844, 844×390 và 1280×720, `gl.getError()=0` ở cả captures.
+
+| Viewport | Billboards sampled | Detectable label pixels with/without scenery | Strict naturally occluded pixels | Label/HUD rectangle overlaps | WebGL label pixels in/near HUD | Gate |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 390×844 | 2 | 135 / 7,073 | **6,512** | 0 | 0 / 0 (3px margin) | **PASS natural terrain depth**, readability **LIMITED** |
+| 844×390 | 1 | 5,168 / 5,168 | **0** | 0 | 0 / 0 (3px margin) | **UNVERIFIED natural depth intersection**; sampled HUD exclusion **PASS** |
+| 1280×720 | 4 | 20,422 / 20,861 | **153** | 0 | 0 / 0 (3px margin) | **PASS natural terrain depth**, sampled HUD exclusion **PASS** |
+
+**Interpretation:** Depth-tested world geometry thực sự che billboard pixels tại portrait và desktop; all sampled Sprite materials vẫn `depthTest=true` và `renderOrder=10`. Landscape đã thay đổi 168,203 scenery pixels khi ẩn geometry nhưng sample không tạo giao nhau giữa foreground và label, nên không thể gọi natural occlusion FAIL hoặc PASS ở viewport đó. Portrait có label gần như bị che hoàn toàn (một label còn 0 detectable pixel), vì vậy depth semantics PASS **không** chứng minh UX readability cho các vị trí đó.
+
+**Limits / next gates:** 0 projected HUD intersections và 0 framebuffer-detectable label pixels nằm trong hoặc cách HUD 3px là **PASS cho những samples đo**, nhưng chưa là pixel-perfect comparison với DOM cuối cùng, hoặc exhaustive text/star/HP alpha containment; comprehensive pixel-perfect compositor vẫn **LIMITED/UNVERIFIED**. Separate same-page resize probe có transient 390×844 label rộng ~277px giao HUD và desktop drawing buffer còn 390×844; samples ở thời điểm không ổn định **loại khỏi verdict** và cần riêng responsive resize-stability check, không khẳng định production regression từ một capture trung gian. Giữ mandatory gates và WBS pending, recovery goal mở. Các câu “natural terrain UNVERIFIED” tại §3.11 phản ánh checkpoint trước khi có report mới; §3.12 supersede riêng portrait/desktop.
+
+
 ## 4. WBS acceptance
 
 - **WBS-034**: đã tích hợp code và targeted tests đạt; game board WebGL xuất hiện trong screenshots menu desktop/mobile (không blank/đen, không thấy lỗi rõ ràng). Chưa chứng minh gameplay pixel correctness, scene animation hoặc performance trong trận.
