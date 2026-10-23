@@ -1,0 +1,2669 @@
+[
+  {
+    "method": "resetTransientSceneState",
+    "export": "planningResetTransientSceneState",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "resetBoardViewTransform",
+    "export": "planningResetBoardViewTransform",
+    "async": false,
+    "params": "refresh = false",
+    "skipScene": false
+  },
+  {
+    "method": "init",
+    "export": "planningInit",
+    "async": false,
+    "params": "data",
+    "skipScene": false
+  },
+  {
+    "method": "create",
+    "export": "create",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "canTrackEndlessAchievements",
+    "export": "canPlanningTrackEndlessAchievements",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getEndlessAchievementSnapshot",
+    "export": "getPlanningEndlessAchievementSnapshot",
+    "async": false,
+    "params": "overrides = {}",
+    "skipScene": false
+  },
+  {
+    "method": "updateEndlessAchievementProfile",
+    "export": "planningUpdateEndlessAchievementProfile",
+    "async": false,
+    "params": "mutator",
+    "skipScene": false
+  },
+  {
+    "method": "syncEndlessAchievementSnapshot",
+    "export": "syncPlanningEndlessAchievementSnapshot",
+    "async": false,
+    "params": "overrides = {}",
+    "skipScene": false
+  },
+  {
+    "method": "ensureLibraryModalLoaded",
+    "export": "ensurePlanningLibraryModalLoaded",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "hasUsableTechTreeModal",
+    "export": "hasPlanningUsableTechTreeModal",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "destroyTechTreeModal",
+    "export": "destroyPlanningTechTreeModal",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureTechTreeModalLoaded",
+    "export": "ensurePlanningTechTreeModalLoaded",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureSettingsOverlayLoaded",
+    "export": "ensurePlanningSettingsOverlayLoaded",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureHistoryModalLoaded",
+    "export": "ensurePlanningHistoryModalLoaded",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureVersionInfoModalLoaded",
+    "export": "ensurePlanningVersionInfoModalLoaded",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "cancelDeferredUiPrewarm",
+    "export": "cancelPlanningDeferredUiPrewarm",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "prewarmDeferredUiModules",
+    "export": "prewarmPlanningDeferredUiModules",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "scheduleDeferredUiPrewarm",
+    "export": "schedulePlanningDeferredUiPrewarm",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "toggleLibraryModal",
+    "export": "togglePlanningLibraryModal",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "openLibraryRecipeDetail",
+    "export": "openPlanningLibraryRecipeDetail",
+    "async": false,
+    "params": "recipeId",
+    "skipScene": false
+  },
+  {
+    "method": "showLibraryUnitDetail",
+    "export": "showPlanningLibraryUnitDetail",
+    "async": false,
+    "params": "baseId",
+    "skipScene": false
+  },
+  {
+    "method": "startPlanningMusic",
+    "export": "startPlanningMusic",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isCortisolDanceActive",
+    "export": "isPlanningCortisolDanceActive",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "clearCortisolDanceTimer",
+    "export": "clearPlanningCortisolDanceTimer",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "stopCortisolDanceForTarget",
+    "export": "stopPlanningCortisolDanceForTarget",
+    "async": false,
+    "params": "target, skipRestore = false",
+    "skipScene": false
+  },
+  {
+    "method": "stopAllCortisolDanceTargets",
+    "export": "stopPlanningAllCortisolDanceTargets",
+    "async": false,
+    "params": "skipRestore = false",
+    "skipScene": false
+  },
+  {
+    "method": "endCortisolDanceMode",
+    "export": "planningEndCortisolDanceMode",
+    "async": false,
+    "params": "options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "refreshCortisolDanceTimer",
+    "export": "refreshPlanningCortisolDanceTimer",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "setCortisolDanceEligibility",
+    "export": "setPlanningCortisolDanceEligibility",
+    "async": false,
+    "params": "target, eligible",
+    "skipScene": false
+  },
+  {
+    "method": "startCortisolDanceForTarget",
+    "export": "startPlanningCortisolDanceForTarget",
+    "async": false,
+    "params": "target",
+    "skipScene": false
+  },
+  {
+    "method": "applyCortisolDanceToVisibleBeasts",
+    "export": "applyPlanningCortisolDanceToVisibleBeasts",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "activateCortisolMode",
+    "export": "activatePlanningCortisolMode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "applyRuntimeSettings",
+    "export": "applyPlanningRuntimeSettings",
+    "async": false,
+    "params": "settings",
+    "skipScene": false
+  },
+  {
+    "method": "applyDisplaySettings",
+    "export": "applyPlanningDisplaySettings",
+    "async": false,
+    "params": "settings, refresh = false",
+    "skipScene": false
+  },
+  {
+    "method": "setupInput",
+    "export": "setPlanningupInput",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "setupGamepadInput",
+    "export": "setPlanningupGamepadInput",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "update",
+    "export": "planningUpdate",
+    "async": false,
+    "params": "_time, _delta",
+    "skipScene": false
+  },
+  {
+    "method": "setAIMode",
+    "export": "setPlanningAIMode",
+    "async": false,
+    "params": "mode",
+    "skipScene": false
+  },
+  {
+    "method": "cycleAiMode",
+    "export": "planningCycleAiMode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getConfiguredLoseCondition",
+    "export": "getPlanningConfiguredLoseCondition",
+    "async": false,
+    "params": "fallback = null",
+    "skipScene": false
+  },
+  {
+    "method": "getConfiguredStartingHp",
+    "export": "getPlanningConfiguredStartingHp",
+    "async": false,
+    "params": "fallback = null",
+    "skipScene": false
+  },
+  {
+    "method": "isEndlessFortressMode",
+    "export": "isPlanningEndlessFortressMode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureFortressMeta",
+    "export": "ensurePlanningFortressMeta",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getFortressPendingNode",
+    "export": "getPlanningFortressPendingNode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "shouldShowTechTreeInPlanning",
+    "export": "planningShouldShowTechTreeInPlanning",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "shouldShowShopInPlanning",
+    "export": "planningShouldShowShopInPlanning",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "shouldShowCraftingInPlanning",
+    "export": "planningShouldShowCraftingInPlanning",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getFortressPendingNodeLabel",
+    "export": "getPlanningFortressPendingNodeLabel",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "announceFortressServiceResult",
+    "export": "planningAnnounceFortressServiceResult",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "startFortressMapScene",
+    "export": "startPlanningFortressMapScene",
+    "async": false,
+    "params": "options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "getLoseCondition",
+    "export": "getPlanningLoseCondition",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "setLoseCondition",
+    "export": "setPlanningLoseCondition",
+    "async": false,
+    "params": "nextMode",
+    "skipScene": false
+  },
+  {
+    "method": "toggleLoseCondition",
+    "export": "togglePlanningLoseCondition",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getSessionLocalSlot",
+    "export": "getPlanningSessionLocalSlot",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isSessionHost",
+    "export": "isPlanningSessionHost",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getPvpSessionSlots",
+    "export": "getPlanningPvpSessionSlots",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isPvpRoomMode",
+    "export": "isPlanningPvpRoomMode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getPvpState",
+    "export": "getPlanningPvpState",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "stopPvpSessionSyncTimer",
+    "export": "stopPlanningPvpSessionSyncTimer",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "startPvpSessionSyncTimer",
+    "export": "startPlanningPvpSessionSyncTimer",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "broadcastPvpAuthoritativeSnapshot",
+    "export": "broadcastPlanningPvpAuthoritativeSnapshot",
+    "async": false,
+    "params": "reason = \"manual\"",
+    "skipScene": false
+  },
+  {
+    "method": "syncPvpSessionState",
+    "export": "syncPlanningPvpSessionState",
+    "async": false,
+    "params": "force = false, overrides = {}",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingPvpPlanningIntent",
+    "export": "handlePlanningIncomingPvpPlanningIntent",
+    "async": false,
+    "params": "payload",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingPvpAuthoritativeSnapshot",
+    "export": "handlePlanningIncomingPvpAuthoritativeSnapshot",
+    "async": false,
+    "params": "payload",
+    "skipScene": false
+  },
+  {
+    "method": "maybeStartPvpCombat",
+    "export": "maybePlanningStartPvpCombat",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingPvpCombatStart",
+    "export": "handlePlanningIncomingPvpCombatStart",
+    "async": false,
+    "params": "payload, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "startNewRun",
+    "export": "startPlanningNewRun",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isCoopMode",
+    "export": "isPlanningCoopMode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopLocalSlot",
+    "export": "getPlanningCoopLocalSlot",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopRemoteSlot",
+    "export": "getPlanningCoopRemoteSlot",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopRemoteSlots",
+    "export": "getPlanningCoopRemoteSlots",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isCoopHost",
+    "export": "isPlanningCoopHost",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getBoardProfileId",
+    "export": "getPlanningBoardProfileId",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getBoardRowCount",
+    "export": "getPlanningBoardRowCount",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isOwnedPlanningRow",
+    "export": "isPlanningOwnedPlanningRow",
+    "async": false,
+    "params": "row",
+    "skipScene": false
+  },
+  {
+    "method": "mapLocalBoardRowToVisualRow",
+    "export": "mapPlanningLocalBoardRowToVisualRow",
+    "async": false,
+    "params": "localRow, slot = this.getCoopLocalSlot()",
+    "skipScene": false
+  },
+  {
+    "method": "mapVisualBoardRowToLocalRow",
+    "export": "mapPlanningVisualBoardRowToLocalRow",
+    "async": false,
+    "params": "visualRow, slot = this.getCoopLocalSlot()",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopPlayerState",
+    "export": "getPlanningCoopPlayerState",
+    "async": false,
+    "params": "slot",
+    "skipScene": false
+  },
+  {
+    "method": "getPlanningBoardOwnerSlot",
+    "export": "getPlanningBoardOwnerSlot",
+    "async": false,
+    "params": "visualRow",
+    "skipScene": false
+  },
+  {
+    "method": "getPlanningBoardUnit",
+    "export": "getPlanningBoardUnit",
+    "async": false,
+    "params": "visualRow, col, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopTotalDeployCount",
+    "export": "getPlanningCoopTotalDeployCount",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopConnectedPlayerSlots",
+    "export": "getPlanningCoopConnectedPlayerSlots",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopSlotsMissingDeployment",
+    "export": "getPlanningCoopSlotsMissingDeployment",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopTotalDeployCap",
+    "export": "getPlanningCoopTotalDeployCap",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "cleanupCoopBindings",
+    "export": "cleanupPlanningCoopBindings",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "bindCoopSessionTransport",
+    "export": "bindPlanningCoopSessionTransport",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingRoomState",
+    "export": "handlePlanningIncomingRoomState",
+    "async": false,
+    "params": "payload",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingCoopPlanningIntent",
+    "export": "handlePlanningIncomingCoopPlanningIntent",
+    "async": false,
+    "params": "payload",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingCoopCombatStart",
+    "export": "handlePlanningIncomingCoopCombatStart",
+    "async": false,
+    "params": "payload",
+    "skipScene": false
+  },
+  {
+    "method": "noteCoopPlanningPing",
+    "export": "notePlanningCoopPlanningPing",
+    "async": false,
+    "params": "slot, round = this.player?.round ?? 1",
+    "skipScene": false
+  },
+  {
+    "method": "hasPingedCoopHostForCurrentRound",
+    "export": "hasPlanningPingedCoopHostForCurrentRound",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "handleIncomingCoopPlanningReadyPing",
+    "export": "handlePlanningIncomingCoopPlanningReadyPing",
+    "async": false,
+    "params": "payload",
+    "skipScene": false
+  },
+  {
+    "method": "syncCoopSessionState",
+    "export": "syncPlanningCoopSessionState",
+    "async": false,
+    "params": "force = false",
+    "skipScene": false
+  },
+  {
+    "method": "getCoopMainMenuData",
+    "export": "getPlanningCoopMainMenuData",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "persistActiveCoopSave",
+    "export": "persistPlanningActiveCoopSave",
+    "async": false,
+    "params": "runState = this.exportRunState()",
+    "skipScene": false
+  },
+  {
+    "method": "exportRunState",
+    "export": "exportPlanningRunState",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "clearActiveCoopSave",
+    "export": "clearPlanningActiveCoopSave",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "handleCoopSessionDisconnected",
+    "export": "handlePlanningCoopSessionDisconnected",
+    "async": false,
+    "params": "reason = \"disconnect\"",
+    "skipScene": false
+  },
+  {
+    "method": "applyRunState",
+    "export": "applyPlanningRunState",
+    "async": false,
+    "params": "state",
+    "skipScene": false
+  },
+  {
+    "method": "normalizeOwnedUnit",
+    "export": "planningNormalizeOwnedUnit",
+    "async": false,
+    "params": "raw",
+    "skipScene": false
+  },
+  {
+    "method": "normalizeBoard",
+    "export": "planningNormalizeBoard",
+    "async": false,
+    "params": "rawBoard",
+    "skipScene": false
+  },
+  {
+    "method": "ensurePlayerStateFields",
+    "export": "ensurePlanningPlayerStateFields",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "persistProgress",
+    "export": "persistPlanningProgress",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "applyLootDrops",
+    "export": "applyPlanningLootDrops",
+    "async": false,
+    "params": "result",
+    "skipScene": false
+  },
+  {
+    "method": "applyCombatResult",
+    "export": "applyPlanningCombatResult",
+    "async": false,
+    "params": "result",
+    "skipScene": false
+  },
+  {
+    "method": "resumePlanningAfterCombat",
+    "export": "resumePlanningAfterCombat",
+    "async": false,
+    "params": "resultLabel, isWin = true",
+    "skipScene": false
+  },
+  {
+    "method": "handleTotalVictory",
+    "export": "handlePlanningTotalVictory",
+    "async": false,
+    "params": "label = \"CHIß║╛N THß║«NG TO├ÇN CUß╗ÿC\"",
+    "skipScene": false
+  },
+  {
+    "method": "handleTotalDefeat",
+    "export": "handlePlanningTotalDefeat",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createEmptyBoard",
+    "export": "createPlanningEmptyBoard",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "seedStarterUnits",
+    "export": "planningSeedStarterUnits",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createOwnedUnit",
+    "export": "createPlanningOwnedUnit",
+    "async": false,
+    "params": "baseId, star = 1, equips = [], options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "computeLayout",
+    "export": "computePlanningLayout",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "toVisualCol",
+    "export": "toPlanningVisualCol",
+    "async": false,
+    "params": "col",
+    "skipScene": false
+  },
+  {
+    "method": "toChessCoord",
+    "export": "toPlanningChessCoord",
+    "async": false,
+    "params": "row, col",
+    "skipScene": false
+  },
+  {
+    "method": "createBoardBackground",
+    "export": "createPlanningBoardBackground",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshRoundBackground",
+    "export": "refreshPlanningRoundBackground",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "drawBoard",
+    "export": "drawPlanningBoard",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshBattlefieldDecorations",
+    "export": "refreshPlanningBattlefieldDecorations",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshCoopOwnershipDecorations",
+    "export": "refreshPlanningCoopOwnershipDecorations",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createBoardEdgeLabels",
+    "export": "createPlanningBoardEdgeLabels",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshBoardEdgeLabels",
+    "export": "refreshPlanningBoardEdgeLabels",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getGrassTileStyle",
+    "export": "getPlanningGrassTileStyle",
+    "async": false,
+    "params": "row, col",
+    "skipScene": false
+  },
+  {
+    "method": "paintGrassTile",
+    "export": "paintPlanningGrassTile",
+    "async": false,
+    "params": "graphics, x, y, row, col",
+    "skipScene": false
+  },
+  {
+    "method": "paintRiverTile",
+    "export": "paintPlanningRiverTile",
+    "async": false,
+    "params": "graphics, x, y, row",
+    "skipScene": false
+  },
+  {
+    "method": "drawDiamond",
+    "export": "drawPlanningDiamond",
+    "async": false,
+    "params": "graphics, x, y, fill = true",
+    "skipScene": false
+  },
+  {
+    "method": "getRoleTheme",
+    "export": "getPlanningRoleTheme",
+    "async": false,
+    "params": "classType",
+    "skipScene": false
+  },
+  {
+    "method": "createHud",
+    "export": "createPlanningHud",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createStorageSpace",
+    "export": "createPlanningStorageSpace",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "destroyLowerDockPanels",
+    "export": "destroyPlanningLowerDockPanels",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureLowerDockPanels",
+    "export": "ensurePlanningLowerDockPanels",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createButtons",
+    "export": "createPlanningButtons",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createButton",
+    "export": "createSceneButton",
+    "async": false,
+    "params": "x, y, w, h, label, onClick, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "toggleSettingsOverlay",
+    "export": "togglePlanningSettingsOverlay",
+    "async": false,
+    "params": "force = null",
+    "skipScene": false
+  },
+  {
+    "method": "clearSettingsOverlayLayoutReferences",
+    "export": "clearPlanningSettingsOverlayLayoutReferences",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "destroySettingsOverlayEntries",
+    "export": "destroyPlanningSettingsOverlayEntries",
+    "async": false,
+    "params": "entries",
+    "skipScene": false
+  },
+  {
+    "method": "rebuildSettingsOverlayAfterResolutionChange",
+    "export": "rebuildPlanningSettingsOverlayAfterResolutionChange",
+    "async": false,
+    "params": "preserveVisible = false",
+    "skipScene": false
+  },
+  {
+    "method": "scheduleSettingsOverlayRebuildAfterResolutionChange",
+    "export": "schedulePlanningSettingsOverlayRebuildAfterResolutionChange",
+    "async": false,
+    "params": "preserveVisible = false",
+    "skipScene": false
+  },
+  {
+    "method": "toggleHistoryModal",
+    "export": "togglePlanningHistoryModal",
+    "async": false,
+    "params": "force = null",
+    "skipScene": false
+  },
+  {
+    "method": "toggleVersionInfoModal",
+    "export": "togglePlanningVersionInfoModal",
+    "async": false,
+    "params": "force = null",
+    "skipScene": false
+  },
+  {
+    "method": "setHistoryFilter",
+    "export": "setPlanningHistoryFilter",
+    "async": false,
+    "params": "filterKey",
+    "skipScene": false
+  },
+  {
+    "method": "onHistoryWheel",
+    "export": "onPlanningHistoryWheel",
+    "async": false,
+    "params": "deltaY",
+    "skipScene": false
+  },
+  {
+    "method": "isCreativeMode",
+    "export": "isPlanningCreativeMode",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "shouldSkipPostCombatStatsModal",
+    "export": "planningShouldSkipPostCombatStatsModal",
+    "async": false,
+    "params": "result",
+    "skipScene": false
+  },
+  {
+    "method": "getDisplayedGold",
+    "export": "getPlanningDisplayedGold",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCreativeSandboxUnits",
+    "export": "getPlanningCreativeSandboxUnits",
+    "async": false,
+    "params": "side = null",
+    "skipScene": false
+  },
+  {
+    "method": "hasManualEnemySandboxUnits",
+    "export": "hasPlanningManualEnemySandboxUnits",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "findCreativeSandboxUnit",
+    "export": "findPlanningCreativeSandboxUnit",
+    "async": false,
+    "params": "uid",
+    "skipScene": false
+  },
+  {
+    "method": "findCreativeSandboxUnitAt",
+    "export": "findPlanningCreativeSandboxUnitAt",
+    "async": false,
+    "params": "row, col, side = null",
+    "skipScene": false
+  },
+  {
+    "method": "removeCreativeSandboxUnitByUid",
+    "export": "planningRemoveCreativeSandboxUnitByUid",
+    "async": false,
+    "params": "uid",
+    "skipScene": false
+  },
+  {
+    "method": "canOccupyCreativeSandboxCell",
+    "export": "canPlanningOccupyCreativeSandboxCell",
+    "async": false,
+    "params": "row, col, side, ignoreUid = null",
+    "skipScene": false
+  },
+  {
+    "method": "tryAutoMergeCreativeSandbox",
+    "export": "tryPlanningAutoMergeCreativeSandbox",
+    "async": false,
+    "params": "side = null",
+    "skipScene": false
+  },
+  {
+    "method": "refreshHistoryModal",
+    "export": "refreshPlanningHistoryModal",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "changeLanguage",
+    "export": "changePlanningLanguage",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "showToast",
+    "export": "showPlanningToast",
+    "async": false,
+    "params": "message, success = true",
+    "skipScene": false
+  },
+  {
+    "method": "onExportJsonClick",
+    "export": "onPlanningExportJsonClick",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "onImportJsonClick",
+    "export": "onPlanningImportJsonClick",
+    "async": true,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "onClearClick",
+    "export": "onPlanningClearClick",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createProgressImportInput",
+    "export": "createPlanningProgressImportInput",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "toggleAudio",
+    "export": "togglePlanningAudio",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "changeTooltipMode",
+    "export": "changePlanningTooltipMode",
+    "async": false,
+    "params": "delta = 1",
+    "skipScene": false
+  },
+  {
+    "method": "toggleExpandedTooltip",
+    "export": "togglePlanningExpandedTooltip",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "changeVolumeLevel",
+    "export": "changePlanningVolumeLevel",
+    "async": false,
+    "params": "step = 1",
+    "skipScene": false
+  },
+  {
+    "method": "changeResolution",
+    "export": "changePlanningResolution",
+    "async": false,
+    "params": "delta = 1",
+    "skipScene": false
+  },
+  {
+    "method": "confirmResolutionReturnToMenu",
+    "export": "confirmPlanningResolutionReturnToMenu",
+    "async": false,
+    "params": "next",
+    "skipScene": false
+  },
+  {
+    "method": "goMainMenu",
+    "export": "goPlanningMainMenu",
+    "async": false,
+    "params": "options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "createPlayerCellZones",
+    "export": "createPlanningPlayerCellZones",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createBenchSlots",
+    "export": "createPlanningBenchSlots",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "createBenchSlotLabel",
+    "export": "createPlanningBenchSlotLabel",
+    "async": false,
+    "params": "x, y, slotW",
+    "skipScene": false
+  },
+  {
+    "method": "createBenchSlotIcon",
+    "export": "createPlanningBenchSlotIcon",
+    "async": false,
+    "params": "x, y, slotW, slotH",
+    "skipScene": false
+  },
+  {
+    "method": "destroyBenchPaginationControls",
+    "export": "destroyPlanningBenchPaginationControls",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getBenchPageSlotCount",
+    "export": "getPlanningBenchPageSlotCount",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "syncBenchPageState",
+    "export": "syncPlanningBenchPageState",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getBenchReservedSlotCount",
+    "export": "getPlanningBenchReservedSlotCount",
+    "async": false,
+    "params": "page = this.benchPage ?? 0",
+    "skipScene": false
+  },
+  {
+    "method": "getBenchPageUnitCapacity",
+    "export": "getPlanningBenchPageUnitCapacity",
+    "async": false,
+    "params": "page = this.benchPage ?? 0, slotCount = this.getBenchPageSlotCount()",
+    "skipScene": false
+  },
+  {
+    "method": "getBenchPageOffset",
+    "export": "getPlanningBenchPageOffset",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "setBenchPage",
+    "export": "setPlanningBenchPage",
+    "async": false,
+    "params": "nextPage",
+    "skipScene": false
+  },
+  {
+    "method": "createBenchPaginationControls",
+    "export": "createPlanningBenchPaginationControls",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshBenchPaginationUi",
+    "export": "refreshPlanningBenchPaginationUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getVisibleBenchSlotByIndex",
+    "export": "getVisiblePlanningBenchSlotByIndex",
+    "async": false,
+    "params": "benchIndex",
+    "skipScene": false
+  },
+  {
+    "method": "destroyBenchSlotVisualModel",
+    "export": "destroyPlanningBenchSlotVisualModel",
+    "async": false,
+    "params": "slot",
+    "skipScene": false
+  },
+  {
+    "method": "isTextRenderable",
+    "export": "isPlanningBenchTextRenderable",
+    "async": false,
+    "params": "obj",
+    "skipScene": false
+  },
+  {
+    "method": "ensureBenchSlotTextObjects",
+    "export": "ensurePlanningBenchSlotTextObjects",
+    "async": false,
+    "params": "slot",
+    "skipScene": false
+  },
+  {
+    "method": "safeUpdateBenchSlotText",
+    "export": "safeUpdatePlanningBenchSlotText",
+    "async": false,
+    "params": "slot, labelText, labelColor, iconText",
+    "skipScene": false
+  },
+  {
+    "method": "getTileSize",
+    "export": "getPlanningTileSize",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "setupBoardViewInput",
+    "export": "installPlanningBoardInteraction",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "findPlayerBoardCellFromPoint",
+    "export": "findPlanningPlayerBoardCellFromPoint",
+    "async": false,
+    "params": "x, y, allowNear = true, includeEnemySide = false",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitAt",
+    "export": "getPlanningUnitAt",
+    "async": false,
+    "params": "x, y",
+    "skipScene": false
+  },
+  {
+    "method": "getDropTarget",
+    "export": "getPlanningDropTarget",
+    "async": false,
+    "params": "x, y",
+    "skipScene": false
+  },
+  {
+    "method": "startUnitDrag",
+    "export": "startPlanningUnitDrag",
+    "async": false,
+    "params": "dragData, pointer",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitUnequipCost",
+    "export": "getPlanningUnitUnequipCost",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "updateUnitDrag",
+    "export": "updatePlanningUnitDrag",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "endUnitDrag",
+    "export": "endPlanningUnitDrag",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "startItemDrag",
+    "export": "startPlanningItemDrag",
+    "async": false,
+    "params": "cell, pointer",
+    "skipScene": false
+  },
+  {
+    "method": "updateItemDrag",
+    "export": "updatePlanningItemDrag",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "endItemDrag",
+    "export": "endPlanningItemDrag",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "sellItem",
+    "export": "sellPlanningInventoryItem",
+    "async": false,
+    "params": "itemId",
+    "skipScene": false
+  },
+  {
+    "method": "getItemDropTarget",
+    "export": "getPlanningItemDropTarget",
+    "async": false,
+    "params": "x, y",
+    "skipScene": false
+  },
+  {
+    "method": "addItemToCraftGridAt",
+    "export": "addPlanningItemToCraftGridAt",
+    "async": false,
+    "params": "itemId, slotIndex",
+    "skipScene": false
+  },
+  {
+    "method": "equipItemToUnit",
+    "export": "equipPlanningItemToUnit",
+    "async": false,
+    "params": "itemId, unit, target = null",
+    "skipScene": false
+  },
+  {
+    "method": "isPanPointer",
+    "export": "isPlanningPanPointer",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "getPointerWorldPosition",
+    "export": "getPlanningPointerWorldPosition",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "pointInBoardPanel",
+    "export": "pointPlanningInBoardPanel",
+    "async": false,
+    "params": "x, y",
+    "skipScene": false
+  },
+  {
+    "method": "pointInRightPanel",
+    "export": "pointInPlanningRightPanel",
+    "async": false,
+    "params": "x, y",
+    "skipScene": false
+  },
+  {
+    "method": "refreshRightPanelScrollMetrics",
+    "export": "refreshPlanningRightPanelScrollMetrics",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "onRightPanelWheel",
+    "export": "scrollPlanningRightPanel",
+    "async": false,
+    "params": "deltaY",
+    "skipScene": false
+  },
+  {
+    "method": "refreshBoardGeometry",
+    "export": "refreshPlanningBoardGeometry",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "canInteractFormation",
+    "export": "canPlanningInteractFormation",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "onPlayerCellClick",
+    "export": "onPlanningPlayerCellClick",
+    "async": false,
+    "params": "row, col",
+    "skipScene": false
+  },
+  {
+    "method": "checkDuplicateUnit",
+    "export": "checkPlanningDuplicateUnit",
+    "async": false,
+    "params": "baseId, ignoreRow = -1, ignoreCol = -1",
+    "skipScene": false
+  },
+  {
+    "method": "onBenchClick",
+    "export": "onPlanningBenchClick",
+    "async": false,
+    "params": "index",
+    "skipScene": false
+  },
+  {
+    "method": "getBenchCap",
+    "export": "getPlanningBenchCap",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "upgradeBench",
+    "export": "upgradePlanningBench",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "upgradeInventory",
+    "export": "upgradePlanningInventory",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "upgradeCraftTable",
+    "export": "upgradePlanningCraftTable",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "openTechTree",
+    "export": "openPlanningTechTree",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "researchTech",
+    "export": "researchPlanningTech",
+    "async": false,
+    "params": "techId",
+    "skipScene": false
+  },
+  {
+    "method": "buySpeed",
+    "export": "buyPlanningSpeed",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshSpeedButton",
+    "export": "refreshPlanningSpeedButton",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "moveUnit",
+    "export": "movePlanningUnit",
+    "async": false,
+    "params": "from, to, allowSwap = true",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitSalePrice",
+    "export": "getPlanningUnitSalePrice",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "sellUnit",
+    "export": "sellPlanningUnit",
+    "async": false,
+    "params": "uid, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "sellBenchIndex",
+    "export": "sellPlanningBenchIndex",
+    "async": false,
+    "params": "index, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "unequipAll",
+    "export": "unequipPlanningAll",
+    "async": false,
+    "params": "unit, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "sellSelectedUnit",
+    "export": "sellPlanningSelectedUnit",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "isEquipmentItem",
+    "export": "isPlanningEquipmentItem",
+    "async": false,
+    "params": "itemId",
+    "skipScene": false
+  },
+  {
+    "method": "getEquipmentNameKey",
+    "export": "getPlanningEquipmentNameKey",
+    "async": false,
+    "params": "itemId",
+    "skipScene": false
+  },
+  {
+    "method": "normalizeEquipIds",
+    "export": "planningNormalizeEquipIds",
+    "async": false,
+    "params": "equips, unit = null",
+    "skipScene": false
+  },
+  {
+    "method": "getItemCount",
+    "export": "getPlanningItemCount",
+    "async": false,
+    "params": "itemId",
+    "skipScene": false
+  },
+  {
+    "method": "consumeItem",
+    "export": "planningConsumeItem",
+    "async": false,
+    "params": "itemId, amount = 1",
+    "skipScene": false
+  },
+  {
+    "method": "getCraftGridSize",
+    "export": "getPlanningCraftGridSize",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCraftActiveIndices",
+    "export": "getPlanningCraftActiveIndices",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getRecipeGridSize",
+    "export": "getPlanningRecipeGridSize",
+    "async": false,
+    "params": "recipe",
+    "skipScene": false
+  },
+  {
+    "method": "getRecipePattern",
+    "export": "getPlanningRecipePattern",
+    "async": false,
+    "params": "recipe",
+    "skipScene": false
+  },
+  {
+    "method": "getRecipeRequiredList",
+    "export": "getPlanningRecipeRequiredList",
+    "async": false,
+    "params": "recipe",
+    "skipScene": false
+  },
+  {
+    "method": "getCraftGridState",
+    "export": "getPlanningCraftGridState",
+    "async": false,
+    "params": "tableSize = this.getCraftGridSize()",
+    "skipScene": false
+  },
+  {
+    "method": "matchPatternInGrid",
+    "export": "matchPlanningPatternInGrid",
+    "async": false,
+    "params": "grid, gridSize, pattern, patternSize",
+    "skipScene": true
+  },
+  {
+    "method": "getCraftReservedCounts",
+    "export": "getPlanningCraftReservedCounts",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getCraftResultRecipeId",
+    "export": "getPlanningCraftResultRecipeId",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "clearCraftGridSlot",
+    "export": "clearPlanningCraftGridSlot",
+    "async": false,
+    "params": "index",
+    "skipScene": false
+  },
+  {
+    "method": "clearCraftGrid",
+    "export": "clearPlanningCraftGrid",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "addItemToCraftGrid",
+    "export": "addItemToPlanningCraftGrid",
+    "async": false,
+    "params": "itemId",
+    "skipScene": false
+  },
+  {
+    "method": "populateCraftGridFromRecipe",
+    "export": "populatePlanningCraftGridFromRecipe",
+    "async": false,
+    "params": "recipeId",
+    "skipScene": false
+  },
+  {
+    "method": "craftFromGrid",
+    "export": "craftFromPlanningGrid",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getDeployCap",
+    "export": "getPlanningDeployCap",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getDeployCount",
+    "export": "getPlanningDeployCount",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getActiveLeftUnitCount",
+    "export": "getPlanningActiveLeftUnitCount",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "rollShop",
+    "export": "rollPlanningShop",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "buyXp",
+    "export": "buyPlanningXp",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "gainXp",
+    "export": "gainPlanningXp",
+    "async": false,
+    "params": "value",
+    "skipScene": false
+  },
+  {
+    "method": "toggleLock",
+    "export": "togglePlanningLock",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshShop",
+    "export": "refreshPlanningShop",
+    "async": false,
+    "params": "forceRoll = false",
+    "skipScene": false
+  },
+  {
+    "method": "buyFromShop",
+    "export": "buyPlanningFromShop",
+    "async": false,
+    "params": "index",
+    "skipScene": false
+  },
+  {
+    "method": "tryAutoMerge",
+    "export": "tryPlanningAutoMerge",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getTutorialState",
+    "export": "getPlanningTutorialState",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getTutorialMarker",
+    "export": "getPlanningTutorialMarker",
+    "async": false,
+    "params": "key",
+    "skipScene": false
+  },
+  {
+    "method": "setTutorialMarker",
+    "export": "setPlanningTutorialMarker",
+    "async": false,
+    "params": "key, value",
+    "skipScene": false
+  },
+  {
+    "method": "recordTutorialEvent",
+    "export": "recordPlanningTutorialEvent",
+    "async": false,
+    "params": "key, amount = 1",
+    "skipScene": false
+  },
+  {
+    "method": "isTutorialRound",
+    "export": "isPlanningTutorialRound",
+    "async": false,
+    "params": "round = this.player?.round ?? 1",
+    "skipScene": false
+  },
+  {
+    "method": "isTutorialCampaignActive",
+    "export": "isPlanningTutorialCampaignActive",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "finalizeTutorialCampaignIfNeeded",
+    "export": "finalizePlanningTutorialCampaignIfNeeded",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "ensureTutorialRoundSetup",
+    "export": "ensurePlanningTutorialRoundSetup",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getTutorialShopOffers",
+    "export": "getPlanningTutorialShopOffers",
+    "async": false,
+    "params": "forceRoll = false",
+    "skipScene": false
+  },
+  {
+    "method": "resolveTutorialGate",
+    "export": "resolvePlanningTutorialGate",
+    "async": false,
+    "params": "step",
+    "skipScene": false
+  },
+  {
+    "method": "buildTutorialSellContext",
+    "export": "buildPlanningTutorialSellContext",
+    "async": false,
+    "params": "source = null, extra = {}",
+    "skipScene": false
+  },
+  {
+    "method": "resolveTutorialUnitSource",
+    "export": "resolvePlanningTutorialUnitSource",
+    "async": false,
+    "params": "unit, fallback = null",
+    "skipScene": false
+  },
+  {
+    "method": "buildTutorialUnequipContext",
+    "export": "buildPlanningTutorialUnequipContext",
+    "async": false,
+    "params": "unit, source = null, extra = {}",
+    "skipScene": false
+  },
+  {
+    "method": "showTutorialBlockedHint",
+    "export": "showPlanningTutorialBlockedHint",
+    "async": false,
+    "params": "message = null",
+    "skipScene": false
+  },
+  {
+    "method": "isTutorialActionAllowed",
+    "export": "isPlanningTutorialActionAllowed",
+    "async": false,
+    "params": "action, context = {}, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "guardTutorialAction",
+    "export": "guardPlanningTutorialAction",
+    "async": false,
+    "params": "action, context = {}, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "isTutorialPointerAllowed",
+    "export": "isPlanningTutorialPointerAllowed",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "showPlanningRoundIntroUi",
+    "export": "showPlanningRoundIntroUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "flushDeferredPlanningRoundIntroUi",
+    "export": "planningFlushDeferredPlanningRoundIntroUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "enterPlanning",
+    "export": "enterPlanning",
+    "async": false,
+    "params": "grantIncome, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "refreshTutorialOverlay",
+    "export": "refreshPlanningTutorialOverlay",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "skipTutorialOverlay",
+    "export": "skipPlanningTutorialOverlay",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "destroyTutorialOverlay",
+    "export": "destroyPlanningTutorialOverlay",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "grantRoundIncome",
+    "export": "grantPlanningRoundIncome",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "prepareEnemyPreview",
+    "export": "preparePlanningEnemyPreview",
+    "async": false,
+    "params": "force = false",
+    "skipScene": false
+  },
+  {
+    "method": "generateEnemyPreviewPlan",
+    "export": "generatePlanningEnemyPreviewPlan",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "showAugmentChoices",
+    "export": "showPlanningAugmentChoices",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "clearOverlay",
+    "export": "clearPlanningOverlay",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "chooseAugment",
+    "export": "choosePlanningAugment",
+    "async": false,
+    "params": "augment",
+    "skipScene": false
+  },
+  {
+    "method": "beginCombat",
+    "export": "beginPlanningCombat",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "clearPlanningSprites",
+    "export": "clearPlanningSprites",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "clearCombatSprites",
+    "export": "clearPlanningCombatSprites",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "canPreviewAttack",
+    "export": "canPlanningPreviewAttack",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "showAttackPreviewForUnit",
+    "export": "showPlanningAttackPreviewForUnit",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "clearAttackPreview",
+    "export": "clearPlanningAttackPreview",
+    "async": false,
+    "params": "unit = null",
+    "skipScene": false
+  },
+  {
+    "method": "clearAttackPreviewIcons",
+    "export": "clearPlanningAttackPreviewIcons",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getPreviewSkillIcon",
+    "export": "getPlanningPreviewSkillIcon",
+    "async": false,
+    "params": "attacker, skill, isAllyCell = false",
+    "skipScene": false
+  },
+  {
+    "method": "drawAttackPreviewPrimaryIcon",
+    "export": "drawPlanningAttackPreviewPrimaryIcon",
+    "async": false,
+    "params": "row, col, iconText = \"≡ƒæè\", yOffset = -11",
+    "skipScene": false
+  },
+  {
+    "method": "drawAttackPreviewSword",
+    "export": "drawPlanningAttackPreviewSword",
+    "async": false,
+    "params": "row, col, attacker",
+    "skipScene": false
+  },
+  {
+    "method": "getPreviewImpact",
+    "export": "getPlanningPreviewImpact",
+    "async": false,
+    "params": "attacker, target",
+    "skipScene": false
+  },
+  {
+    "method": "collectSkillPreviewCells",
+    "export": "collectPlanningSkillPreviewCells",
+    "async": false,
+    "params": "attacker, target, skill, allies, enemies",
+    "skipScene": false
+  },
+  {
+    "method": "countUnitCopies",
+    "export": "planningCountUnitCopies",
+    "async": false,
+    "params": "baseId",
+    "skipScene": false
+  },
+  {
+    "method": "handleRightClick",
+    "export": "handlePlanningRightClick",
+    "async": false,
+    "params": "pointer",
+    "skipScene": false
+  },
+  {
+    "method": "showContextMenu",
+    "export": "showPlanningContextMenu",
+    "async": false,
+    "params": "unit, region, r_or_idx, c, x, y",
+    "skipScene": false
+  },
+  {
+    "method": "dedupePreviewCells",
+    "export": "dedupePlanningPreviewCells",
+    "async": false,
+    "params": "cells",
+    "skipScene": false
+  },
+  {
+    "method": "buildPlanningPreviewActor",
+    "export": "buildPlanningPreviewActor",
+    "async": false,
+    "params": "side, row, col, classType, star = 1, skillId = null, range = 1",
+    "skipScene": false
+  },
+  {
+    "method": "calculatePlanningPreviewPower",
+    "export": "calculatePlanningPreviewPower",
+    "async": false,
+    "params": "baseUnit, star, ownedUnit = null, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "buildPlanningTeamStatusEntry",
+    "export": "buildPlanningTeamStatusEntry",
+    "async": false,
+    "params": "side, baseUnit, star, previewUnit = null, ownerPlayer = this.player",
+    "skipScene": false
+  },
+  {
+    "method": "buildPlanningTeamStatusModel",
+    "export": "buildPlanningTeamStatusModel",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "collectPlanningPreviewUnits",
+    "export": "collectPlanningPreviewUnits",
+    "async": false,
+    "params": "side",
+    "skipScene": false
+  },
+  {
+    "method": "selectPlanningTarget",
+    "export": "selectPlanningTarget",
+    "async": false,
+    "params": "attacker",
+    "skipScene": false
+  },
+  {
+    "method": "refreshPlanningUi",
+    "export": "refreshPlanningUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getPlanningOwnedUnitOwnerPlayer",
+    "export": "getPlanningOwnedUnitOwnerPlayer",
+    "async": false,
+    "params": "ownedUnit",
+    "skipScene": false
+  },
+  {
+    "method": "getOwnedUnitDisplayBonuses",
+    "export": "getPlanningOwnedUnitDisplayBonuses",
+    "async": false,
+    "params": "ownedUnit",
+    "skipScene": false
+  },
+  {
+    "method": "getPlanningUnitDisplayResources",
+    "export": "getPlanningUnitDisplayResources",
+    "async": false,
+    "params": "ownedUnit, ownerPlayer = this.getPlanningOwnedUnitOwnerPlayer(ownedUnit)",
+    "skipScene": false
+  },
+  {
+    "method": "destroyUnitInfoPortraitModel",
+    "export": "destroyPlanningUnitInfoPortraitModel",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "findOwnedUnitByUid",
+    "export": "findPlanningOwnedUnitByUid",
+    "async": false,
+    "params": "uid",
+    "skipScene": false
+  },
+  {
+    "method": "setUnitInfoSelection",
+    "export": "setPlanningUnitInfoSelection",
+    "async": false,
+    "params": "selection = null",
+    "skipScene": false
+  },
+  {
+    "method": "setUnitInfoSelectionFromOwnedUnit",
+    "export": "setPlanningUnitInfoSelectionFromOwnedUnit",
+    "async": false,
+    "params": "unit, source = {}",
+    "skipScene": false
+  },
+  {
+    "method": "setUnitInfoSelectionFromShopOffer",
+    "export": "setPlanningUnitInfoSelectionFromShopOffer",
+    "async": false,
+    "params": "index",
+    "skipScene": false
+  },
+  {
+    "method": "getDefaultUnitInfoSelection",
+    "export": "getPlanningDefaultUnitInfoSelection",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "resolveUnitInfoSelection",
+    "export": "resolvePlanningUnitInfoSelection",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshUnitInfoPanel",
+    "export": "refreshPlanningUnitInfoPanel",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "pointInUnitInfoPanel",
+    "export": "pointPlanningInUnitInfoPanel",
+    "async": false,
+    "params": "x, y",
+    "skipScene": false
+  },
+  {
+    "method": "refreshUnitInfoPanelScrollMetrics",
+    "export": "refreshPlanningUnitInfoPanelScrollMetrics",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "onUnitInfoPanelWheel",
+    "export": "onPlanningUnitInfoPanelWheel",
+    "async": false,
+    "params": "dy",
+    "skipScene": false
+  },
+  {
+    "method": "refreshHeader",
+    "export": "refreshPlanningHeader",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshPlanningTeamStatusStrip",
+    "export": "refreshPlanningTeamStatusStrip",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "setHeaderStatVisible",
+    "export": "setPlanningHeaderStatVisible",
+    "async": false,
+    "params": "key, visible = true",
+    "skipScene": false
+  },
+  {
+    "method": "setHeaderStatValue",
+    "export": "setPlanningHeaderStatValue",
+    "async": false,
+    "params": "key, value, max = null, currentIndicator = null",
+    "skipScene": false
+  },
+  {
+    "method": "getPhaseLabel",
+    "export": "getPlanningPhaseLabel",
+    "async": false,
+    "params": "phase",
+    "skipScene": false
+  },
+  {
+    "method": "formatCombatTeamStatusValue",
+    "export": "planningFormatCombatTeamStatusValue",
+    "async": false,
+    "params": "value",
+    "skipScene": false
+  },
+  {
+    "method": "refreshButtons",
+    "export": "refreshPlanningButtons",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshShopUi",
+    "export": "refreshPlanningShopUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshBenchUi",
+    "export": "refreshPlanningBenchUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshBoardUi",
+    "export": "refreshPlanningBoardUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "refreshSynergyPreview",
+    "export": "refreshPlanningSynergyPreview",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "changeInvPage",
+    "export": "changePlanningInvPage",
+    "async": false,
+    "params": "delta",
+    "skipScene": false
+  },
+  {
+    "method": "changeRecipeSuggestionPage",
+    "export": "changePlanningRecipeSuggestionPage",
+    "async": false,
+    "params": "delta",
+    "skipScene": false
+  },
+  {
+    "method": "refreshStorageUi",
+    "export": "refreshPlanningStorageUi",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "craftItem",
+    "export": "craftPlanningItem",
+    "async": false,
+    "params": "recipeId",
+    "skipScene": false
+  },
+  {
+    "method": "inferLogCategory",
+    "export": "planningInferLogCategory",
+    "async": false,
+    "params": "message",
+    "skipScene": false
+  },
+  {
+    "method": "addLog",
+    "export": "addPlanningLog",
+    "async": false,
+    "params": "message, category = null",
+    "skipScene": false
+  },
+  {
+    "method": "updateLogText",
+    "export": "planningUpdateLogText",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "formatVariantBonus",
+    "export": "planningFormatVariantBonus",
+    "async": false,
+    "params": "bonus",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitTooltip",
+    "export": "getPlanningUnitTooltip",
+    "async": false,
+    "params": "baseId, star = 1, ownedUnit = null",
+    "skipScene": false
+  },
+  {
+    "method": "getAugmentTooltip",
+    "export": "getPlanningAugmentTooltip",
+    "async": false,
+    "params": "augment",
+    "skipScene": false
+  },
+  {
+    "method": "getSynergyTooltip",
+    "export": "getPlanningSynergyTooltip",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "getSynergyTier",
+    "export": "getPlanningSynergyTier",
+    "async": false,
+    "params": "count, thresholds",
+    "skipScene": false
+  },
+  {
+    "method": "formatBonusSet",
+    "export": "planningFormatBonusSet",
+    "async": false,
+    "params": "bonus",
+    "skipScene": false
+  },
+  {
+    "method": "inferBasicActionPattern",
+    "export": "planningInferBasicActionPattern",
+    "async": false,
+    "params": "classType, range",
+    "skipScene": false
+  },
+  {
+    "method": "describeBasicAttack",
+    "export": "planningDescribeBasicAttack",
+    "async": false,
+    "params": "classType, range, baseStats = null, star = 1",
+    "skipScene": false
+  },
+  {
+    "method": "stripSkillStarNotes",
+    "export": "planningStripSkillStarNotes",
+    "async": false,
+    "params": "description",
+    "skipScene": false
+  },
+  {
+    "method": "getStarStatMultiplier",
+    "export": "getPlanningStarStatMultiplier",
+    "async": false,
+    "params": "star",
+    "skipScene": false
+  },
+  {
+    "method": "getStarSkillMultiplier",
+    "export": "getPlanningStarSkillMultiplier",
+    "async": false,
+    "params": "star",
+    "skipScene": false
+  },
+  {
+    "method": "getSkillTargetCountText",
+    "export": "getPlanningSkillTargetCountText",
+    "async": false,
+    "params": "skill, star",
+    "skipScene": false
+  },
+  {
+    "method": "getSkillShapeText",
+    "export": "getPlanningSkillShapeText",
+    "async": false,
+    "params": "skill",
+    "skipScene": false
+  },
+  {
+    "method": "getSkillDamageAndFormulaText",
+    "export": "getPlanningSkillDamageAndFormulaText",
+    "async": false,
+    "params": "skill, baseStats, star",
+    "skipScene": false
+  },
+  {
+    "method": "buildSkillStarMilestoneLines",
+    "export": "buildPlanningSkillStarMilestoneLines",
+    "async": false,
+    "params": "skill, baseUnit",
+    "skipScene": false
+  },
+  {
+    "method": "describeSkillLines",
+    "export": "planningDescribeSkillLines",
+    "async": false,
+    "params": "skill, baseUnit = null",
+    "skipScene": false
+  },
+  {
+    "method": "describeSkill",
+    "export": "planningDescribeSkill",
+    "async": false,
+    "params": "skill",
+    "skipScene": false
+  },
+  {
+    "method": "describeSkillArea",
+    "export": "planningDescribeSkillArea",
+    "async": false,
+    "params": "skill",
+    "skipScene": false
+  },
+  {
+    "method": "translateDamageType",
+    "export": "planningTranslateDamageType",
+    "async": false,
+    "params": "type",
+    "skipScene": false
+  },
+  {
+    "method": "translateScaleStat",
+    "export": "planningTranslateScaleStat",
+    "async": false,
+    "params": "stat",
+    "skipScene": false
+  },
+  {
+    "method": "translateActionPattern",
+    "export": "planningTranslateActionPattern",
+    "async": false,
+    "params": "pattern",
+    "skipScene": false
+  },
+  {
+    "method": "translateSkillEffect",
+    "export": "planningTranslateSkillEffect",
+    "async": false,
+    "params": "effect",
+    "skipScene": false
+  },
+  {
+    "method": "translateAugmentEffect",
+    "export": "planningTranslateAugmentEffect",
+    "async": false,
+    "params": "effectType",
+    "skipScene": false
+  },
+  {
+    "method": "translateAugmentGroup",
+    "export": "planningTranslateAugmentGroup",
+    "async": false,
+    "params": "group",
+    "skipScene": false
+  },
+  {
+    "method": "getAugmentIcon",
+    "export": "getPlanningAugmentIcon",
+    "async": false,
+    "params": "augment",
+    "skipScene": false
+  },
+  {
+    "method": "getAI",
+    "export": "getPlanningAI",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "computeSynergyCounts",
+    "export": "planningComputeSynergyCounts",
+    "async": false,
+    "params": "units, side",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitVariantTraits",
+    "export": "getPlanningUnitVariantTraits",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitSkillVariant",
+    "export": "getPlanningUnitSkillVariant",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitVariantSummary",
+    "export": "getPlanningUnitVariantSummary",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "selectTarget",
+    "export": "selectPlanningCombatTarget",
+    "async": false,
+    "params": "attacker, options = {}",
+    "skipScene": false
+  },
+  {
+    "method": "compareTargets",
+    "export": "comparePlanningTargets",
+    "async": false,
+    "params": "attacker, a, b",
+    "skipScene": false
+  },
+  {
+    "method": "scoreTarget",
+    "export": "scorePlanningTarget",
+    "async": false,
+    "params": "attacker, target",
+    "skipScene": false
+  },
+  {
+    "method": "distanceToFrontline",
+    "export": "planningDistanceToFrontline",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "distanceToBackline",
+    "export": "planningDistanceToBackline",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "getUnitStatFallback",
+    "export": "getPlanningUnitStatFallback",
+    "async": false,
+    "params": "unit, statKey, defaultValue = 0",
+    "skipScene": false
+  },
+  {
+    "method": "getEffectiveAtk",
+    "export": "getPlanningEffectiveAtk",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "getEffectiveDef",
+    "export": "getPlanningEffectiveDef",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "getEffectiveMatk",
+    "export": "getPlanningEffectiveMatk",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "getEffectiveMdef",
+    "export": "getPlanningEffectiveMdef",
+    "async": false,
+    "params": "unit",
+    "skipScene": false
+  },
+  {
+    "method": "clearResultModalScrollController",
+    "export": "clearPlanningResultModalScrollController",
+    "async": false,
+    "params": "",
+    "skipScene": false
+  },
+  {
+    "method": "attachResultModalScrollController",
+    "export": "attachPlanningResultModalScrollController",
+    "async": false,
+    "params": "parts, { viewportX, viewportY, viewportW, viewportH, contentContainer, contentHeight, depth }",
+    "skipScene": false
+  },
+  {
+    "method": "showCombatResultModal",
+    "export": "showPlanningCombatResultModal",
+    "async": false,
+    "params": "result, onClose",
+    "skipScene": false
+  },
+  {
+    "method": "gridToScreen",
+    "export": "gridToSharedBoardScreen",
+    "async": false,
+    "params": "col, row",
+    "skipScene": false
+  }
+]
