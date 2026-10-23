@@ -1,0 +1,353 @@
+import { PHASE } from "../../core/boardConstants.js";
+
+import { AI_SETTINGS } from "../../systems/AISystem.js";
+import { DEFAULT_LOSE_CONDITION } from "../../core/gameRules.js";
+import { loadCollectionProfile } from "../../core/collectionProfile.js";
+import { applySceneDisplaySettings } from "./sceneDisplayRuntime.js";
+
+import { createPlanningBenchSlots } from "./planningBenchRuntime.js";
+import { refreshPlanningBoardGeometry } from "./planningBoardInteractionRuntime.js";
+import { startPlanningMusic } from "./planningCortisolRuntime.js";
+import { getPlanningConfiguredLoseCondition } from "./planningFortressHelpersRuntime.js";
+import { computePlanningLayout } from "./planningLayoutRuntime.js";
+import { refreshPlanningUi } from "./planningRefreshUiRuntime.js";
+import { cancelPlanningDeferredUiPrewarm } from "./planningSettingsRuntime.js";
+import { destroyPlanningTechTreeModal } from "./planningTechTreeModalRuntime.js";
+
+import { refreshPlanningHistoryModal } from "./planningSettingsRuntime.js";
+
+type SceneLike = {
+  phase: string;
+  aiMode: string | null;
+  benchUpgradeLevel: number;
+  tileLookup: Map<string, unknown>;
+  playerCellZones: unknown[];
+  buttons: Record<string, unknown>;
+  benchSlots: unknown[];
+  benchPage: number;
+  benchPageMax: number;
+  benchPageSlotCount: number;
+  benchHeader: unknown;
+  benchPagePrevBtn: unknown;
+  benchPageNextBtn: unknown;
+  benchPageText: unknown;
+  shopCards: unknown[];
+  planningSprites: unknown[];
+  combatSprites: unknown[];
+  overlaySprites: unknown[];
+  decorationSprites: unknown[];
+  decorationsCreated: boolean;
+  logs: unknown[];
+  selectedBenchIndex: number | null;
+  turnQueue: unknown[];
+  combatUnits: unknown[];
+  turnIndex: number;
+  actionCount: number;
+  globalDamageMult: number;
+  isActing: boolean;
+  isUnitDragging: boolean;
+  pendingDrag: unknown;
+  dragUnit: unknown;
+  dragClone: unknown;
+  dragOrigin: unknown;
+  gapMarkers: unknown[];
+  boardEdgeLabels: unknown[];
+  roundBackgroundImage: unknown;
+  roundBackgroundMask: unknown;
+  roundBackgroundKey: string | null;
+  logHistory: unknown[];
+  activeDamageNumbers: unknown[];
+  _planningRoundIntroDeferred: boolean;
+  historyFilter: string;
+  historyModalVisible: boolean;
+  historyModalParts: unknown[];
+  historyFilterButtons: unknown[];
+  historyListItems: unknown[];
+  historyScrollOffset: number;
+  historyMaxScroll: number;
+  historyListViewport: unknown;
+  historyButtonRect: unknown;
+  versionInfoVisible: boolean;
+  versionInfoOverlay: unknown[];
+  attackPreviewLayer: unknown;
+  attackPreviewSword: unknown;
+  attackPreviewIcons: unknown[];
+  previewHoverUnit: unknown;
+  headerStatChips: Record<string, unknown>;
+  inventoryPage: number;
+  headerMetaText: unknown;
+  relayoutTopHeaderMeta: unknown;
+  unitInfoPanel: unknown;
+  unitInfoSelection: unknown;
+  unitInfoPortraitModel: unknown;
+  enemyInfoExpanded: boolean;
+  inventoryCells: unknown[];
+  inventoryDockHeader: unknown;
+  storageSummaryText: unknown;
+  storageCraftText: unknown;
+  craftInputSlots: unknown[];
+  craftOutputSlot: unknown;
+  craftGridItems: (string | null)[];
+  craftHintText: unknown;
+  craftTitleText: unknown;
+  recipeSuggestionHeader: unknown;
+  recipeSuggestionTitle: unknown;
+  recipeSuggestionInfoText: unknown;
+  recipeSuggestionSlots: unknown[];
+  recipeSuggestionPage: number;
+  recipeSuggestionPageMax: number;
+  recipeSuggestPrevBtn: unknown;
+  recipeSuggestNextBtn: unknown;
+  invPrevBtn: unknown;
+  invNextBtn: unknown;
+  rightPanelContentWidth: number;
+  rightPanelArea: unknown;
+  rightPanelMask: unknown;
+  rightPanelMaskShape: unknown;
+  rightPanelScrollItems: unknown[];
+  rightPanelScrollOffset: number;
+  rightPanelMaxScroll: number;
+  selectedInventoryItemId: string | null;
+  selectedInventoryItemType: string | null;
+  isItemDragging: boolean;
+  dragItemId: string | null;
+  dragItemClone: unknown;
+  dragItemOriginCell: unknown;
+  itemPointerDown: unknown;
+  battlefieldBackdrop: unknown;
+  battlefieldFx: unknown;
+  cortisolDanceUntilAt: number;
+  cortisolDanceTimer: { remove: (a: boolean) => void } | null;
+  cortisolDanceTargets: Set<unknown>;
+  _deferredUiPrewarmPromise: unknown;
+  _deferredUiPrewarmDone: boolean;
+  gamepadController: { destroy: () => void } | null;
+  settingsVisible: boolean;
+  settingsOverlay: unknown[];
+  modalButtons: Record<string, unknown>;
+  coopRunState: unknown;
+  coopLocalSlot: string;
+  _lastCoopPlanningIntent: unknown;
+  _coopCombatStartRequested: boolean;
+  _coopPlanningPingBySlot: Record<string, number>;
+  _coopDisconnectHandled: boolean;
+  _coopDisconnectReason: string | null;
+  _pvpCombatReady: boolean;
+  _pvpCombatStartRequested: boolean;
+  _lastPvpPlanningIntent: unknown;
+  _pvpSessionSyncTimer: { remove: (a: boolean) => void } | null;
+  endlessAchievementProfile: unknown;
+  collectionProfile: unknown;
+  libraryModal: { hide: () => void } | null;
+  layout: unknown;
+  runtimeSettings: { loseCondition?: string; [key: string]: unknown };
+  player: { gold?: number; loseCondition?: string; benchUpgradeLevel?: number; benchBonus?: number; round?: number; board: unknown; [key: string]: unknown } | null;
+  audioFx: { setEnabled: (v: boolean) => void; setVolumeLevel: (v: number) => void; play: (key: string) => void };
+  originX: number;
+  originY: number;
+  boardZoom: number;
+  boardPanX: number;
+  boardPanY: number;
+  isBoardDragging: boolean;
+  lastDragPoint: unknown;
+  boardPointerDown: unknown;
+  boardDragConsumed: boolean;
+  isPlanningEndlessFortressMode?: boolean;
+  _refreshSettingsOverlayLabels?: (scene: unknown, force: boolean) => void;
+  historyModalVisible_val?: boolean;
+  [key: string]: unknown;
+};
+export function planningResetTransientSceneState(scene: SceneLike): void {
+    cancelPlanningDeferredUiPrewarm(scene as unknown as Parameters<typeof cancelPlanningDeferredUiPrewarm>[0]);
+    scene.phase = PHASE.PLANNING;
+    scene.aiMode = null; // Will be set by applyRuntimeSettings or restoreFromSavedState
+    scene.benchUpgradeLevel = 0;
+    scene.tileLookup = new Map();
+    scene.playerCellZones = [];
+    scene.buttons = {};
+    scene.benchSlots = [];
+    scene.benchPage = 0;
+    scene.benchPageMax = 0;
+    scene.benchPageSlotCount = 0;
+    scene.benchHeader = null;
+    scene.benchPagePrevBtn = null;
+    scene.benchPageNextBtn = null;
+    scene.benchPageText = null;
+    scene.shopCards = [];
+    scene.planningSprites = [];
+    scene.combatSprites = [];
+    scene.overlaySprites = [];
+    // Destroy old decorations when scene restarts
+    if (Array.isArray(scene.decorationSprites)) {
+      scene.decorationSprites.forEach(s => (s as { destroy?: () => void })?.destroy?.());
+    }
+    scene.decorationSprites = [];
+    scene.decorationsCreated = false;
+    scene.logs = [];
+    scene.selectedBenchIndex = null;
+    scene.turnQueue = [];
+    scene.combatUnits = [];
+    scene.turnIndex = 0;
+    scene.actionCount = 0;
+    scene.globalDamageMult = 1;
+    scene.isActing = false;
+    scene.layout = null;
+    scene.boardZoom = 1;
+    scene.boardPanX = 0;
+    scene.boardPanY = 0;
+    scene.isBoardDragging = false;
+    scene.lastDragPoint = null;
+    scene.boardPointerDown = null;
+    scene.boardDragConsumed = false;
+    scene.isUnitDragging = false;
+    scene.pendingDrag = null;
+    scene.dragUnit = null;
+    scene.dragClone = null;
+    scene.dragOrigin = null;
+    scene.gapMarkers = [];
+    scene.boardEdgeLabels = [];
+    scene.roundBackgroundImage = null;
+    scene.roundBackgroundMask = null;
+    scene.roundBackgroundKey = null;
+    scene.logHistory = [];
+    scene.activeDamageNumbers = [];
+    scene._planningRoundIntroDeferred = false;
+    scene.historyFilter = "ALL";
+    scene.historyModalVisible = false;
+    scene.historyModalParts = [];
+    scene.historyFilterButtons = [];
+    scene.historyListItems = [];
+    scene.historyScrollOffset = 0;
+    scene.historyMaxScroll = 0;
+    scene.historyListViewport = null;
+    scene.historyButtonRect = null;
+    scene.versionInfoVisible = false;
+    scene.versionInfoOverlay = [];
+    scene.attackPreviewLayer = null;
+    scene.attackPreviewSword = null;
+    scene.attackPreviewIcons = [];
+    scene.previewHoverUnit = null;
+    scene.headerStatChips = {};
+    scene.inventoryPage = 0;
+    scene.headerMetaText = null;
+    scene.relayoutTopHeaderMeta = null;
+    scene.unitInfoPanel = null;
+    scene.unitInfoSelection = null;
+    scene.unitInfoPortraitModel = null;
+    scene.enemyInfoExpanded = false;
+    scene.inventoryCells = [];
+    scene.inventoryDockHeader = null;
+    scene.storageSummaryText = null;
+    scene.storageCraftText = null;
+    scene.craftInputSlots = [];
+    scene.craftOutputSlot = null;
+    scene.craftGridItems = Array.from({ length: 9 }, () => null);
+    scene.craftHintText = null;
+    scene.craftTitleText = null;
+    scene.recipeSuggestionHeader = null;
+    scene.recipeSuggestionTitle = null;
+    scene.recipeSuggestionInfoText = null;
+    scene.recipeSuggestionSlots = [];
+    scene.recipeSuggestionPage = 0;
+    scene.recipeSuggestionPageMax = 0;
+    scene.recipeSuggestPrevBtn = null;
+    scene.recipeSuggestNextBtn = null;
+    scene.invPrevBtn = null;
+    scene.invNextBtn = null;
+    scene.rightPanelContentWidth = 0;
+    scene.rightPanelArea = null;
+    scene.rightPanelMask = null;
+    scene.rightPanelMaskShape = null;
+    scene.rightPanelScrollItems = [];
+    scene.rightPanelScrollOffset = 0;
+    scene.rightPanelMaxScroll = 0;
+    scene.selectedInventoryItemId = null;
+    scene.selectedInventoryItemType = null;
+    scene.isItemDragging = false;
+    scene.dragItemId = null;
+    scene.dragItemClone = null;
+    scene.dragItemOriginCell = null;
+    scene.itemPointerDown = null;
+    scene.battlefieldBackdrop = null;
+    scene.battlefieldFx = null;
+    scene.cortisolDanceUntilAt = 0;
+    if (scene.cortisolDanceTimer?.remove) scene.cortisolDanceTimer.remove(false);
+    scene.cortisolDanceTimer = null;
+    scene.cortisolDanceTargets = new Set();
+    scene._deferredUiPrewarmPromise = null;
+    scene._deferredUiPrewarmDone = false;
+    if (scene.gamepadController) {
+      scene.gamepadController.destroy();
+      scene.gamepadController = null;
+    }
+    scene.settingsVisible = false;
+    scene.settingsOverlay = [];
+    scene.modalButtons = {};
+    scene.coopRunState = null;
+    scene.coopLocalSlot = "P1";
+    scene._lastCoopPlanningIntent = null;
+    scene._coopCombatStartRequested = false;
+    scene._coopPlanningPingBySlot = {};
+    scene._coopDisconnectHandled = false;
+    scene._coopDisconnectReason = null;
+    scene._pvpCombatReady = false;
+    scene._pvpCombatStartRequested = false;
+    scene._lastPvpPlanningIntent = null;
+    if (scene._pvpSessionSyncTimer) {
+      scene._pvpSessionSyncTimer.remove(false);
+      scene._pvpSessionSyncTimer = null;
+    }
+    scene.endlessAchievementProfile = null;
+    scene.collectionProfile = loadCollectionProfile();
+    if (scene.libraryModal) {
+      scene.libraryModal.hide();
+    }
+    destroyPlanningTechTreeModal(scene as unknown as Parameters<typeof destroyPlanningTechTreeModal>[0]);
+}
+
+export function planningResetBoardViewTransform(scene: SceneLike, refresh: boolean = false): void {
+    scene.boardZoom = 1;
+    scene.boardPanX = 0;
+    scene.boardPanY = 0;
+    scene.isBoardDragging = false;
+    scene.lastDragPoint = null;
+    scene.boardPointerDown = null;
+    scene.boardDragConsumed = false;
+    if (refresh && scene.tileLookup?.size && scene.player?.board) {
+      refreshPlanningBoardGeometry(scene as unknown as Parameters<typeof refreshPlanningBoardGeometry>[0]);
+    }
+}
+
+export function applyPlanningRuntimeSettings(scene: SceneLike, settings: { aiMode?: string; loseCondition?: string; audioEnabled?: boolean; volumeLevel?: number; [key: string]: unknown }): void {
+    if (!settings) return;
+    scene.runtimeSettings = { ...scene.runtimeSettings, ...settings };
+    const loseCondition = getPlanningConfiguredLoseCondition(scene as unknown as Parameters<typeof getPlanningConfiguredLoseCondition>[0], (settings.loseCondition ?? scene.player?.loseCondition ?? DEFAULT_LOSE_CONDITION) as Parameters<typeof getPlanningConfiguredLoseCondition>[1]);
+    scene.runtimeSettings.loseCondition = loseCondition;
+    if (scene.player) scene.player.loseCondition = loseCondition;
+    if (typeof settings.audioEnabled === "boolean") scene.audioFx.setEnabled(settings.audioEnabled);
+    if (settings.volumeLevel != null) scene.audioFx.setVolumeLevel(settings.volumeLevel);
+    startPlanningMusic(scene as unknown as Parameters<typeof startPlanningMusic>[0]);
+    refreshPlanningUi(scene as unknown as Parameters<typeof refreshPlanningUi>[0]);
+}
+
+export function planningInit(scene: SceneLike, data: unknown): void {
+  planningResetTransientSceneState(scene);
+  scene.incomingData = data ?? null;
+}
+
+export function applyPlanningDisplaySettings(scene: SceneLike, settings: { resolutionKey?: string; guiScale?: number; [key: string]: unknown }, refresh: boolean = false): void {
+    applySceneDisplaySettings(scene as unknown as Parameters<typeof applySceneDisplaySettings>[0], settings as unknown as Parameters<typeof applySceneDisplaySettings>[1], {
+      afterApply: (scene) => {
+        const s = scene as unknown as SceneLike;
+        if (s.historyModalVisible) refreshPlanningHistoryModal(s as unknown as Parameters<typeof refreshPlanningHistoryModal>[0]);
+        if (s.settingsVisible) (s._refreshSettingsOverlayLabels as ((scene: unknown, force: boolean) => void) | undefined)?.(s, true);
+        if (!refresh) return;
+        s.layout = computePlanningLayout(s as unknown as Parameters<typeof computePlanningLayout>[0]);
+        s.originX = (s.layout as { boardOriginX: number }).boardOriginX;
+        s.originY = (s.layout as { boardOriginY: number }).boardOriginY;
+        createPlanningBenchSlots(s as unknown as Parameters<typeof createPlanningBenchSlots>[0]);
+        refreshPlanningUi(s as unknown as Parameters<typeof refreshPlanningUi>[0]);
+        refreshPlanningBoardGeometry(s as unknown as Parameters<typeof refreshPlanningBoardGeometry>[0]);
+      }
+    });
+}
