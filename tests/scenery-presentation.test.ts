@@ -18,7 +18,7 @@ describe("scenery presentation", () => {
       water,
     );
 
-    const river = root.getObjectByName("scenery-river-meanders") as THREE.InstancedMesh;
+    const river = root.getObjectByName("scenery-river") as THREE.InstancedMesh;
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const scale = new THREE.Vector3();
@@ -31,6 +31,8 @@ describe("scenery presentation", () => {
       river.getMatrixAt(i, matrix);
       matrix.decompose(position, quaternion, scale);
       expect(position.z < -2 || position.z > 6).toBe(true);
+      expect(scale.x).toBeGreaterThanOrEqual(2);
+      expect(quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
       xPositions[String(Math.round(position.x * 2) / 2)] = true;
       const distance = position.z < -2 ? -2 - position.z : position.z - 6;
       if (distance <= 2) nearWidth = Math.min(nearWidth, scale.x);
