@@ -215,12 +215,12 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const onShopViewportChange = () => { shopOpen = false; syncShopVisibility(); };
   portraitShop.addEventListener("change", onShopViewportChange);
 
-  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; buyText: string; drawnText: string }
+  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
     const wrap = h("div", "pl-offer");
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
-    const slot: Slot = { card, wrap, index: -1, buyText: "", drawnText: "",
+    const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
       buy: kitButton({ skin: "green", icon: ICONS.gold, cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
       info: kitButton({ skin: "icon", icon: ICONS.info, aria: t("menu.information"), onClick: () => { const id = m?.run.shop[slot.index]; if (id) it.details(id); } }),
     };
@@ -229,12 +229,12 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     grid.append(wrap);
     return slot;
   });
-  let rerollText = "", rerollDrawn = "";
+  let rerollText = "", rerollCostText = "", rerollDrawn = "";
   const syncResponsiveLabels = () => {
-    const rerollVisible = reroll.el.clientWidth >= 112 ? rerollText : "";
+    const rerollVisible = reroll.el.clientWidth >= 112 ? rerollText : rerollCostText;
     if (rerollVisible !== rerollDrawn) { rerollDrawn = rerollVisible; reroll.setLabel(rerollVisible); }
     for (const slot of slots) {
-      const visible = slot.buy.el.clientWidth >= 100 ? slot.buyText : "";
+      const visible = slot.buy.el.clientWidth >= 100 ? slot.buyText : slot.buyCost;
       if (visible !== slot.drawnText) { slot.drawnText = visible; slot.buy.setLabel(visible); }
     }
   };
@@ -254,12 +254,13 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       s.index = idx;
       s.wrap.hidden = i >= pageSize || idx >= shop.length;
       if (!id) {
-        s.card.set(null); s.buyText = ""; s.buy.setAria(t("planning.buy"));
+        s.card.set(null); s.buyText = ""; s.buyCost = ""; s.buy.setAria(t("planning.buy"));
         s.buy.setDisabled(true); s.info.setDisabled(true); return;
       }
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
       s.card.set({ unit: u, star: 1, cost: u.tier, detail: "planning", affordable: afford });
       s.buyText = `${t("planning.buy")} (${u.tier} ${ICONS.gold})`;
+      s.buyCost = String(u.tier);
       s.buy.setAria(`${s.buyText} ${u.nameVi}`);
       s.buy.setDisabled(m!.locked || !afford);
       s.info.setAria(`${t("menu.information")} ${u.nameVi}`);
@@ -296,6 +297,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const rerollLabel = t("planning.reroll", { cost: `${rerollCost} ${ICONS.gold}` });
     const xpLabel = t("planning.buyXp", { cost: `${buyXpCost} ${ICONS.gold}` });
     rerollText = rerollLabel;
+    rerollCostText = `${rerollCost} ${ICONS.gold}`;
     xp.setLabel(xpLabel);
     const startText = `${t("planning.start")} (-1 ${ICONS.heart})`;
     start.setLabel(startText);
