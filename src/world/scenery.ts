@@ -34,18 +34,17 @@ export function createScenery(
   const rows = totalRows(p);
   // Bench slab in visual-cell space (see arena foundation).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
-  const riverColumnForScenery = (cz: number) => {
-    if (cz >= minZ && cz <= maxZ) return RIVER_X;
+  // Outside the board the river meanders in whole cells only (axis-aligned voxel steps, never a
+  // rotated box) and is always at least 3 cells wide so the water reads as a river, not a puddle.
+  const riverSpanForScenery = (cz: number): { left: number; right: number } => {
+    if (cz >= minZ && cz <= maxZ) return { left: RIVER_X, right: RIVER_X };
     const edge = cz < minZ ? minZ : maxZ;
     const distance = Math.abs(cz - edge);
-    const phase = cz < minZ ? 0.45 : 1.75;
-    return RIVER_X + Math.round(Math.sin(distance * 0.52 + phase) * 1.35);
-  };
-  const riverWidthForScenery = (cz: number) => {
-    if (cz >= minZ && cz <= maxZ) return 1;
-    const edge = cz < minZ ? minZ : maxZ;
-    const distance = Math.abs(cz - edge);
-    return 1.08 + Math.min(3, distance * 0.09);
+    const phase = cz < minZ ? 0.4 : 1.9;
+    const shift = distance < 3 ? 0 : Math.round(Math.sin((distance - 3) * 0.42 + phase) * 2);
+    const half = Math.min(4, 1 + Math.floor(distance / 10));
+    const center = RIVER_X + shift;
+    return { left: center - half, right: center + half };
   };
 
   const box = own(new THREE.BoxGeometry(1, 1, 1));
@@ -75,7 +74,8 @@ export function createScenery(
     const d = Math.max(dx, dz);
     if (d === 0) continue;
     const w = toWorld({ x: cx, z: cz });
-    if (dx === 0 && Math.abs(cx - riverColumnForScenery(cz)) <= riverWidthForScenery(cz) / 2) { bed.push(w); continue; } // outside-only widening meandering river channel
+    const span = riverSpanForScenery(cz);
+    if (dx === 0 && cx >= span.left && cx <= span.right) { bed.push(w); continue; } // outside-only widening river channel
     const flat = cz > maxZ ? APRON_CAMERA_SIDE : APRON;
     const valley = dx === 0 ? Math.min(1, Math.max(0, (Math.abs(cx - RIVER_X) - 1) / 5)) : 1;
     const wave = Math.sin(cx * 0.35) + Math.sin(cz * 0.29 + 1.3) + Math.sin((cx + cz) * 0.17);
@@ -105,14 +105,13 @@ export function createScenery(
   const riverRows: number[] = [];
   for (let cz = minZ - REACH; cz < minZ; cz++) riverRows.push(cz);
   for (let cz = maxZ + REACH; cz > maxZ; cz--) riverRows.push(cz);
-  const riverWater = instanced(riverRows.length, waterMat, "scenery-river-meanders");
+  const riverWater = instanced(riverRows.length, waterMat, "scenery-river");
   riverRows.forEach((cz, i) => {
-    const nextZ = cz < minZ ? Math.min(minZ, cz + 1) : Math.max(maxZ, cz - 1);
-    const a = toWorld({ x: riverColumnForScenery(cz), z: cz });
-    const b = toWorld({ x: riverColumnForScenery(nextZ), z: nextZ });
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const width = (riverWidthForScenery(cz) + riverWidthForScenery(nextZ)) / 2;
-    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, (a.z + b.z) / 2, width, WATER_H, Math.hypot(dx, dz) + 0.18, Math.atan2(dx, dz));
+    const span = riverSpanForScenery(cz);
+    const a = toWorld({ x: span.left, z: cz });
+    const b = toWorld({ x: span.right, z: cz });
+    const width = span.right - span.left + 1;
+    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, a.z, width, WATER_H, 1);
   });
 
   const pathCells = columns.filter((c) => {
