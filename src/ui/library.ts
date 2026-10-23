@@ -267,7 +267,7 @@ export function mountLibrary(
     if (!list.length) gridEl.append(h("div", "lib-empty", t("library.empty")));
     for (const u of list.slice(page * per, page * per + per)) {
       const c = createCard(portraits, "lib-card");
-      c.set({ unit: u, star: 1, detail: "library" });
+      c.set({ unit: u, star: 1, cost: u.tier, detail: "library" });
       c.el.tabIndex = 0;
       c.el.setAttribute("role", "button");
       const open = () => showDetail(u.id);
