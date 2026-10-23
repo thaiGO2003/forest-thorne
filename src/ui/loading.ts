@@ -96,7 +96,7 @@ export function createLoading(host: HTMLElement, o: { title: string; hint: strin
       g.fillRect(6, by + 4, fw, 3);
     }
     threeSlice(g, "frame_bar", 3, 0, by, w, bh);
-    label(g, detail + (score ? `   ${ICONS.bubbles} ${score}` : ""), w / 2, hh - 7, { size: 12, maxW: w });
+    label(g, `${Math.round(progress * 100)}% ${detail}${score ? `   ${ICONS.bubbles} ${score}` : ""}`, w / 2, hh - 7, { size: 12, maxW: w - 10 });
   });
   const tipTimer = tips.length > 1
     ? globalThis.setInterval(() => { tipIndex = (tipIndex + 1) % tips.length; titleS.paint(); }, 2800)
