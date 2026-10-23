@@ -82,12 +82,6 @@ export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = 
     return { units: normalizeEnemyPreview(creative), round, budget: 0, source: "creative" };
   }
 
-  if (!options.force && s.enemyPreviewRound === round && s.enemyPreview.length > 0) {
-    const normalized = normalizeEnemyPreview(s.enemyPreview);
-    s.enemyPreview = normalized;
-    return { units: normalized, round, budget: Math.max(0, s.enemyBudget), source: "saved" };
-  }
-
   if (options.isHost === false) {
     if (Math.floor(Number(options.sharedPreviewRound) || 0) !== round) return null;
     const shared = normalizeEnemyPreview(options.sharedPreview);
@@ -96,6 +90,12 @@ export function resolveEnemyPreview(s: RunState, options: EnemyPreviewOptions = 
     s.enemyPreviewRound = round;
     s.enemyBudget = Math.max(0, Math.round(Number(options.sharedEnemyBudget) || 0));
     return { units: shared, round, budget: s.enemyBudget, source: "shared" };
+  }
+
+  if (!options.force && s.enemyPreviewRound === round && s.enemyPreview.length > 0) {
+    const normalized = normalizeEnemyPreview(s.enemyPreview);
+    s.enemyPreview = normalized;
+    return { units: normalized, round, budget: Math.max(0, s.enemyBudget), source: "saved" };
   }
 
   const pendingType = cfg.route === "fortress" ? s.fortress.pendingNode?.type : undefined;

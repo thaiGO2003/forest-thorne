@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createRun, type RunState } from "../src/core/run";
+import { PROGRESS_KEY, type RunPayload } from "../src/core/save";
+import { CoopPlanningRuntime } from "../src/network/coopPlanningRuntime";
 import { CoopSessionStore } from "../src/network/coopSession";
 import {
   CoopWebRtcTransport,
@@ -6,8 +9,46 @@ import {
   type CoopFallbackEvent,
   type CoopRtcDataChannelLike,
   type CoopRtcPeerLike,
+  type CoopPlanningLaunchEvent,
 } from "../src/network/coopWebRtcTransport";
 import type { RtcSessionDescriptionData } from "../src/network/coopConfig";
+
+function mem() {
+  const m: Record<string, string> = {};
+  return {
+    m,
+    getItem: (key: string) => (key in m ? m[key]! : null),
+    setItem: (key: string, value: string) => { m[key] = value; },
+    removeItem: (key: string) => { delete m[key]; },
+  };
+}
+
+const owned = (uid: string, baseId = "ant_guard") => ({
+  uid,
+  baseId,
+  star: 1 as const,
+  equips: [],
+});
+
+function planningRun(seed: number): RunState {
+  const run = createRun(seed);
+  run.tutorialSkipped = true;
+  run.bench = [];
+  run.board = Array(25).fill(null);
+  return run;
+}
+
+function planningPayload(): RunPayload {
+  return {
+    players: { P1: planningRun(1), P2: planningRun(2) },
+    localSlot: "P1",
+    hostSlot: "P1",
+    playerCapacity: 2,
+    aiMode: "COOP_MEDIUM",
+    selectedMode: "EndlessPvEClassic",
+    roomCode: "ROOM42",
+  };
+}
 
 class FakeDataChannel implements CoopRtcDataChannelLike {
   readonly label: string;
@@ -117,6 +158,10 @@ class FakeRtcPeer implements CoopRtcPeerLike {
     this.connectionState = "disconnected";
     this.onconnectionstatechange?.();
   }
+  receive(data: unknown): void {
+    this.outboundChannel?.onmessage?.({ data });
+  }
+
 
   close(): void {
     this.connectionState = "closed";
@@ -130,7 +175,7 @@ async function connect(
 ): Promise<void> {
   const offer = await host.createOffer(slot);
   const answer = await client.acceptOffer(offer);
-  await host.acceptAnswer(answer);
+  await host.acceptAnswer(slot, answer);
 }
 
 describe("co-op WebRTC host relay", () => {
@@ -203,6 +248,218 @@ describe("co-op WebRTC host relay", () => {
     expect(p4Store.get()?.currentCombatPayload).toEqual({ round: 9, winner: "P2" });
   });
 
+  it("launches Planning exactly once only after capacity is connected and every player is ready", async () => {
+    const network = new FakeRtcNetwork();
+    const hostStore = new CoopSessionStore();
+    const clientStore = new CoopSessionStore();
+    const hostLaunches: CoopPlanningLaunchEvent[] = [];
+    const clientLaunches: CoopPlanningLaunchEvent[] = [];
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      localSlot: "P1",
+      playerCapacity: 2,
+      roomCode: "READY2",
+      seed: 99,
+      playerId: "host",
+      store: hostStore,
+      peerFactory: network.createPeer,
+      onPlanningLaunch: (event) => hostLaunches.push(event),
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerCapacity: 2,
+      playerId: "guest",
+      store: clientStore,
+      peerFactory: network.createPeer,
+      onPlanningLaunch: (event) => clientLaunches.push(event),
+    });
+
+    await connect(host, client, "P2");
+    host.sendReady(true);
+    expect(hostLaunches).toHaveLength(0);
+    expect(clientLaunches).toHaveLength(0);
+
+    client.sendReady(true);
+    expect(hostLaunches).toHaveLength(1);
+    expect(clientLaunches).toHaveLength(1);
+    expect(hostLaunches[0]).toMatchObject({
+      forceNewRun: true,
+      session: { localSlot: "P1", hostSlot: "P1", planningLaunchRequested: true },
+    });
+    expect(clientLaunches[0]).toMatchObject({
+      forceNewRun: true,
+      session: { localSlot: "P2", hostSlot: "P1", planningLaunchRequested: true },
+    });
+    expect(Object.keys(hostLaunches[0]!.session.roomPlayers).sort()).toEqual(["P1", "P2"]);
+
+    client.sendReady(true);
+    host.sendReady(true);
+    expect(hostLaunches).toHaveLength(1);
+    expect(clientLaunches).toHaveLength(1);
+
+    host.close();
+    client.close();
+    expect(hostStore.get()).toBeNull();
+    expect(clientStore.get()).toBeNull();
+  });
+
+  it("propagates host resume metadata and applies planning intents once through host authority", async () => {
+    const network = new FakeRtcNetwork();
+    const hostStore = new CoopSessionStore();
+    const clientStore = new CoopSessionStore();
+    const hostLaunches: CoopPlanningLaunchEvent[] = [];
+    const clientLaunches: CoopPlanningLaunchEvent[] = [];
+    hostStore.create({
+      roomCode: "ROOM42",
+      playerCapacity: 2,
+      localSlot: "P1",
+      hostSlot: "P1",
+      activeSaveSlotId: "SAVE_3",
+      saveMode: "resume",
+      resumeSummary: { slotId: "SAVE_3", round: 7 },
+      players: { P1: { connected: true }, P2: { connected: false } },
+    });
+    const hostKv = mem();
+    const clientKv = mem();
+    const hostRuntime = new CoopPlanningRuntime(hostKv, hostStore);
+    const clientRuntime = new CoopPlanningRuntime(clientKv, clientStore);
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      localSlot: "P1",
+      roomCode: "ROOM42",
+      playerCapacity: 2,
+      playerId: "host",
+      store: hostStore,
+      planningRuntime: hostRuntime,
+      peerFactory: network.createPeer,
+      onPlanningLaunch: (event) => hostLaunches.push(event),
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerCapacity: 2,
+      playerId: "guest",
+      store: clientStore,
+      planningRuntime: clientRuntime,
+      peerFactory: network.createPeer,
+      onPlanningLaunch: (event) => clientLaunches.push(event),
+    });
+
+    await connect(host, client, "P2");
+    expect(clientStore.get()).toMatchObject({
+      roomCode: "ROOM42",
+      activeSaveSlotId: "SAVE_3",
+      saveMode: "resume",
+      resumeSummary: { slotId: "SAVE_3", round: 7 },
+    });
+
+    const payload = planningPayload();
+    payload.players!.P1!.bench = [owned("host-unit")];
+    payload.players!.P2!.bench = [owned("guest-unit", "deer_song")];
+    expect(hostRuntime.attachPayload(payload)).not.toBeNull();
+    expect(clientRuntime.attachPayload(payload)).not.toBeNull();
+
+    host.sendReady(true);
+    client.sendReady(true);
+    expect(hostLaunches).toHaveLength(1);
+    expect(clientLaunches).toHaveLength(1);
+    expect(hostLaunches[0]?.forceNewRun).toBe(false);
+    expect(clientLaunches[0]?.forceNewRun).toBe(false);
+    expect((hostLaunches[0]?.restoredState as RunPayload).players?.P1?.bench[0]?.uid).toBe("host-unit");
+    expect((clientLaunches[0]?.restoredState as RunPayload).players?.P2?.bench[0]?.uid).toBe("guest-unit");
+
+    client.send("planning_intent", {
+      kind: "move",
+      from: { where: "bench", index: 0 },
+      to: { where: "board", sharedRow: 5, col: 0 },
+    });
+    expect((clientStore.get()!.resumeState as RunPayload).players!.P2!.board[0]?.uid).toBe("guest-unit");
+    expect((hostStore.get()!.resumeState as RunPayload).players!.P2!.board[0]?.uid).toBe("guest-unit");
+
+    host.send("planning_intent", {
+      kind: "move",
+      from: { where: "bench", index: 0 },
+      to: { where: "board", sharedRow: 0, col: 1 },
+    });
+    expect((hostStore.get()!.resumeState as RunPayload).players!.P1!.board[1]?.uid).toBe("host-unit");
+    expect((clientStore.get()!.resumeState as RunPayload).players!.P1!.board[1]?.uid).toBe("host-unit");
+
+    const beforeHost = structuredClone(hostStore.get()!.resumeState);
+    client.send("planning_intent", {
+      kind: "move",
+      from: { where: "board", sharedRow: 5, col: 0 },
+      to: { where: "board", sharedRow: 0, col: 2 },
+    });
+    expect(hostStore.get()!.resumeState).toEqual(beforeHost);
+    expect((clientStore.get()!.resumeState as RunPayload).players!.P2!.board[0]?.uid).toBe("guest-unit");
+  });
+
+  it("relays one host-owned shared preview and makes the guest consume it without a local reroll", async () => {
+    const network = new FakeRtcNetwork();
+    const hostStore = new CoopSessionStore();
+    const clientStore = new CoopSessionStore();
+    hostStore.create({
+      roomCode: "PREV42",
+      playerCapacity: 2,
+      localSlot: "P1",
+      hostSlot: "P1",
+      activeSaveSlotId: "SAVE_1",
+      saveMode: "resume",
+      players: { P1: { connected: true }, P2: { connected: false } },
+    });
+    const hostKv = mem();
+    const clientKv = mem();
+    const hostRuntime = new CoopPlanningRuntime(hostKv, hostStore);
+    const clientRuntime = new CoopPlanningRuntime(clientKv, clientStore);
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      localSlot: "P1",
+      roomCode: "PREV42",
+      playerCapacity: 2,
+      playerId: "host",
+      store: hostStore,
+      planningRuntime: hostRuntime,
+      peerFactory: network.createPeer,
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerCapacity: 2,
+      playerId: "guest",
+      store: clientStore,
+      planningRuntime: clientRuntime,
+      peerFactory: network.createPeer,
+    });
+    await connect(host, client, "P2");
+
+    const payload = planningPayload();
+    payload.players!.P2!.enemyPreview = [{ uid: "guest-stale", baseId: "deer_song", star: 1, row: 1, col: 6 }];
+    payload.players!.P2!.enemyPreviewRound = 1;
+    payload.players!.P2!.enemyBudget = 999;
+    expect(hostRuntime.attachPayload(payload)).not.toBeNull();
+
+    const first = host.resolvePlanningEnemyPreview()!;
+    expect(first.source).toBe("generated");
+    expect(first.units.length).toBeGreaterThan(0);
+    const shared = (hostStore.get()!.resumeState as RunPayload).shared!;
+    expect(shared).toMatchObject({ round: 1, enemyPreviewRound: 1, enemyBudget: first.budget });
+    expect(shared.enemyPreview).toEqual(first.units);
+
+    const guestState = clientStore.get()!.resumeState as RunPayload;
+    expect(guestState.shared).toEqual(shared);
+    expect(guestState.players!.P2!.enemyPreview[0]?.uid).not.toBe("guest-stale");
+    const guest = client.resolvePlanningEnemyPreview()!;
+    expect(guest).toMatchObject({ source: "shared", round: 1, budget: first.budget });
+    expect(guest.units).toEqual(first.units);
+
+    const second = host.resolvePlanningEnemyPreview()!;
+    expect(second.source).toBe("saved");
+    expect(second.units).toEqual(first.units);
+    expect(hostKv.m[PROGRESS_KEY]).toBeUndefined();
+    expect(clientKv.m[PROGRESS_KEY]).toBeUndefined();
+  });
+
   it("activates deterministic fallback when a client loses the host connection", async () => {
     const network = new FakeRtcNetwork();
     const fallback: CoopFallbackEvent[] = [];
@@ -230,4 +487,158 @@ describe("co-op WebRTC host relay", () => {
     expect(clientStore.get()?.players.P1.connected).toBe(false);
     expect(clientStore.get()?.readyBySlot.P1).toBe(false);
   });
+  it("rejects answers whose session does not match the pending host offer", async () => {
+    const network = new FakeRtcNetwork();
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerId: "guest",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const offer = await host.createOffer("P2");
+    const answer = await client.acceptOffer(offer);
+    const wrongSession = {
+      ...answer,
+      metadata: { ...answer.metadata, sessionId: "WRONG1" },
+    };
+
+    await expect(host.acceptAnswer("P2", wrongSession)).rejects.toThrow(
+      "Co-op answer session does not match the pending offer",
+    );
+    await expect(host.acceptAnswer("P2", answer)).resolves.toBeUndefined();
+  });
+
+  it("rejects an answer retargeted to another pending host slot", async () => {
+    const network = new FakeRtcNetwork();
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      playerCapacity: 4,
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const p2 = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerId: "guest-2",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const p3 = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P3",
+      playerId: "guest-3",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    const p2Offer = await host.createOffer("P2");
+    const p3Offer = await host.createOffer("P3");
+    const p2Answer = await p2.acceptOffer(p2Offer);
+    await p3.acceptOffer(p3Offer);
+    const wrongTarget = {
+      ...p2Answer,
+      metadata: { ...p2Answer.metadata, targetSlot: "P3" as const, targetSlotIndex: 2 },
+    };
+
+    await expect(host.acceptAnswer("P2", wrongTarget)).rejects.toThrow(
+      "Co-op answer target does not match the pending offer",
+    );
+  });
+
+  it("fails closed when a guest sends before its host data channel is open", () => {
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      store: new CoopSessionStore(),
+      peerFactory: new FakeRtcNetwork().createPeer,
+    });
+
+    expect(() => client.sendCombatResult({ round: 1 })).toThrow(
+      "Guest data channel is not open",
+    );
+  });
+
+  it("treats ICE gathering timeout as signalling completion fallback", async () => {
+    const network = new FakeRtcNetwork();
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      signalTimeoutMs: 1,
+      store: new CoopSessionStore(),
+      peerFactory: () => {
+        const peer = network.createPeer() as FakeRtcPeer;
+        peer.iceGatheringState = "gathering";
+        return peer;
+      },
+    });
+
+    await expect(host.createOffer("P2")).resolves.toMatchObject({ kind: "coop_offer" });
+  });
+
+  it("surfaces malformed channel packets through the error callback and ignores them", async () => {
+    const network = new FakeRtcNetwork();
+    const errors: string[] = [];
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+      onError: (error) => errors.push(error.message),
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    await connect(host, client, "P2");
+
+    network.created[0]?.receive("{not-json");
+
+    expect(errors).toEqual(["Malformed co-op message from P2"]);
+  });
+
+  it("emits one metadata-rich host disconnect notification per physical failure", async () => {
+    const network = new FakeRtcNetwork();
+    const received: Array<{ type: string; payload: unknown }> = [];
+    const host = new CoopWebRtcTransport({
+      role: "host",
+      roomCode: "ROOM42",
+      playerId: "host",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+      onMessage: (message) => received.push({ type: message.type, payload: message.payload }),
+    });
+    const client = new CoopWebRtcTransport({
+      role: "client",
+      localSlot: "P2",
+      playerId: "guest",
+      store: new CoopSessionStore(),
+      peerFactory: network.createPeer,
+    });
+    await connect(host, client, "P2");
+
+    network.created[0]?.fail();
+    network.created[0]?.fail();
+
+    expect(received).toEqual([
+      {
+        type: "player_disconnected",
+        payload: {
+          slot: "P2",
+          slotIndex: 1,
+          playerId: "guest",
+          reason: "peer-disconnected",
+        },
+      },
+    ]);
+  });
+
 });
