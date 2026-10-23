@@ -41,6 +41,7 @@ export interface CoopSessionState {
   coopCombatDelta: unknown | null;
   coopCombatHeartbeat: unknown | null;
   combatSnapshotsBySlot: Record<string, unknown>;
+  planningLaunchRequested: boolean;
 }
 
 export type CoopSessionPatch = Omit<Partial<CoopSessionState>, "readyBySlot" | "players"> & {
@@ -142,6 +143,7 @@ export function createCoopSession(patch: CoopSessionPatch = {}): CoopSessionStat
     coopCombatDelta: patch.coopCombatDelta === undefined ? null : cloneValue(patch.coopCombatDelta),
     coopCombatHeartbeat: patch.coopCombatHeartbeat === undefined ? null : cloneValue(patch.coopCombatHeartbeat),
     combatSnapshotsBySlot: cloneValue(record(patch.combatSnapshotsBySlot)),
+    planningLaunchRequested: patch.planningLaunchRequested === true,
   };
 }
 
