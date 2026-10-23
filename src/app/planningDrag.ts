@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import { benchPerimeter, totalRows, VISUAL_COLS, type Profile } from "../board/geometry";
+import { benchPerimeter, type Profile } from "../board/geometry";
 import { benchCap, canBenchToBench, canBenchToBoard, canBoardToBench, canBoardToBoard, type RunState } from "../core/run";
 import type { BoardView } from "../units/boardView";
-import { BLOCK, cellToWorld } from "../world/arena";
+import { cellToWorld, type BenchHighlightSlot, type TacticalHighlightCell } from "../world/arena";
 import type { UnitVisual } from "../units/rig";
 import { createBoardPickingController, setRayFromClientPoint } from "../world/boardPicking";
 import type { Stage } from "../world/stage";
@@ -68,14 +68,8 @@ export function createPlanningDragController({
   const groundHit = new THREE.Vector3();
   const benchWorld = benchPerimeter(profile).map((cell) => cellToWorld(cell, profile));
 
-  // Ground-plane overlays work above grass, river and perimeter benches alike.
-  const hoverGeometry = new THREE.PlaneGeometry(BLOCK * 0.94, BLOCK * 0.94);
-  const hoverMaterial = new THREE.MeshBasicMaterial({ color: 0xc5f4ff, transparent: true, opacity: 0.36, depthWrite: false, side: THREE.DoubleSide });
-  const hover = new THREE.Mesh(hoverGeometry, hoverMaterial);
-  hover.rotation.x = -Math.PI / 2;
-  hover.visible = false;
-  hover.raycast = () => {};
-  stage.scene.add(hover);
+  // Board/bench feedback is rendered by arena only. A second ground-plane mesh
+  // could tint a different cell (including the river) and obscure role colors.
   const previousTouchAction = canvas.style?.touchAction;
   if (canvas.style) canvas.style.touchAction = "none";
   let pressed: {
@@ -105,21 +99,37 @@ export function createPlanningDragController({
   const sourceCell = (source: PlanningSlot) => source.kind === "board"
     ? { col: source.index % PLAYER_COLS, row: Math.floor(source.index / PLAYER_COLS) }
     : null;
-  const paintPointerCell = (clientX: number, clientY: number, run: RunState, source: PlanningSlot | null = null) => {
-    const highlights: Array<{ col: number; row: number; role: "hover" | "source" }> = [];
-    const benchHighlights: Array<{ index: number; role: "hover" | "source" }> = [];
+  const boardSlot = (col: number, row: number, run: RunState): PlanningSlot | null => {
+    if (col < 0 || col >= PLAYER_COLS || row < 0) return null;
+    const index = row * PLAYER_COLS + col;
+    return index < run.board.length ? { kind: "board", index } : null;
+  };
+  const paintPointerCell = (clientX: number, clientY: number, run: RunState, source: PlanningSlot | null = null): PlanningDragTargetState | null => {
+    const highlights: TacticalHighlightCell[] = [];
+    const benchHighlights: BenchHighlightSlot[] = [];
     const from = source ? sourceCell(source) : null;
     if (from) highlights.push({ ...from, role: "source" });
     else if (source?.kind === "bench") benchHighlights.push({ index: source.index, role: "source" });
     const hit = boardPicker.pick(clientX, clientY);
+    const target = hit.kind === "cell"
+      ? boardSlot(hit.cell.col, hit.cell.row, run)
+      : pickBench(clientX, clientY, run);
+    const valid = Boolean(source && target && canMove(run, source, target));
+    const role = source ? (valid ? "valid" : "invalid") : "hover";
     if (hit.kind === "cell") {
-      highlights.push({ ...hit.cell, role: "hover" });
-    } else {
-      const benchHit = pickBench(clientX, clientY, run);
-      if (benchHit) benchHighlights.push({ index: benchHit.index, role: "hover" });
+      if (from && from.col === hit.cell.col && from.row === hit.cell.row) {
+        highlights[0] = { ...hit.cell, role: "invalid" };
+      } else {
+        highlights.push({ ...hit.cell, role });
+      }
+    }
+    else if (target?.kind === "bench"
+      && (source?.kind !== "bench" || source.index !== target.index)) {
+      benchHighlights.push({ index: target.index, role });
     }
     stage.arena.setHighlights(highlights);
     stage.arena.setBenchHighlights(benchHighlights);
+    return source ? { source, target, valid } : null;
   };
   const showMoveFeedback = (target: PlanningSlot, valid: boolean) => {
     clearTimeout(feedbackTimer);
@@ -233,32 +243,9 @@ export function createPlanningDragController({
 
   const pickTarget = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
     const boardHit = boardPicker.pick(clientX, clientY);
-    if (boardHit.kind === "cell") {
-      const { col, row } = boardHit.cell;
-      if (col < 0 || col >= PLAYER_COLS || row < 0) return null;
-      const index = row * PLAYER_COLS + col;
-      return index < run.board.length ? { kind: "board", index } : null;
-    }
-    return pickBench(clientX, clientY, run);
-  };
-  const updateHover = (clientX: number, clientY: number) => {
-    hover.visible = false;
-    if (!enabled() || !setRayFromClientPoint(canvas, clientX, clientY, stage.camera, targetRaycaster, targetNdc)
-      || !targetRaycaster.ray.intersectPlane(groundPlane, groundHit)) return;
-    const visualCol = Math.round(groundHit.x / BLOCK + (VISUAL_COLS - 1) / 2);
-    const visualRow = Math.round(groundHit.z / BLOCK + (totalRows(profile) - 1) / 2);
-    const onField = visualCol >= 0 && visualCol < VISUAL_COLS
-      && visualRow >= 0 && visualRow < totalRows(profile);
-    if (onField) {
-      const world = cellToWorld({ x: visualCol, z: visualRow }, profile);
-      hover.position.set(world.x, 0.15, world.z);
-    } else {
-      const benchCell = benchWorld.find((cell) => Math.abs(cell.x - groundHit.x) <= BENCH_HALF && Math.abs(cell.z - groundHit.z) <= BENCH_HALF);
-      if (!benchCell) return;
-      hover.position.set(benchCell.x, 0.17, benchCell.z);
-    }
-    hoverMaterial.color.setHex(dragging ? (currentTargetState?.valid ? 0x75ffc0 : 0xff8279) : 0xc5f4ff);
-    hover.visible = true;
+    return boardHit.kind === "cell"
+      ? boardSlot(boardHit.cell.col, boardHit.cell.row, run)
+      : pickBench(clientX, clientY, run);
   };
 
   const clearState = (releaseCapture: boolean) => {
@@ -266,7 +253,6 @@ export function createPlanningDragController({
     if (pressed?.visual && pressed.home) pressed.visual.root.position.copy(pressed.home);
     pressed = null;
     dragging = false;
-    hover.visible = false;
     setTargetState(null);
     boardPicker.clear();
     stage.arena.clearHighlights();
@@ -307,27 +293,17 @@ export function createPlanningDragController({
 
   const onPointerMove = (event: PointerEvent) => {
     if (!pressed || event.pointerId !== pressed.pointerId) {
-      if (event.pointerType !== "mouse" || !enabled()) {
+      const run = enabled() ? getRun() : null;
+      if (!run || run.phase !== "PLANNING") {
         stage.arena.clearHighlights();
         stage.arena.clearBenchHighlights();
         clearPreview();
         board.setHovered(null);
-        hover.visible = false;
       } else {
-        const run = getRun();
-        if (!run || run.phase !== "PLANNING") {
-          stage.arena.clearHighlights();
-          stage.arena.clearBenchHighlights();
-          clearPreview();
-          board.setHovered(null);
-          hover.visible = false;
-        } else {
-          paintPointerCell(event.clientX, event.clientY, run);
-          const picked = pickUnit(event.clientX, event.clientY);
-          board.setHovered(picked?.uid ?? null);
-          showPreview(picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
-          updateHover(event.clientX, event.clientY);
-        }
+        paintPointerCell(event.clientX, event.clientY, run);
+        const picked = pickUnit(event.clientX, event.clientY);
+        board.setHovered(picked?.uid ?? null);
+        showPreview(picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
       }
       return;
     }
@@ -345,14 +321,11 @@ export function createPlanningDragController({
       captured = true;
     }
     const run = getRun();
-    if (run) paintPointerCell(event.clientX, event.clientY, run, pressed.source);
-    const target = run ? pickTarget(event.clientX, event.clientY, run) : null;
-    setTargetState(run ? { source: pressed.source, target, valid: Boolean(target && canMove(run, pressed.source, target)) } : null);
+    setTargetState(run ? paintPointerCell(event.clientX, event.clientY, run, pressed.source) : null);
     if (pressed.target && setRayFromClientPoint(canvas, event.clientX, event.clientY, stage.camera, targetRaycaster, targetNdc)
       && targetRaycaster.ray.intersectPlane(groundPlane, groundHit)) {
       pressed.target.set(groundHit.x, pressed.home?.y ?? 0.12, groundHit.z);
     }
-    updateHover(event.clientX, event.clientY);
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -381,7 +354,6 @@ export function createPlanningDragController({
   };
 
   const onPointerLeave = (event: PointerEvent) => {
-    hover.visible = false;
     if (pressed?.pointerId === event.pointerId && dragging) return;
     if (pressed?.pointerId === event.pointerId) {
       cancel();
@@ -399,7 +371,7 @@ export function createPlanningDragController({
     clearState(false);
   };
 
-  const onBlur = () => { cancel(); hover.visible = false; };
+  const onBlur = () => cancel();
 
   canvas.addEventListener("pointerdown", onPointerDown, true);
   canvas.addEventListener("pointermove", onPointerMove, true);
@@ -423,9 +395,6 @@ export function createPlanningDragController({
       canvas.removeEventListener("lostpointercapture", onLostPointerCapture, true);
       boardPicker.dispose();
       offDragFrame?.();
-      hover.removeFromParent();
-      hoverGeometry.dispose();
-      hoverMaterial.dispose();
       if (canvas.style) canvas.style.touchAction = previousTouchAction ?? "";
       roots.length = 0;
       hits.length = 0;
