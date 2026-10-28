@@ -35,7 +35,6 @@ const billboardMocks = vi.hoisted(() => ({
     sprite: THREE.Sprite;
     set: Mock;
     setVisible: Mock;
-    setDetailed: Mock;
     setPriority: Mock;
     dispose: Mock;
   }>,
@@ -48,7 +47,6 @@ vi.mock("../src/units/billboard", async (importOriginal) => ({
       sprite: new THREE.Sprite(),
       set: vi.fn(),
       setVisible: vi.fn(),
-      setDetailed: vi.fn(),
       setPriority: vi.fn(),
       dispose: vi.fn(),
     };
@@ -303,7 +301,6 @@ describe("BoardView presentation", () => {
 
     board.setHovered("board-2");
     advance(1 / 60);
-    expect(second.setDetailed).toHaveBeenLastCalledWith(true);
     expect(second.setPriority).toHaveBeenLastCalledWith(true);
 
     board.setHovered(null);

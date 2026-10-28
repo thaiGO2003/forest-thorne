@@ -17,6 +17,7 @@ import { mountSettings } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
 import { mountHistory, mountHistoryView } from "../ui/history";
 import type { ModalHandle, ModalOptions } from "../ui/modal";
+import type { TooltipContent } from "../ui/tooltip";
 import { applyLocale, registerPanel, registerScreen, registerUtility, type App } from "./app";
 import { runView } from "./bridge";
 import { createBoardView } from "../units/boardView";
@@ -846,6 +847,43 @@ function diagnosticTooltipContent(diagnostics: UnitDiagnostics) {
   };
 }
 
+/** Hover summary (A96 summary mode, cf. old-src `buildSummaryUnitSectionBlocks`): traits, headline
+ *  combat numbers, active statuses and the star-resolved skill. The current/base/derived numeric
+ *  breakdown stays on the diagnostics surface instead of being dumped onto the viewport. */
+function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent {
+  const unitDef = getUnit(diagnostics.baseId);
+  const { live, derived, effects, star } = diagnostics;
+  const num = (v: number) => Math.round(v);
+  const lines: NonNullable<TooltipContent["lines"]> = [
+    { icon: ICONS.hp, text: `HP ${num(live.hp)}/${num(live.maxHp)}` },
+    { icon: ICONS.atk, text: `ATK ${num(live.atk)} · DEF ${num(live.def)}` },
+    { icon: ICONS.matk, text: `MATK ${num(live.matk)} · MDEF ${num(live.mdef)}` },
+    { icon: ICONS.range, text: `Tầm ${num(live.range)} · Nộ ${num(live.rage)}/${num(live.rageMax)}` },
+  ];
+  for (const effect of effects.slice(0, 3)) {
+    const value = effect.pct ? `${effect.value}%` : String(effect.value);
+    lines.push({ text: `${effect.key} · ${value} · ${effect.turns}T` });
+  }
+  lines.push({
+    icon: ICONS.star,
+    text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: derived.rageMax })})`,
+  });
+  return {
+    title: `${unitDef.nameVi} ★${star}`,
+    subtitle: [
+      t(`role.${unitDef.role}` as MsgKey),
+      t(`element.${unitDef.element}` as MsgKey),
+      t(`faction.${unitDef.faction}` as MsgKey),
+    ].join(" · "),
+    lines,
+    body: [
+      unitDef.pitchVi,
+      `${t("library.basic")}: ${unitDef.basic.textVi}`,
+      unitDef.skill.starDetailVi[star - 1] ?? unitDef.skill.detailVi,
+    ].filter(Boolean).join("\n"),
+  };
+}
+
 function appendDiagnosticSummary(app: App, root: HTMLElement, diagnostics: UnitDiagnostics) {
   const unitDef = getUnit(diagnostics.baseId);
   const heading = h("strong", "", `${unitDef.nameVi} ★${diagnostics.star}`);
@@ -1057,13 +1095,21 @@ registerScreen("planning", (app) => {
         app.tooltip.hide();
         return;
       }
-      app.tooltip.show(anchor, diagnosticTooltipContent(inspection.diagnostics));
+      app.tooltip.show(anchor, unitSummaryTooltipContent(inspection.diagnostics));
       if (source.kind !== "board" || run?.phase !== "PLANNING" || !planningEnemyPreview) {
         board.setTargetPreview?.(null);
         return;
       }
       const fighters = bridge.planningCombatProjection(planningEnemyPreview);
       board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, unit.uid) : null);
+    },
+    previewEnemy: (uid, anchor) => {
+      const inspection = enemyDiagnostics(app, uid);
+      if (!inspection) {
+        app.tooltip.hide();
+        return;
+      }
+      app.tooltip.show(anchor, unitSummaryTooltipContent(inspection));
     },
     previewEnd: () => {
       app.tooltip.hide();

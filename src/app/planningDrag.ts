@@ -28,6 +28,8 @@ interface PlanningDragOptions {
   move(from: PlanningSlot, to: PlanningSlot): boolean;
   select?(source: PlanningSlot): void;
   preview?(source: PlanningSlot, anchor: DOMRect): void;
+  /** Enemy units are not draggable; they only get a hover summary tooltip. */
+  previewEnemy?(uid: string, anchor: DOMRect): void;
   previewEnd?(): void;
   onTargetState?(state: PlanningDragTargetState | null): void;
   enabled(): boolean;
@@ -50,6 +52,7 @@ export function createPlanningDragController({
   move,
   select,
   preview,
+  previewEnemy,
   previewEnd,
   onTargetState,
   enabled,
@@ -80,22 +83,31 @@ export function createPlanningDragController({
   let dragging = false;
   let captured = false;
   let previewed: PlanningSlot | null = null;
+  let previewedEnemy: string | null = null;
   let tooltipTimer = 0;
   let feedbackTimer = 0;
   const clearPreview = () => {
     clearTimeout(tooltipTimer);
     tooltipTimer = 0;
-    if (previewed) previewEnd?.();
+    if (previewed || previewedEnemy) previewEnd?.();
     previewed = null;
+    previewedEnemy = null;
   };
   const showPreview = (source: PlanningSlot | null, clientX: number, clientY: number) => {
     if (!source) {
       clearPreview();
       return;
     }
-    if (previewed && (previewed.kind !== source.kind || previewed.index !== source.index)) previewEnd?.();
+    if (previewedEnemy || (previewed && (previewed.kind !== source.kind || previewed.index !== source.index))) previewEnd?.();
+    previewedEnemy = null;
     previewed = source;
     preview?.(source, new DOMRect(clientX - 1, clientY - 1, 2, 2));
+  };
+  const showEnemyPreview = (uid: string, clientX: number, clientY: number) => {
+    if (previewed || previewedEnemy !== uid) previewEnd?.();
+    previewed = null;
+    previewedEnemy = uid;
+    previewEnemy?.(uid, new DOMRect(clientX - 1, clientY - 1, 2, 2));
   };
   const sourceCell = (source: PlanningSlot) => source.kind === "board"
     ? { col: source.index % PLAYER_COLS, row: Math.floor(source.index / PLAYER_COLS) }
@@ -334,7 +346,11 @@ export function createPlanningDragController({
         const picked = pickUnit(event.clientX, event.clientY) ?? pickOccupiedTile(tileHit, run);
         paintPointerCell(event.clientX, event.clientY, run, null, picked, tileHit);
         board.setHovered(picked?.uid ?? null);
-        showPreview(picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
+        if (picked?.kind === "enemy") {
+          showEnemyPreview(picked.uid, event.clientX, event.clientY);
+        } else {
+          showPreview(picked ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
+        }
       }
       return;
     }
