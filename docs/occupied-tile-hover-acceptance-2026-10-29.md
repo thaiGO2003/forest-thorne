@@ -39,7 +39,7 @@ The 2026-10-29 Chromium probe temporarily moved the Three.js visual root for `u1
 - Visible direct model `u1`: hovered canonical (col=2,row=2), tooltip for Kiến Hộ Vệ, `moves=0`.
 - With `u1` visual root hidden at the same pointer: fallback occupied tile `u2`, canonical (col=3,row=2), `moves=0`.
 - All visual root positions and visibilities restored. Canonical board `board[12]=u1`, `board[13]=u2` unchanged.
-- **9/9 overlap assertions PASS**, final marker `DIRECT_MODEL_OVERLAP_PASS`. `pageErrors=[]`, `consoleErrors=[]`, `requestFailures=[]` in the final run.
+- **9/9 overlap assertions PASS**, final marker `DIRECT_MODEL_OVERLAP_PASS`. On the post-sync run, `pageErrors=[]`, `consoleErrors=[]`, `EXPECTED_MENU_AUDIO_ABORTS=[menu_leaf_01.mp3: net::ERR_ABORTED]`, `UNEXPECTED_REQUEST_FAILURES=[]`; the raw `requestFailures` array retains that expected cancellation.
 
 The diagnostic explicitly reports raw `requestFailures`, `EXPECTED_MENU_AUDIO_ABORTS` and `UNEXPECTED_REQUEST_FAILURES`. Only local menu-audio URLs cancelled with `net::ERR_ABORTED` on navigation are classified expected. All unrelated failures remain failures. An earlier run recorded a cancelled `menu_leaf_01.mp3` and passed all eight behavior/restoration assertions but failed the old blanket browser-error check; the corrected diagnostic and full scenario subsequently passed. No production change was made to hide this cancellation.
 
@@ -84,9 +84,11 @@ git diff --check
 # PASS
 ```
 
+Post-sync on merged feature HEAD `a78f343b47b88eb5090097af4af97721fc3e97a5` (includes `origin/dev` at `7239c12f8019134ed729b08af243f48d00303ad7`): targeted Vitest **2 files / 6 tests PASS**, `pnpm typecheck` **PASS**, `pnpm build` **PASS**, `git diff --check` **PASS**. The Chromium direct-model-overlap probe reran and **9/9 PASS** with real WebGL2, unchanged canonical board and no movement calls. A separate attempt to rerun the 10-case mouse drag script reached PLANNING with two purchased units, then timed out in its CDP state evaluation before the first drag; the timeout does not establish a gameplay regression or a post-sync 10/10 PASS. The recorded drag 10/10 above belongs to the pre-sync source state.
+
 ## Limits and remaining gates
 
 - Mouse-driven headless Chromium with software WebGL2 is verified, **not** native touchscreen/OS pointer cancellation, multi-device GPU fidelity, or unthrottled visual responsiveness.
 - Native mobile Planning drag/drop and touch camera interactions remain to be accepted.
 - This report does not certify Shop/Library, crafting transactions, Cooperative 2P/4P gameplay, all 16 `docs/Plan.pdf` requirements, Cloudflare deployment, or production release.
-- Feature branch must synchronize with current `origin/dev`/`origin/main`, pass post-sync gates, and obtain human merge review matching its exact HEAD and `Target: dev`. Agents cannot self-approve. No production release is authorized by this report.
+- Feature branch has synchronized with `origin/dev` and includes `origin/main` at the recorded post-sync HEAD. Human merge review matching the final exact HEAD and `Target: dev` remains mandatory. Agents cannot self-approve. No production release is authorized by this report.
