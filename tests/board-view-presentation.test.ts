@@ -94,7 +94,7 @@ function stageHarness() {
     },
   };
   vi.stubGlobal("document", { querySelector: () => null });
-  return { stage: stage as never, sceneAdd, advance: (seconds: number) => frame(seconds) };
+  return { stage: stage as never, camera, sceneAdd, advance: (seconds: number) => frame(seconds) };
 }
 
 beforeEach(() => {
@@ -286,6 +286,45 @@ describe("BoardView presentation", () => {
 
     advance(0.8);
     expect(rainbow.visible).toBe(false);
+    board.dispose();
+  });
+  it("sizes a deployed billboard from its transformed head world position", () => {
+    const { stage, camera, advance } = stageHarness();
+    const board = createBoardView(stage);
+    board.sync(runWithBoard());
+    const visual = board.visual("board-1")!;
+    const parent = new THREE.Group();
+    parent.position.set(1.5, 0.4, -3);
+    parent.rotation.y = 0.5;
+    parent.scale.set(1.6, 1.3, 1.2);
+    parent.add(visual.root);
+    visual.root.scale.set(1.25, 0.8, 1.1);
+    visual.anchor.position.set(0.6, 2.1, 0.7);
+
+    camera.updateMatrixWorld();
+    const head = visual.anchor.getWorldPosition(new THREE.Vector3());
+    const eye = head.clone().applyMatrix4(camera.matrixWorldInverse);
+    const worldWidth = 128 * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (-eye.z) / 720;
+    advance(1 / 60);
+
+    const billboard = billboardMocks.instances[0]!;
+    expect(billboard.setVisible).toHaveBeenLastCalledWith(true);
+    expect(billboard.sprite.scale.x).toBeCloseTo(worldWidth, 5);
+    board.dispose();
+  });
+
+  it("culls a deployed billboard after its parent moves the head outside the camera", () => {
+    const { stage, advance } = stageHarness();
+    const board = createBoardView(stage);
+    board.sync(runWithBoard());
+    const visual = board.visual("board-1")!;
+    const parent = new THREE.Group();
+    parent.position.x = 200;
+    parent.add(visual.root);
+
+    advance(1 / 60);
+
+    expect(billboardMocks.instances[0]!.setVisible).toHaveBeenLastCalledWith(false);
     board.dispose();
   });
   it("raises the hovered billboard above peers and restores normal priority", () => {

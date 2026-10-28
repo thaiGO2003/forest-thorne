@@ -137,9 +137,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         continue;
       }
       const priority = uid === selected ? 2 : uid === hovered ? 1 : 0;
-      // The rig's head anchor is directly above its root; avoid updating all
-      // creature matrices just to project fifty labels each frame.
-      projected.set(s.v.root.position.x, s.v.root.position.y + s.v.anchor.position.y * s.v.root.scale.y, s.v.root.position.z);
+      // Project the rig's actual head in world space, including parent transforms
+      // and local anchor offsets; reuse the scratch vector each frame.
+      s.v.anchor.getWorldPosition(projected);
       eyePoint.copy(projected).applyMatrix4(camera.matrixWorldInverse);
       const depth = -eyePoint.z;
       if (depth <= camera.near || depth >= camera.far) { s.bb.setVisible(false); continue; }
