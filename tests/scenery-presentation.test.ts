@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { createScenery } from "../src/world/scenery";
+import { totalRows } from "../src/board/geometry";
 
 describe("scenery presentation", () => {
   it("keeps the decorative river outside the tactical slab while allowing it to meander", () => {
@@ -45,6 +46,43 @@ describe("scenery presentation", () => {
     scenery.update(1 / 60);
     for (const resource of owned.reverse()) resource.dispose();
     water.dispose();
+  });
+
+  it("does not overlay out-of-arena terrain with decorative path tiles", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      const root = new THREE.Group();
+      const owned: { dispose(): void }[] = [];
+      const water = new THREE.MeshStandardMaterial();
+      createScenery(root, profile, (resource) => {
+        owned.push(resource);
+        return resource;
+      }, ({ x, z }) => ({ x, z }), water);
+
+      expect(root.getObjectByName("scenery-path-meanders")).toBeUndefined();
+      const terrain = root.getObjectByName("scenery-caps") as THREE.InstancedMesh;
+      const bodies = root.getObjectByName("scenery-terrain") as THREE.InstancedMesh;
+      expect(terrain).toBeInstanceOf(THREE.InstancedMesh);
+      expect(bodies).toBeInstanceOf(THREE.InstancedMesh);
+      expect(bodies.count).toBeGreaterThan(terrain.count);
+
+      // Former path overlays sat on these exterior columns; removing the overlay
+      // must not excavate the landscape underneath or affect the gameplay slab.
+      const matrix = new THREE.Matrix4();
+      const hasCapAt = (x: number, z: number) => {
+        for (let i = 0; i < terrain.count; i++) {
+          terrain.getMatrixAt(i, matrix);
+          if (matrix.elements[12] === x && matrix.elements[14] === z) return true;
+        }
+        return false;
+      };
+      expect(hasCapAt(1, -5)).toBe(true);
+      expect(hasCapAt(11, totalRows(profile) + 4)).toBe(true);
+      expect(root.getObjectByName("scenery-river")).toBeInstanceOf(THREE.InstancedMesh);
+      expect((root.getObjectByName("scenery-lamp-posts") as THREE.InstancedMesh).count).toBe(4);
+
+      for (const resource of owned.reverse()) resource.dispose();
+      water.dispose();
+    }
   });
 
   it("uses four bounded lamp lights and raises their intensity at night", () => {
