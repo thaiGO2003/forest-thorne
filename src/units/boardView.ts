@@ -75,10 +75,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const eyePoint = new THREE.Vector3();
   const candidates: LabelCandidate[] = [];
   const candidatePool: LabelCandidate[] = [];
-  const accepted: LabelCandidate[] = [];
   const hudRects: LabelRect[] = [];
   const labelCenters = [0.5, 0, 1] as const;
-  let candidateCount = 0, acceptedCount = 0, hudCount = 0;
+  let candidateCount = 0, hudCount = 0;
   const canvas = stage.renderer.domElement;
   const camera = stage.camera;
   // HUD roots survive panel updates; walk live child collections instead of
@@ -128,8 +127,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     camera.updateMatrixWorld();
     const worldPerPixelAtDepth = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / view.height;
-    const compactWidth = Math.min(128, Math.max(106, view.width * (slots.size > 24 ? .20 : .25)), Math.max(1, view.width - 12));
-    const detailedWidth = Math.min(252, Math.max(202, view.width * .43), Math.max(1, view.width - 12));
+    // One size for every billboard — hovering never scales a label up or down, it only
+    // raises draw order so the hovered card sits on top of its neighbours.
+    const labelWidth = Math.min(252, Math.max(202, view.width * .43), Math.max(1, view.width - 12));
     candidateCount = 0;
     for (const [uid, s] of slots) {
       if (s.kind === "bench" || !s.v.root.visible || !s.v.anchor.visible) {
@@ -149,11 +149,10 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         continue;
       }
       const worldPerPixel = worldPerPixelAtDepth * depth;
-      const requestedWidth = priority ? detailedWidth : compactWidth;
       // Camera-depth scaling makes glyphs legible on portrait, landscape and desktop
       // without changing the shared billboard/world dimensions or the arena.
-      const worldWidth = requestedWidth * worldPerPixel;
-      const width = requestedWidth;
+      const worldWidth = labelWidth * worldPerPixel;
+      const width = labelWidth;
       const x = view.left + (projected.x + 1) * view.width * .5;
       const y = view.top + (1 - projected.y) * view.height * .5;
       const rect = candidatePool[candidateCount] ?? (candidatePool[candidateCount] = {
@@ -171,11 +170,11 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       candidateCount++;
       s.bb.setVisible(false);
     }
-    // Selected then hovered, then nearest tactical units. Only accepted cards
-    // block later cards, so dense 50-unit setups never draw a pile of text.
+    // Every on-screen tactical unit keeps its card; only the HUD chrome can
+    // suppress a label. Cards may overlap each other when units stand close —
+    // the hovered/selected card still draws on top via render-order priority.
     candidates.length = candidateCount;
     candidates.sort((a, b) => b.priority - a.priority || a.depth - b.depth);
-    acceptedCount = 0;
     for (const c of candidates) {
       if (c.top < view.top + 6 || c.bottom > view.bottom - 6) continue;
       // Priority cards can pivot around their unit's head to the left/right if
@@ -191,18 +190,12 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
           if (labelOverlap(c, hudRects[i]!, 3)) { blocked = true; break; }
         }
         if (blocked) continue;
-        for (let i = 0; i < acceptedCount; i++) {
-          if (labelOverlap(c, accepted[i]!, 6)) { blocked = true; break; }
-        }
-        if (blocked) continue;
         const bb = slots.get(c.uid)?.bb;
         if (!bb) break;
-        bb.setDetailed(c.priority > 0);
         bb.setPriority(c.priority > 0);
         bb.sprite.center.x = center;
         bb.sprite.scale.set(c.worldWidth, c.worldWidth * (BILLBOARD_H / BILLBOARD_W), 1);
         bb.setVisible(true);
-        accepted[acceptedCount++] = c;
         break;
       }
     }
@@ -377,7 +370,8 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const base: BillboardState = { name: u.nameVi, star: st, hp: maxHp, maxHp, rage: 0, rageMax: u.stats.rageMax, side: kind === "enemy" ? "R" : "L", statuses: [] };
       const bb = createBillboard(v.anchor);
       bb.set(base);
-      if (uid === hovered || uid === selected) { bb.setPriority(true); bb.setDetailed(true); }
+      // Every billboard renders the full panel; hovering only raises it above peers.
+      bb.setPriority(uid === hovered || uid === selected);
       s = { v, bb, key, kind, col, row, x, z, base };
       slots.set(uid, s);
       s.v.root.position.set(x, TILE_TOP, z);
