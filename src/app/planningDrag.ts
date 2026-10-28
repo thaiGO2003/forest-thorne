@@ -4,7 +4,7 @@ import { benchCap, canBenchToBench, canBenchToBoard, canBoardToBench, canBoardTo
 import type { BoardView } from "../units/boardView";
 import { cellToWorld, type BenchHighlightSlot, type TacticalHighlightCell } from "../world/arena";
 import type { UnitVisual } from "../units/rig";
-import { createBoardPickingController, setRayFromClientPoint } from "../world/boardPicking";
+import { createBoardPickingController, setRayFromClientPoint, type BoardPickState } from "../world/boardPicking";
 import type { Stage } from "../world/stage";
 
 export type PlanningSlot = { kind: "bench" | "board"; index: number };
@@ -41,6 +41,7 @@ const BENCH_HALF = 0.48;
 const PLAYER_COLS = 5;
 const LONG_PRESS_MS = 420;
 const MOVE_FEEDBACK_MS = 360;
+type PickedUnit = { uid: string; kind: "board" | "bench" | "enemy" };
 
 export function createPlanningDragController({
   stage,
@@ -104,26 +105,35 @@ export function createPlanningDragController({
     const index = row * PLAYER_COLS + col;
     return index < run.board.length ? { kind: "board", index } : null;
   };
-  const paintPointerCell = (clientX: number, clientY: number, run: RunState, source: PlanningSlot | null = null): PlanningDragTargetState | null => {
+  const paintPointerCell = (
+    clientX: number, clientY: number, run: RunState,
+    source: PlanningSlot | null = null,
+    hovered: PickedUnit | null = null,
+    boardHit: BoardPickState = boardPicker.pick(clientX, clientY),
+  ): PlanningDragTargetState | null => {
     const highlights: TacticalHighlightCell[] = [];
     const benchHighlights: BenchHighlightSlot[] = [];
     const from = source ? sourceCell(source) : null;
     if (from) highlights.push({ ...from, role: "source" });
     else if (source?.kind === "bench") benchHighlights.push({ index: source.index, role: "source" });
-    const hit = boardPicker.pick(clientX, clientY);
-    const target = hit.kind === "cell"
-      ? boardSlot(hit.cell.col, hit.cell.row, run)
+    const target = boardHit.kind === "cell"
+      ? boardSlot(boardHit.cell.col, boardHit.cell.row, run)
       : pickBench(clientX, clientY, run);
     const valid = Boolean(source && target && canMove(run, source, target));
-    const role = source ? (valid ? "valid" : "invalid") : "hover";
-    if (hit.kind === "cell") {
-      if (from && from.col === hit.cell.col && from.row === hit.cell.row) {
-        highlights[0] = { ...hit.cell, role: "invalid" };
+    const role = source ? (valid ? "valid" : "invalid") : hovered?.kind === "enemy" ? "enemy" : "hover";
+    // A direct model hit can project over a neighboring tile. Highlight its
+    // canonical occupied cell, not the ray's underlying screen-space tile.
+    const slot = !source && hovered && hovered.kind !== "bench" ? board.slot(hovered.uid) : undefined;
+    const cell = slot && slot.kind !== "bench"
+      ? { col: slot.col, row: slot.row }
+      : boardHit.kind === "cell" ? boardHit.cell : null;
+    if (cell) {
+      if (from && from.col === cell.col && from.row === cell.row) {
+        highlights[0] = { ...cell, role: "invalid" };
       } else {
-        highlights.push({ ...hit.cell, role });
+        highlights.push({ ...cell, role });
       }
-    }
-    else if (target?.kind === "bench"
+    } else if (target?.kind === "bench"
       && (source?.kind !== "bench" || source.index !== target.index)) {
       benchHighlights.push({ index: target.index, role });
     }
@@ -221,6 +231,26 @@ export function createPlanningDragController({
     }
     return null;
   };
+  const pickOccupiedTile = (hit: BoardPickState, run: RunState): PickedUnit | null => {
+    if (hit.kind !== "cell") return null;
+    const { col, row } = hit.cell;
+    if (col < PLAYER_COLS) {
+      const slot = boardSlot(col, row, run);
+      const unit = slot && run.board[slot.index];
+      return unit ? { uid: unit.uid, kind: "board" } : null;
+    }
+    // The BoardView contains the *rendered* enemy formation, which can differ
+    // from run.enemyPreview while the planning combat projection is active.
+    let occupied: PickedUnit | null = null;
+    board.forEach((uid, _visual, kind) => {
+      if (occupied || kind !== "enemy") return;
+      const slot = board.slot(uid);
+      if (slot?.kind === "enemy" && slot.col === col && slot.row === row) {
+        occupied = { uid, kind: "enemy" };
+      }
+    });
+    return occupied;
+  };
 
   const pickSource = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
     const picked = pickUnit(clientX, clientY);
@@ -300,8 +330,9 @@ export function createPlanningDragController({
         clearPreview();
         board.setHovered(null);
       } else {
-        paintPointerCell(event.clientX, event.clientY, run);
-        const picked = pickUnit(event.clientX, event.clientY);
+        const tileHit = boardPicker.pick(event.clientX, event.clientY);
+        const picked = pickUnit(event.clientX, event.clientY) ?? pickOccupiedTile(tileHit, run);
+        paintPointerCell(event.clientX, event.clientY, run, null, picked, tileHit);
         board.setHovered(picked?.uid ?? null);
         showPreview(picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
       }
@@ -350,7 +381,8 @@ export function createPlanningDragController({
   };
 
   const onPointerCancel = (event: PointerEvent) => {
-    if (pressed?.pointerId === event.pointerId) cancel();
+    if (!pressed) clearState(false);
+    else if (pressed.pointerId === event.pointerId) cancel();
   };
 
   const onPointerLeave = (event: PointerEvent) => {
