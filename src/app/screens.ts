@@ -1,7 +1,7 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary } from "../core/run";
-import { activeIndices, matchRecipe, RECIPES } from "../core/craft";
+import { RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
@@ -10,6 +10,7 @@ import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
 import { mountUnitInventory } from "../ui/unitInventory";
+import { mountCraftWorkbench } from "../ui/crafting/workbench";
 import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
 import { combatTargetPreview, snapshotWithResources } from "../core/combat";
 import { mountSettings } from "../ui/settings";
@@ -692,98 +693,6 @@ function mountInventory(app: App, host: HTMLElement) {
   };
 }
 
-function mountCraft(app: App, host: HTMLElement) {
-  let selectedMaterial: string | null = null;
-  let buttons: ReturnType<typeof kitButton>[] = [];
-  const render = () => {
-    for (const button of buttons) button.dispose();
-    buttons = [];
-    host.replaceChildren();
-    const run = app.bridge.run();
-    if (!run) return;
-    const staged = app.bridge.craftStaging();
-    const active = new Set(activeIndices(run.craftTableLevel));
-    const materials = [...new Set(run.itemBag.filter((id) => !getEquipment(id)))];
-    const remaining = (id: string) =>
-      run.itemBag.filter((entry) => entry === id).length - staged.filter((entry) => entry === id).length;
-    if (selectedMaterial && remaining(selectedMaterial) <= 0) selectedMaterial = null;
-
-    const workspace = h("div", "craft-workspace");
-    const board = h("div", "craft-grid");
-    board.setAttribute("role", "group");
-    board.setAttribute("aria-label", t("planning.craft"));
-    for (let index = 0; index < 9; index++) {
-      const slot = h("div", "craft-cell");
-      const material = staged[index];
-      const enabled = active.has(index);
-      const title = material ? itemName(material) : t("planning.empty");
-      const button = kitButton({
-        skin: material ? "green" : "wood",
-        label: `${index + 1}. ${enabled ? title : ICONS.lock}`,
-        onClick: () => {
-          if (!enabled) return;
-          const choice = selectedMaterial && remaining(selectedMaterial) > 0 ? selectedMaterial : null;
-          if (app.bridge.stageCraft(index, choice)) render();
-        },
-      });
-      button.setDisabled(!enabled);
-      button.el.title = !enabled
-        ? t("planning.craftSlot", { slot: index + 1 })
-        : material ? `${title} · Chọn ô để thay hoặc bỏ nguyên liệu` : "Chọn nguyên liệu bên kho rồi chọn ô";
-      buttons.push(button);
-      slot.append(button.el);
-      if (material) {
-        const clear = kitButton({
-          skin: "plum", label: "Bỏ",
-          onClick: () => { if (app.bridge.stageCraft(index, null)) render(); },
-        });
-        buttons.push(clear);
-        slot.append(clear.el);
-      }
-      board.append(slot);
-    }
-    const bag = h("div", "craft-bag");
-    bag.append(h("strong", "", t("planning.materials")), h("p", "", "Chọn nguyên liệu, sau đó chọn ô trên bàn chế tạo."));
-    for (const material of materials) {
-      const count = remaining(material);
-      const entry = h("div", "slot craft-material");
-      const img = h("img");
-      img.src = `/assets/items/${encodeURIComponent(material)}.svg`;
-      img.alt = "";
-      img.loading = "lazy";
-      const choice = kitButton({
-        skin: "blue", label: `${itemName(material)} · ×${count}`,
-        onClick: () => {
-          selectedMaterial = selectedMaterial === material ? null : material;
-          render();
-        },
-      });
-      choice.setDisabled(count <= 0);
-      choice.setSelected(selectedMaterial === material);
-      buttons.push(choice);
-      entry.append(img, choice.el);
-      bag.append(entry);
-    }
-    if (!materials.length) bag.append(h("div", "slot", t("planning.empty")));
-    const matched = matchRecipe(staged.slice(), run.craftTableLevel);
-    const result = h("div", "craft-result");
-    result.append(h("span", "", matched ? `${itemName(`eq_${matched.id}`)}` : t("planning.empty")));
-    const craft = kitButton({
-      skin: "green", label: t("planning.craftNow"),
-      onClick: () => { app.bridge.craft(); },
-    });
-    craft.setDisabled(!matched || run.phase !== "PLANNING");
-    buttons.push(craft);
-    result.append(craft.el);
-    bag.append(result);
-    workspace.append(board, bag);
-    host.append(workspace);
-  };
-  const off = app.bridge.onChange(render);
-  render();
-  return { dispose() { off(); for (const b of buttons) b.dispose(); } };
-}
-
 function mountRecipes(host: HTMLElement) {
   const root = h("div", "choice-list");
   for (const recipe of RECIPES) {
@@ -1061,7 +970,7 @@ function mountWorkshop(app: App, modal: ModalHandle, initial: "inventory" | "cra
     }
     body.replaceChildren();
     if (id === "inventory") view = mountInventory(app, body);
-    else if (id === "craft") view = mountCraft(app, body);
+    else if (id === "craft") view = mountCraftWorkbench(app, body);
     else mountRecipes(body);
   };
   modal.body.append(tabs, body);
