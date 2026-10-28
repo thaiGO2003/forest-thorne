@@ -8,6 +8,7 @@ vi.mock("../src/world/sky", () => ({
   createSky: () => ({ setEnvironment() {}, setDayNight() {}, update() {} }),
 }));
 import { cellToWorld, createArena, worldToLogical } from "../src/world/arena";
+import { createBoardPickingController } from "../src/world/boardPicking";
 
 describe("arena world mapping (A91.2)", () => {
   it("round-trips every logical cell through world space", () => {
@@ -75,6 +76,110 @@ describe("arena world mapping (A91.2)", () => {
     arena.tiles.getColorAt(directIndex, color);
     expect(color.getHex()).toBe(checker);
     arena.dispose();
+  });
+
+  it("restores original green checker colors after overlapping semantic highlights", () => {
+    const arena = createArena(new THREE.Scene(), "solo");
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const color = new THREE.Color();
+    const originals = new Map<number, number>();
+    const indexFor = (col: number, row: number) => {
+      const expected = cellToWorld(toVisual(col, row), "solo");
+      for (let i = 0; i < arena.tiles.count; i++) {
+        arena.tiles.getMatrixAt(i, matrix);
+        position.setFromMatrixPosition(matrix);
+        if (position.x === expected.x && position.z === expected.z) return i;
+      }
+      throw new Error(`Missing tile ${col},${row}`);
+    };
+    for (let col = 0; col < 10; col++) for (let row = 0; row < 5; row++) {
+      const index = indexFor(col, row);
+      arena.tiles.getColorAt(index, color);
+      const expected = (col + row) % 2 === 0 ? 0x5fae3e : 0x6fbf4a;
+      expect(color.getHex()).toBe(expected);
+      originals.set(index, expected);
+    }
+    arena.setHighlights([
+      { col: 1, row: 1, role: "source" },
+      { col: 4, row: 2, role: "valid" },
+      { col: 5, row: 2, role: "invalid" },
+      { col: 6, row: 2, role: "hover" },
+    ]);
+    for (const [col, row, expected] of [[1, 1, 0xffe176], [4, 2, 0x58c7f3], [5, 2, 0xe66c65], [6, 2, 0xb9e978]] as const) {
+      arena.tiles.getColorAt(indexFor(col, row), color);
+      expect(color.getHex()).toBe(expected);
+    }
+    for (const order of [
+      [{ col: 1, row: 1, role: "invalid" }, { col: 1, row: 1, role: "source" }],
+      [{ col: 1, row: 1, role: "source" }, { col: 1, row: 1, role: "invalid" }],
+    ] as const) {
+      arena.setHighlights(order);
+      arena.tiles.getColorAt(indexFor(1, 1), color);
+      expect(color.getHex()).toBe(0xe66c65);
+    }
+    arena.clearHighlights();
+    for (const [index, expected] of originals) {
+      arena.tiles.getColorAt(index, color);
+      expect(color.getHex()).toBe(expected);
+    }
+    arena.dispose();
+  });
+
+  it("picks production column-major instances through the real raycaster and restores the exact highlighted tile", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      const scene = new THREE.Scene();
+      const arena = createArena(scene, profile);
+      const rows = { solo: 5, coop2: 10, coop4: 20 }[profile];
+      const bounds = { left: 73, top: 61, width: 960, height: 720 };
+      const canvas = {
+        getBoundingClientRect: () => bounds,
+        addEventListener() {},
+        removeEventListener() {},
+      } as unknown as HTMLCanvasElement;
+      const camera = new THREE.PerspectiveCamera(60, bounds.width / bounds.height, 0.1, 100);
+      camera.position.set(9, 22, 28);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      arena.tiles.updateMatrixWorld(true);
+      const controller = createBoardPickingController(canvas, camera, arena.tiles, profile);
+      const raycaster = new THREE.Raycaster();
+      const matrix = new THREE.Matrix4();
+      const color = new THREE.Color();
+      const row = Math.floor(rows / 2);
+      for (const col of [0, 4, 5, 9]) {
+        const index = col * rows + row;
+        arena.tiles.getMatrixAt(index, matrix);
+        const centre = new THREE.Vector3().setFromMatrixPosition(matrix);
+        const logical = cellToWorld(toVisual(col, row), profile);
+        expect(centre.x).toBe(logical.x);
+        expect(centre.z).toBe(logical.z);
+        const ndc = new THREE.Vector3(centre.x, 0.12, centre.z).project(camera);
+        const clientX = bounds.left + (ndc.x + 1) * bounds.width / 2;
+        const clientY = bounds.top + (1 - ndc.y) * bounds.height / 2;
+        raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+        const hit = raycaster.intersectObject(arena.tiles, false)[0];
+        expect(hit?.instanceId).toBe(index);
+        expect(worldToLogical(hit!.point.x, hit!.point.z, profile)).toEqual({ col, row });
+        expect(controller.pick(clientX, clientY)).toEqual({ kind: "cell", cell: { col, row } });
+        arena.tiles.getColorAt(index, color);
+        const original = color.getHex();
+        arena.setHighlights([{ col, row, role: "direct" }]);
+        arena.tiles.getColorAt(index, color);
+        expect(color.getHex()).toBe(0xff3b30);
+        arena.clearHighlights();
+        arena.tiles.getColorAt(index, color);
+        expect(color.getHex()).toBe(original);
+      }
+      const riverNdc = new THREE.Vector3(0, 0.12, 0).project(camera);
+      expect(controller.pick(
+        bounds.left + (riverNdc.x + 1) * bounds.width / 2,
+        bounds.top + (1 - riverNdc.y) * bounds.height / 2,
+      )).toEqual({ kind: "none", cell: null });
+      controller.dispose();
+      arena.dispose();
+    }
   });
 
   it("scales warm sun rays and the single shadow pass with graphics quality", () => {
@@ -159,21 +264,22 @@ describe("arena world mapping (A91.2)", () => {
     }
     arena.dispose();
   });
-  it("builds the river, ring and bench as owned geometry with animated water cues", () => {
+  it("keeps reserve slots functional without exterior wooden ring or planks", () => {
     const scene = new THREE.Scene();
     const arena = createArena(scene, "solo");
-    const ring = arena.root.getObjectByName("brown-ring") as THREE.InstancedMesh;
-    const bench = arena.root.getObjectByName("bench-perimeter") as THREE.InstancedMesh;
     const water = arena.root.getObjectByName("river-water") as THREE.Mesh;
     const markers = arena.root.children.filter((child) => child.name === "river-flow-marker");
-    const ringDispose = vi.spyOn(ring, "dispose");
+    const benchHighlights = arena.root.getObjectByName("bench-highlights") as THREE.InstancedMesh;
+    const highlightDispose = vi.spyOn(benchHighlights, "dispose");
 
     expect(arena.tiles).toBeInstanceOf(THREE.InstancedMesh);
     expect(arena.tiles.count).toBe(50);
-    expect(ring).toBeInstanceOf(THREE.InstancedMesh);
-    expect(ring.count).toBe(36);
-    expect(bench).toBeInstanceOf(THREE.InstancedMesh);
-    expect(bench.count).toBe(44);
+    expect(arena.root.getObjectByName("brown-ring")).toBeUndefined();
+    expect(arena.root.getObjectByName("bench-perimeter")).toBeUndefined();
+    arena.setBenchHighlights([{ index: 0, role: "valid" }, { index: 43, role: "source" }]);
+    expect(benchHighlights.count).toBe(2);
+    arena.clearBenchHighlights();
+    expect(benchHighlights.count).toBe(0);
     expect(water.position.x).toBe(0);
     expect(markers).toHaveLength(7);
     const markerPosition = markers[0]!.position.z;
@@ -186,7 +292,7 @@ describe("arena world mapping (A91.2)", () => {
     expect(markers[6]!.position.z).toBeCloseTo(markerPosition);
 
     arena.dispose();
-    expect(ringDispose).toHaveBeenCalledOnce();
+    expect(highlightDispose).toHaveBeenCalledOnce();
     expect(scene.children).not.toContain(arena.root);
   });
 
