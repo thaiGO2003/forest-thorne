@@ -453,29 +453,21 @@ describe("Planning drag controller", () => {
       previewEnd,
       enabled: () => enabled,
     });
-    const hover = scene.children.find((object) => object instanceof THREE.Mesh
-      && object.geometry instanceof THREE.PlaneGeometry) as THREE.Mesh | undefined;
-    expect(hover).toBeDefined();
-
+    // Highlights belong to arena tiles, not a second plane that can tint the river.
     const grassWorld = cellToWorld(toVisual(2, 2), "solo");
     const grassPoint = clientPointForWorld(new THREE.Vector3(grassWorld.x, TILE_HEIGHT, grassWorld.z), camera, rect);
     canvas.dispatchPointer("pointermove", grassPoint.clientX, grassPoint.clientY);
-    expect(hover?.visible).toBe(true);
-    expect(hover?.position.x).toBeCloseTo(grassWorld.x, 6);
-    expect(hover?.position.z).toBeCloseTo(grassWorld.z, 6);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([{ col: 2, row: 2, role: "hover" }]);
 
     const riverWorld = cellToWorld({ x: 5, z: 2 }, "solo");
     const riverPoint = clientPointForWorld(new THREE.Vector3(riverWorld.x, TILE_HEIGHT, riverWorld.z), camera, rect);
     canvas.dispatchPointer("pointermove", riverPoint.clientX, riverPoint.clientY);
-    expect(hover?.visible).toBe(true);
-    expect(hover?.position.x).toBeCloseTo(riverWorld.x, 6);
-    expect(hover?.position.z).toBeCloseTo(riverWorld.z, 6);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([]);
+    expect(setBenchHighlights.mock.calls.at(-1)?.[0]).toEqual([]);
 
     const benchPoint = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
     canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
-    expect(hover?.visible).toBe(true);
-    expect(hover?.position.x).toBeCloseTo(bench[0]!.x, 6);
-    expect(hover?.position.z).toBeCloseTo(bench[0]!.z, 6);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([]);
     expect(preview).toHaveBeenCalledWith({ kind: "bench", index: 0 }, expect.anything());
     expect(boardView.setHovered).toHaveBeenLastCalledWith(uid);
     expect(setBenchHighlights.mock.calls.at(-1)?.[0]).toEqual([{ index: 0, role: "hover" }]);

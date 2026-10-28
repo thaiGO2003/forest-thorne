@@ -19,8 +19,10 @@ export const ART_SCALE = 2;
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
 export const NORMAL_FONT = `"Forest Normal", "Noto Sans", sans-serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
+export const BUTTON_FONT = `"Forest Button", "Noto Sans", sans-serif`;
 export const INK = "#111";
 export const LABEL = "#fff8ec";
+const BUTTON_LABEL = "#fff8ec";
 const BUTTON_INK = "#1e120a";
 
 const KIT_DIR = `${import.meta.env.BASE_URL}assets/ui/generated`;
@@ -55,6 +57,7 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
         document.fonts.load(`16px ${HEADING_FONT}`),
         document.fonts.load(`16px ${NORMAL_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
+        document.fonts.load(`16px ${BUTTON_FONT}`),
       ]);
     }
     for (const fn of repaint) fn();
@@ -105,9 +108,9 @@ export function drawFit(g: CanvasRenderingContext2D, name: string, x: number, y:
 /** Outlined label text; pictographic runs use cached image assets instead of system emoji fonts. */
 export function label(
   g: CanvasRenderingContext2D, text: string, x: number, y: number,
-  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "normal" | "story" },
+  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "normal" | "story" | "button" },
 ) {
-  const font = o.font === "heading" ? HEADING_FONT : o.font === "story" ? STORY_FONT : NORMAL_FONT;
+  const font = o.font === "heading" ? HEADING_FONT : o.font === "story" ? STORY_FONT : o.font === "button" ? BUTTON_FONT : NORMAL_FONT;
   g.font = `${o.weight ?? 700} ${o.size}px ${font}`;
   const parts = splitEmojiText(text);
   if (!parts.some((part) => part.kind === "emoji")) {
@@ -221,7 +224,7 @@ export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `kit-panel ${cls}`.trim();
   el.dataset.skin = skin;
-  el.style.color = skin === "panel_wood" || skin === "shell_billboard" ? LABEL : INK;
+  el.style.color = INK;
   surface(el, (g, w, hh) => nineSlice(g, skin, SLICE[skin], 0, 0, w, hh));
   return el;
 }
@@ -259,14 +262,14 @@ export function kitButton(o: {
     if (skin === "icon") nineSlice(g, `btn_icon_${st}`, SLICE.btn_icon, 0, 0, w, hh);
     else nineSlice(g, `btn_${skin}_${st}`, SLICE.btn, 0, 0, w, hh);
     const dy = st === "pressed" ? 1 : -1;
-    const fill = st === "disabled" ? "#d8d0c4" : LABEL;
+    const fill = st === "disabled" ? "#d8d0c4" : BUTTON_LABEL;
     const iconFill = skin === "wood" || skin === "icon" ? fill : BUTTON_INK;
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));
     if (icon && text) {
       label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null });
-      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: w - hh - 8, font: "heading" });
-    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "heading" });
-    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: w - 12, font: "heading" });
+      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - hh - 8), font: "button", weight: 400 });
+    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "button" });
+    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - 12), font: "button", weight: 400 });
   });
   const sync = () => {
     el.setAttribute("aria-label", aria || text || icon || "");

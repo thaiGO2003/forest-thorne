@@ -39,6 +39,15 @@ const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
   area: 0xffd43b,
 };
 
+const HIGHLIGHT_PRIORITY = {
+  hover: 1,
+  source: 2,
+  valid: 3,
+  invalid: 4,
+  area: 5,
+  direct: 6,
+} satisfies Record<TacticalHighlightRole, number>;
+
 const ENVIRONMENT_LIGHT: Record<EnvironmentId, { sky: number; hemi: number; sun: number; rim: number; gain: number }> = {
   FIRE: { sky: 0xd6a27c, hemi: 0xffddbd, sun: 0xffad66, rim: 0xff7447, gain: 0.95 },
   TIDE: { sky: 0x82bddb, hemi: 0xdff5ff, sun: 0xe7f6ff, rim: 0x70b8e8, gain: 0.95 },
@@ -285,11 +294,13 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   const highlighted = new Set<number>();
   const highlightColor = new THREE.Color();
+  const appliedPriority = new Uint8Array(tiles.count);
   const restoreHighlights = () => {
     if (highlighted.size === 0) return false;
     for (const i of highlighted) {
       const cell = logicalByIndex[i];
       if (cell) tiles.setColorAt(i, (cell.col + cell.row) % 2 ? grassA : grassB);
+      appliedPriority[i] = 0;
     }
     highlighted.clear();
     return true;
@@ -324,7 +335,10 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       for (const cell of cells) {
         const i = tileIndex[`${cell.col},${cell.row}`];
         if (i === undefined) continue;
+        const priority = HIGHLIGHT_PRIORITY[cell.role];
+        if (priority <= appliedPriority[i]!) continue;
         tiles.setColorAt(i, highlightColor.setHex(HIGHLIGHT_COLORS[cell.role]));
+        appliedPriority[i] = priority;
         highlighted.add(i);
         changed = true;
       }

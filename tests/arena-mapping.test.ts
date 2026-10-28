@@ -77,6 +77,71 @@ describe("arena world mapping (A91.2)", () => {
     arena.dispose();
   });
 
+  it("prioritizes overlapping tactical roles irrespective of order and restores checker colors", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      const arena = createArena(new THREE.Scene(), profile);
+      const tile = new THREE.Matrix4();
+      const original = new THREE.Color();
+      const current = new THREE.Color();
+      const { x, z } = cellToWorld(toVisual(2, 1), profile);
+      let index = -1;
+      for (let i = 0; i < arena.tiles.count; i++) {
+        arena.tiles.getMatrixAt(i, tile);
+        if (tile.elements[12] === x && tile.elements[14] === z) {
+          index = i;
+          break;
+        }
+      }
+      expect(index).toBeGreaterThanOrEqual(0);
+      arena.tiles.getColorAt(index, original);
+
+      arena.setHighlights([
+        { col: 2, row: 1, role: "direct" },
+        { col: 2, row: 1, role: "area" },
+        { col: 2, row: 1, role: "hover" },
+      ]);
+      arena.tiles.getColorAt(index, current);
+      expect(current.getHex()).toBe(0xff3b30);
+
+      arena.setHighlights([
+        { col: 2, row: 1, role: "hover" },
+        { col: 2, row: 1, role: "area" },
+        { col: 2, row: 1, role: "direct" },
+      ]);
+      arena.tiles.getColorAt(index, current);
+      expect(current.getHex()).toBe(0xff3b30);
+
+      arena.setHighlights([
+        { col: 2, row: 1, role: "invalid" },
+        { col: 2, row: 1, role: "valid" },
+        { col: 2, row: 1, role: "source" },
+        { col: 99, row: 99, role: "direct" },
+      ]);
+      arena.tiles.getColorAt(index, current);
+      expect(current.getHex()).toBe(0xe66c65);
+
+      arena.setHighlights([
+        { col: 2, row: 1, role: "source" },
+        { col: 2, row: 1, role: "valid" },
+        { col: 2, row: 1, role: "invalid" },
+      ]);
+      arena.tiles.getColorAt(index, current);
+      expect(current.getHex()).toBe(0xe66c65);
+
+      const colorVersion = arena.tiles.instanceColor!.version;
+      arena.setHighlights([{ col: 2, row: 1, role: "hover" }]);
+      arena.tiles.getColorAt(index, current);
+      expect(current.getHex()).toBe(0xb9e978);
+      expect(arena.tiles.instanceColor!.version).toBeGreaterThan(colorVersion);
+
+      arena.clearHighlights();
+      arena.tiles.getColorAt(index, current);
+      expect(current.getHex()).toBe(original.getHex());
+      expect(arena.tiles.instanceColor!.version).toBeGreaterThan(colorVersion + 1);
+      arena.dispose();
+    }
+  });
+
   it("scales warm sun rays and the single shadow pass with graphics quality", () => {
     const scene = new THREE.Scene();
     const arena = createArena(scene, "solo");
