@@ -47,23 +47,29 @@ describe("scenery presentation", () => {
     water.dispose();
   });
 
-  it("keeps natural forest scenery while removing wooden arena-side lamp structures", () => {
+  it("uses four bounded lamp lights and raises their intensity at night", () => {
     const root = new THREE.Group();
     const owned: { dispose(): void }[] = [];
     const water = new THREE.MeshStandardMaterial();
-    const scenery = createScenery(root, "solo", (resource) => {
-      owned.push(resource);
-      return resource;
-    }, ({ x, z }) => ({ x, z }), water);
+    const scenery = createScenery(
+      root,
+      "solo",
+      (resource) => {
+        owned.push(resource);
+        return resource;
+      },
+      ({ x, z }) => ({ x, z }),
+      water,
+    );
 
-    expect(root.getObjectByName("scenery-trunks")).toBeInstanceOf(THREE.InstancedMesh);
-    expect(root.getObjectByName("scenery-leaves")).toBeInstanceOf(THREE.InstancedMesh);
-    expect(root.getObjectByName("scenery-lamp-posts")).toBeUndefined();
-    expect(root.getObjectByName("scenery-lamp-branches")).toBeUndefined();
-    expect(root.getObjectByName("scenery-lamp-bulbs")).toBeUndefined();
-    expect(root.children.some((child) => child instanceof THREE.PointLight)).toBe(false);
+    const lights = root.children.filter((child): child is THREE.PointLight => child instanceof THREE.PointLight);
+    expect(lights).toHaveLength(4);
 
-    scenery.update(1 / 60);
+    scenery.setDayNight("night");
+    for (const light of lights) expect(light.intensity).toBe(7);
+    scenery.setDayNight("day");
+    for (const light of lights) expect(light.intensity).toBe(0.3);
+
     for (const resource of owned.reverse()) resource.dispose();
     water.dispose();
   });

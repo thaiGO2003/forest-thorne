@@ -1,7 +1,7 @@
 // Voxel arena (spec 11.7, A91.2–A91.5). One block = 1 world unit. Visual column 5 (river) sits at world x=0.
 // Owns every GPU resource it creates; dispose() releases all of them.
 import * as THREE from "three";
-import { benchPerimeter, riverCells, toLogical, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
+import { benchPerimeter, brownRing, riverCells, toLogical, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
 import { createScenery } from "./scenery";
 import { createSky } from "./sky";
 import type { EnvironmentId } from "../core/environment";
@@ -33,19 +33,10 @@ export interface BenchHighlightSlot {
 const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
   hover: 0xb9e978,
   source: 0xffe176,
-  valid: 0x58c7f3,
+  valid: 0x7fe39a,
   invalid: 0xe66c65,
   direct: 0xff3b30,
   area: 0xffd43b,
-};
-// Highest semantic role wins even if callers supply the same cell twice.
-const HIGHLIGHT_PRIORITY: Record<TacticalHighlightRole, number> = {
-  hover: 1,
-  source: 2,
-  valid: 3,
-  invalid: 4,
-  area: 5,
-  direct: 6,
 };
 
 const ENVIRONMENT_LIGHT: Record<EnvironmentId, { sky: number; hemi: number; sun: number; rim: number; gain: number }> = {
@@ -105,7 +96,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const mat = (color: number, extra: THREE.MeshStandardMaterialParameters = {}) =>
     own(new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...extra }));
 
-  // Soil foundation supports the battlefield and reserve slots without wooden trim.
+  // Foundation: one contiguous slab under battlefield + ring + bench (no cracks between cubes).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
   const soil = new THREE.InstancedMesh(blockGeo, mat(0x7a5232), (maxX - minX + 1) * (maxZ - minZ + 1));
   let n = 0;
@@ -118,11 +109,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   soil.receiveShadow = true;
   root.add(soil);
 
-  // Tactical top tiles: original green checker grass on both sides.
-  const grassA = new THREE.Color(0x6fbf4a);
-  const grassB = new THREE.Color(0x5fae3e);
-  const baseTileColor = (col: number, row: number) =>
-    (col + row) % 2 ? grassA : grassB;
+  // Tactical top tiles: checker grass stays visible even while occupied.
+  const grassA = new THREE.Color(0x6fbf4a), grassB = new THREE.Color(0x5fae3e);
   const tiles = new THREE.InstancedMesh(tileGeo, mat(0xffffff), 10 * rows);
   const tileIndex: Record<string, number> = {};
   const logicalByIndex: Array<{ col: number; row: number }> = [];
@@ -132,7 +120,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     if (!l) continue;
     const w = cellToWorld({ x, z }, p);
     tiles.setMatrixAt(n, m4.makeTranslation(w.x, TILE_H / 2, w.z));
-    tiles.setColorAt(n, baseTileColor(l.col, l.row));
+    tiles.setColorAt(n, (l.col + l.row) % 2 ? grassA : grassB);
     tileIndex[`${l.col},${l.row}`] = n++;
     logicalByIndex[n - 1] = { col: l.col, row: l.row };
   }
@@ -155,8 +143,20 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   tufts.raycast = () => {};
   root.add(tufts);
 
-  // Reserve slots remain in their canonical perimeter positions without decorative wooden planks.
+  // Brown walkable ring + separate bench perimeter (A91.2: no blocking fence).
+  const ringTiles = (cells: Cell[], color: number, y: number) => {
+    const mesh = new THREE.InstancedMesh(tileGeo, mat(color), cells.length);
+    cells.forEach((c, i) => { const w = cellToWorld(c, p); mesh.setMatrixAt(i, m4.makeTranslation(w.x, y, w.z)); });
+    mesh.receiveShadow = true;
+    mesh.raycast = () => {};
+    root.add(mesh);
+    return mesh;
+  };
+  const ring = ringTiles(brownRing(p), 0x8a5a34, TILE_H / 2);
+  ring.name = "brown-ring";
   const benchCells = benchPerimeter(p);
+  const bench = ringTiles(benchCells, 0xb48a5c, TILE_H / 2 + 0.02);
+  bench.name = "bench-perimeter";
   const benchHighlightGeo = own(new THREE.BoxGeometry(BLOCK * 0.88, 0.035, BLOCK * 0.88));
   const benchHighlights = new THREE.InstancedMesh(
     benchHighlightGeo,
@@ -284,19 +284,18 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   };
 
   const highlighted = new Set<number>();
-  const appliedPriority = new Uint8Array(tiles.count);
   const highlightColor = new THREE.Color();
   const restoreHighlights = () => {
     if (highlighted.size === 0) return false;
     for (const i of highlighted) {
       const cell = logicalByIndex[i];
-      if (cell) tiles.setColorAt(i, baseTileColor(cell.col, cell.row));
-      appliedPriority[i] = 0;
+      if (cell) tiles.setColorAt(i, (cell.col + cell.row) % 2 ? grassA : grassB);
     }
     highlighted.clear();
     return true;
   };
 
+  scenery.setEnvironment(currentEnvironment);
   sky.setEnvironment(currentEnvironment);
   applyLighting();
 
@@ -310,11 +309,13 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     },
     setEnvironment(environment) {
       currentEnvironment = environment;
+      scenery.setEnvironment(environment);
       sky.setEnvironment(environment);
       applyLighting();
     },
     setDayNight(phase) {
       currentDayNight = phase;
+      scenery.setDayNight(phase);
       sky.setDayNight(phase);
       applyLighting();
     },
@@ -323,10 +324,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       for (const cell of cells) {
         const i = tileIndex[`${cell.col},${cell.row}`];
         if (i === undefined) continue;
-        const priority = HIGHLIGHT_PRIORITY[cell.role];
-        if (priority <= appliedPriority[i]!) continue;
         tiles.setColorAt(i, highlightColor.setHex(HIGHLIGHT_COLORS[cell.role]));
-        appliedPriority[i] = priority;
         highlighted.add(i);
         changed = true;
       }
@@ -341,7 +339,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
         const cell = benchCells[slot.index];
         if (!cell) continue;
         const w = cellToWorld(cell, p);
-        benchHighlights.setMatrixAt(count, m4.makeTranslation(w.x, 0.045, w.z));
+        benchHighlights.setMatrixAt(count, m4.makeTranslation(w.x, TILE_H + 0.075, w.z));
         benchHighlights.setColorAt(count, highlightColor.setHex(HIGHLIGHT_COLORS[slot.role]));
         count++;
       }
@@ -395,7 +393,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       restoreHighlights();
       sun.shadow.map?.dispose();
       for (const d of disposables) d.dispose();
-      for (const o of [soil, tiles, tufts, benchHighlights]) o.dispose();
+      for (const o of [soil, tiles, tufts, ring, bench, benchHighlights]) o.dispose();
       scene.remove(root);
       if (scene.fog === fog) scene.fog = previousFog;
       if (scene.background === background) scene.background = previousBackground;

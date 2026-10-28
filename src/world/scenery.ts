@@ -3,6 +3,8 @@
 // deterministic (hash of cell), every GPU resource is registered with the caller's `own`.
 import * as THREE from "three";
 import { RIVER_X, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
+import type { EnvironmentId } from "../core/environment";
+import type { DayNightPhase } from "../core/dayNight";
 
 /** Rings of terrain beyond the bench slab. */
 const REACH = 34;
@@ -28,7 +30,7 @@ export function createScenery(
   own: Own,
   toWorld: (c: Cell) => { x: number; z: number },
   waterMat: THREE.Material,
-): { update(dt: number): void } {
+): { setEnvironment(environment: EnvironmentId): void; setDayNight(phase: DayNightPhase): void; update(dt: number): void } {
   const rows = totalRows(p);
   // Bench slab in visual-cell space (see arena foundation).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
@@ -211,6 +213,31 @@ export function createScenery(
     }
   });
 
+  // Four bounded outdoor lamps around the tactical slab. Decorative meshes never participate in picking.
+  const lampPostMat = white({ color: 0x5f4632, roughness: 0.8 });
+  const lampGlowMat = white({ color: 0xffd27a, emissive: 0xffc35a, emissiveIntensity: 0.45, roughness: 0.45 });
+  const lampMossMat = white({ color: 0x50743b, roughness: 1 });
+  const lampCells = [
+    { x: -1, z: -1 }, { x: VISUAL_COLS, z: -1 },
+    { x: -1, z: rows }, { x: VISUAL_COLS, z: rows },
+  ] as const;
+  const lampPosts = instanced(lampCells.length, lampPostMat, "scenery-lamp-posts");
+  const lampBranches = instanced(lampCells.length * 2, lampPostMat, "scenery-lamp-branches");
+  const lampBulbs = instanced(lampCells.length * 5, lampGlowMat, "scenery-lamp-bulbs");
+  const lampMoss = instanced(lampCells.length, lampMossMat, "scenery-lamp-moss");
+  const bulbOffsets = [[0, 0], [0.42, 0], [-0.42, 0], [0, 0.42], [0, -0.42]] as const;
+  const lampLights = lampCells.map((cell, i) => {
+    const w = toWorld(cell);
+    put(lampPosts, i, w.x, 1.05, w.z, 0.16, 2.1, 0.16);
+    put(lampBranches, i * 2, w.x, 2.0, w.z, 1.05, 0.12, 0.12);
+    put(lampBranches, i * 2 + 1, w.x, 2.0, w.z, 0.12, 0.12, 1.05);
+    put(lampMoss, i, w.x, 0.08, w.z, 0.5, 0.16, 0.5, i * 0.37);
+    bulbOffsets.forEach(([ox, oz], j) => put(lampBulbs, i * bulbOffsets.length + j, w.x + ox, 2.18, w.z + oz, 0.22, 0.22, 0.22));
+    const light = new THREE.PointLight(0xffd27a, 0.3, 6, 2);
+    light.position.set(w.x, 2.2, w.z);
+    root.add(light);
+    return light;
+  });
 
   // --- Clouds: few voxel clusters drifting along +x, wrapping across the sky. ------------------
   const SPAN = 110;
@@ -231,8 +258,30 @@ export function createScenery(
 
   for (const mesh of [bodies, caps, trunks, leaves, mushrooms, fruits, rocks, ore, flowers]) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
+  let currentEnvironment: EnvironmentId = "FIRE";
+  let currentDayNight: DayNightPhase = "day";
+  const applyLampState = () => {
+    const lampColor = currentEnvironment === "FIRE" ? 0xff8a42 : currentEnvironment === "SPIRIT" ? 0xc9dcff : 0xffd27a;
+    const night = currentDayNight === "night";
+    lampGlowMat.emissive.setHex(lampColor);
+    lampGlowMat.emissiveIntensity = night ? 3.2 : 0.45;
+    for (const light of lampLights) {
+      light.color.setHex(lampColor);
+      light.intensity = night ? 7 : 0.3;
+    }
+  };
+  const setEnvironment = (environment: EnvironmentId) => {
+    currentEnvironment = environment;
+    applyLampState();
+  };
+  const setDayNight = (phase: DayNightPhase) => {
+    currentDayNight = phase;
+    applyLampState();
+  };
 
   return {
+    setEnvironment,
+    setDayNight,
     update(dt) {
       for (const c of cloudSeeds) c.x = ((c.x + dt * 0.6 + SPAN / 2) % SPAN + SPAN) % SPAN - SPAN / 2;
       placeClouds();
