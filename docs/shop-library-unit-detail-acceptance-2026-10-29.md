@@ -14,7 +14,7 @@ Actual desktop, compact-landscape, and portrait Chromium sessions used the runni
 | Compact landscape 844×390 | Four visible cards/page | 4 | Dock/modal and hover tooltip fit. Unit Detail bounds [12,12,820,366]; six action buttons and three star selectors in viewport. Long comparison content scrolls. | PASS |
 | Portrait 390×844 | Shop initially hidden by design; toggle opens at [8,535,374,301] | 2 | Grid [16,589,358,239], card [16,589,177,191]; second page reached with next button; document 390×844, no horizontal overflow. | PASS |
 
-Desktop after CSS edit: the dock grew from 820 to 1000 CSS pixels, and first card from 94×113 to 117×140 CSS pixels. The captured card crop showed HP, damage, range and gold-price numbers without evident glyph clipping. Text remains compact and may still be hard to read at ordinary viewing distance; this evidence does **not** certify eight populated cards with unusually long names.
+Desktop after CSS edit: the dock grew from 820 to 1000 CSS pixels, and first card from 94×113 to 117×140 CSS pixels. The initial five-offer crop showed HP, damage, range and gold-price numbers without evident clipping; the subsequent eight-offer post-merge fixture is documented below. Long-name/device-scale readability remains unverified.
 
 Desktop screenshot: `/tmp/omp-sshots-15b88b20134cc54c.webp`; desktop card crop: `/tmp/omp-sshots-15b88b3476ccc54d.webp`.
 
@@ -54,7 +54,7 @@ Pre-sync checks apply to the current working changes at that time; if an upstrea
 
 ## Limits / outstanding gates
 
-- Populated eight-offer desktop fixture was not available; the 8-column layout is implemented but only five offers were visually observed on desktop.
+- Historical pre-sync desktop fixture exposed only five offers; the post-merge eight-offer fixture (below) subsequently verified a fully populated desktop row. Long-name readability on physical screens remains an open gate.
 - Device-scale readability on physical screens, native OS mobile/browser behavior, and unthrottled GPU performance remain outside this Chromium session's proof.
 - The preview is an isolated feature worktree, not merged `dev` or deployed production.
 - Coop, crafting transactions, Planning touch drag/drop, the full sixteen-item `docs/Plan.pdf` audit, public endpoint acceptance, exact-HEAD human merge review, and `dev → main` release are separate gates.
