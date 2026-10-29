@@ -373,6 +373,8 @@ const vi = {
   "inventory.counterDetail": "Đánh trả sau khi nhận đòn đánh thường nếu còn sống",
   "inventory.phoenix": "Hồi sinh sẵn sàng",
   "inventory.phoenixDetail": "Khi nhận sát thương chí tử, hồi sinh với {value}% máu tối đa một lần",
+  "inventory.phoenixUsed": "Hồi sinh đã kích hoạt",
+  "inventory.phoenixUsedDetail": "Đã dùng lượt hồi sinh duy nhất trong trận này",
   "inventory.berserk": "Cuồng nộ",
   "inventory.berserkDetail": "Hút máu {value}%; đòn đầu nhân {mult}; hạ mục tiêu nhận {rage} nộ",
   "planning.sell": "Bán",

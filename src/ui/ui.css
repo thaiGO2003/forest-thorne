@@ -142,7 +142,7 @@
 .tt-sub { font-size: 12px; font-style: italic; }
 .tt-line { display: flex; gap: 6px; align-items: baseline; }
 .tt-icon { flex: none; width: 1.3em; text-align: center; }
-.tt-body { margin-top: 4px; font-size: 12px; font-style: italic; }
+.tt-body { margin-top: 4px; font-size: 12px; font-style: italic; white-space: pre-line; }
 
 /* ---------- loading ---------- */
 .loading { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; padding: 24px 16px max(28px, env(safe-area-inset-bottom)); }
@@ -360,7 +360,6 @@
 .pl-action-item { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .pl-action-label { display: none; max-width: 112px; text-align: right; font-size: 12px; line-height: 1.15; overflow-wrap: anywhere; }
 .pl-actions .kit-btn { width: 48px; height: 48px; }
-.pl-joystick { left: max(14px, env(safe-area-inset-left)); bottom: calc(max(8px, env(safe-area-inset-bottom)) + 286px); width: 116px; height: 116px; touch-action: none; }
 .pl-shop { left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(820px, calc(100% - 16px)); display: flex; flex-direction: column; padding: 8px 12px 12px; }
 .pl-shop[hidden] { display: none; }
 .pl-shop-toggle { display: none; }
@@ -372,10 +371,14 @@
 .pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
 .pl-offer { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pl-offer[hidden] { display: none; }
-.pl-offer-card { aspect-ratio: 5 / 6; }
+.pl-offer-card { aspect-ratio: 5 / 6; cursor: pointer; }
+.unit-card[role="button"]:focus-visible { outline-offset: 3px; }
 .pl-offer-actions { display: flex; gap: 4px; }
-.pl-offer-actions .kit-btn:first-child { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
-.pl-offer-actions .kit-btn:last-child { flex: 1 1 auto; height: 44px; min-height: 44px; min-width: 0; }
+.pl-offer-actions .kit-btn { flex: 1 1 auto; height: 44px; min-height: 44px; min-width: 0; }
+@media (min-width: 1100px) {
+  /* Eight readable cards fit between the side rails without covering board controls. */
+  .pl-shop { width: min(1000px, calc(100% - 180px)); }
+}
 @media (max-width: 760px) {
   /* Compact landscape/tablet keeps the summary directly left of Start. */
   .pl-battle { padding: 6px 8px; gap: 6px; }
@@ -394,11 +397,8 @@
   .pl-shop-head .pl-reroll { width: 56px; }
   .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
   .pl-offer-card { aspect-ratio: 5 / 6.4; }
-  .pl-offer-actions .kit-btn:first-child, .pl-offer-actions .kit-btn:last-child { height: 44px; min-height: 44px; }
-  .pl-offer-actions .kit-btn:first-child { width: 44px; min-width: 44px; }
   .mod-actions { width: 100%; justify-content: stretch; }
   .mod-actions .kit-btn { flex: 1 1 132px; min-width: 0; }
-  .pl-joystick { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 286px); top: auto; width: 104px; height: 104px; }
 }
 @media (max-width: 760px) and (orientation: portrait) {
   .pl-action-label { display: none; }
@@ -406,19 +406,25 @@
   .pl-stats { height: 92px; }
   .pl-battle-actions { display: grid; grid-template-columns: 1fr 44px; grid-template-rows: 44px 40px; gap: 4px; }
   .pl-battle-actions .pl-start { grid-column: 1 / -1; width: 100%; min-width: 0; max-width: none; height: 44px; }
+  /* Intrinsic text measures must not extend the scrollable HUD past fixed-size Canvas buttons. */
+  .pl-battle-actions .kit-measure, .pl-battle-actions .kit-fit-measure { overflow-x: clip; }
   .pl-battle-actions .kit-btn:not(.pl-start):not(.pl-cortisol) { width: 100%; min-width: 0; height: 40px; min-height: 40px; }
   .pl-battle-actions .pl-cortisol { width: 44px; min-width: 44px; height: 40px; min-height: 40px; }
   .pl-actions { top: calc(max(8px, env(safe-area-inset-top)) + 112px); }
   .pl-shop-toggle { display: block; }
-  .planning[data-shop-open="false"] .pl-joystick { bottom: max(14px, env(safe-area-inset-bottom)); }
+  .pl-shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pl-offer-card { aspect-ratio: 5 / 5.4; }
 }
 @media (max-height: 560px) and (orientation: landscape) {
-  .pl-shop-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
   .pl-offer-card { aspect-ratio: 5 / 4; }
-  .pl-joystick { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 190px); width: 96px; height: 96px; }
+}
+@media (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
+  .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (min-width: 761px) and (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
   /* Reserve a right rail instead of overlaying the top actions and shop. */
+  /* Keep the center bench hit targets clear while retaining the synergy hover target. */
+  .pl-synergy { width: 112px; }
   .pl-battle { left: 8px; transform: none; width: calc(100% - 96px); }
   .pl-actions { top: 84px; transform: none; gap: 2px; padding: 6px; }
   .pl-actions .kit-btn { width: 40px; height: 40px; }
@@ -446,7 +452,7 @@
 .lib-detail { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(260px, 42%) 1fr; gap: 12px; }
 .lib-left { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .lib-stage { position: relative; flex: 1 1 auto; min-height: 260px; }
-.lib-view { position: absolute; inset: 8px; }
+.lib-stage > .lib-view { position: absolute; inset: 8px; }
 .portrait-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .lib-pending { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 1; text-align: center; font-size: 13px; }
 .lib-actions, .lib-stars { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; flex: none; }
@@ -469,10 +475,24 @@
   .lib-search { flex: none; width: 150px; }
   .lib-reset { flex: none; }
   .lib-count { font-size: 13px; text-align: center; }
-  .lib-detail { grid-template-columns: 1fr; overflow: auto; }
+  .lib-detail { grid-template-columns: 1fr; grid-auto-rows: max-content; overflow: auto; }
   .lib-stage { min-height: 240px; flex: none; height: 44vh; }
   .lib-info { overflow: visible; }
   .lib-grid { grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 6px; }
+}
+
+/* Short landscape viewports cannot fit tabs, filters and a full card row at once.
+   Scroll the Library as a whole instead of shrinking the card viewport below its content. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .lib:has(.lib-grid) { overflow-y: auto; overscroll-behavior: contain; }
+  .lib-grid { flex: none; min-height: 205px; overflow: visible; }
+}
+
+@media (min-width: 761px) and (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
+  .lib-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 48%); grid-template-rows: minmax(0, 1fr) 44px; gap: 4px; overflow: hidden; }
+  .lib-stage { grid-column: 1; grid-row: 1 / 3; min-width: 0; min-height: 0; }
+  .lib-actions { grid-column: 2; grid-row: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); }
+  .lib-stars { grid-column: 2; grid-row: 2; }
 }
 
 /* ---------- combat HUD + result ---------- */

@@ -8,6 +8,7 @@ import { playerCombatBonus } from "../src/core/run";
 import { sellValue } from "../src/core/economy";
 import { createBridge } from "../src/app/bridge";
 import { inspectSave } from "../src/core/save";
+import { unitDiagnostics } from "../src/core/inspection";
 
 const fixture = () => {
   const run = createRun(42);
@@ -101,6 +102,44 @@ describe("owned creature inspection", () => {
     expect(frames[0].units.every((unit) => unit.hp === unit.maxHp)).toBe(true);
     expect(frames.some((frame) => frame.units.some((unit) => unit.hp < unit.maxHp))).toBe(true);
     expect(frames.at(-1)?.units.filter((unit) => unit.alive).map((unit) => unit.uid).sort()).toEqual(captured.survivors.map((unit) => unit.uid).sort());
+  });
+
+  it("preserves combat effect units, provenance and reaction metadata for enemy inspection", () => {
+    const placement = { uid: "enemy-a", baseId: "toad_poison", star: 1 as const, row: 0, col: 5 };
+    const fighter = materializeCombat([], [placement])[0]!;
+    fighter.status.poison = {
+      value: 8, turns: 2,
+      source: { skillId: "poison", unitUid: "source", unitBaseId: "jaguar_hunt", unitStar: 2, turns: 2, value: 8 },
+    };
+    fighter.status.stun = { value: 0, turns: 0 };
+    fighter.mods.push({ stat: "atk", value: -20, pct: true, turns: 1, stackKey: "internal" });
+    fighter.reflect = { pctByDamageType: { physical: .35, magic: .15 }, turns: 2 };
+    fighter.counterTurns = 1;
+    fighter.phoenix = { armed: false, used: true, revivePct: .3 };
+    fighter.berserk = {
+      turns: 2, lifestealPct: .18, firstBasicMultiplier: 1.8, firstBasicPending: true,
+      rageOnKill: 2, extendTurnsOnKill: 1, chainedBasicsOnKill: 1, atkBuffStackKey: "private",
+    };
+    const diagnostics = unitDiagnostics(placement, "R", {}, undefined, fighter);
+    expect(diagnostics.readonly).toBe(true);
+    expect(diagnostics.effects.find((effect) => effect.key === "poison")).toMatchObject({
+      kind: "status", value: 8, sourceUnitBaseId: "jaguar_hunt",
+    });
+    expect(diagnostics.effects.find((effect) => effect.key === "stun")).toBeUndefined();
+    expect(diagnostics.effects.find((effect) => effect.key === "atk")).toEqual({
+      kind: "modifier", key: "atk", value: -20, pct: true, turns: 1,
+    });
+    expect(diagnostics.effects.find((effect) => effect.key === "reflect")).toMatchObject({
+      value: .35, reflectByDamageType: { physical: .35, magic: .15 },
+    });
+    expect(diagnostics.effects.find((effect) => effect.key === "phoenix-used")).toMatchObject({
+      turns: 0, value: .3,
+    });
+    expect(diagnostics.effects.find((effect) => effect.key === "berserk")).toMatchObject({
+      firstBasicMultiplier: 1.8, rageOnKill: 2, value: .18,
+    });
+    expect(JSON.stringify(diagnostics.effects)).not.toContain("internal");
+    expect(JSON.stringify(diagnostics.effects)).not.toContain("private");
   });
 
   it("bridge unequip-all persists a single accepted transaction and ignores combat edits", () => {
