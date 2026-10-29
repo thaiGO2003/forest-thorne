@@ -191,7 +191,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
     const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
-      buy: kitButton({ skin: "green", icon: ICONS.gold, cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
+      // Gold emoji lives in the label (after the price) so the coin never leads the number.
+      buy: kitButton({ skin: "green", cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
     };
     const activeId = () => {
       if (!m || slot.wrap.hidden || slot.index < 0) return undefined;
@@ -244,7 +245,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
       s.card.el.tabIndex = 0;
       s.buyText = `${t("planning.buy")} (${u.tier} ${ICONS.gold})`;
-      s.buyCost = String(u.tier);
+      s.buyCost = `${u.tier} ${ICONS.gold}`;
       s.buy.setAria(`${s.buyText} ${u.nameVi}`);
       s.buy.setDisabled(m!.locked || !afford);
     });
