@@ -9,7 +9,7 @@ import type { RunState } from "../core/run";
 import type { SynergyLine } from "../core/synergy";
 import type { TutorialStep } from "../core/tutorial";
 import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
-import { drawFit, h, kitButton, LABEL, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { drawFit, h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { Tooltip } from "./tooltip";
 
 export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
@@ -52,9 +52,6 @@ export interface PlanningView { el: HTMLElement; update(m: PlanningModel): void;
 
 const SHOP_PAGE_WIDE = 8;
 const SHOP_PAGE_COMPACT = 4;
-const SYN_PREFIX: Record<SynergyLine["kind"], string> = { class: "role", faction: "faction", element: "element" };
-/** Localized synergy name (shared by rail + tooltip so both read identically). */
-const synName = (l: SynergyLine) => t(`${SYN_PREFIX[l.kind]}.${l.key}` as MsgKey);
 
 export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: PortraitProvider, it: PlanningIntents): PlanningView {
   let m: PlanningModel | null = null, page = 0;
@@ -72,23 +69,29 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const statsS = surface(stats, (g, w, hh) => {
     nineSlice(g, "panel_wood", SLICE.panel_wood, 0, 0, w, hh);
     if (!m) return;
-    const r = m.run, cells = [
-      `${ICONS.round} ${t("combat.round", { round: r.round })}`,
+    const r = m.run;
+    const cells = [
+      `${ICONS.round} ${r.round}`,
       `${ICONS.heart} ${r.hp}`,
       `${ICONS.gold} ${r.gold}`,
-      `${ICONS.level} ${t("planning.level", { level: r.level })}`,
-      `${ICONS.start} ${t("planning.deploy", { current: m.deployed, max: m.deployLimit })}`,
+      `${ICONS.level} ${r.level}`,
+      `${ICONS.start} ${m.deployed}/${m.deployLimit}`,
     ];
+    const drawChips = (values: string[], y: number, height: number) => {
+      const gap = 4, width = (w - 16 - gap * (values.length - 1)) / values.length;
+      values.forEach((value, i) => {
+        const x = 8 + i * (width + gap);
+        nineSlice(g, "slot_well", SLICE.slot_well, x, y, width, height);
+        label(g, value, x + width / 2, y + height / 2, {
+          size: Math.min(15, Math.max(10, width / 5)), maxW: width - 6, fill: "#17120e", stroke: null,
+        });
+      });
+    };
     const portrait = portraitPlanning.matches;
     if (portrait) {
-      const top = cells.slice(0, 3), bottom = cells.slice(3);
-      const topW = (w - 16) / top.length, bottomW = (w - 16) / bottom.length;
-      top.forEach((c, i) => label(g, c, 8 + topW * (i + 0.5), 18, { size: Math.min(11, topW / 6.5), maxW: topW - 6, fill: LABEL }));
-      bottom.forEach((c, i) => label(g, c, 8 + bottomW * (i + 0.5), 39, { size: Math.min(11, bottomW / 7), maxW: bottomW - 6, fill: LABEL }));
-    } else {
-      const cw = (w - 16) / cells.length;
-      cells.forEach((c, i) => label(g, c, 8 + cw * (i + 0.5), hh * 0.42, { size: Math.min(15, cw / 7), maxW: cw - 6, fill: LABEL }));
-    }
+      drawChips(cells.slice(0, 3), 7, 26);
+      drawChips(cells.slice(3), 38, 26);
+    } else drawChips(cells, 6, 28);
     // XP progress bar under the stats (dynamic fill inside authored frame).
     const need = xpToNext(r.level), pct = need > 0 ? Math.min(1, r.xp / need) : 1;
     const bx = 14, bw = w - 28, by = portrait ? hh - 16 : hh - 16, bh = portrait ? 8 : 10;
@@ -132,29 +135,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   tip.bind(shopToggle.el, () => ({ title: t("planning.shop") }));
   rail.append(shopToggle.el);
 
-  // ---- left synergy rail ----
-  const syn = h("div", "pl-synergy");
-  syn.setAttribute("aria-label", t("planning.synergy"));
-  const synS = surface(syn, (g, w, hh) => {
-    const lines = (m?.synergies ?? []).filter((l) => l.count > 0).sort((a, b) => b.active - a.active || b.count - a.count);
-    const rowH = 30, shown = Math.min(lines.length, Math.floor((hh - 34) / rowH));
-    const ph = Math.max(48, 34 + shown * rowH);
-    nineSlice(g, "panel_wood", SLICE.panel_wood, 0, 0, w, ph);
-    label(g, `${ICONS.synergy} ${t("planning.synergy")}`, w / 2, 18, { size: 13, fill: LABEL });
-    for (let i = 0; i < shown; i++) {
-      const l = lines[i]!, y = 34 + i * rowH;
-      const skin = l.active ? "tile_status" : "slot_well";
-      nineSlice(g, skin, SLICE[skin], 8, y, w - 16, rowH - 4);
-      const ic = ICONS[l.key as keyof typeof ICONS] ?? ICONS.question;
-      label(g, ic, 24, y + rowH / 2 - 2, { size: 15, stroke: null });
-      const tier = l.next ? `${l.count}/${l.next}` : `${l.count} ★`;
-      label(g, tier, w - 14, y + rowH / 2 - 2, { size: 13, align: "right", fill: l.active ? "#ffe08a" : "#3b2414", stroke: l.active ? undefined : null });
-      label(g, synName(l), 40, y + rowH / 2 - 2, { size: 11, align: "left", fill: l.active ? "#fff8ec" : "#3b2414", stroke: l.active ? undefined : null, maxW: w - 90 });
-    }
-  });
-  tip.bind(syn, () => ({ title: t("planning.synergy"), lines: (m?.synergies ?? []).filter((l) => l.count).map((l) => ({ icon: ICONS[l.key as keyof typeof ICONS], text: `${synName(l)} ${l.count}${l.next ? `/${l.next}` : ""}`, tone: l.active ? "good" : "muted" })) }));
-
-  // ---- camera joystick (A91.1: 44 px radius, left side, below synergy) ----
+  // ---- camera joystick (A91.1: 44 px radius, left side of the board) ----
   const joy = h("div", "pl-joystick");
   joy.setAttribute("aria-hidden", "true");
   let knob = { x: 0, y: 0 }, joyId = -1;
@@ -216,7 +197,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const dockHead = h("div", "pl-shop-head");
   const headS = surface(dockHead, (g, w, hh) => {
     if (!m) return;
-    label(g, `${t("planning.shop")} · ${t("planning.bench", { current: m.run.bench.length, max: m.benchCap })}`, 10, hh / 2, { size: 13, align: "left", fill: LABEL });
+    label(g, `${t("planning.shop")} · ${t("planning.bench", { current: m.run.bench.length, max: m.benchCap })}`, 10, hh / 2, { size: 13, align: "left", fill: "#17120e", stroke: null });
   });
   const prev = kitButton({ skin: "wood", label: "‹", cls: "pl-page", onClick: () => { page = Math.max(0, page - 1); renderShop(); } });
   const next = kitButton({ skin: "wood", label: "›", cls: "pl-page", onClick: () => { page++; renderShop(); } });
@@ -235,14 +216,14 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const onShopViewportChange = () => { shopOpen = false; page = 0; syncShopVisibility(); renderShop(); };
   portraitShop.addEventListener("change", onShopViewportChange);
 
-  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; offerId?: string | null; unbindTip?: () => void }
+  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string; offerId?: string | null; unbindTip?: () => void }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
     const wrap = h("div", "pl-offer");
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
-    const slot: Slot = { card, wrap, index: -1,
-      buy: kitButton({ skin: "green", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
-      info: kitButton({ skin: "icon", icon: ICONS.info, onClick: () => openDetail() }),
+    const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
+      buy: kitButton({ skin: "green", icon: ICONS.gold, cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
+      info: kitButton({ skin: "icon", icon: ICONS.info, aria: t("menu.information"), onClick: () => openDetail() }),
     };
     const activeId = () => {
       if (!m || slot.wrap.hidden || slot.index < 0) return undefined;
@@ -261,6 +242,18 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     grid.append(wrap);
     return slot;
   });
+  let rerollText = "", rerollCostText = "", rerollDrawn = "";
+  const syncResponsiveLabels = () => {
+    const rerollVisible = reroll.el.clientWidth >= 112 ? rerollText : rerollCostText;
+    if (rerollVisible !== rerollDrawn) { rerollDrawn = rerollVisible; reroll.setLabel(rerollVisible); }
+    for (const slot of slots) {
+      const visible = slot.buy.el.clientWidth >= 100 ? slot.buyText : slot.buyCost;
+      if (visible !== slot.drawnText) { slot.drawnText = visible; slot.buy.setLabel(visible); }
+    }
+  };
+  const shopButtonResize = new ResizeObserver(syncResponsiveLabels);
+  shopButtonResize.observe(reroll.el);
+  for (const slot of slots) shopButtonResize.observe(slot.buy.el);
 
   function renderShop() {
     if (!m) return;
@@ -274,22 +267,30 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       if (s.offerId !== id) { tip.hide(); s.offerId = id; }
       s.index = idx;
       s.wrap.hidden = i >= pageSize || idx >= shop.length;
-      if (!id) { s.card.set(null); s.card.el.tabIndex = -1; s.buy.setDisabled(true); s.info.setDisabled(true); return; }
+      if (!id) {
+        s.card.set(null); s.card.el.tabIndex = -1;
+        s.buyText = ""; s.buyCost = ""; s.buy.setAria(t("planning.buy"));
+        s.buy.setDisabled(true); s.info.setDisabled(true); return;
+      }
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
       s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
       s.card.el.tabIndex = 0;
-      s.buy.setLabel(`${t("planning.buy")} (${u.tier} ${ICONS.gold})`);
+      s.buyText = `${t("planning.buy")} (${u.tier} ${ICONS.gold})`;
+      s.buyCost = String(u.tier);
+      s.buy.setAria(`${s.buyText} ${u.nameVi}`);
       s.buy.setDisabled(m!.locked || !afford);
+      s.info.setAria(`${t("menu.information")} ${u.nameVi}`);
       s.info.setDisabled(false);
     });
     headS.paint();
+    syncResponsiveLabels();
   }
   const onShopLayoutChange = () => { page = 0; renderShop(); };
   compactShop.addEventListener("change", onShopLayoutChange);
   smallLandscapeShop.addEventListener("change", onShopLayoutChange);
   syncShopVisibility();
 
-  root.append(battle, rail, syn, joy, tutorial, dock);
+  root.append(battle, rail, joy, tutorial, dock);
   host.append(root);
 
   function refreshCopy() {
@@ -312,20 +313,23 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const buyXpCost = xpBuyCost(r.xpCostDelta);
     const rerollLabel = t("planning.reroll", { cost: `${rerollCost} ${ICONS.gold}` });
     const xpLabel = t("planning.buyXp", { cost: `${buyXpCost} ${ICONS.gold}` });
-    reroll.setLabel(rerollLabel);
+    rerollText = rerollLabel;
+    rerollCostText = `${rerollCost} ${ICONS.gold}`;
     xp.setLabel(xpLabel);
     const startText = `${t("planning.start")} (-1 ${ICONS.heart})`;
     start.setLabel(startText);
     startMeasure.textContent = startText;
     reroll.setAria(rerollLabel);
     xp.setAria(xpLabel);
+    stats.setAttribute("role", "status");
+    stats.setAttribute("aria-label", `${t("combat.round", { round: r.round })}, ${r.hp} ${ICONS.heart}, ${r.gold} ${ICONS.gold}, ${t("planning.level", { level: r.level })}, ${t("planning.deploy", { current: nm.deployed, max: nm.deployLimit })}`);
     lock.setIcon(r.shopLocked ? ICONS.lock : ICONS.unlock);
     lock.setSelected(r.shopLocked);
     for (const b of [reroll, xp, start, lock]) b.setDisabled(nm.locked);
     reroll.setDisabled(nm.locked || r.shopLocked || r.gold < rerollCost);
     xp.setDisabled(nm.locked || r.gold < buyXpCost);
     renderTutorial();
-    statsS.paint(); synS.paint();
+    statsS.paint();
     renderShop();
   }
 
@@ -335,6 +339,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       compactShop.removeEventListener("change", onShopLayoutChange);
       smallLandscapeShop.removeEventListener("change", onShopLayoutChange);
       portraitPlanning.removeEventListener("change", syncPlanningComposition);
+      shopButtonResize.disconnect();
       portraitShop.removeEventListener("change", onShopViewportChange);
       it.pan(0, 0);
       for (const s of slots) { s.unbindTip?.(); s.card.dispose(); }

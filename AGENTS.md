@@ -45,3 +45,4 @@ Chi tiết: `.agents/rules/plans-workflow.md`.
 - Tuân thủ quy chuẩn chi tiết tại `.agents/rules/commits.md`.
 - Mỗi commit bắt buộc có body giải thích rõ nguyên nhân và lý do thay đổi, liệt kê file chỉnh sửa và bằng chứng kiểm thử; không commit message một dòng cụt ngủn.
 - Mỗi commit một mục tiêu duy nhất, không gom thay đổi không liên quan.
+- Commit và push thường xuyên theo `.agents/rules/commits.md`: nhóm nhỏ đã kiểm chứng, stage đúng phạm vi, giữ nguyên thay đổi không liên quan và tuân thủ human merge review.

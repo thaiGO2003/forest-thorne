@@ -1,6 +1,5 @@
-// Shared unit card (§14.6, §25.2, A22): one visual system for Shop and Library.
-// Avatar large/high/centred; tribe + element explicit; compact stats in corners; rage requirement;
-// cost bottom-left (no duplicate top-right coin). Static chrome = tier card PNG; text on canvas.
+// Shared unit card (§14.6, §25.2, A22): asset-framed Shop and Library portraits with
+// identity, HP/attack values and tier-based gold price displayed in both contexts.
 import type { UnitDef } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
@@ -116,7 +115,13 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
     set(d) {
       data = d;
       el.dataset.empty = String(!d);
-      el.setAttribute("aria-label", d ? `${d.unit.nameVi} ${d.star}★` : "");
+      el.setAttribute("aria-label", d ? [
+        `${d.unit.nameVi} ${d.star}★`,
+        `${d.unit.stats.hp} HP`,
+        `${d.unit.basic.damageType === "magic" ? d.unit.stats.matk : d.unit.stats.atk} attack`,
+        `${d.unit.stats.range} range`,
+        ...(d.cost === undefined ? [] : [`${d.cost} gold`]),
+      ].join(", ") : "");
       s.paint();
     },
     paint: s.paint,

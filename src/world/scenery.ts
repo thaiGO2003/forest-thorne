@@ -114,16 +114,6 @@ export function createScenery(
     put(riverWater, i, (a.x + b.x) / 2, WATER_Y, a.z, width, WATER_H, 1);
   });
 
-  const pathCells = columns.filter((c) => {
-    if ((c.cz >= minZ && c.cz <= maxZ) || c.d < 2 || c.d > 18 || c.h > 4) return false;
-    const edge = c.cz < minZ ? minZ : maxZ;
-    const distance = Math.abs(c.cz - edge);
-    const side = c.cz < minZ ? -1 : 1;
-    const targetX = RIVER_X + side * 5 + Math.round(Math.sin(distance * 0.44 + (side < 0 ? 0.2 : 1.1)) * 1.5);
-    return c.cx === targetX;
-  });
-  const paths = instanced(pathCells.length, white({ color: 0xb08a5d, roughness: 1 }), "scenery-path-meanders");
-  pathCells.forEach((c, i) => put(paths, i, c.x, c.h + 0.045, c.z, 0.82, 0.09, 0.96, (hash(c.cx, c.cz, 30) - 0.5) * 0.16));
 
   // --- Props -----------------------------------------------------------------------------------
   const forest = columns.filter((c) => {

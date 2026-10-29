@@ -3,7 +3,7 @@
 // (9/3-slice); only fills and text are dynamic. One canvas + texture per unit, redrawn on change.
 import * as THREE from "three";
 import { ICONS } from "../core/emojiIcon";
-import { drawFit, INK, kitImage, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
+import { drawFit, kitImage, INK, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
 
 export interface BillboardStatus { key: string; positive: boolean }
 
@@ -141,7 +141,6 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       tex.needsUpdate = true;
       return;
     }
-
     // Status row (top): positive group from the left, negative from the right.
     const tile = 40, ty = 2;
     s.pos.forEach((k, i) => {
@@ -202,8 +201,8 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       draw();
     },
     setVisible(v) { sprite.visible = v; },
-    setPriority(v) { sprite.renderOrder = v ? HOVER_RENDER_ORDER : BASE_RENDER_ORDER; },
     setDetailed(v) { if (detailed === v) return; detailed = v; draw(); },
+    setPriority(v) { sprite.renderOrder = v ? HOVER_RENDER_ORDER : BASE_RENDER_ORDER; },
     dispose() { offKit(); sprite.removeFromParent(); tex.dispose(); mat.dispose(); state = null; },
   };
 }

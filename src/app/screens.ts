@@ -17,6 +17,7 @@ import { mountSettings } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
 import { mountHistory, mountHistoryView } from "../ui/history";
 import type { ModalHandle, ModalOptions } from "../ui/modal";
+import type { TooltipContent } from "../ui/tooltip";
 import { applyLocale, registerPanel, registerScreen, registerUtility, type App } from "./app";
 import { runView } from "./bridge";
 import { createBoardView } from "../units/boardView";
@@ -26,7 +27,7 @@ import { getUnit } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
-import { teamStrength, unitDiagnostics, type UnitDiagnostics, type UnitStatSnapshot } from "../core/inspection";
+import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
 import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
@@ -814,58 +815,41 @@ function enemyDiagnostics(app: App, uid: string) {
   );
 }
 
-const diagnosticStatLine = (stats: UnitStatSnapshot) =>
-  `HP ${Math.round(stats.hp)}/${Math.round(stats.maxHp)} · ATK ${Math.round(stats.atk)} · DEF ${Math.round(stats.def)} · MATK ${Math.round(stats.matk)} · MDEF ${Math.round(stats.mdef)}`;
 
-function diagnosticTooltipContent(diagnostics: UnitDiagnostics) {
+/** Hover summary (A96 summary mode, cf. old-src `buildSummaryUnitSectionBlocks`): traits, headline
+ *  combat numbers, active statuses and the star-resolved skill. The current/base/derived numeric
+ *  breakdown stays on the diagnostics surface instead of being dumped onto the viewport. */
+function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent {
   const unitDef = getUnit(diagnostics.baseId);
-  const lines = [
-    { text: `Hiện tại · ${diagnosticStatLine(diagnostics.live)}` },
-    { text: `Gốc · ${diagnosticStatLine(diagnostics.base)}` },
-    { text: `Suy ra · ${diagnosticStatLine(diagnostics.derived)}` },
-    { text: `Rage ${Math.round(diagnostics.live.rage)}/${Math.round(diagnostics.live.rageMax)} · Shield ${Math.round(diagnostics.live.shield)} · Range ${diagnostics.live.range}` },
-    { text: `CRIT ${Math.round(diagnostics.live.crit * 100)}% · ACC ${Math.round(diagnostics.live.accuracy * 100)}% · EVA ${Math.round(diagnostics.live.evade * 100)}% · LS ${Math.round(diagnostics.live.lifesteal * 100)}%` },
-    { text: `${t("library.basic")}: ${unitDef.basic.textVi}` },
-    { text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: diagnostics.derived.rageMax })})` },
+  const { live, derived, effects, star } = diagnostics;
+  const num = (v: number) => Math.round(v);
+  const lines: NonNullable<TooltipContent["lines"]> = [
+    { icon: ICONS.hp, text: `HP ${num(live.hp)}/${num(live.maxHp)}` },
+    { icon: ICONS.atk, text: `ATK ${num(live.atk)} · DEF ${num(live.def)}` },
+    { icon: ICONS.matk, text: `MATK ${num(live.matk)} · MDEF ${num(live.mdef)}` },
+    { icon: ICONS.range, text: `Tầm ${num(live.range)} · Nộ ${num(live.rage)}/${num(live.rageMax)}` },
   ];
-  if (unitDef.skill.targetVi) lines.push({ text: `${t("library.target")}: ${unitDef.skill.targetVi}` });
-  if (unitDef.skill.shapeVi) lines.push({ text: `${t("library.shape")}: ${unitDef.skill.shapeVi}` });
-  for (const effect of diagnostics.effects) {
-    const name = effect.key === "phoenix-used" ? t("inventory.phoenixUsed") :
-      t(`inventory.${effect.key}` as MsgKey);
-    const title = effect.turns > 0 ? `${name} · ${t("inventory.turns", { turns: effect.turns })}` : name;
-    let detail = "";
-    if (effect.kind === "modifier") {
-      detail = `${effect.value > 0 ? "+" : ""}${effect.value}${effect.pct || effect.key === "evade" ? "%" : ""}`;
-    } else if (effect.key === "reflect") {
-      detail = Object.entries(effect.reflectByDamageType ?? {}).map(([type, fraction]) =>
-        `${t(`inventory.${type}` as MsgKey)} ${Math.round(fraction! * 100)}%`).join(" · ");
-    } else if (effect.key === "phoenix") {
-      detail = t("inventory.phoenixDetail", { value: Math.round(effect.value * 100) });
-    } else if (effect.key === "phoenix-used") {
-      detail = t("inventory.phoenixUsedDetail");
-    } else if (effect.key === "berserk" && effect.firstBasicMultiplier !== undefined && effect.rageOnKill !== undefined) {
-      detail = t("inventory.berserkDetail", {
-        value: Math.round(effect.value * 100), mult: effect.firstBasicMultiplier, rage: effect.rageOnKill,
-      });
-    } else if (effect.key === "counter") {
-      detail = t("inventory.counterDetail");
-    } else if (effect.kind === "status" && effect.value) {
-      detail = String(effect.value);
-    }
-    const source = effect.sourceUnitBaseId ? getUnit(effect.sourceUnitBaseId) : null;
-    const sourceName = source ? ` · ${t("inventory.source", { name: source.nameVi, skill: source.skill.nameVi })}` : "";
-    lines.push({ text: `${title}${detail ? ` · ${detail}` : ""}${sourceName}` });
+  for (const effect of effects.slice(0, 3)) {
+    const value = effect.pct ? `${effect.value}%` : String(effect.value);
+    lines.push({ text: `${effect.key} · ${value} · ${effect.turns}T` });
   }
+  lines.push({
+    icon: ICONS.star,
+    text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: derived.rageMax })})`,
+  });
   return {
-    title: `${unitDef.nameVi} ★${diagnostics.star}`,
+    title: `${unitDef.nameVi} ★${star}`,
     subtitle: [
       t(`role.${unitDef.role}` as MsgKey),
       t(`element.${unitDef.element}` as MsgKey),
       t(`faction.${unitDef.faction}` as MsgKey),
     ].join(" · "),
     lines,
-    body: `${unitDef.pitchVi}\n${unitDef.skill.starDetailVi[diagnostics.star - 1] ?? unitDef.skill.detailVi}`,
+    body: [
+      unitDef.pitchVi,
+      `${t("library.basic")}: ${unitDef.basic.textVi}`,
+      unitDef.skill.starDetailVi[star - 1] ?? unitDef.skill.detailVi,
+    ].filter(Boolean).join("\n"),
   };
 }
 
@@ -1041,13 +1025,21 @@ registerScreen("planning", (app) => {
         app.tooltip.hide();
         return;
       }
-      app.tooltip.show(anchor, diagnosticTooltipContent(inspection.diagnostics));
+      app.tooltip.show(anchor, unitSummaryTooltipContent(inspection.diagnostics));
       if (source.kind !== "board" || run?.phase !== "PLANNING" || !planningEnemyPreview) {
         board.setTargetPreview?.(null);
         return;
       }
       const fighters = bridge.planningCombatProjection(planningEnemyPreview);
       board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, unit.uid) : null);
+    },
+    previewEnemy: (uid, anchor) => {
+      const inspection = enemyDiagnostics(app, uid);
+      if (!inspection) {
+        app.tooltip.hide();
+        return;
+      }
+      app.tooltip.show(anchor, unitSummaryTooltipContent(inspection));
     },
     previewEnd: () => {
       app.tooltip.hide();
