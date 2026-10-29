@@ -1076,7 +1076,6 @@ registerScreen("planning", (app) => {
     cortisol: () => {
       if (!combat && bridge.run()?.phase === "PLANNING") board.startLowCortisol();
     },
-    pan: (x, y) => stage.setPan(x, y),
   });
   const sync = () => {
     const run = bridge.run();

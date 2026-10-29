@@ -9,7 +9,7 @@ import type { RunState } from "../core/run";
 import type { SynergyLine } from "../core/synergy";
 import type { TutorialStep } from "../core/tutorial";
 import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
-import { drawFit, h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { Tooltip } from "./tooltip";
 
 export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
@@ -33,8 +33,6 @@ export interface PlanningIntents {
   tutorialDismiss(stepId: string): void;
   tutorialSkip(): void;
   cortisol(): void;
-  /** Camera pan vector in [-1,1]², (0,0) when released. */
-  pan(x: number, y: number): void;
 }
 
 export interface PlanningModel {
@@ -135,35 +133,6 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   tip.bind(shopToggle.el, () => ({ title: t("planning.shop") }));
   rail.append(shopToggle.el);
 
-  // ---- camera joystick (A91.1: 44 px radius, left side of the board) ----
-  const joy = h("div", "pl-joystick");
-  joy.setAttribute("aria-hidden", "true");
-  let knob = { x: 0, y: 0 }, joyId = -1;
-  const JOY_R = 44;
-  const joyS = surface(joy, (g, w, hh) => {
-    const base = (JOY_R + 10) * 2;
-    drawFit(g, "joy_base", w / 2 - base / 2, hh / 2 - base / 2, base, base);
-    drawFit(g, "joy_knob", w / 2 + knob.x * JOY_R - 20, hh / 2 + knob.y * JOY_R - 20, 40, 40);
-  });
-  const moveJoy = (e: PointerEvent) => {
-    if (e.pointerId !== joyId) return;
-    const r = joy.getBoundingClientRect();
-    let x = (e.clientX - r.left - r.width / 2) / JOY_R, y = (e.clientY - r.top - r.height / 2) / JOY_R;
-    const d = Math.hypot(x, y);
-    if (d > 1) { x /= d; y /= d; }
-    knob = { x, y };
-    it.pan(x, y);
-    joyS.paint();
-  };
-  const endJoy = (e: PointerEvent) => {
-    if (e.pointerId !== joyId) return;
-    joyId = -1; knob = { x: 0, y: 0 }; it.pan(0, 0); joyS.paint();
-  };
-  joy.addEventListener("pointerdown", (e) => { joyId = e.pointerId; joy.setPointerCapture(e.pointerId); moveJoy(e); });
-  joy.addEventListener("pointermove", moveJoy);
-  joy.addEventListener("pointerup", endJoy);
-  joy.addEventListener("pointercancel", endJoy);
-
   // ---- authored tutorial guidance ----
   const tutorial = panelEl("panel_parchment", "pl-tutorial");
   tutorial.setAttribute("role", "status");
@@ -216,14 +185,13 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const onShopViewportChange = () => { shopOpen = false; page = 0; syncShopVisibility(); renderShop(); };
   portraitShop.addEventListener("change", onShopViewportChange);
 
-  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string; offerId?: string | null; unbindTip?: () => void }
+  interface Slot { card: CardView; buy: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string; offerId?: string | null; unbindTip?: () => void }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
     const wrap = h("div", "pl-offer");
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
     const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
       buy: kitButton({ skin: "green", icon: ICONS.gold, cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
-      info: kitButton({ skin: "icon", icon: ICONS.info, aria: t("menu.information"), onClick: () => openDetail() }),
     };
     const activeId = () => {
       if (!m || slot.wrap.hidden || slot.index < 0) return undefined;
@@ -237,7 +205,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(); }
     });
     slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id)) : null; });
-    row.append(slot.info.el, slot.buy.el);
+    row.append(slot.buy.el);
     wrap.append(card.el, row);
     grid.append(wrap);
     return slot;
@@ -270,7 +238,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       if (!id) {
         s.card.set(null); s.card.el.tabIndex = -1;
         s.buyText = ""; s.buyCost = ""; s.buy.setAria(t("planning.buy"));
-        s.buy.setDisabled(true); s.info.setDisabled(true); return;
+        s.buy.setDisabled(true); return;
       }
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
       s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
@@ -279,8 +247,6 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       s.buyCost = String(u.tier);
       s.buy.setAria(`${s.buyText} ${u.nameVi}`);
       s.buy.setDisabled(m!.locked || !afford);
-      s.info.setAria(`${t("menu.information")} ${u.nameVi}`);
-      s.info.setDisabled(false);
     });
     headS.paint();
     syncResponsiveLabels();
@@ -290,7 +256,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   smallLandscapeShop.addEventListener("change", onShopLayoutChange);
   syncShopVisibility();
 
-  root.append(battle, rail, joy, tutorial, dock);
+  root.append(battle, rail, tutorial, dock);
   host.append(root);
 
   function refreshCopy() {
@@ -341,7 +307,6 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       portraitPlanning.removeEventListener("change", syncPlanningComposition);
       shopButtonResize.disconnect();
       portraitShop.removeEventListener("change", onShopViewportChange);
-      it.pan(0, 0);
       for (const s of slots) { s.unbindTip?.(); s.card.dispose(); }
       tip.hide();
       root.remove();
