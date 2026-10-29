@@ -19,7 +19,7 @@ const LIGHT_PRESETS: Record<LightPhase, { hemi: number; sun: number; rim: number
   combat: { hemi: 0.65, sun: 2.4, rim: 0.7, fog: [35, 95], sky: 0x8cb8e0 },
 };
 
-export type TacticalHighlightRole = "hover" | "source" | "valid" | "invalid" | "direct" | "area";
+export type TacticalHighlightRole = "hover" | "enemy" | "source" | "valid" | "invalid" | "direct" | "area";
 export interface TacticalHighlightCell {
   col: number;
   row: number;
@@ -32,6 +32,7 @@ export interface BenchHighlightSlot {
 
 const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
   hover: 0xb9e978,
+  enemy: 0xe66c65,
   source: 0xffe176,
   valid: 0x7fe39a,
   invalid: 0xe66c65,
@@ -41,6 +42,7 @@ const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
 
 const HIGHLIGHT_PRIORITY = {
   hover: 1,
+  enemy: 1,
   source: 2,
   valid: 3,
   invalid: 4,
