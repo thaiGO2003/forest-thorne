@@ -191,7 +191,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
     const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
-      // Gold emoji lives in the label (after the price) so the coin never leads the number.
+      // Price-only buy control: the card already names the unit, so the button shows "<giá> 🪙".
       buy: kitButton({ skin: "green", cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
     };
     const activeId = () => {
@@ -244,9 +244,9 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
       s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
       s.card.el.tabIndex = 0;
-      s.buyText = `${t("planning.buy")} (${u.tier} ${ICONS.gold})`;
+      s.buyText = `${u.tier} ${ICONS.gold}`;
       s.buyCost = `${u.tier} ${ICONS.gold}`;
-      s.buy.setAria(`${s.buyText} ${u.nameVi}`);
+      s.buy.setAria(`${t("planning.buy")} ${u.nameVi} (${u.tier} ${ICONS.gold})`);
       s.buy.setDisabled(m!.locked || !afford);
     });
     headS.paint();
