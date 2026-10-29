@@ -58,3 +58,19 @@ Pre-sync checks apply to the current working changes at that time; if an upstrea
 - Device-scale readability on physical screens, native OS mobile/browser behavior, and unthrottled GPU performance remain outside this Chromium session's proof.
 - The preview is an isolated feature worktree, not merged `dev` or deployed production.
 - Coop, crafting transactions, Planning touch drag/drop, the full sixteen-item `docs/Plan.pdf` audit, public endpoint acceptance, exact-HEAD human merge review, and `dev → main` release are separate gates.
+
+## Post-merge Chromium acceptance (Shop HEAD `bb4067c168d6c91efe33ee94831517889769d4ff`)
+
+The post-conflict build was exercised through Chromium/Playwright against the live `http://127.0.0.1:5207/` preview using an `EndlessPvEClassic/EASY` development fixture with eight populated Shop offers. Source: `/tmp/forest-throne-shop-merged-smoke.mjs`; output: `MERGED_SHOP_ACCEPTANCE_PASS`, with no browser `pageerror` records. The test context enabled touch emulation and `isMobile: true` **for all three viewport sizes**; the 1280×800 run validates a desktop-sized CSS viewport, not an ordinary non-mobile browser profile. Chromium launched with ANGLE SwiftShader, so an actual `WebGL2RenderingContext` was observed but hardware GPU performance was not measured.
+
+| Viewport | Visible cards | Observed Shop box (x, y, width, height) | Detail dialog | Result |
+| --- | ---: | --- | --- | --- |
+| 1280×800 | 8 | (140, 535.91, 1000, 256.09) | Not exercised in this pass | PASS: full populated row, no horizontal document overflow, WebGL2 |
+| 844×390 landscape | 4 | (8, 123.61, 754, 258.39) | (12, 12, 820, 366) | PASS: card pagination footprint, short tap opens modal, Escape closes, dialog within viewport, WebGL2 |
+| 390×844 portrait | 2 | (8, 534.84, 374, 301.16) after opening toggle | (12, 12, 366, 820) | PASS: dock initially hidden, toggle opens, short tap and Escape, modal within viewport, WebGL2 |
+
+Desktop purchase via a real Shop DOM click: `ant_guard` (authored tier price 1) reduced gold **24 → 23**, created exactly one bench unit `u1`, and cleared purchased Shop slot 0. Clicking the disabled slot did not change gold or bench. Replacing slot 0 with `deer_song` updated the accessible purchase label and reenabled purchase. At zero gold, the control became disabled; a click left canonical gold, bench and offers unchanged. This is transaction evidence, not a simulated `bridge.buy()` call. No duplicate touch-purchase transaction was exercised in this run.
+
+Post-merge browser screenshots: `/tmp/forest-throne-shop-merged-acceptance/{desktop,landscape,portrait}.png` and `{landscape,portrait}-detail.png`. Visual inspection confirms eight desktop cards, four landscape cards and two portrait cards with artwork, stat indicators and purchase controls. Small decorative labels are difficult to read; two battlefield Kỳ Đà nameplates visibly overlap on desktop. A white playfield label is partly obscured by the right-side toolbar in portrait. These are **unresolved visual acceptance findings**, not proof of purchase or WebGL breakage.
+
+Post-conflict code checks previously recorded: 6 targeted Vitest files, 32/32 tests PASS; `pnpm typecheck` PASS; `pnpm build` PASS; `git diff --cached --check` PASS. No production-source change was made for the Playwright visibility mismatch: ancestor checks showed positive layout and computed visibility for desktop/landscape offers; portrait Shop is intentionally hidden until toggled. The post-merge harness did not validate physical touchscreen behavior, all long-press/pointercancel cases, framebuffer pixels, representative Billboard GPU lifecycle, or performance on physical devices. Those remain release gates alongside human exact-HEAD merge approval, integration and multiplayer/crafting acceptance.
