@@ -24,7 +24,7 @@ describe("board geometry (A31.1)", () => {
       for (let row = 0; row < totalRows(profile); row++) {
         const mapped = new Set<number>();
         for (let col = 0; col < 10; col++) {
-          const visual = toVisual(col, row);
+          const visual = toVisual(col, row, profile);
           expect(visual.x).not.toBe(RIVER_X);
           expect(toLogical(visual.x, visual.z, profile)).toEqual({ col, row });
           mapped.add(visual.x);
@@ -35,6 +35,40 @@ describe("board geometry (A31.1)", () => {
       expect(toLogical(0, totalRows(profile), profile)).toBeNull();
       expect(toLogical(-1, 0, profile)).toBeNull();
       expect(toLogical(0.5, 0, profile)).toBeNull();
+    }
+  });
+
+  it("toVisual rejects out-of-range and fractional logical cells for every profile", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      const rows = totalRows(profile);
+      expect(() => toVisual(10, 0, profile)).toThrow(RangeError);
+      expect(() => toVisual(-1, 0, profile)).toThrow(RangeError);
+      expect(() => toVisual(0, rows, profile)).toThrow(RangeError);
+      expect(() => toVisual(0, -1, profile)).toThrow(RangeError);
+      expect(() => toVisual(0.5, 0, profile)).toThrow(RangeError);
+      expect(() => toVisual(0, 0.5, profile)).toThrow(RangeError);
+      // Last legal cell stays inside the visual grid and never lands on the river lane.
+      expect(toVisual(9, rows - 1, profile)).toEqual({ x: 10, z: rows - 1 });
+    }
+  });
+
+  it("counts the whole visual grid as a bijection for solo, coop2 and coop4", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      const rows = totalRows(profile);
+      const seen = new Set<string>();
+      for (let x = 0; x < VISUAL_COLS; x++) {
+        if (x === RIVER_X) continue;
+        for (let z = 0; z < rows; z++) {
+          const logical = toLogical(x, z, profile);
+          expect(logical).not.toBeNull();
+          expect(toVisual(logical!.col, logical!.row, profile)).toEqual({ x, z });
+          seen.add(`${logical!.col},${logical!.row}`);
+        }
+      }
+      expect(seen.size).toBe(10 * rows);
+      const river = riverCells(profile);
+      expect(river.length).toBe(rows);
+      expect(river.every((cell) => toLogical(cell.x, cell.z, profile) === null)).toBe(true);
     }
   });
 

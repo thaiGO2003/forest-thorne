@@ -268,7 +268,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const mesh = new THREE.Mesh(tileGeometry, tileMaterials.scan);
       mesh.rotation.x = -Math.PI / 2;
       mesh.raycast = () => {};
-      const center = cellToWorld(toVisual(col, row), profile);
+      const center = cellToWorld(toVisual(col, row, profile), profile);
       mesh.position.set(center.x, TILE_TOP + .045, center.z);
       mesh.visible = false;
       stage.scene.add(mesh);
@@ -421,7 +421,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
 
       run.board.forEach((u, i) => {
         if (!u) return;
-        const row = Math.floor(i / BOARD), col = i % BOARD, w = cellToWorld(toVisual(col, row), profile);
+        const row = Math.floor(i / BOARD), col = i % BOARD, w = cellToWorld(toVisual(col, row, profile), profile);
         place(u.uid, u.baseId, u.star, "board", col, row, w.x, w.z);
         arena.setOccupied(col, row, true);
         seen.add(u.uid);
@@ -440,7 +440,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
 
       // Enemy preview occupies logical cols 5..9 on the far side of the river.
       for (const e of run.enemyPreview) {
-        const w = cellToWorld(toVisual(e.col, e.row), profile);
+        const w = cellToWorld(toVisual(e.col, e.row, profile), profile);
         place(e.uid, e.baseId, e.star, "enemy", e.col, e.row, w.x, w.z);
         arena.setOccupied(e.col, e.row, true);
         seen.add(e.uid);
@@ -460,7 +460,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const s = slots.get(uid);
       return s ? { kind: s.kind, col: s.col, row: s.row } : undefined;
     },
-    cellCenter: (col, row) => cellToWorld(toVisual(col, row), profile),
+    cellCenter: (col, row) => cellToWorld(toVisual(col, row, profile), profile),
     forEach(fn) { for (const [uid, s] of slots) fn(uid, s.v, s.kind); },
     flashCell,
     flashTile,
