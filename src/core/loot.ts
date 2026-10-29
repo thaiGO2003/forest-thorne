@@ -46,17 +46,13 @@ export function rollEquipmentLoot(
   rng: Rng,
   equipment: readonly Pick<EquipmentDef, "id" | "tier">[] = EQUIPMENT,
 ): Drop[] {
-  if (rng() >= EQUIP_DROP_CHANCE) return [];
   const tier = Math.min(3, Math.max(1, star));
-  let poolSize = 0;
-  for (const item of equipment) if (item.tier === tier) poolSize++;
-  if (!poolSize) return [];
-  let selected = Math.floor(rng() * poolSize);
-  for (const item of equipment) {
-    if (item.tier !== tier) continue;
-    if (selected-- === 0) return [{ item: item.id, source: String(star), rule: "equipment" }];
-  }
-  return [];
+  // Resolve the real pool before spending RNG: an empty tier must not silently eat the drop roll.
+  const pool = equipment.filter((item) => item.tier === tier);
+  if (!pool.length) return [];
+  if (rng() >= EQUIP_DROP_CHANCE) return [];
+  const selected = pool[Math.floor(rng() * pool.length)];
+  return selected ? [{ item: selected.id, source: String(star), rule: "equipment" }] : [];
 }
 
 export interface GroupedDrops {
