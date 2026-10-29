@@ -53,7 +53,7 @@ export interface Billboard {
   sprite: THREE.Sprite;
   set(s: BillboardState): void;
   setVisible(v: boolean): void;
-  /** Switch between readable compact labels and full detail for hovered/selected units. */
+  /** Show additional status icons and expanded readouts on hovered/selected units. */
   setDetailed(v: boolean): void;
   setPriority(v: boolean): void;
   dispose(): void;
@@ -86,8 +86,8 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     g.clearRect(0, 0, BILLBOARD_W, BILLBOARD_H);
     if (!kitImage("shell_billboard")) return; // redrawn by onKitReady once art arrives
 
-    // Nearby ordinary units only need a legible name and health silhouette; selected/hovered
-    // units retain the full status/rage readouts. Both modes reuse this one canvas and kit art.
+    // Compact labels must still expose both HP and rage for every unit. Hover/selection
+    // adds detailed status readouts rather than hiding core combat resources at rest.
     if (!detailed) {
       nineSlice(g, "shell_billboard", SLICE.shell_billboard, 0, 0, BILLBOARD_W, BILLBOARD_H - 3, 3);
       for (let i = 0; i < s.star; i++) drawFit(g, "star", 12 + i * 29, 27, 27, 27);
@@ -121,12 +121,23 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
         g.strokeText(bottom, 304, 93, 390);
         g.fillText(bottom, 304, 93, 390);
       }
-      const x = 16, y = 116, w = BILLBOARD_W - 32, h = 32;
+      const x = 16, w = BILLBOARD_W - 32, hpY = 110, hpH = 27;
       const pct = s.hp / s.maxHp;
-      nineSlice(g, "bar_trough", 1, x + 6, y + 6, w - 12, h - 12);
+      nineSlice(g, "bar_trough", 1, x + 6, hpY + 6, w - 12, hpH - 12);
       g.fillStyle = s.side === "R" ? "#e0503a" : pct > .5 ? "#5fd04a" : pct > .25 ? "#e8c23a" : "#e0503a";
-      g.fillRect(x + 6, y + 6, Math.round((w - 12) * pct), h - 12);
-      threeSlice(g, "frame_bar", 3, x, y, w, h);
+      g.fillRect(x + 6, hpY + 6, Math.round((w - 12) * pct), hpH - 12);
+      threeSlice(g, "frame_bar", 3, x, hpY, w, hpH);
+      label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, x + w / 2, hpY + hpH / 2, { size: 22, fill: LABEL });
+
+      const rageY = 141, rageH = 17, rageW = w - 112, gap = 3;
+      const cellW = (rageW - gap * (s.segments - 1)) / s.segments;
+      for (let i = 0; i < s.segments; i++) {
+        const cellX = x + i * (cellW + gap);
+        nineSlice(g, "bar_trough", 1, cellX + 3, rageY + 3, cellW - 6, rageH - 6);
+        if (i < s.filled) { g.fillStyle = "#ffcf3a"; g.fillRect(cellX + 3, rageY + 3, cellW - 6, rageH - 6); }
+        threeSlice(g, "frame_rage_cell", 2, cellX, rageY, cellW, rageH);
+      }
+      label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, x + rageW + 56, rageY + rageH / 2, { size: 19, fill: LABEL });
       tex.needsUpdate = true;
       return;
     }

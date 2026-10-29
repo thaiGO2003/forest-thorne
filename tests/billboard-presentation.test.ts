@@ -7,6 +7,7 @@ const kitMocks = vi.hoisted(() => ({
 
 vi.mock("../src/ui/kit", () => ({
   LABEL: "#fff8ec",
+  INK: "#27231f",
   SLICE: { shell_billboard: 1, tile_status: 1 },
   drawFit: vi.fn(),
   kitImage: vi.fn(() => ({})),
@@ -27,6 +28,9 @@ describe("billboard presentation", () => {
     context = {
       setTransform() {},
       clearRect() {},
+      measureText: vi.fn(() => ({ width: 120 })),
+      strokeText: vi.fn(),
+      fillText: vi.fn(),
       fillRect() {},
       imageSmoothingEnabled: true,
       fillStyle: "",
@@ -49,28 +53,31 @@ describe("billboard presentation", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders HP heart readout above the rage lightning readout", () => {
-    const anchor = new THREE.Object3D();
-    const billboard = createBillboard(anchor);
-
-    billboard.set({
-      name: "Unit",
-      star: 2,
-      hp: 25,
-      maxHp: 100,
-      rage: 3,
-      rageMax: 4,
-      side: "L",
-      statuses: [],
-    });
-
-    const heartCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("25%"));
-    const rageCall = kitMocks.label.mock.calls.find((call) => String(call[1]) === "⚡ 3/4");
-    expect(heartCall).toBeDefined();
-    expect(rageCall).toBeDefined();
-    expect(heartCall![3]).toBeLessThan(rageCall![3]);
-
-    billboard.dispose();
+  it("keeps HP above rage for both teams at rest, on hover and after pointer leave", () => {
+    for (const side of ["L", "R"] as const) {
+      const anchor = new THREE.Object3D();
+      const billboard = createBillboard(anchor);
+      billboard.set({
+        name: "Unit",
+        star: 2,
+        hp: 25,
+        maxHp: 100,
+        rage: 3,
+        rageMax: 4,
+        side,
+        statuses: [],
+      });
+      for (const detailed of [false, true, false]) {
+        billboard.setDetailed(detailed);
+        const heartCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("25%"));
+        const rageCall = kitMocks.label.mock.calls.find((call) => String(call[1]) === "⚡ 3/4");
+        expect(heartCall).toBeDefined();
+        expect(rageCall).toBeDefined();
+        expect(heartCall![3]).toBeLessThan(rageCall![3]);
+        kitMocks.label.mockClear();
+      }
+      billboard.dispose();
+    }
   });
 
   it("raises and restores sprite render order without replacing the billboard", () => {

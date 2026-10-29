@@ -9,7 +9,7 @@ import { AUGMENTS, type AugGroup } from "../core/augments";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
-import { createCard, type CardView } from "./card";
+import { createCard, unitCardTooltip, type CardView } from "./card";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
@@ -79,6 +79,16 @@ export function mountLibrary(
   const refreshCollection = () => { collection = account.collectionProfile(); };
   let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
   let tab: LibraryTab = "units";
+  const cardTips: (() => void)[] = [];
+  const clearCardTips = () => {
+    for (const unbind of cardTips.splice(0)) unbind();
+    tip.hide();
+  };
+  const viewTips: (() => void)[] = [];
+  const clearViewTips = () => {
+    for (const unbind of viewTips.splice(0)) unbind();
+    tip.hide();
+  };
   const root = h("div", "lib");
   modal.body.append(root);
   const clearIdleTimer = () => {
@@ -100,7 +110,7 @@ export function mountLibrary(
     const row = h("div", "lib-chips");
     const btns: [T, KitButton][] = values.map((v) => {
       const b = kitButton({ skin: "icon", icon: icon(v), aria: name(v), cls: "lib-chip", onClick: () => { set(get() === v ? null : v); page = 0; renderGrid(); } });
-      tip.bind(b.el, () => ({ title: name(v) }));
+      viewTips.push(tip.bind(b.el, () => ({ title: name(v) })));
       row.append(b.el);
       return [v, b];
     });
@@ -198,6 +208,8 @@ export function mountLibrary(
   }
 
   function renderBrowse() {
+    clearCardTips();
+    clearViewTips();
     clearIdleTimer();
     viewer?.dispose(); viewer = null;
     for (const c of cards) c.dispose();
@@ -257,6 +269,7 @@ export function mountLibrary(
   function renderGrid() {
     if (!gridEl || !footEl) return;
     syncChips();
+    clearCardTips();
     for (const c of cards) c.dispose();
     cards = [];
     gridEl.replaceChildren();
@@ -267,12 +280,13 @@ export function mountLibrary(
     if (!list.length) gridEl.append(h("div", "lib-empty", t("library.empty")));
     for (const u of list.slice(page * per, page * per + per)) {
       const c = createCard(portraits, "lib-card");
-      c.set({ unit: u, star: 1, detail: "library" });
+      c.set({ unit: u, star: 1, cost: u.boss ? undefined : u.tier });
       c.el.tabIndex = 0;
       c.el.setAttribute("role", "button");
-      const open = () => showDetail(u.id);
+      const open = () => { tip.hide(); showDetail(u.id); };
       c.el.addEventListener("click", open);
       c.el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+      cardTips.push(tip.bind(c.el, () => unitCardTooltip(u)));
       gridEl.append(c.el);
       cards.push(c);
     }
@@ -284,6 +298,8 @@ export function mountLibrary(
   }
 
   function showDetail(id: string) {
+    clearCardTips();
+    clearViewTips();
     const found = UNITS.find((x) => x.id === id);
     if (!found) return;
     const u: UnitDef = found; // non-optional binding: nested renderInfo keeps the narrowed type
@@ -327,7 +343,7 @@ export function mountLibrary(
           for (const x of stateBtns) x.setSelected(false);
           clearIdleTimer();
         } });
-        tip.bind(beastForm.el, () => ({ title: t("unit.beastForm") }));
+        viewTips.push(tip.bind(beastForm.el, () => ({ title: t("unit.beastForm") })));
         actions.append(beastForm.el);
       }
     }
@@ -380,7 +396,17 @@ export function mountLibrary(
         s.targetVi && `${ICONS.range} ${t("library.target")}: ${s.targetVi}`,
         s.shapeVi && `▦ ${t("library.shape")}: ${s.shapeVi}`,
         s.countVi && `# ${t("library.targets")}: ${s.countVi}`,
-        s.durationVi && `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}`);
+        star === 1 && s.durationVi ? `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}` : undefined);
+      const next = ms[star];
+      if (next) {
+        const current = ms[star - 1]!;
+        sec(`${t("library.stars")}: ${star}★ → ${next.star}★`,
+          `${ICONS.hp} ${current.hp} → ${next.hp}`,
+          `${ICONS.atk} ${current.atk} → ${next.atk} · ${ICONS.matk} ${current.matk} → ${next.matk}`,
+          `${ICONS.def} ${current.def} → ${next.def} · ${ICONS.mdef} ${current.mdef} → ${next.mdef}`);
+        sec(`${ICONS.rage} ${t("library.skill")}: ${s.nameVi} · ${next.star}★ (${t("unit.rage", { cost: next.rageCost })})`,
+          s.starDetailVi[next.star - 1] ?? s.detailVi);
+      }
       const skin = u.skin;
       if (skin) {
         const skinSec = panelEl("panel_tooltip", "lib-sec");
@@ -420,5 +446,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { clearIdleTimer(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
+  return { showDetail, dispose() { clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }

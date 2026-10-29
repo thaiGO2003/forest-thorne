@@ -65,23 +65,47 @@ export function createTooltip(layer: HTMLElement): Tooltip {
     hide() { el.dataset.open = "false"; },
     bind(target, get) {
       let timer = 0;
-      const open = () => { const c = get(); if (c) api.show(target, c); };
+      let longPressOpened = false;
+      const open = () => {
+        const c = get();
+        if (c && mode !== "off") { api.show(target, c); return true; }
+        return false;
+      };
       const enter = (e: PointerEvent) => { if (e.pointerType === "mouse") open(); };
-      const down = (e: PointerEvent) => { if (e.pointerType !== "mouse") timer = window.setTimeout(open, LONG_PRESS_MS); };
-      const cancel = () => { clearTimeout(timer); api.hide(); };
+      const down = (e: PointerEvent) => {
+        if (e.pointerType === "mouse") return;
+        clearTimeout(timer);
+        longPressOpened = false;
+        timer = window.setTimeout(() => { longPressOpened = open(); }, LONG_PRESS_MS);
+      };
+      const up = () => clearTimeout(timer);
+      const leave = () => { clearTimeout(timer); api.hide(); };
+      const cancel = () => { longPressOpened = false; leave(); };
+      const click = (e: MouseEvent) => {
+        if (!longPressOpened || e.detail === 0) return;
+        longPressOpened = false;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        api.hide();
+      };
+      target.addEventListener("click", click, true);
       target.addEventListener("pointerenter", enter);
       target.addEventListener("pointerdown", down);
-      target.addEventListener("pointerleave", cancel);
+      target.addEventListener("pointerup", up);
+      target.addEventListener("pointerleave", leave);
       target.addEventListener("pointercancel", cancel);
       target.addEventListener("focus", open);
-      target.addEventListener("blur", cancel);
+      target.addEventListener("blur", leave);
       return () => {
+        cancel();
+        target.removeEventListener("click", click, true);
         target.removeEventListener("pointerenter", enter);
         target.removeEventListener("pointerdown", down);
-        target.removeEventListener("pointerleave", cancel);
+        target.removeEventListener("pointerup", up);
+        target.removeEventListener("pointerleave", leave);
         target.removeEventListener("pointercancel", cancel);
         target.removeEventListener("focus", open);
-        target.removeEventListener("blur", cancel);
+        target.removeEventListener("blur", leave);
       };
     },
     setMode(m) { mode = m; if (m === "off") api.hide(); },

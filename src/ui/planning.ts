@@ -8,7 +8,7 @@ import { refreshCost, xpBuyCost, xpToNext } from "../core/economy";
 import type { RunState } from "../core/run";
 import type { SynergyLine } from "../core/synergy";
 import type { TutorialStep } from "../core/tutorial";
-import { createCard, type CardView, type PortraitProvider } from "./card";
+import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
 import { drawFit, h, kitButton, LABEL, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { Tooltip } from "./tooltip";
 
@@ -61,8 +61,9 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const compactShop = matchMedia("(max-width: 760px)");
   const portraitPlanning = matchMedia("(max-width: 760px) and (orientation: portrait)");
   const portraitShop = matchMedia("(max-width: 760px) and (orientation: portrait)");
+  const smallLandscapeShop = matchMedia("(max-width: 960px) and (max-height: 560px) and (orientation: landscape)");
   let shopOpen = false;
-  const shopPageSize = () => compactShop.matches ? SHOP_PAGE_COMPACT : SHOP_PAGE_WIDE;
+  const shopPageSize = () => portraitShop.matches ? 2 : compactShop.matches || smallLandscapeShop.matches ? SHOP_PAGE_COMPACT : SHOP_PAGE_WIDE;
   const root = h("div", "planning");
   root.dataset.screen = "planning";
 
@@ -231,18 +232,30 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     shopToggle.el.setAttribute("aria-controls", "planning-creature-shop");
   }
   dock.id = "planning-creature-shop";
-  const onShopViewportChange = () => { shopOpen = false; syncShopVisibility(); };
+  const onShopViewportChange = () => { shopOpen = false; page = 0; syncShopVisibility(); renderShop(); };
   portraitShop.addEventListener("change", onShopViewportChange);
 
-  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number }
+  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; offerId?: string | null; unbindTip?: () => void }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
     const wrap = h("div", "pl-offer");
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
     const slot: Slot = { card, wrap, index: -1,
       buy: kitButton({ skin: "green", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
-      info: kitButton({ skin: "icon", icon: ICONS.info, onClick: () => { const id = m?.run.shop[slot.index]; if (id) it.details(id); } }),
+      info: kitButton({ skin: "icon", icon: ICONS.info, onClick: () => openDetail() }),
     };
+    const activeId = () => {
+      if (!m || slot.wrap.hidden || slot.index < 0) return undefined;
+      return m.run.shop[slot.index];
+    };
+    const openDetail = () => { const id = activeId(); if (id) { tip.hide(); it.details(id); } };
+    card.el.setAttribute("role", "button");
+    card.el.tabIndex = -1;
+    card.el.addEventListener("click", openDetail);
+    card.el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(); }
+    });
+    slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id)) : null; });
     row.append(slot.info.el, slot.buy.el);
     wrap.append(card.el, row);
     grid.append(wrap);
@@ -258,11 +271,13 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     next.setDisabled(page >= pages - 1);
     slots.forEach((s, i) => {
       const idx = page * pageSize + i, id = i < pageSize && idx < shop.length ? shop[idx] : undefined;
+      if (s.offerId !== id) { tip.hide(); s.offerId = id; }
       s.index = idx;
       s.wrap.hidden = i >= pageSize || idx >= shop.length;
-      if (!id) { s.card.set(null); s.buy.setDisabled(true); s.info.setDisabled(true); return; }
+      if (!id) { s.card.set(null); s.card.el.tabIndex = -1; s.buy.setDisabled(true); s.info.setDisabled(true); return; }
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
-      s.card.set({ unit: u, star: 1, cost: u.tier, detail: "planning", affordable: afford });
+      s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
+      s.card.el.tabIndex = 0;
       s.buy.setLabel(`${t("planning.buy")} (${u.tier} ${ICONS.gold})`);
       s.buy.setDisabled(m!.locked || !afford);
       s.info.setDisabled(false);
@@ -271,6 +286,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   }
   const onShopLayoutChange = () => { page = 0; renderShop(); };
   compactShop.addEventListener("change", onShopLayoutChange);
+  smallLandscapeShop.addEventListener("change", onShopLayoutChange);
   syncShopVisibility();
 
   root.append(battle, rail, syn, joy, tutorial, dock);
@@ -317,10 +333,12 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     el: root, update, refreshCopy,
     dispose() {
       compactShop.removeEventListener("change", onShopLayoutChange);
+      smallLandscapeShop.removeEventListener("change", onShopLayoutChange);
       portraitPlanning.removeEventListener("change", syncPlanningComposition);
       portraitShop.removeEventListener("change", onShopViewportChange);
       it.pan(0, 0);
-      for (const s of slots) s.card.dispose();
+      for (const s of slots) { s.unbindTip?.(); s.card.dispose(); }
+      tip.hide();
       root.remove();
     },
   };

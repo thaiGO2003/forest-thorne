@@ -9,7 +9,7 @@ import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
-import { mountUnitInventory } from "../ui/unitInventory";
+import { mountReadonlyUnitInventory, mountUnitInventory } from "../ui/unitInventory";
 import { mountCraftWorkbench } from "../ui/crafting/workbench";
 import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
 import { combatTargetPreview, snapshotWithResources } from "../core/combat";
@@ -831,8 +831,31 @@ function diagnosticTooltipContent(diagnostics: UnitDiagnostics) {
   if (unitDef.skill.targetVi) lines.push({ text: `${t("library.target")}: ${unitDef.skill.targetVi}` });
   if (unitDef.skill.shapeVi) lines.push({ text: `${t("library.shape")}: ${unitDef.skill.shapeVi}` });
   for (const effect of diagnostics.effects) {
-    const value = effect.pct ? `${effect.value}%` : String(effect.value);
-    lines.push({ text: `${effect.kind} · ${effect.key} · ${value} · ${effect.turns}T${effect.detail ? ` · ${effect.detail}` : ""}` });
+    const name = effect.key === "phoenix-used" ? t("inventory.phoenixUsed") :
+      t(`inventory.${effect.key}` as MsgKey);
+    const title = effect.turns > 0 ? `${name} · ${t("inventory.turns", { turns: effect.turns })}` : name;
+    let detail = "";
+    if (effect.kind === "modifier") {
+      detail = `${effect.value > 0 ? "+" : ""}${effect.value}${effect.pct || effect.key === "evade" ? "%" : ""}`;
+    } else if (effect.key === "reflect") {
+      detail = Object.entries(effect.reflectByDamageType ?? {}).map(([type, fraction]) =>
+        `${t(`inventory.${type}` as MsgKey)} ${Math.round(fraction! * 100)}%`).join(" · ");
+    } else if (effect.key === "phoenix") {
+      detail = t("inventory.phoenixDetail", { value: Math.round(effect.value * 100) });
+    } else if (effect.key === "phoenix-used") {
+      detail = t("inventory.phoenixUsedDetail");
+    } else if (effect.key === "berserk" && effect.firstBasicMultiplier !== undefined && effect.rageOnKill !== undefined) {
+      detail = t("inventory.berserkDetail", {
+        value: Math.round(effect.value * 100), mult: effect.firstBasicMultiplier, rage: effect.rageOnKill,
+      });
+    } else if (effect.key === "counter") {
+      detail = t("inventory.counterDetail");
+    } else if (effect.kind === "status" && effect.value) {
+      detail = String(effect.value);
+    }
+    const source = effect.sourceUnitBaseId ? getUnit(effect.sourceUnitBaseId) : null;
+    const sourceName = source ? ` · ${t("inventory.source", { name: source.nameVi, skill: source.skill.nameVi })}` : "";
+    lines.push({ text: `${title}${detail ? ` · ${detail}` : ""}${sourceName}` });
   }
   return {
     title: `${unitDef.nameVi} ★${diagnostics.star}`,
@@ -846,54 +869,15 @@ function diagnosticTooltipContent(diagnostics: UnitDiagnostics) {
   };
 }
 
-function appendDiagnosticSummary(app: App, root: HTMLElement, diagnostics: UnitDiagnostics) {
-  const unitDef = getUnit(diagnostics.baseId);
-  const heading = h("strong", "", `${unitDef.nameVi} ★${diagnostics.star}`);
-  app.tooltip.bind(heading, () => diagnosticTooltipContent(diagnostics));
-  root.append(
-    heading,
-    h("div", "slot", `${unitDef.role} · ${unitDef.element} · ${unitDef.faction}`),
-    h("div", "slot", `Gốc · ${diagnosticStatLine(diagnostics.base)}`),
-    h("div", "slot", `Suy ra · ${diagnosticStatLine(diagnostics.derived)}`),
-    h("div", "slot", `Hiện tại · ${diagnosticStatLine(diagnostics.live)} · Rage ${Math.round(diagnostics.live.rage)}/${Math.round(diagnostics.live.rageMax)} · Shield ${Math.round(diagnostics.live.shield)}`),
-    h("div", "slot", `CRIT ${Math.round(diagnostics.live.crit * 100)}% · ACC ${Math.round(diagnostics.live.accuracy * 100)}% · EVA ${Math.round(diagnostics.live.evade * 100)}% · LS ${Math.round(diagnostics.live.lifesteal * 100)}%`),
-    h("div", "slot", `${t("library.basic")}: ${unitDef.basic.textVi} · ${t("library.target")}: ${diagnostics.derived.range}`),
-    h("div", "slot", `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: diagnostics.derived.rageMax })})`),
-    h("div", "slot", unitDef.skill.starDetailVi[diagnostics.star - 1] ?? unitDef.skill.detailVi),
-  );
-  if (unitDef.skill.targetVi) root.append(h("div", "slot", `${t("library.target")}: ${unitDef.skill.targetVi}`));
-  if (unitDef.skill.shapeVi) root.append(h("div", "slot", `${t("library.shape")}: ${unitDef.skill.shapeVi}`));
-  if (diagnostics.effects.length) {
-    root.append(h("strong", "", "Hiệu ứng"));
-    for (const effect of diagnostics.effects) {
-      const value = effect.pct ? `${effect.value}%` : String(effect.value);
-      root.append(h("div", "slot", `${effect.kind} · ${effect.key} · ${value} · ${effect.turns}T${effect.detail ? ` · ${effect.detail}` : ""}`));
-    }
-  }
-}
 
 
 function openEnemyUnitDetail(app: App, uid: string) {
   const initial = enemyDiagnostics(app, uid);
   if (!initial) return;
-  const title = getUnit(initial.baseId).nameVi;
-  openPanelModal(app, { id: "enemy-unit-detail", title, size: "lg" }, (m) => {
-    const render = () => {
-      const diagnostics = enemyDiagnostics(app, uid);
-      if (!diagnostics) {
-        m.close();
-        return;
-      }
-      const root = h("div", "stack owned-unit-detail");
-      appendDiagnosticSummary(app, root, diagnostics);
-      root.append(h("strong", "", `${t("planning.items")} · ${diagnostics.equips.length}`));
-      if (!diagnostics.equips.length) root.append(h("div", "slot", t("planning.empty")));
-      for (const itemId of diagnostics.equips) root.append(h("div", "slot", itemName(itemId)));
-      m.body.replaceChildren(root);
-    };
-    const off = app.bridge.onChange(render);
-    render();
-    return { dispose: off };
+  openPanelModal(app, { id: "enemy-unit-detail", title: getUnit(initial.baseId).nameVi, size: "lg" }, (m) => {
+    const view = mountReadonlyUnitInventory(m, portraits, () => enemyDiagnostics(app, uid));
+    const off = app.bridge.onChange(view.update);
+    return { dispose() { off(); view.dispose(); } };
   });
 }
 
