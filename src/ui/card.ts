@@ -3,7 +3,7 @@
 import type { UnitDef } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
-import { drawFit, h, INK, label, nineSlice, SLICE, surface, type Surface } from "./kit";
+import { h, INK, label, nineSlice, NORMAL_FONT, SLICE, surface, type Surface } from "./kit";
 import type { TooltipContent } from "./tooltip";
 
 /** 3D portrait source; null until the unit render is ready (card repaints via `onReady`). */
@@ -53,7 +53,7 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
     const { unit, star } = data;
     nineSlice(g, `card_t${Math.min(6, unit.tier)}`, SLICE.card, 0, 0, w, hh);
 
-    // Keep four distinct bands below the portrait: name, identity, price/range, HP/attack.
+    // Keep the portrait and four bands: name, identity, gold/rage, HP/attack.
     const pad = Math.max(6, Math.round(w * 0.09)), inner = hh - pad * 2;
     const pw = w - pad * 2;
     const ph = Math.max(0, Math.min(Math.round(inner * 0.47), inner - 4 * Math.min(9, inner / 4)));
@@ -66,11 +66,7 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
       g.imageSmoothingEnabled = false;
     }
 
-    // Stars top-left and rage cost top-right inside the portrait window.
-    const ss = Math.max(9, Math.min(14, pw / 6));
-    for (let i = 0; i < star; i++) drawFit(g, "star", pad + 4 + i * (ss + 1), pad + 4, ss, ss);
     const rage = unit.skill.rageCost[star - 1] ?? unit.skill.rageCost[0];
-    label(g, `${ICONS.rage}${rage}`, pad + pw - 4, pad + 4 + ss / 2, { size: fs, align: "right", weight: 800 });
 
     // Name band.
     const ny = pad + ph + band * 0.5;
@@ -78,31 +74,43 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
 
     // Identity band: role · faction · element (explicit tribe/element per A22).
     const iy = ny + band, icons = [ICONS[unit.role], ICONS[unit.faction], ICONS[unit.element]];
-    icons.forEach((ic, i) => label(g, ic, w / 2 + (i - 1) * (pw / 3), iy, { size: fs * 1.05, stroke: null }));
+    const identityX = [pad + fs * 0.525 + 2, w / 2, w - pad - fs * 0.525 - 2];
+    icons.forEach((ic, i) => label(g, ic, identityX[i]!, iy, { size: fs * 1.05, stroke: null }));
 
-    // Clip each half-band; keep numbers independent of emoji image scaling.
+    // Anchor each stat pair against the card's inner left or right edge.
     const field = (icon: string, value: number, right: boolean, y: number, fill = TEXT) => {
       const left = right ? w / 2 + 2 : pad + 2;
-      const width = right ? w - pad - 2 - left : w / 2 - 2 - left;
+      const edge = right ? w - pad - 2 : w / 2 - 2;
+      const width = edge - left;
       if (width <= 0) return;
       const iconSize = Math.min(17, band * 0.75);
       const numberSize = Math.min(18, band * 0.87);
+      const numberMaxW = Math.max(0, width - iconSize - 4);
+      if (numberMaxW <= 0) return;
       g.save();
       g.beginPath();
       g.rect(left, y - band / 2, width, band);
       g.clip();
-      label(g, icon, left + iconSize / 2, y, { size: iconSize, stroke: null });
-      label(g, String(value), left + iconSize + 3, y, {
-        size: numberSize, align: "left", fill, stroke: null, weight: 900,
-        maxW: Math.max(0, width - iconSize - 4),
-      });
+      if (right) {
+        g.font = `900 ${numberSize}px ${NORMAL_FONT}`;
+        const numberWidth = Math.min(g.measureText(String(value)).width, numberMaxW);
+        label(g, String(value), edge, y, {
+          size: numberSize, align: "right", fill, stroke: null, weight: 900, maxW: numberMaxW,
+        });
+        label(g, icon, edge - numberWidth - 3 - iconSize / 2, y, { size: iconSize, stroke: null });
+      } else {
+        label(g, icon, left + iconSize / 2, y, { size: iconSize, stroke: null });
+        label(g, String(value), left + iconSize + 3, y, {
+          size: numberSize, align: "left", fill, stroke: null, weight: 900, maxW: numberMaxW,
+        });
+      }
       g.restore();
     };
     const priceY = iy + band, statsY = priceY + band;
     if (data.cost !== undefined) {
       field(ICONS.gold, data.cost, false, priceY, data.affordable === false ? "#b23a2e" : TEXT);
     }
-    field(ICONS.range, unit.stats.range, true, priceY);
+    field(ICONS.rage, rage, true, priceY);
     const magicBasic = unit.basic.damageType === "magic";
     field(ICONS.hp, unit.stats.hp, false, statsY);
     field(magicBasic ? ICONS.matk : ICONS.atk, magicBasic ? unit.stats.matk : unit.stats.atk, true, statsY);
@@ -116,10 +124,10 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
       data = d;
       el.dataset.empty = String(!d);
       el.setAttribute("aria-label", d ? [
-        `${d.unit.nameVi} ${d.star}★`,
+        d.unit.nameVi,
         `${d.unit.stats.hp} HP`,
         `${d.unit.basic.damageType === "magic" ? d.unit.stats.matk : d.unit.stats.atk} attack`,
-        `${d.unit.stats.range} range`,
+        `${d.unit.skill.rageCost[d.star - 1] ?? d.unit.skill.rageCost[0]} rage`,
         ...(d.cost === undefined ? [] : [`${d.cost} gold`]),
       ].join(", ") : "");
       s.paint();
