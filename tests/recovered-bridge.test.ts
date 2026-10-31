@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createBridge } from "../src/app/bridge";
 import { inspectSave, saveAchievementProfile, saveRun, PROGRESS_KEY } from "../src/core/save";
-import { buy, benchToBoard } from "../src/core/run";
+import { buy, benchToBoard, inventoryCapacity } from "../src/core/run";
 import { unitDiagnostics } from "../src/core/inspection";
 import { skipTutorial, syncTutorialRound } from "../src/core/tutorial";
 import {
@@ -405,6 +405,122 @@ describe("recovered application bridge", () => {
     expect(run.itemBag).not.toContain("tear");
     expect(bridge.craftStaging()).toEqual(Array<string | null>(9).fill(null));
     expect(bridge.achievementProfile().stats.crafted_items).toBe(1);
+  });
+
+  it("rejects inactive grid cells without losing Bridge staging, resources or saved progress", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    run.gold = 100;
+    run.inventoryBonus = 3;
+    run.itemBag = ["tear", "bark", "claw"];
+    expect(bridge.research("craft_t")).toBe(true);
+    expect(run.craftTableLevel).toBe(1);
+    expect(bridge.stageCraft(4, "tear")).toBe(true);
+
+    const before = {
+      bag: [...run.itemBag],
+      history: [...run.craftHistory],
+      staging: bridge.craftStaging(),
+      seed: run.rngSeed,
+      saved: store.getItem(PROGRESS_KEY),
+      entries: bridge.history().entries.length,
+    };
+    for (const index of [-1, 0, 1, 3, 5, 8, 9]) {
+      expect(bridge.stageCraft(index, "bark")).toBe(false);
+    }
+    expect(run.itemBag).toEqual(before.bag);
+    expect(run.craftHistory).toEqual(before.history);
+    expect(run.rngSeed).toBe(before.seed);
+    expect(bridge.craftStaging()).toEqual(before.staging);
+    expect(store.getItem(PROGRESS_KEY)).toBe(before.saved);
+    expect(bridge.history().entries).toHaveLength(before.entries);
+
+    expect(bridge.stageCraft(4, null)).toBe(true);
+    expect(bridge.craftStaging()).toEqual(Array<string | null>(9).fill(null));
+    expect(bridge.research("craft_t")).toBe(true);
+    expect(run.craftTableLevel).toBe(2);
+    expect(bridge.stageCraft(0, "tear")).toBe(true);
+    expect(bridge.stageCraft(8, "claw")).toBe(false);
+    expect(bridge.stageCraft(1, "bark")).toBe(true);
+    expect(bridge.research("craft_t")).toBe(true);
+    expect(run.craftTableLevel).toBe(3);
+    expect(bridge.stageCraft(8, "claw")).toBe(true);
+    expect(bridge.craftStaging()[8]).toBe("claw");
+    expect(run.itemBag).toEqual(before.bag);
+    expect(run.craftHistory).toEqual(before.history);
+  });
+
+  it("preserves an uncraftable staged ingredient on failure but never serializes the grid", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    run.craftTableLevel = 1;
+    run.itemBag = ["bark", "claw"];
+    bridge.checkpoint("EVENT", "Seed crafting inventory");
+    expect(bridge.stageCraft(4, "tear")).toBe(true);
+
+    const staged = bridge.craftStaging();
+    const bag = [...run.itemBag];
+    const history = [...run.craftHistory];
+    const saved = store.getItem(PROGRESS_KEY);
+    expect(bridge.craft()).toBeNull();
+    expect(run.itemBag).toEqual(bag);
+    expect(run.craftHistory).toEqual(history);
+    expect(bridge.craftStaging()).toEqual(staged);
+    expect(store.getItem(PROGRESS_KEY)).toBe(saved);
+    expect(bridge.achievementProfile().stats.crafted_items).toBe(0);
+
+    const resumed = createBridge(store);
+    expect(resumed.continueRun()).toBe(true);
+    expect(resumed.run()?.itemBag).toEqual(bag);
+    expect(resumed.run()?.craftHistory).toEqual(history);
+    expect(resumed.craftStaging()).toEqual(Array<string | null>(9).fill(null));
+  });
+
+  it("conserves a full bag through Bridge craft, clears only successful staging and reloads the committed result", () => {
+    const store = storage();
+    const bridge = createBridge(store);
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    run.gold = 100;
+    run.inventoryBonus = 4;
+    run.itemBag = ["tear", "bark", "tear", "claw"];
+    bridge.checkpoint("EVENT", "Seed full crafting inventory");
+    expect(run.itemBag).toHaveLength(inventoryCapacity(run));
+    expect(bridge.research("craft_t")).toBe(true);
+    expect(bridge.research("craft_t")).toBe(true);
+    expect(run.craftTableLevel).toBe(2);
+    expect(bridge.stageCraft(0, "tear")).toBe(true);
+    expect(bridge.stageCraft(1, "bark")).toBe(true);
+
+    const beforeBag = [...run.itemBag];
+    const contaminated = bridge.craftStaging();
+    const savedBeforeFailure = store.getItem(PROGRESS_KEY);
+    expect(bridge.craft()).toBeNull();
+    expect(run.itemBag).toEqual(beforeBag);
+    expect(run.craftHistory).toEqual([]);
+    expect(bridge.craftStaging()).toEqual(contaminated);
+    expect(store.getItem(PROGRESS_KEY)).toBe(savedBeforeFailure);
+
+    expect(bridge.stageCraft(1, null)).toBe(true);
+    expect(bridge.craft()).toBe("eq_blue_buff");
+    expect([...run.itemBag].sort()).toEqual(["bark", "claw", "eq_blue_buff", "tear"]);
+    expect(run.itemBag).toHaveLength(beforeBag.length);
+    expect(run.itemBag).toHaveLength(inventoryCapacity(run));
+    expect(run.craftHistory).toEqual(["blue_buff"]);
+    expect(bridge.craftStaging()).toEqual(Array<string | null>(9).fill(null));
+    expect(bridge.achievementProfile().stats.crafted_items).toBe(1);
+
+    const saved = inspectSave(store);
+    expect(saved.status).toBe("valid");
+    if (saved.status !== "valid") throw new Error("crafted save missing");
+    expect(saved.envelope.payload.player?.itemBag).toEqual(run.itemBag);
+    expect(saved.envelope.payload.player?.craftHistory).toEqual(["blue_buff"]);
+    const resumed = createBridge(store);
+    expect(resumed.continueRun()).toBe(true);
+    expect(resumed.run()?.itemBag).toEqual(run.itemBag);
+    expect(resumed.run()?.craftHistory).toEqual(["blue_buff"]);
+    expect(resumed.craftStaging()).toEqual(Array<string | null>(9).fill(null));
   });
 
   it("commits augment choice and returns the run to Planning", () => {
