@@ -26,7 +26,7 @@ export function createTooltip(layer: HTMLElement): Tooltip {
   const el = h("div", "tooltip");
   el.setAttribute("role", "tooltip");
   el.dataset.open = "false";
-  surface(el, (g, w, hh) => nineSlice(g, "panel_tooltip", SLICE.panel_tooltip, 0, 0, w, hh));
+  surface(el, (g, w, hh) => nineSlice(g, "panel_tooltip_dark", SLICE.panel_tooltip, 0, 0, w, hh));
   const inner = h("div", "tooltip-inner");
   el.append(inner);
   layer.append(el);

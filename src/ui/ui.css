@@ -137,7 +137,7 @@
 /* ---------- tooltip ---------- */
 .tooltip { position: fixed; left: 0; top: 0; max-width: min(320px, calc(100vw - 16px)); padding: 10px 12px; }
 .tooltip[data-open="false"] { visibility: hidden; }
-.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; color: #111; font-size: 13px; line-height: 1.35; font-family: "Forest Normal", "Noto Sans", sans-serif; }
+.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; color: #f1e2bd; font-size: 13px; line-height: 1.35; font-family: "Forest Normal", "Noto Sans", sans-serif; }
 .tt-title { font-weight: 800; font-size: 15px; }
 .tt-sub { font-size: 12px; font-style: italic; }
 .tt-line { display: flex; gap: 6px; align-items: baseline; }

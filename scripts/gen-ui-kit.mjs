@@ -164,6 +164,8 @@ function iconButton(state) {
 panel(48, 48, { border: 4, band: C.wood, bandL: C.woodH, bandD: C.woodD, grain: true, fill: C.parch, fillS: C.parchS, fillD: C.parchD, texture: true, fillShadow: C.parchS, rivets: true }).save("panel_parchment");
 panel(48, 48, { border: 4, band: C.wood, bandL: C.woodH, bandD: C.woodD, grain: true, fill: hex("#4a2e1a"), fillS: hex("#553521"), fillD: hex("#3f2716"), texture: true, rivets: true }).save("panel_wood");
 panel(24, 24, { border: 2, band: C.woodL, bandL: C.woodH, bandD: C.woodD, fill: C.parch, fillS: C.parchS, texture: true }).save("panel_tooltip");
+// Dedicated black-interior hover tooltip; preserve the parchment panel for other UI uses.
+panel(24, 24, { border: 2, band: C.woodL, bandL: C.woodH, bandD: C.woodD, fill: hex("#000000"), fillS: hex("#090909"), fillD: hex("#000000"), texture: true }).save("panel_tooltip_dark");
 panel(24, 24, { border: 2, band: C.parchD, bandL: C.parchS, bandD: C.woodL, inkInner: C.woodL, fill: C.parchS, fillS: C.parchD, texture: true }).save("slot_well");
 panel(24, 24, { border: 2, band: C.woodD, bandL: C.wood, bandD: C.ink, fill: hex("#2a1a0e", 225), fillS: hex("#33200f", 225), texture: true }).save("shell_billboard");
 panel(22, 22, { border: 2, band: C.woodL, bandL: C.woodH, bandD: C.woodD, fill: hex("#3b2414", 235), fillS: hex("#452b18", 235) }).save("tile_status");
