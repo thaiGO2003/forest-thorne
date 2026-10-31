@@ -202,6 +202,12 @@ On the clean `localhost:5207` Chromium Planning session, native Library Detail f
 
 **Remaining UI gates:** native full-slot/tier/duplicate/insufficient-gold equipment denial; combat read-only transitions; selection invalidation on legitimate unit removal; Crafting autofill and post-success cleanup with a legitimately acquired `tear`; Enemy Detail live status/death/impact timing; visually rendered tooltip backgrounds, legacy asset comparison and missing creature rigs. Physical touchscreen behavior remains unverified.
 
+### Native Enemy Detail keyboard and compact-layout acceptance — 2026-10-31
+
+At the clean `localhost:5207` Planning screen (844×390, DPR 1.25), native mouse hover at `(460,155)` displayed the `Lửng Đá ★1` tooltip; native click at the same confirmed pickable location opened the readonly `enemy-unit-detail` dialog. Earlier guessed coordinates failed to open it; the cause of those misses was not established. Production `.ui-inventory-content` had `tabIndex=0`, created by `src/ui/unitInventory.ts`, without temporary DOM mutation. Initial focus was the modal frame. One native `Tab` moved focus to the scroll container; native `PageDown` scrolled to `213/327`, and native `End` reached `327/327`. `Shift+Tab` moved focus outside the container to the existing Shop toggle (the modal does not trap focus); native `Escape` removed the modal, inventory content and portrait canvas from the live DOM. **PASS** for observed native click, keyboard focus/scroll and Escape DOM cleanup. This does not prove JS listener unsubscribe, GPU leak freedom or physical touchscreen behavior.
+
+Previously verified native wheel scrolling reached the bottom at 900×600 (`102/102`), portrait 390×844 (`724/724`) and landscape 844×390 (`327/327`); final Buff/Debuff content was visible and compact viewports had no document-level horizontal overflow. No DOM-injected `tabindex` or programmatic `.focus()` was used for the production keyboard acceptance. After the source edit, `pnpm typecheck`, `pnpm exec vitest --run tests/planning-drag.test.ts` (**3/3**), `pnpm build` and `git diff --check` all passed. Enemy live combat impact/status/death transitions, focus behavior in other modal variants, and full readonly lifecycle cleanup remain unverified.
+
 
 ### Plan.pdf — sixteen requirement acceptance matrix
 
