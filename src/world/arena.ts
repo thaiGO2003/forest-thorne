@@ -2,6 +2,7 @@
 // Owns every GPU resource it creates; dispose() releases all of them.
 import * as THREE from "three";
 import { benchPerimeter, brownRing, riverCells, toLogical, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
+import { createBoardLabels } from "./boardLabels";
 import { createScenery } from "./scenery";
 import { createSky } from "./sky";
 import type { EnvironmentId } from "../core/environment";
@@ -168,6 +169,9 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const benchCells = benchPerimeter(p);
   const bench = ringTiles(benchCells, 0xb48a5c, TILE_H / 2 + 0.02);
   bench.name = "bench-perimeter";
+  // Chess-style position markers around the battlefield (old_src board edge labels).
+  const boardLabels = createBoardLabels(p);
+  root.add(boardLabels.group);
   const benchHighlightGeo = own(new THREE.BoxGeometry(BLOCK * 0.88, 0.035, BLOCK * 0.88));
   const benchHighlights = new THREE.InstancedMesh(
     benchHighlightGeo,
@@ -318,6 +322,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     tiles,
     setPhase(phase) {
       currentPhase = phase;
+      boardLabels.group.visible = phase !== "menu";
       applyLighting();
     },
     setEnvironment(environment) {
@@ -408,6 +413,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     dispose() {
       restoreHighlights();
       sun.shadow.map?.dispose();
+      boardLabels.dispose();
       for (const d of disposables) d.dispose();
       for (const o of [soil, tiles, tufts, ring, bench, benchHighlights]) o.dispose();
       scene.remove(root);
