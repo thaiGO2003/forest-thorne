@@ -28,6 +28,7 @@ import { ICONS } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
 import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
+import { basicAttackCopy } from "../core/unitText";
 import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
@@ -847,7 +848,7 @@ function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent
     lines,
     body: [
       unitDef.pitchVi,
-      `${t("library.basic")}: ${unitDef.basic.textVi}`,
+      `${t("library.basic")}: ${basicAttackCopy(unitDef)}`,
       unitDef.skill.starDetailVi[star - 1] ?? unitDef.skill.detailVi,
     ].filter(Boolean).join("\n"),
   };

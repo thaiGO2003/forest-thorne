@@ -3,6 +3,7 @@
 import type { UnitDef } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
+import { basicAttackCopy } from "../core/unitText";
 import { h, INK, label, nineSlice, NORMAL_FONT, SLICE, surface, type Surface } from "./kit";
 import type { TooltipContent } from "./tooltip";
 
@@ -33,7 +34,7 @@ export function unitCardTooltip(unit: UnitDef): TooltipContent {
     subtitle: `${t(`role.${unit.role}` as MsgKey)} · ${t(`faction.${unit.faction}` as MsgKey)} · ${t(`element.${unit.element}` as MsgKey)}`,
     lines: [
       { icon: ICONS.hp, text: `${unit.stats.hp} HP` },
-      { icon: magicBasic ? ICONS.matk : ICONS.atk, text: `${magicBasic ? unit.stats.matk : unit.stats.atk} · ${unit.basic.textVi}` },
+      { icon: magicBasic ? ICONS.matk : ICONS.atk, text: `${magicBasic ? unit.stats.matk : unit.stats.atk} · ${basicAttackCopy(unit)}` },
       { icon: ICONS.range, text: `${t("library.target")}: ${unit.stats.range}` },
       { icon: ICONS.rage, text: `${unit.skill.nameVi} (${t("unit.rage", { cost: unit.skill.rageCost[0] })})` },
       ...(!unit.boss ? [{ icon: ICONS.gold, text: `${unit.tier}` }] : []),

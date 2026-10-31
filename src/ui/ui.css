@@ -662,3 +662,4 @@
 .tabs::-webkit-scrollbar { display: none; }
 .crafting-hero h2 { font-size: clamp(30px, 3vw, 46px); letter-spacing: .04em; text-transform: uppercase; }
 .crafting-subtitle { margin: 0; font-size: var(--ft-12); opacity: .92; }
+.modal-body .lib-sec .lib-p { font-size: var(--ft-14); line-height: 1.5; }

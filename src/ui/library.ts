@@ -9,6 +9,7 @@ import { AUGMENTS, type AugGroup } from "../core/augments";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
+import { basicAttackCopy } from "../core/unitText";
 import { createCard, unitCardTooltip, type CardView } from "./card";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
@@ -389,13 +390,13 @@ export function mountLibrary(
       const statSec = panelEl("panel_tooltip", "lib-sec");
       statSec.append(h("h3", "lib-h", t("library.stars")), table);
       info.append(statSec);
-      sec(`${ICONS.atk} ${t("library.basic")}`, u.basic.textVi);
+      sec(`${u.basic.damageType === "magic" ? ICONS.matk : ICONS.atk} ${t("library.basic")}`, basicAttackCopy(u));
       const s = u.skill;
       sec(`${ICONS.rage} ${t("library.skill")}: ${s.nameVi} (${t("unit.rage", { cost: s.rageCost[star - 1] ?? s.rageCost[0] })})`,
         s.starDetailVi[star - 1] ?? s.detailVi,
         s.targetVi && `${ICONS.range} ${t("library.target")}: ${s.targetVi}`,
-        s.shapeVi && `▦ ${t("library.shape")}: ${s.shapeVi}`,
-        s.countVi && `# ${t("library.targets")}: ${s.countVi}`,
+        s.shapeVi && `${ICONS.synergy} ${t("library.shape")}: ${s.shapeVi}`,
+        s.countVi && `${ICONS.range} ${t("library.targets")}: ${s.countVi}`,
         star === 1 && s.durationVi ? `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}` : undefined);
       const next = ms[star];
       if (next) {
