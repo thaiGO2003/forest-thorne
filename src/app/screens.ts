@@ -910,45 +910,12 @@ registerPanel("tech", (app) => {
     return { dispose() { off(); view.dispose(); } };
   });
 });
-function mountWorkshop(app: App, modal: ModalHandle, initial: "inventory" | "craft" | "recipes") {
-  const tabs = h("div", "craft-tabs");
-  tabs.setAttribute("role", "tablist");
-  const body = h("div", "craft-content");
-  let active = initial;
-  let view: { dispose(): void } | null = null;
-  const entries = [
-    { id: "inventory", label: t("planning.inventory") },
-    { id: "craft", label: t("planning.craft") },
-    { id: "recipes", label: t("planning.recipes") },
-  ] as const;
-  const tabButtons = entries.map(({ id, label }) => {
-    const button = kitButton({ skin: "blue", label, onClick: () => show(id) });
-    button.el.setAttribute("role", "tab");
-    tabs.append(button.el);
-    return button;
-  });
-  const show = (id: typeof active) => {
-    view?.dispose();
-    view = null;
-    active = id;
-    for (let i = 0; i < entries.length; i++) {
-      const selected = entries[i]!.id === active;
-      tabButtons[i]!.setSelected(selected);
-      tabButtons[i]!.el.setAttribute("aria-selected", String(selected));
-    }
-    body.replaceChildren();
-    if (id === "inventory") view = mountInventory(app, body);
-    else if (id === "craft") view = mountCraftWorkbench(app, body);
-    else mountRecipes(body);
-  };
-  modal.body.append(tabs, body);
-  show(initial);
-  return { dispose() { view?.dispose(); for (const b of tabButtons) b.dispose(); } };
-}
-for (const id of ["inventory", "craft", "recipes"] as const) {
-  registerPanel(id, (app) =>
-    openPanelModal(app, { id, title: t("planning.craft"), size: "full" }, (m) => mountWorkshop(app, m, id)));
-}
+registerPanel("inventory", (app) =>
+  openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "full" }, (m) => mountInventory(app, m.body)));
+registerPanel("recipes", (app) =>
+  openPanelModal(app, { id: "recipes", title: t("planning.recipes"), size: "full" }, (m) => mountRecipes(m.body)));
+registerPanel("craft", (app) =>
+  openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "full" }, (m) => mountCraftWorkbench(app, m.body)));
 registerPanel("augment", (app) =>
   openPanelModal(app, { id: "augment", title: t("planning.augment"), size: "lg", dismissible: false }, (m) => mountAugments(app, m)));
 
