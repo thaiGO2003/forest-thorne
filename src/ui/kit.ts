@@ -17,7 +17,7 @@ export const SLICE = {
 export const ART_SCALE = 2;
 /** The supplied OTF faces are shared by DOM and canvas text. */
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
-export const NORMAL_FONT = `"Forest Normal", "Noto Sans", sans-serif`;
+export const NORMAL_FONT = `"Times New Roman", Times, serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
 export const BUTTON_FONT = `"Forest Button", "Noto Sans", sans-serif`;
 export const INK = "#111";
@@ -55,7 +55,6 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
     if (typeof document !== "undefined" && document.fonts) {
       await Promise.allSettled([
         document.fonts.load(`16px ${HEADING_FONT}`),
-        document.fonts.load(`16px ${NORMAL_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
         document.fonts.load(`16px ${BUTTON_FONT}`),
       ]);
