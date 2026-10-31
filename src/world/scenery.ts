@@ -114,6 +114,88 @@ export function createScenery(
     put(riverWater, i, (a.x + b.x) / 2, WATER_Y, a.z, width, WATER_H, 1);
   });
 
+  // --- Mountain waterfall source ---------------------------------------------------------------
+  // The far end of the decorative river rises into a voxel mountain. The sheet, pool and mist sit
+  // beyond the tactical slab and are purely decorative (never raycastable, all owned here).
+  const source = toWorld({ x: RIVER_X, z: minZ - REACH });
+  const waterfall = new THREE.Group();
+  waterfall.name = "scenery-waterfall";
+  root.add(waterfall);
+
+  const mountainMat = white({ roughness: 1 });
+  const mountainSpecs: { x: number; y: number; z: number; sx: number; sy: number; sz: number; tone: number }[] = [];
+  for (let layer = 0; layer < 5; layer++) {
+    const width = 5 - layer;
+    for (let ix = -width; ix <= width; ix++) {
+      if (Math.abs(ix) <= 1 && layer < 3) continue; // carved notch lets the waterfall reach the river
+      mountainSpecs.push({
+        x: source.x + ix * 1.05,
+        y: 0.55 + layer * 1.0,
+        z: source.z - 2.2 - layer * 0.35,
+        sx: 1.1,
+        sy: 1.1,
+        sz: 1.15,
+        tone: layer >= 4 ? 0xf2f6f8 : layer >= 3 ? 0x8d8f86 : 0x6e6a60,
+      });
+    }
+  }
+  const mountain = own(new THREE.InstancedMesh(box, mountainMat, Math.max(1, mountainSpecs.length)));
+  mountain.name = "scenery-waterfall-mountain";
+  mountain.count = mountainSpecs.length;
+  mountain.raycast = () => {};
+  mountain.receiveShadow = true;
+  mountainSpecs.forEach((spec, index) => {
+    put(mountain, index, spec.x, spec.y, spec.z, spec.sx, spec.sy, spec.sz);
+    mountain.setColorAt(index, col.setHex(spec.tone));
+  });
+  if (mountain.instanceColor) mountain.instanceColor.needsUpdate = true;
+  waterfall.add(mountain);
+
+  const sheetMat = own(new THREE.MeshStandardMaterial({
+    color: 0x8fe4ff,
+    emissive: 0x1d6f9a,
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.78,
+    roughness: 0.2,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  }));
+  const sheetGeo = own(new THREE.PlaneGeometry(1.9, 7.2));
+  const sheet = new THREE.Mesh(sheetGeo, sheetMat);
+  sheet.name = "scenery-waterfall-sheet";
+  sheet.position.set(source.x, 3.6, source.z - 1.25);
+  sheet.raycast = () => {};
+  waterfall.add(sheet);
+
+  const poolGeo = own(new THREE.CylinderGeometry(2.1, 2.1, 0.16, 16));
+  const pool = new THREE.Mesh(poolGeo, waterMat);
+  pool.name = "scenery-waterfall-pool";
+  pool.position.set(source.x, WATER_Y + 0.01, source.z + 0.1);
+  pool.raycast = () => {};
+  waterfall.add(pool);
+
+  const foamMat = white({ color: 0xf2fbff, transparent: true, opacity: 0.78, roughness: 0.5 });
+  const foamSeeds = Array.from({ length: 10 }, (_, i) => ({
+    x: (hash(i, 0, 51) - 0.5) * 2.2,
+    z: (hash(i, 0, 52) - 0.5) * 0.7,
+    offset: hash(i, 0, 53) * 7.2,
+    speed: 1.4 + hash(i, 0, 54) * 1.2,
+    size: 0.12 + hash(i, 0, 55) * 0.12,
+  }));
+  const foam = own(new THREE.InstancedMesh(box, foamMat, foamSeeds.length));
+  foam.name = "scenery-waterfall-foam";
+  foam.count = foamSeeds.length;
+  foam.raycast = () => {};
+  waterfall.add(foam);
+
+  const mistMat = white({ color: 0xffffff, transparent: true, opacity: 0.32, roughness: 1 });
+  const mist = own(new THREE.InstancedMesh(box, mistMat, 5));
+  mist.name = "scenery-waterfall-mist";
+  mist.count = 5;
+  mist.raycast = () => {};
+  waterfall.add(mist);
+  let waterfallTime = 0;
 
   // --- Props -----------------------------------------------------------------------------------
   const forest = columns.filter((c) => {
@@ -275,6 +357,18 @@ export function createScenery(
     update(dt) {
       for (const c of cloudSeeds) c.x = ((c.x + dt * 0.6 + SPAN / 2) % SPAN + SPAN) % SPAN - SPAN / 2;
       placeClouds();
+      waterfallTime += Math.max(0, dt);
+      sheetMat.opacity = 0.68 + 0.12 * Math.sin(waterfallTime * 3.1);
+      foamSeeds.forEach((seed, i) => {
+        const y = 7.05 - ((seed.offset + waterfallTime * seed.speed) % 7.2);
+        put(foam, i, source.x + seed.x, y, source.z - 1.15 + seed.z, seed.size, seed.size * 1.6, seed.size);
+      });
+      foam.instanceMatrix.needsUpdate = true;
+      for (let i = 0; i < 5; i++) {
+        const pulse = 0.55 + 0.4 * Math.sin(waterfallTime * 2 + i);
+        put(mist, i, source.x + Math.sin(waterfallTime + i) * 0.7, 0.25 + i * 0.18, source.z + 0.3, pulse, 0.18, pulse);
+      }
+      mist.instanceMatrix.needsUpdate = true;
     },
   };
 }

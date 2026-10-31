@@ -85,6 +85,47 @@ describe("scenery presentation", () => {
     }
   });
 
+  it("adds an owned, animated mountain waterfall at the river source", () => {
+    const root = new THREE.Group();
+    const owned: { dispose(): void }[] = [];
+    const water = new THREE.MeshStandardMaterial();
+    const scenery = createScenery(
+      root,
+      "solo",
+      (resource) => {
+        owned.push(resource);
+        return resource;
+      },
+      ({ x, z }) => ({ x, z }),
+      water,
+    );
+
+    const group = root.getObjectByName("scenery-waterfall") as THREE.Group;
+    expect(group).toBeInstanceOf(THREE.Group);
+    const mountain = group.getObjectByName("scenery-waterfall-mountain") as THREE.InstancedMesh;
+    const sheet = group.getObjectByName("scenery-waterfall-sheet") as THREE.Mesh;
+    const foam = group.getObjectByName("scenery-waterfall-foam") as THREE.InstancedMesh;
+    const mist = group.getObjectByName("scenery-waterfall-mist") as THREE.InstancedMesh;
+    const pool = group.getObjectByName("scenery-waterfall-pool") as THREE.Mesh;
+    expect(mountain).toBeInstanceOf(THREE.InstancedMesh);
+    expect(mountain.count).toBeGreaterThan(0);
+    expect(sheet).toBeInstanceOf(THREE.Mesh);
+    expect(sheet.position.z).toBeLessThan(-2);
+    expect(foam.count).toBe(10);
+    expect(mist.count).toBe(5);
+    expect(pool).toBeInstanceOf(THREE.Mesh);
+
+    const before = new THREE.Matrix4();
+    const after = new THREE.Matrix4();
+    foam.getMatrixAt(0, before);
+    scenery.update(0.6);
+    foam.getMatrixAt(0, after);
+    expect(after.elements).not.toEqual(before.elements);
+
+    for (const resource of owned.reverse()) resource.dispose();
+    water.dispose();
+  });
+
   it("uses four bounded lamp lights and raises their intensity at night", () => {
     const root = new THREE.Group();
     const owned: { dispose(): void }[] = [];
