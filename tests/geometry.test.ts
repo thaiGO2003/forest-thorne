@@ -38,50 +38,88 @@ describe("board geometry (A31.1)", () => {
     }
   });
 
-  it("toVisual rejects out-of-range and fractional logical cells for every profile", () => {
+  it("rejects out-of-range, fractional and non-finite logical coordinates", () => {
     for (const profile of ["solo", "coop2", "coop4"] as const) {
       const rows = totalRows(profile);
-      expect(() => toVisual(10, 0, profile)).toThrow(RangeError);
-      expect(() => toVisual(-1, 0, profile)).toThrow(RangeError);
-      expect(() => toVisual(0, rows, profile)).toThrow(RangeError);
-      expect(() => toVisual(0, -1, profile)).toThrow(RangeError);
-      expect(() => toVisual(0.5, 0, profile)).toThrow(RangeError);
-      expect(() => toVisual(0, 0.5, profile)).toThrow(RangeError);
-      // Last legal cell stays inside the visual grid and never lands on the river lane.
+      const invalid = [
+        [-1, 0], [10, 0], [0, -1], [0, rows],
+        [0.5, 0], [0, 0.5], [Number.NaN, 0], [0, Number.NaN],
+        [Infinity, 0], [0, -Infinity],
+      ] as const;
+      for (const [col, row] of invalid) {
+        expect(() => toVisual(col, row, profile)).toThrow(RangeError);
+      }
+
+      // Exact column transition and terminal boundary must remain unchanged.
+      expect(toVisual(0, 0, profile)).toEqual({ x: 0, z: 0 });
+      expect(toVisual(4, 0, profile)).toEqual({ x: 4, z: 0 });
+      expect(toVisual(5, 0, profile)).toEqual({ x: 6, z: 0 });
       expect(toVisual(9, rows - 1, profile)).toEqual({ x: 10, z: rows - 1 });
+
+      // Inverse rejects out-of-range, fractional and non-finite visual cells.
+      for (const [x, z] of [
+        [-1, 0], [VISUAL_COLS, 0], [0, -1], [0, rows],
+        [0.5, 0], [0, 0.5], [Number.NaN, 0], [0, Number.NaN],
+        [Infinity, 0], [0, Infinity],
+      ] as const) {
+        expect(toLogical(x, z, profile)).toBeNull();
+      }
     }
   });
 
-  it("counts the whole visual grid as a bijection for solo, coop2 and coop4", () => {
-    for (const profile of ["solo", "coop2", "coop4"] as const) {
-      const rows = totalRows(profile);
-      const seen = new Set<string>();
-      for (let x = 0; x < VISUAL_COLS; x++) {
-        if (x === RIVER_X) continue;
-        for (let z = 0; z < rows; z++) {
+  it("enumerates the entire non-river visual grid bijectively in every profile", () => {
+    for (const { profile, rows, cells } of [
+      { profile: "solo", rows: 5, cells: 50 },
+      { profile: "coop2", rows: 10, cells: 100 },
+      { profile: "coop4", rows: 20, cells: 200 },
+    ] as const) {
+      expect(totalRows(profile)).toBe(rows);
+      const logicalCells = new Set<string>();
+      const visualCells = new Set<string>();
+      let playableCells = 0;
+      for (let z = 0; z < rows; z++) {
+        for (let x = 0; x < VISUAL_COLS; x++) {
           const logical = toLogical(x, z, profile);
-          expect(logical).not.toBeNull();
+          if (x === RIVER_X) {
+            expect(logical).toBeNull();
+            continue;
+          }
+          expect(logical).toEqual({ col: x < RIVER_X ? x : x - 1, row: z });
           expect(toVisual(logical!.col, logical!.row, profile)).toEqual({ x, z });
-          seen.add(`${logical!.col},${logical!.row}`);
+          logicalCells.add(`${logical!.col},${logical!.row}`);
+          visualCells.add(`${x},${z}`);
+          playableCells++;
         }
       }
-      expect(seen.size).toBe(10 * rows);
-      const river = riverCells(profile);
-      expect(river.length).toBe(rows);
-      expect(river.every((cell) => toLogical(cell.x, cell.z, profile) === null)).toBe(true);
+      expect(playableCells).toBe(cells);
+      expect(playableCells).toBe(10 * totalRows(profile));
+      expect(logicalCells.size).toBe(cells);
+      expect(visualCells.size).toBe(cells);
+      expect(riverCells(profile)).toEqual(
+        Array.from({ length: rows }, (_, z) => ({ x: RIVER_X, z })),
+      );
     }
   });
 
-  it("brown ring and bench perimeter are disjoint, unique, and bench is 44", () => {
-    const ring = brownRing().map(key);
-    const bench = benchPerimeter().map(key);
-    expect(ring.length).toBe(36);
-    expect(new Set(ring).size).toBe(ring.length);
-    expect(new Set(bench).size).toBe(44);
-    expect(bench.length).toBe(44);
-    expect(ring.some((k) => bench.includes(k))).toBe(false);
-    // ring is exactly the inset-1 outline of the 11×5 footprint
-    expect(brownRing().every((c) => c.x === -1 || c.x === 11 || c.z === -1 || c.z === 5)).toBe(true);
+  it("ring geometry is unique and disjoint from the bench perimeter in every profile", () => {
+    for (const { profile, ringSize, benchSize } of [
+      { profile: "solo", ringSize: 36, benchSize: 44 },
+      { profile: "coop2", ringSize: 46, benchSize: 54 },
+      { profile: "coop4", ringSize: 66, benchSize: 74 },
+    ] as const) {
+      const ring = brownRing(profile).map(key);
+      const bench = benchPerimeter(profile).map(key);
+      // Spec §11.4 says 40 cells for solo, but the actual inset-1 rectangle
+      // contains 13×7 − 11×5 = 36 unique cells. Preserve geometry pending a spec decision.
+      expect(ring.length).toBe(ringSize);
+      expect(new Set(ring).size).toBe(ringSize);
+      expect(bench.length).toBe(benchSize);
+      expect(new Set(bench).size).toBe(benchSize);
+      expect(ring.every((cell) => !bench.includes(cell))).toBe(true);
+      expect(brownRing(profile).every((c) =>
+        c.x === -1 || c.x === 11 || c.z === -1 || c.z === totalRows(profile),
+      )).toBe(true);
+    }
   });
 
   it("bench slots are stable prefixes capped by capacity", () => {
