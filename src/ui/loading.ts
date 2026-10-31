@@ -10,7 +10,10 @@ const FIRST_SPAWN_MS = 180, SPAWN_MS = 280, SHOT_SPEED = 620, SHOT_R = 16, MAX_D
 // Title color advances only when the actual asset loader reports progress.
 const RAINBOW = ["#ff7068", "#ffae58", "#f6de62", "#7bdd76", "#63c9f1", "#958cff", "#dd86e9"] as const;
 
-export function drawLoadingTitle(g: CanvasRenderingContext2D, title: string, progress: number, w: number, hh: number): void {
+export function drawLoadingTitle(
+  g: CanvasRenderingContext2D, title: string, progress: number, w: number, hh: number,
+  options: { centerY?: number } = {},
+): void {
   // NFC preserves Vietnamese glyphs composed with combining accents as single characters.
   const lines = title.split(/\r?\n/).map((line) => Array.from(line.normalize("NFC")));
   const letterCount = lines.reduce((sum, line) => sum + line.filter((ch) => ch.trim() !== "").length, 0);
@@ -28,8 +31,14 @@ export function drawLoadingTitle(g: CanvasRenderingContext2D, title: string, pro
     const advances = glyphs.map((glyph) => g.measureText(glyph).width);
     const lineWidth = advances.reduce((sum, advance) => sum + advance, 0);
     const scale = Math.min(1, (w - 90) / Math.max(1, lineWidth));
+    // Center the inked glyphs, not the advance box: decorative faces carry asymmetric
+    // side bearings, and centering by advance width visibly shifts the title off the ribbon.
+    const metrics = g.measureText(glyphs.join(""));
+    const inkLeft = metrics.actualBoundingBoxLeft ?? 0;
+    const inkRight = metrics.actualBoundingBoxRight ?? lineWidth;
+    const centerX = w / 2 - (scale * (inkRight - inkLeft)) / 2;
     g.save();
-    g.translate((w - lineWidth * scale) / 2, hh * 0.4 + (row - (lines.length - 1) / 2) * size * 1.1);
+    g.translate(centerX, hh * (options.centerY ?? 0.4) + (row - (lines.length - 1) / 2) * size * 1.1);
     g.scale(scale, 1);
     let x = 0;
     glyphs.forEach((glyph, index) => {

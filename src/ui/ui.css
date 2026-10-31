@@ -57,8 +57,9 @@
 .ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ui-inventory-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; }
+.ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
 .ui-inventory-stat-column > h3 { text-align: center; }
+.ui-inventory-stat-column > h3, .ui-inventory-column-hint, .ui-inventory-secondary { grid-column: 1 / -1; }
 .ui-inventory-column-hint { min-height: 36px; font-size: 10px; text-align: center; padding: 4px 0; line-height: 1.35; }
 .ui-inventory-stat { position: relative; height: 41px; }
 .ui-inventory-secondary { padding-top: 6px; font-size: 10px; line-height: 1.5; }
@@ -81,7 +82,7 @@
 .ui-inventory-effect { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-effect strong { font-size: 12px; }
 .ui-inventory-effect small { font-size: 10px; }
-.ui-inventory-footer { display: grid; grid-template-columns: auto 1.2fr .8fr 1.1fr; align-items: center; gap: 8px; flex: none; }
+.ui-inventory-footer { display: grid; grid-template-columns: auto 1.2fr .8fr 1.1fr auto; align-items: center; gap: 8px; flex: none; }
 .ui-inventory-gold { font-size: 14px; padding: 0 6px; white-space: nowrap; }
 .ui-inventory-action { width: 100%; height: 46px; }
 .ui-inventory-sale-hint { font-size: 11px; text-align: right; padding-right: 4px; }
@@ -97,8 +98,6 @@
   .ui-inventory-view { height: 170px; }
   .ui-inventory-profile { gap: 6px; }
   .ui-inventory-stats { grid-template-columns: minmax(0, 1fr); }
-  .ui-inventory-stat-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
-  .ui-inventory-stat-column > h3, .ui-inventory-column-hint, .ui-inventory-secondary { grid-column: 1 / -1; }
   .ui-inventory-column-hint { min-height: 0; font-size: 11px; }
   .ui-inventory-lower { grid-template-columns: minmax(0, 1fr); }
   .ui-inventory-footer { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }

@@ -1013,7 +1013,7 @@ const openLibrary = (app: App, id?: string) =>
     { id: "library", title: t("menu.library"), size: "full" },
     (m) => mountLibrary(m, portraits, app.tooltip, app.bridge, id),
   );
-registerPanel("library", (app) => openLibrary(app));
+registerPanel("library", (app, id) => openLibrary(app, id));
 registerPanel("achievements", (app) =>
   openPanelModal(
     app,
@@ -1096,6 +1096,7 @@ registerScreen("planning", (app) => {
           return { run: state, inspection: inventoryInspection, current, inCombat: state.phase === "COMBAT" };
         },
         select: () => { selectedUid = uid; board.setSelected?.(uid); },
+        openLibrary: () => app.openPanel("library", inspection.unit.baseId),
         sell: () => withOwned(uid, (where, index) => bridge.sell(where, index)),
         equip: (itemId) => withOwned(uid, (where, index) => bridge.equip(itemId, where, index)),
         unequip: (index) => withOwned(uid, (where, at) => bridge.unequip(where, at, index)),

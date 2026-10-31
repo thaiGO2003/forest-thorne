@@ -50,8 +50,9 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   titleEl.setAttribute("aria-level", "1");
   const title = surface(titleEl, (g, w, hh) => {
     threeSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6);
-    drawLoadingTitle(g, t("loading.title"), 1, w, hh);
-    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.9, { size: uiFont(Math.min(20, w / 28)), fill: LABEL, font: "normal" });
+    // Ribbon spans 0.18..0.78 of the surface, so its optical center is 0.48, not 0.4.
+    drawLoadingTitle(g, t("loading.title"), 1, w, hh, { centerY: 0.48 });
+    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.92, { size: uiFont(Math.min(12, w / 36)), fill: LABEL, font: "normal" });
   });
 
   const main = panelEl("panel_wood", "menu-main");
