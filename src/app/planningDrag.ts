@@ -290,9 +290,9 @@ export function createPlanningDragController({
       : pickBench(clientX, clientY, run);
   };
 
-  const clearState = (releaseCapture: boolean) => {
+  const clearState = (releaseCapture: boolean, restoreVisual = true) => {
     const pointerId = pressed?.pointerId;
-    if (pressed?.visual && pressed.home) pressed.visual.root.position.copy(pressed.home);
+    if (restoreVisual && pressed?.visual && pressed.home) pressed.visual.root.position.copy(pressed.home);
     pressed = null;
     dragging = false;
     setTargetState(null);
@@ -385,11 +385,16 @@ export function createPlanningDragController({
     const run = wasDragging && active && getRun()?.phase === "PLANNING" ? getRun() : null;
     const target = run ? pickTarget(event.clientX, event.clientY, run) : null;
     const valid = Boolean(run && target && canMove(run, source, target));
-    clearState(true);
+    const entry = run ? (source.kind === "board" ? run.board[source.index] : run.bench[source.index]) : null;
+    const uid = entry?.uid;
+    const moved = valid && target ? move(source, target) : false;
+    // A committed drop keeps the rig where the pointer released it, then lands on the tile.
+    // Restoring the origin position here made the unit fly from its old cell instead.
+    if (moved && uid) board.landUnit?.(uid);
+    clearState(true, !moved);
     event.preventDefault();
     event.stopImmediatePropagation();
     if (target) {
-      const moved = valid && move(source, target);
       showMoveFeedback(target, moved);
       return;
     }

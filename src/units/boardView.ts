@@ -54,6 +54,14 @@ export interface BoardView {
   flashCell?(col: number, row: number, kind: "scan" | "direct" | "splash"): void;
   flashTile?(uid: string, kind: "scan" | "direct" | "splash"): void;
   flashSkill?(uid: string): void;
+  /** Old_src showTurnIndicatorAt: purple fill + outline on the acting unit's tile. */
+  setTurnIndicator?(uid: string | null): void;
+  /** Old_src highlightUnit: gold outline on the acting unit's current tile. */
+  setActorHighlight?(uid: string | null): void;
+  /** Old_src setCombatBorder: gold attack outline, or the stepped rainbow skill outline. */
+  setCombatBorder?(uid: string | null, kind?: "attack" | "skill"): void;
+  /** Drag/drop: snap to the committed slot and play a landing squash instead of flying there. */
+  landUnit?(uid: string): void;
   /** Persistent Planning hover projection; null clears it without disturbing transient combat flashes. */
   setTargetPreview?(preview: CombatTargetPreview | null): void;
   dispose(): void;
@@ -66,7 +74,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   let cortisolRemainingMs = 0;
   let cortisolElapsedMs = 0;
   const moveTweens = new Map<string, MoveTween>();
+  const dropLands = new Map<string, number>();
   const MOVE_DURATION_S = 0.22;
+  const LAND_DURATION_S = 0.24;
   let selected: string | null = null;
   let hovered: string | null = null;
   // One reusable projection/candidate pool for the Stage's existing frame callback.
@@ -215,14 +225,44 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const tileEffects = new Map<number, { mesh: THREE.Mesh; time: number; kind: TileKind | null }>();
   const previewCells = new Map<number, TileKind>();
   const rainbowMaterial = new THREE.MeshBasicMaterial({ color: 0xff568c, side: THREE.DoubleSide, depthWrite: false });
-  const rainbow = new THREE.Mesh(new THREE.RingGeometry(.71, .83, 48), rainbowMaterial);
+  // Old_src draws the current tile as a diamond outline (drawDiamond), not a filled recolour.
+  // A four-segment RingGeometry is a square annulus, so it matches the voxel tile.
+  const borderGeometry = () => new THREE.RingGeometry(.64, .68, 4, 1, Math.PI / 4);
+  const rainbow = new THREE.Mesh(borderGeometry(), rainbowMaterial);
   rainbow.rotation.x = -Math.PI / 2;
   rainbow.visible = false;
+  rainbow.raycast = () => {};
   stage.scene.add(rainbow);
+  const turnFillMaterial = new THREE.MeshBasicMaterial({
+    color: 0xce93d8, transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const turnFill = new THREE.Mesh(new THREE.PlaneGeometry(.9, .9), turnFillMaterial);
+  turnFill.rotation.x = -Math.PI / 2;
+  turnFill.visible = false;
+  turnFill.raycast = () => {};
+  stage.scene.add(turnFill);
+  const turnBorderMaterial = new THREE.MeshBasicMaterial({ color: 0xba68c8, side: THREE.DoubleSide, depthWrite: false });
+  const turnBorder = new THREE.Mesh(borderGeometry(), turnBorderMaterial);
+  turnBorder.rotation.x = -Math.PI / 2;
+  turnBorder.visible = false;
+  turnBorder.raycast = () => {};
+  stage.scene.add(turnBorder);
+  const actorBorderMaterial = new THREE.MeshBasicMaterial({ color: 0xffef9f, side: THREE.DoubleSide, depthWrite: false });
+  const actorBorder = new THREE.Mesh(borderGeometry(), actorBorderMaterial);
+  actorBorder.rotation.x = -Math.PI / 2;
+  actorBorder.visible = false;
+  actorBorder.raycast = () => {};
+  stage.scene.add(actorBorder);
   let skillUid: string | null = null;
   let skillTime = 0;
   let previewSkillUid: string | null = null;
+  let turnUid: string | null = null;
+  let actorUid: string | null = null;
+  let borderUid: string | null = null;
+  let borderKind: "attack" | "skill" | null = null;
+  let rainbowUid: string | null = null;
   let rainbowHue = 0;
+  let rainbowStepMs = 0;
 
   const restoreCortisolUnit = (uid: string, s: Slot) => {
     const base = cortisolBase.get(uid);
@@ -326,6 +366,24 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         s.v.play("idle");
       }
     }
+    // Drag/drop landing: compress on contact and rebound. The rig is already at the pointer's
+    // destination, so it must not replay a cross-board flight from its old cell.
+    for (const [uid, elapsed] of [...dropLands]) {
+      const s = slots.get(uid);
+      if (!s) { dropLands.delete(uid); continue; }
+      const t = elapsed + Math.max(0, dt);
+      if (t >= LAND_DURATION_S) {
+        dropLands.delete(uid);
+        s.v.root.position.y = TILE_TOP;
+        s.v.root.scale.setScalar(1);
+        continue;
+      }
+      dropLands.set(uid, t);
+      const p = t / LAND_DURATION_S;
+      const press = p < .35 ? Math.sin((p / .35) * Math.PI / 2) : Math.cos(((p - .35) / .65) * Math.PI / 2);
+      s.v.root.position.y = TILE_TOP;
+      s.v.root.scale.set(1 + .12 * press, 1 - .18 * press, 1 + .12 * press);
+    }
     for (const s of slots.values()) s.v.update(dt);
     updateCortisol(dt);
     layoutLabels();
@@ -340,13 +398,35 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       renderTileEffect(key, effect);
     }
     skillTime = Math.max(0, skillTime - dt);
+    // Old_src current-tile markers: purple turn fill/outline, gold actor outline.
+    const placeMarker = (mesh: THREE.Mesh, uid: string | null, y: number) => {
+      const s = uid ? slots.get(uid) : undefined;
+      mesh.visible = Boolean(s);
+      if (s) mesh.position.set(s.x, y, s.z);
+    };
+    placeMarker(turnFill, turnUid, TILE_TOP + .058);
+    placeMarker(turnBorder, turnUid, TILE_TOP + .062);
+    // A skill cast replaces the gold actor outline with the rainbow border (old_src clear+redraw).
+    placeMarker(actorBorder, borderKind === "skill" ? null : actorUid ?? borderUid, TILE_TOP + .066);
+    // Old_src setCombatBorder("skill"): hue steps by 60° every 100 ms at S=1, L=.55.
     const activeSkillUid = skillTime > 0 ? skillUid : previewSkillUid;
-    const caster = activeSkillUid ? slots.get(activeSkillUid) : undefined;
-    rainbow.visible = Boolean(caster && (skillTime > 0 || previewSkillUid));
-    if (rainbow.visible && caster) {
-      rainbow.position.set(caster.x, TILE_TOP + .055, caster.z);
-      rainbowHue = (rainbowHue + dt * 1.25) % 1;
-      rainbowMaterial.color.setHSL(rainbowHue, 1, .6);
+    const nextRainbowUid = borderKind === "skill" && borderUid ? borderUid : activeSkillUid;
+    if (nextRainbowUid !== rainbowUid) {
+      rainbowUid = nextRainbowUid;
+      rainbowHue = 0;
+      rainbowStepMs = 0;
+      if (rainbowUid) rainbowMaterial.color.setHSL(0, 1, .55);
+    }
+    const caster = rainbowUid ? slots.get(rainbowUid) : undefined;
+    rainbow.visible = Boolean(caster);
+    if (caster) {
+      rainbow.position.set(caster.x, TILE_TOP + .07, caster.z);
+      rainbowStepMs += Math.max(0, dt) * 1000;
+      if (rainbowStepMs >= 100) {
+        rainbowStepMs %= 100;
+        rainbowHue = (rainbowHue + 60) % 360;
+        rainbowMaterial.color.setHSL(rainbowHue / 360, 1, .55);
+      }
     }
   });
 
@@ -375,8 +455,15 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       slots.set(uid, s);
       s.v.root.position.set(x, TILE_TOP, z);
     } else {
+      const landing = dropLands.has(uid);
       const boardCellMove = !combat && s.kind === "board" && kind === "board" && (s.col !== col || s.row !== row);
-      if (boardCellMove) {
+      if (landing) {
+        // The dropped unit already travelled with the pointer; keep its landing arc and
+        // commit the canonical cell without starting a second flight tween.
+        moveTweens.delete(uid);
+        s.v.root.position.x = x;
+        s.v.root.position.z = z;
+      } else if (boardCellMove) {
         const existing = moveTweens.get(uid);
         if (!existing || existing.toX !== x || existing.toZ !== z) {
           moveTweens.set(uid, {
@@ -398,7 +485,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     s.row = row;
     s.x = x;
     s.z = z;
-    s.v.root.position.y = Math.max(TILE_TOP, s.v.root.position.y);
+    if (!dropLands.has(uid)) s.v.root.position.y = Math.max(TILE_TOP, s.v.root.position.y);
     s.v.setFacing(kind === "bench" ? Math.atan2(-x, -z) : kind === "enemy" ? "R" : "L");
     const cortisol = cortisolBase.get(uid);
     if (cortisol) {
@@ -462,7 +549,31 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     forEach(fn) { for (const [uid, s] of slots) fn(uid, s.v, s.kind); },
     flashCell,
     flashTile,
-    flashSkill(uid) { if (!slots.has(uid)) return; skillUid = uid; skillTime = .8; },
+    flashSkill(uid) {
+      if (!slots.has(uid)) return;
+      skillUid = uid; skillTime = .8;
+      rainbowHue = 0;
+      rainbowStepMs = 0;
+    },
+    setTurnIndicator(uid) { turnUid = uid && slots.has(uid) ? uid : null; },
+    setActorHighlight(uid) { actorUid = uid && slots.has(uid) ? uid : null; },
+    setCombatBorder(uid, kind = "attack") {
+      if (!uid || !slots.has(uid)) { borderUid = null; borderKind = null; skillUid = null; skillTime = 0; return; }
+      // The border owns the whole action, not the legacy 0.8 s flash window.
+      skillUid = null;
+      skillTime = 0;
+      borderUid = uid;
+      borderKind = kind;
+    },
+    landUnit(uid) {
+      const s = slots.get(uid);
+      if (!s) return;
+      moveTweens.delete(uid);
+      s.v.root.position.set(s.x, TILE_TOP, s.z);
+      s.v.root.scale.setScalar(1);
+      s.v.play("idle");
+      dropLands.set(uid, 0);
+    },
     setTargetPreview,
     setLive(uid, live) {
       const s = slots.get(uid);
@@ -489,8 +600,13 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       if (entering || leaving) stopLowCortisol();
       if (entering) setTargetPreview(null);
       combat = v;
+      if (entering) {
+        turnUid = null; actorUid = null; borderUid = null; borderKind = null;
+        rainbowUid = null; rainbow.visible = false;
+      }
       if (leaving) {
         moveTweens.clear();
+        dropLands.clear();
         // A77: temporary combat state (HP, deaths, staging offsets) is discarded; next sync rebuilds fresh rigs.
         for (const s of slots.values()) { s.v.dispose(); s.bb.dispose(); }
         slots.clear();
@@ -498,6 +614,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
         tileEffects.clear();
         skillUid = null; skillTime = 0; previewSkillUid = null; previewCells.clear(); rainbow.visible = false;
+        turnUid = null; actorUid = null; borderUid = null; borderKind = null; rainbowUid = null;
         return;
       }
       for (const s of slots.values()) s.v.setCombat(v);
@@ -506,8 +623,12 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     dispose() {
       stopLowCortisol();
       moveTweens.clear();
+      dropLands.clear();
       off();
       rainbow.removeFromParent(); rainbow.geometry.dispose(); rainbowMaterial.dispose();
+      turnFill.removeFromParent(); turnFill.geometry.dispose(); turnFillMaterial.dispose();
+      turnBorder.removeFromParent(); turnBorder.geometry.dispose(); turnBorderMaterial.dispose();
+      actorBorder.removeFromParent(); actorBorder.geometry.dispose(); actorBorderMaterial.dispose();
       for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
       tileEffects.clear();
       tileGeometry.dispose();

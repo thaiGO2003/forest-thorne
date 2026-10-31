@@ -169,6 +169,74 @@ describe("BoardView presentation", () => {
     board.dispose();
   });
 
+  it("lands a dropped rig on its committed tile instead of replaying a flight from the old cell", () => {
+    const { stage, advance } = stageHarness();
+    const board = createBoardView(stage);
+    board.sync(runWithBoard("board-1", 0));
+    const visual = board.visual("board-1")!;
+    const target = board.cellCenter(1, 0);
+    // The drag already moved the rig under the pointer; sync may start a move tween.
+    visual.root.position.set(target.x, 0.3, target.z);
+    board.sync(runWithBoard("board-1", 1));
+    board.landUnit!("board-1");
+
+    expect(visual.root.position.x).toBeCloseTo(target.x, 12);
+    expect(visual.root.position.z).toBeCloseTo(target.z, 12);
+    expect(visual.root.position.y).toBeCloseTo(0.12, 12);
+    expect(vi.mocked(visual.play)).toHaveBeenLastCalledWith("idle");
+
+    advance(0.05);
+    expect(visual.root.position.y).toBeCloseTo(0.12, 12);
+    expect(visual.root.scale.y).toBeLessThan(1);
+    expect(visual.root.scale.x).toBeGreaterThan(1);
+    advance(0.5);
+    expect(visual.root.position.y).toBeCloseTo(0.12, 12);
+    expect(visual.root.scale.x).toBeCloseTo(1, 12);
+    expect(visual.root.scale.y).toBeCloseTo(1, 12);
+    board.dispose();
+  });
+
+  it("marks the acting tile with the old_src turn marker and stepped rainbow skill border", () => {
+    const { stage, sceneAdd, advance } = stageHarness();
+    const board = createBoardView(stage);
+    board.sync(runWithBoard());
+    const rainbow = sceneAdd.mock.calls[1]![0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> & { visible: boolean };
+    const turnFill = sceneAdd.mock.calls[2]![0] as THREE.Mesh & { visible: boolean };
+    const turnBorder = sceneAdd.mock.calls[3]![0] as THREE.Mesh & { visible: boolean };
+    const actorBorder = sceneAdd.mock.calls[4]![0] as THREE.Mesh & { visible: boolean };
+    const center = board.cellCenter(0, 0);
+
+    board.setTurnIndicator!("board-1");
+    board.setActorHighlight!("board-1");
+    board.setCombatBorder!("board-1", "skill");
+    advance(0);
+    expect(turnFill.visible).toBe(true);
+    expect(turnBorder.visible).toBe(true);
+    expect(actorBorder.visible).toBe(false);
+    expect(turnFill.position.x).toBeCloseTo(center.x, 12);
+    expect(turnFill.position.z).toBeCloseTo(center.z, 12);
+    expect(rainbow.visible).toBe(true);
+    expect(rainbow.position.x).toBeCloseTo(center.x, 12);
+
+    const hsl = { h: 0, s: 0, l: 0 };
+    rainbow.material.color.getHSL(hsl);
+    expect(hsl.h).toBeCloseTo(0, 5);
+    advance(0.05);
+    rainbow.material.color.getHSL(hsl);
+    expect(hsl.h).toBeCloseTo(0, 5);
+    advance(0.06);
+    rainbow.material.color.getHSL(hsl);
+    expect(hsl.h).toBeCloseTo(60 / 360, 5);
+    expect(hsl.l).toBeCloseTo(0.55, 5);
+
+    board.setCombatBorder!(null);
+    board.setTurnIndicator!(null);
+    advance(0);
+    expect(rainbow.visible).toBe(false);
+    expect(turnFill.visible).toBe(false);
+    board.dispose();
+  });
+
   it("restores Low Cortisol before entering combat", () => {
     const { stage, advance } = stageHarness();
     const board = createBoardView(stage);

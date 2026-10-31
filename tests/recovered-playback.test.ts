@@ -138,10 +138,11 @@ describe("recovered combat presentation", () => {
     expect(play.mock.calls.map(([state]) => state)).toEqual(["move"]);
     advance(timing.approachMs - 5);
     expect(play.mock.calls.map(([state]) => state)).toEqual(["move"]);
-    expect(actorVisual.root.position.x).toBeLessThan(8);
+    expect(actorVisual.root.position.x).toBeLessThan(9);
 
     advance(5);
-    expect(actorVisual.root.position.x).toBeCloseTo(8);
+    // Front-line melee contact lands on the river seam, the midpoint of columns 4 and 5.
+    expect(actorVisual.root.position.x).toBeCloseTo(9);
     expect(actorVisual.root.position.z).toBeCloseTo(4);
     expect(play.mock.calls.map(([state]) => state)).toEqual(["move", "attack"]);
 
