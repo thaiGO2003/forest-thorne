@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
     "test:changed": "vitest --run --changed",
+    "qa:planning": "node scripts/qa/planning-interaction.mjs",
     "shot": "node scripts/shot.mjs"
   },
   "dependencies": {
