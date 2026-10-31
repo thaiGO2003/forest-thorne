@@ -1031,7 +1031,7 @@ registerScreen("planning", (app) => {
         return;
       }
       const fighters = bridge.planningCombatProjection(planningEnemyPreview);
-      board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, unit.uid) : null);
+      board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, unit.uid, { kitPreview: true }) : null);
     },
     previewEnemy: (uid, anchor) => {
       const inspection = enemyDiagnostics(app, uid);
@@ -1040,6 +1040,8 @@ registerScreen("planning", (app) => {
         return;
       }
       app.tooltip.show(anchor, unitSummaryTooltipContent(inspection));
+      const fighters = planningEnemyPreview ? bridge.planningCombatProjection(planningEnemyPreview) : null;
+      board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, uid, { kitPreview: true }) : null);
     },
     previewEnd: () => {
       app.tooltip.hide();

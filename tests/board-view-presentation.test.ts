@@ -292,17 +292,21 @@ describe("BoardView presentation", () => {
       directUids: ["board-1"],
       splashUids: ["board-2"],
       skillCasterUid: "board-1",
+      tags: [
+        { uid: "board-1", effect: "heal", kind: "skill", primary: true },
+        { uid: "board-2", effect: "shield", kind: "skill", primary: false },
+      ],
     });
     const direct = sceneAdd.mock.calls.at(-2)![0] as { material: { color: { getHex(): number } }; visible: boolean };
     const splash = sceneAdd.mock.calls.at(-1)![0] as { material: { color: { getHex(): number } }; visible: boolean };
     expect(direct.visible).toBe(true);
-    expect(direct.material.color.getHex()).toBe(0xff4d58);
+    expect(direct.material.color.getHex()).toBe(0x5fe08a);
     expect(splash.visible).toBe(true);
-    expect(splash.material.color.getHex()).toBe(0xffd24e);
+    expect(splash.material.color.getHex()).toBe(0x5cc8ff);
 
     advance(1);
     expect(direct.visible).toBe(true);
-    expect(direct.material.color.getHex()).toBe(0xff4d58);
+    expect(direct.material.color.getHex()).toBe(0x5fe08a);
     expect(splash.visible).toBe(true);
     expect(rainbow.visible).toBe(true);
 
