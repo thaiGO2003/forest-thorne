@@ -1045,6 +1045,7 @@ registerScreen("planning", (app) => {
       app.tooltip.hide();
       board.setTargetPreview?.(null);
     },
+    inspectEnemy: (uid) => openEnemyUnitDetail(app, uid),
     enabled: () => !app.modals.blocking() && (bridge.run()?.phase === "PLANNING" || Boolean(combat)),
     inspectOnly: () => Boolean(combat),
   });

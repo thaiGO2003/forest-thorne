@@ -30,6 +30,8 @@ interface PlanningDragOptions {
   preview?(source: PlanningSlot, anchor: DOMRect): void;
   /** Enemy units are not draggable; they only get a hover summary tooltip. */
   previewEnemy?(uid: string, anchor: DOMRect): void;
+  /** Enemy units cannot be selected or dragged; a tap opens their read-only detail. */
+  inspectEnemy?(uid: string): void;
   previewEnd?(): void;
   onTargetState?(state: PlanningDragTargetState | null): void;
   enabled(): boolean;
@@ -53,6 +55,7 @@ export function createPlanningDragController({
   select,
   preview,
   previewEnemy,
+  inspectEnemy,
   previewEnd,
   onTargetState,
   enabled,
@@ -80,6 +83,8 @@ export function createPlanningDragController({
     pointerId: number; startX: number; startY: number; source: PlanningSlot;
     visual?: UnitVisual; home?: THREE.Vector3; target?: THREE.Vector3;
   } | null = null;
+  /** A tap on an enemy token: inspectable, but never a drag source. */
+  let pressedEnemy: { pointerId: number; startX: number; startY: number; uid: string } | null = null;
   let dragging = false;
   let captured = false;
   let previewed: PlanningSlot | null = null;
@@ -132,7 +137,9 @@ export function createPlanningDragController({
       ? boardSlot(boardHit.cell.col, boardHit.cell.row, run)
       : pickBench(clientX, clientY, run);
     const valid = Boolean(source && target && canMove(run, source, target));
-    const role = source ? (valid ? "valid" : "invalid") : hovered?.kind === "enemy" ? "enemy" : "hover";
+    // Hovering any token, ally or enemy, uses the same neutral tactical tint;
+    // hostile red is reserved for invalid drops so ownership never changes the signal.
+    const role = source ? (valid ? "valid" : "invalid") : "hover";
     // A direct model hit can project over a neighboring tile. Highlight its
     // canonical occupied cell, not the ray's underlying screen-space tile.
     const slot = !source && hovered && hovered.kind !== "bench" ? board.slot(hovered.uid) : undefined;
@@ -264,12 +271,6 @@ export function createPlanningDragController({
     return occupied;
   };
 
-  const pickSource = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
-    const picked = pickUnit(clientX, clientY);
-    if (!picked || picked.kind === "enemy") return null;
-    return sourceForUid(run, picked.uid);
-  };
-
   const pickBench = (clientX: number, clientY: number, run: RunState): PlanningSlot | null => {
     if (!setRayFromClientPoint(canvas, clientX, clientY, stage.camera, targetRaycaster, targetNdc)) return null;
     if (!targetRaycaster.ray.intersectPlane(groundPlane, groundHit)) return null;
@@ -294,6 +295,7 @@ export function createPlanningDragController({
     const pointerId = pressed?.pointerId;
     if (restoreVisual && pressed?.visual && pressed.home) pressed.visual.root.position.copy(pressed.home);
     pressed = null;
+    pressedEnemy = null;
     dragging = false;
     setTargetState(null);
     boardPicker.clear();
@@ -315,8 +317,16 @@ export function createPlanningDragController({
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0) || !enabled()) return;
     const run = getRun();
     if (!run || (run.phase !== "PLANNING" && !inspectOnly())) return;
-    const source = pickSource(event.clientX, event.clientY, run);
-    if (!source) return;
+    const picked = pickUnit(event.clientX, event.clientY);
+    const source = picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null;
+    if (!source) {
+      // Enemy tokens are never drag sources, but a tap still inspects them like allies.
+      if (picked?.kind !== "enemy") return;
+      pressedEnemy = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, uid: picked.uid };
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const entry = source.kind === "board" ? run.board[source.index] : run.bench[source.index];
     const visual = entry ? board.visual(entry.uid) : undefined;
     pressed = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, source, visual,
@@ -334,6 +344,14 @@ export function createPlanningDragController({
   };
 
   const onPointerMove = (event: PointerEvent) => {
+    if (pressedEnemy) {
+      if (event.pointerId !== pressedEnemy.pointerId) return;
+      const dx = event.clientX - pressedEnemy.startX;
+      const dy = event.clientY - pressedEnemy.startY;
+      // Moving past the tap threshold means a camera pan or scroll, not an inspect.
+      if (dx * dx + dy * dy <= DRAG_THRESHOLD_SQ) return;
+      pressedEnemy = null;
+    }
     if (!pressed || event.pointerId !== pressed.pointerId) {
       const run = enabled() ? getRun() : null;
       if (!run || run.phase !== "PLANNING") {
@@ -378,6 +396,15 @@ export function createPlanningDragController({
   };
 
   const onPointerUp = (event: PointerEvent) => {
+    if (pressedEnemy) {
+      if (event.pointerId !== pressedEnemy.pointerId) return;
+      const uid = pressedEnemy.uid;
+      pressedEnemy = null;
+      if (enabled()) inspectEnemy?.(uid);
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (!pressed || event.pointerId !== pressed.pointerId) return;
     const source = pressed.source;
     const wasDragging = dragging;
@@ -402,11 +429,13 @@ export function createPlanningDragController({
   };
 
   const onPointerCancel = (event: PointerEvent) => {
+    if (pressedEnemy?.pointerId === event.pointerId) pressedEnemy = null;
     if (!pressed) clearState(false);
     else if (pressed.pointerId === event.pointerId) cancel();
   };
 
   const onPointerLeave = (event: PointerEvent) => {
+    if (pressedEnemy) pressedEnemy = null;
     if (pressed?.pointerId === event.pointerId && dragging) return;
     if (pressed?.pointerId === event.pointerId) {
       cancel();
