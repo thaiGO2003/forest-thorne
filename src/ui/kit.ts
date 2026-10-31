@@ -19,7 +19,7 @@ export const ART_SCALE = 2;
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
 export const NORMAL_FONT = `"Times New Roman", Times, serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
-export const BUTTON_FONT = `"Forest Button", "Noto Sans", sans-serif`;
+export const BUTTON_FONT = `"Times New Roman", Times, serif`;
 export const INK = "#111";
 export const LABEL = "#fff8ec";
 const BUTTON_LABEL = "#fff8ec";
@@ -56,7 +56,6 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
       await Promise.allSettled([
         document.fonts.load(`16px ${HEADING_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
-        document.fonts.load(`16px ${BUTTON_FONT}`),
       ]);
     }
     for (const fn of repaint) fn();

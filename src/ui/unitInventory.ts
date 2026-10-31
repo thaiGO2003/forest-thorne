@@ -13,6 +13,7 @@ import type { UnitDiagnostics, UnitDiagnosticEffect, UnitStatSnapshot } from "..
 import type { Portraits } from "../units/portraits";
 import { h, INK, kitButton, label, nineSlice, SLICE, surface, threeSlice, type KitButton, type Surface } from "./kit";
 import { uiFont } from "./fontScale";
+import { mountPortraitControls } from "./portraitControls";
 import type { ModalHandle } from "./modal";
 
 export interface UnitInventoryModel {
@@ -76,6 +77,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   const portraitHost = h("div", "ui-inventory-view");
   portraitPanel.append(portraitHost);
   const viewer = portraits.createViewer(portraitHost);
+  const controlsOff = mountPortraitControls(portraitHost, viewer);
   let shownStar = initial.star;
   viewer.setUnit(unit.id, shownStar as Parameters<typeof viewer.setUnit>[1]);
   const name = h("h2", "ui-inventory-name", unit.nameVi);
@@ -206,6 +208,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
       equipped.replaceChildren(); bag.replaceChildren();
     },
     dispose() {
+      controlsOff();
       viewer.dispose();
       for (const s of [...surfaces, ...itemSurfaces]) s.dispose();
       for (const b of itemButtons) b.dispose();

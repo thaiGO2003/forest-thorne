@@ -15,6 +15,7 @@ import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit
 import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
+import { mountPortraitControls } from "./portraitControls";
 import { hasRig } from "../units/registry";
 import { ACTION_STATES, type ActionState, type Star } from "../units/rig";
 import type { CollectionProfile } from "../core/achievements";
@@ -78,7 +79,7 @@ export function mountLibrary(
   const f: Filter = { q: "", role: null, faction: null, tier: null };
   let collection = account.collectionProfile();
   const refreshCollection = () => { collection = account.collectionProfile(); };
-  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
+  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, controlsOff: (() => void) | null = null, idleTimer: number | null = null, relaxedIdle = true;
   let tab: LibraryTab = "units";
   const cardTips: (() => void)[] = [];
   const clearCardTips = () => {
@@ -213,6 +214,7 @@ export function mountLibrary(
     clearViewTips();
     clearIdleTimer();
     viewer?.dispose(); viewer = null;
+    controlsOff?.(); controlsOff = null;
     for (const c of cards) c.dispose();
     cards = [];
     gridRo?.disconnect(); gridRo = null;
@@ -319,8 +321,11 @@ export function mountLibrary(
     stagePanel.append(view);
     clearIdleTimer();
     viewer?.dispose();
+    controlsOff?.();
+    controlsOff = null;
     viewer = portraits.createViewer(view);
     viewer.setUnit(u.id, star, skinId);
+    controlsOff = mountPortraitControls(stagePanel, viewer);
     scheduleIdle();
     if (!hasRig(u.id)) stagePanel.append(h("div", "lib-pending", t("library.artPending")));
 
@@ -447,5 +452,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
+  return { showDetail, dispose() { controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }

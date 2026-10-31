@@ -63,6 +63,10 @@ export interface PortraitViewer {
   setUnit(baseId: string, star: Star, skin?: string | null): void;
   setCombat(v: boolean): void;
   play(state: ActionState): void;
+  /** Orbit/raise the inspection camera; used by the on-screen arrow pad and keyboard. */
+  moveCamera(dx: number, dy: number): void;
+  zoomBy(factor: number): void;
+  resetView(): void;
   dispose(): void;
 }
 
@@ -269,6 +273,21 @@ export function createPortraits(): Portraits {
             previewAction = true;
             unit.play(state, { onDone: () => { previewAction = false; idleWindow = -(2 + Math.random() * 3); } });
           }
+        },
+        moveCamera(dx, dy) {
+          yaw += dx;
+          moveLift(dy);
+        },
+        zoomBy(factor) {
+          setZoom(zoom * factor);
+        },
+        resetView() {
+          yaw = 0;
+          pitch = 0;
+          lift = 0;
+          zoom = 1;
+          turn.rotation.set(0, 0, 0);
+          if (unit) frame(cam, bounds, zoom, lift);
         },
         dispose() {
           combat = false;
