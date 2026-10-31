@@ -742,3 +742,4 @@
   text-align: center;
   pointer-events: none;
 }
+.modal-frame:has(.blessing-modal) { width: min(1400px, 100%); }
