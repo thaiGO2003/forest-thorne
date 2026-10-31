@@ -5,10 +5,12 @@ import { getUnit } from "../content/catalog";
 import { createUnitVisual, defineUnit, type Star, type UnitRigDef, type UnitVisual } from "./rig";
 import jaguarHunt from "./roster/jaguarHunt";
 import toadPoison from "./roster/toadPoison";
+import frogAlchemy from "./roster/frogAlchemy";
 
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
+  frog_alchemy: frogAlchemy,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

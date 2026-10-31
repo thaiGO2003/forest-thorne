@@ -1,6 +1,6 @@
 # Forest Throne — unit balance data
 
-Measured snapshot of `src/content/units.json` (120 normal units, 5 bosses) used to derive the budgets in `../SKILL.md`.
+Measured snapshot of `src/content/units.json` (121 normal units, 5 bosses) used to derive the budgets in `../SKILL.md`.
 
 - Snapshot date: 2026-10-31
 - Scope: normal units only. Bosses are authored encounters and are excluded from every table.
@@ -22,35 +22,37 @@ Tier anchors are the medians of `eHP` and `OFF` across all normal units of that 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 17 | 301 | 64 | 250 | 52 | 16 | 16 | 20 |
 | 2 | 26 | 317 | 70 | 268 | 47 | 15 | 17 | 22 |
-| 3 | 27 | 363 | 75 | 309 | 72 | 18 | 18 | 18 |
+| 3 | 28 | 359 | 76 | 305 | 71 | 18 | 18 | 19 |
 | 4 | 28 | 416 | 87 | 340 | 59 | 19 | 21 | 25 |
 | 5 | 22 | 571 | 97 | 431 | 91 | 22 | 26 | 36 |
 
 Growth T1 to T5: `eHP x1.90`, `OFF x1.52`.
 
-## Role shape
+The `TIER_ANCHOR` and `ROLE_FACTOR` constants in `../SKILL.md` and `scripts/audit-unit.mjs` are frozen from this snapshot and only move on a deliberate balance pass. Adding one unit shifts a median by a few points (T3 `eHP 363 -> 359`, `OFF 75 -> 76`); that is not a band change and must not be chased per unit.
+
+## Role shape (measured)
 
 | Role | n | eHP factor | OFF factor |
 | --- | --- | --- | --- |
-| TANKER | 20 | 1.67 | 0.65 |
+| TANKER | 20 | 1.68 | 0.65 |
 | FIGHTER | 21 | 1.18 | 1.01 |
 | SUPPORT | 20 | 1.05 | 0.99 |
-| MAGE | 20 | 0.94 | 1.15 |
-| ASSASSIN | 19 | 0.84 | 1.08 |
+| MAGE | 21 | 0.94 | 1.15 |
+| ASSASSIN | 19 | 0.85 | 1.08 |
 | ARCHER | 20 | 0.85 | 0.97 |
 
 ASSASSIN and ARCHER eHP drift below budget at high tiers; that is the intended fragility, and the reason the `N` gate has a `0.70` floor instead of `0.85`.
 
 ## Role x tier stat medians
 
-Raw medians, for authors who want a reference unit rather than a budget calculation.
+Raw medians (upper median, index `n >> 1`, matching the shipped table), for authors who want a reference unit rather than a budget calculation.
 
 | Role | T1 | T2 | T3 | T4 | T5 |
 | --- | --- | --- | --- | --- | --- |
 | ARCHER | HP240 ATK52 DEF12 MATK10 MDEF14 | HP262 ATK68 DEF14 MATK13 MDEF14 | HP280 ATK74 DEF14 MATK14 MDEF14 | HP323 ATK82 DEF15 MATK17 MDEF15 | HP357 ATK98 DEF20 MATK21 MDEF20 |
 | ASSASSIN | HP235 ATK73 DEF15 MATK18 MDEF13 | HP258 ATK76 DEF17 MATK20 MDEF15 | HP282 ATK88 DEF18 MATK22 MDEF16 | HP297 ATK90 DEF18 MATK23 MDEF17 | HP337 ATK102 DEF19 MATK26 MDEF18 |
 | FIGHTER | HP282 ATK64 DEF22 MATK14 MDEF18 | HP331 ATK70 DEF22 MATK17 MDEF18 | HP362 ATK77 DEF24 MATK18 MDEF18 | HP417 ATK90 DEF28 MATK20 MDEF22 | HP497 ATK99 DEF50 MATK23 MDEF36 |
-| MAGE | HP220 ATK19 DEF11 MATK73 MDEF21 | HP266 ATK18 DEF10 MATK80 MDEF22 | HP311 ATK23 DEF12 MATK91 MDEF24 | HP310 ATK23 DEF13 MATK105 MDEF25 | HP480 ATK33 DEF25 MATK108 MDEF40 |
+| MAGE | HP220 ATK19 DEF11 MATK73 MDEF21 | HP266 ATK18 DEF10 MATK80 MDEF22 | HP309 ATK22 DEF11 MATK90 MDEF24 | HP310 ATK23 DEF13 MATK105 MDEF25 | HP480 ATK33 DEF25 MATK108 MDEF40 |
 | SUPPORT | HP252 ATK23 DEF15 MATK64 MDEF26 | HP286 ATK25 DEF15 MATK69 MDEF27 | HP331 ATK29 DEF17 MATK74 MDEF28 | HP372 ATK30 DEF19 MATK88 MDEF31 | HP450 ATK38 DEF22 MATK94 MDEF45 |
 | TANKER | HP367 ATK43 DEF32 MATK10 MDEF25 | HP427 ATK47 DEF34 MATK12 MDEF27 | HP420 ATK48 DEF40 MATK14 MDEF31 | HP560 ATK58 DEF45 MATK17 MDEF35 | HP680 ATK60 DEF58 MATK20 MDEF48 |
 
@@ -81,13 +83,13 @@ Used to set the hard caps in `../SKILL.md` (cap = observed max, rounded up, then
 
 ## Skill damage
 
-92 of 120 normal units have a parseable damage formula in `starDetailVi[0]`. The remaining 28 are pure utility (shield, heal, buff, control) and are outside the damage gates.
+93 of 121 normal units have a parseable formula in `starDetailVi[0]`. The remaining 28 are pure utility (shield, heal, buff, control) and are outside the damage gates.
 
 | Tier | parsed | per-hit median | per-hit p10-p90 | per-hit / stat median | DPR median |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 12 | 69 | 58-76 | 1.08 | 37 |
+| 1 | 12 | 69 | 58-76 | 1.05 | 36 |
 | 2 | 19 | 76 | 59-87 | 1.01 | 68 |
-| 3 | 21 | 103 | 40-127 | 1.30 | 67 |
+| 3 | 22 | 103 | 40-127 | 1.27 | 81 |
 | 4 | 21 | 129 | 83-154 | 1.55 | 127 |
 | 5 | 19 | 182 | 78-286 | 1.96 | 221 |
 
@@ -116,9 +118,9 @@ These are the catalog's current tempo ceiling. `gorilla_smash` sits above the 8x
 | `golem_stone` | 3 | TANKER | 32 | 1 | 3 | 11 |
 | `crow_storm` | 1 | ARCHER | 60 | 1 | 4 | 15 |
 | `snail_fortress` | 3 | TANKER | 52 | 1 | 3 | 17 |
-| `angel_guardian` | 5 | SUPPORT | 68 | 1 | 3 | 23 |
+| `toad_poison` | 1 | MAGE | 58 | 1 | 3 | 19 |
 
-TANKER and SUPPORT sit here by design; the low DPR floor only applies to damage-primary roles.
+TANKER and SUPPORT sit here by design; the low DPR floor only applies to damage-primary roles. `toad_poison` is the single damage-role entry: its stacking poison is paid for with tempo, and it still sits just above the `0.25x` floor.
 
 ## Economy context
 

@@ -2043,6 +2043,63 @@
   }
  },
  {
+  "id": "frog_alchemy",
+  "species": "ech-gia-kim",
+  "nameVi": "Ếch Giả Kim",
+  "tier": 3,
+  "role": "MAGE",
+  "faction": "AQUATIC",
+  "element": "SWARM",
+  "boss": false,
+  "stats": {
+   "hp": 300,
+   "atk": 22,
+   "def": 11,
+   "matk": 90,
+   "mdef": 26,
+   "range": 3,
+   "rageMax": 4,
+   "crit": 0.1,
+   "critDmg": 1.5,
+   "evade": 0.05,
+   "accuracy": 0.95
+  },
+  "pitchVi": "Rắc mây độc lên nhiều mục tiêu ngẫu nhiên, bào mòn bằng độc và đổi độc lấy máu.",
+  "basic": {
+   "delivery": "projectile",
+   "damageType": "magic",
+   "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
+  },
+  "skill": {
+   "nameVi": "Mây Độc",
+   "family": "alchemy_poison_cloud",
+   "rageCost": [
+    3,
+    3,
+    4
+   ],
+   "targetVi": "3 kẻ địch khác nhau",
+   "shapeVi": "mây độc phun ngẫu nhiên không trùng đích",
+   "selectionVi": "Chọn ngẫu nhiên các kẻ địch còn sống, không trùng mục tiêu.",
+   "countVi": "3 mục tiêu",
+   "durationVi": "nhiễm độc 2 lượt",
+   "starDetailVi": [
+    "Phun mây độc vào 3 kẻ địch khác nhau, gây (18 + 100% MATK) sát thương phép. Mục tiêu trúng mây bị nhiễm độc 12 mỗi lượt trong 2 lượt. Sau khi phun, Ếch Giả Kim tự hồi 8% HP tối đa.",
+    "Phun mây độc vào 3 kẻ địch khác nhau, gây (18 + 100% MATK) sát thương phép. Mục tiêu trúng mây bị nhiễm độc 14 mỗi lượt trong 3 lượt và giảm 12 MDEF trong 2 lượt. Sau khi phun, Ếch Giả Kim tự hồi 10% HP tối đa.",
+    "Phun mây độc vào 4 kẻ địch khác nhau, gây (18 + 100% MATK) sát thương phép. Mục tiêu trúng mây bị nhiễm độc 16 mỗi lượt trong 3 lượt và giảm 15 MDEF trong 2 lượt. Độc dược kết tinh: hồi 6% HP tối đa cho 4 đồng minh có % máu thấp nhất."
+   ]
+  },
+  "skin": {
+   "id": "toxicBrew",
+   "unlock": "locked",
+   "stagesVi": [
+    "Ếch Nấu Độc",
+    "Ếch Giả Kim",
+    "Ếch Độc Vương"
+   ]
+  }
+ },
+ {
   "id": "garuda_divine",
   "species": "garuda",
   "nameVi": "Garuda Thần",

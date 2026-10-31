@@ -61,9 +61,9 @@ describe("round income (A5)", () => {
 });
 
 describe("catalog (A42/A83)", () => {
-  it("has 120 normal units and 5 bosses with unique ids", () => {
-    expect(NORMAL_UNITS).toHaveLength(120);
+  it("has 121 normal units and 5 bosses with unique ids", () => {
+    expect(NORMAL_UNITS).toHaveLength(121);
     expect(BOSSES).toHaveLength(5);
-    expect(new Set(UNITS.map((u) => u.id)).size).toBe(125);
+    expect(new Set(UNITS.map((u) => u.id)).size).toBe(126);
   });
 });

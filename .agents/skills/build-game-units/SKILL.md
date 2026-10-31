@@ -35,7 +35,7 @@ evade = min(0.6, ROLE_EVADE[role] + stats.evade + (star - 1) * 0.05)
 critDmg = stats.critDmg ?? 1.5      accuracy = stats.accuracy ?? 0.95
 ```
 
-`m` is `STAR_STAT = [-, 1.0, 1.6, 2.5]`. Skill damage uses `STAR_SKILL = [-, 1.0, 1.2, 1.4]`; status chances use `STAR_EFFECT_CHANCE = [-, 1.0, 1.4, 2.0]`. `stats.crit` and `stats.evade` are **bonuses on top of the role base**, not absolute values.
+`m` is `STAR_STAT = [-, 1.0, 1.6, 2.5]`. Skill damage uses `STAR_SKILL = [-, 1.0, 1.2, 1.4]`; status chances use `STAR_EFFECT_CHANCE = [-, 1.0, 1.4, 2.0]`; DoT ticks use `STAR_DOT = [-, 1.0, 1.3, 1.6]`. `stats.crit` and `stats.evade` are **bonuses on top of the role base**, not absolute values.
 
 **Basic attack**: `raw = atk` (or `matk` for MAGE/SUPPORT/magic delivery). One attack, one target, can miss.
 
@@ -171,7 +171,7 @@ Rules that follow from this table:
 
 ### Status, DoT and control
 
-- DoT per turn stays at or below `0.15 x` the tier per-hit ref per turn; 2-3 turns is the normal envelope.
+- DoT per turn stays at or below `0.15 x` the tier per-hit ref per turn; 2-3 turns is the normal envelope. Author the **1-star** tick: `STAR_DOT = [-, 1.0, 1.3, 1.6]` multiplies it per star, so a 3-star tick is `1.6x` the authored number and the cap applies to the number in `starDetailVi[0]`. This one is an authored check — `audit-unit.mjs` gates damage and DPR, not DoT.
 - Hard control (stun/freeze/sleep/silence) above 50% chance belongs on `rageCost[0] >= 3` skills, and `STAR_EFFECT_CHANCE` already triples it at 3 stars — author the 1-star number.
 - A skill may have damage plus control, damage plus DoT, or control plus utility. Three payoff axes on one skill is a balance bug.
 
