@@ -129,6 +129,12 @@ Native Shop open/close and label checks across viewport transitions verified: 84
 
 Following the responsive source edits, `pnpm exec vitest --run tests/unit-inventory.test.ts` passed 10/10 tests, `pnpm typecheck` passed, `pnpm build` passed (Vite 7.3.6, 95 modules) and `git diff --check` passed on 2026-10-31. These checks do not supersede native gameplay or visual acceptance.
 
+### Billboard solver verification — 2026-10-31
+
+The compact-landscape beam search now sizes reusable model-coverage buffers by the projected model count (not the label count), reuses a synchronous HUD-collision rectangle, and copies only live search-state entries during ordered insertion. This addresses stale capacity and unnecessary allocation/copying without changing the UI contract. Targeted `tests/camera.test.ts`, `tests/board-view-presentation.test.ts`, `tests/billboard-presentation.test.ts`, `pnpm typecheck`, `pnpm build`, and `git diff --check` passed after these code edits.
+
+Retained Round 6 Planning Chromium session remained responsive at 390×844 and 960×600. Screenshots: `/tmp/omp-sshots-15bb5eeede5ad21c.png` (portrait) and `/tmp/omp-sshots-15bb5f40aedad21d.png` (landscape). Labels were legible with no substantial mutual collision, but small HP/rage details remained difficult to read and the model silhouettes could not be reliably distinguished behind nearby nameplates. A separate 700×390 screenshot (`/tmp/omp-sshots-15bb5ae866f23563.png`) has the same model-visibility limitation. The source registry confirms bespoke rigs only for `jaguar_hunt` and `toad_poison`; other roster entries intentionally use `pendingArt()` signposts. Missing animal bodies cannot be attributed solely to label overlap. `1280×800` screen capture repeatedly timed out even though DOM reads succeeded; capture infrastructure remains unverified, not an established renderer defect. **Billboard model readability remains PARTIAL; none of these observations establish full WBS-059 acceptance.**
+
 ### Plan.pdf — sixteen requirement acceptance matrix
 
 The statuses describe actual evidence; `PARTIAL` is not acceptance.

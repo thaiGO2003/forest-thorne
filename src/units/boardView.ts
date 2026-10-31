@@ -171,12 +171,13 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const beamBuffers: BeamState[][] = [[], []];
   const beamState = (buffer: BeamState[], index: number, count: number) => {
     let state = buffer[index];
-    if (!state || state.positions.length < count) {
-      state = { score: 0, positions: new Int16Array(count), coverage: new Float64Array(count) };
+    if (!state || state.positions.length < count || state.coverage.length < modelCount) {
+      state = { score: 0, positions: new Int16Array(count), coverage: new Float64Array(modelCount) };
       buffer[index] = state;
     }
     return state;
   };
+  const compactBounds: LabelRect = { left: 0, top: 0, right: 0, bottom: 0 };
   const placeCompactLabels = (positions: readonly { lane: number; center: number; cost: number }[], view: DOMRect) => {
     for (let index = 0; index < candidateCount; index++) {
       const c = candidates[index]!;
@@ -189,10 +190,11 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         const right = left + c.width;
         if (top < view.top + 6 || bottom > view.bottom - 6 ||
           left < view.left + 6 || right > view.right - 6) continue;
-        const bounds = { left, top, right, bottom };
+        compactBounds.left = left; compactBounds.top = top;
+        compactBounds.right = right; compactBounds.bottom = bottom;
         let blocked = false;
         for (let i = 0; i < hudCount; i++) {
-          if (labelOverlap(bounds, hudRects[i]!, 3)) { blocked = true; break; }
+          if (labelOverlap(compactBounds, hudRects[i]!, 3)) { blocked = true; break; }
         }
         if (blocked) continue;
         let p = row[count];
@@ -257,8 +259,8 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
               const prior = next[n - 1]!;
               const target = next[n]!;
               target.score = prior.score;
-              target.positions.set(prior.positions);
-              target.coverage.set(prior.coverage);
+              for (let m = 0; m <= index; m++) target.positions[m] = prior.positions[m]!;
+              for (let m = 0; m < modelCount; m++) target.coverage[m] = prior.coverage[m]!;
             }
             const chosen = next[slot]!;
             chosen.score = score;
