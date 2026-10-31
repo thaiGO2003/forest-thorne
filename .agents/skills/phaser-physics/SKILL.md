@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "add physics", "set
 version: 0.7.0
 ---
 
-> Companion reference (do not duplicate here): See P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/physics-arcade/SKILL.md for the API reference already installed alongside this skill.
+> Companion reference (do not duplicate here): See `.agents/skills/physics-arcade/SKILL.md` for the API reference already installed alongside this skill.
 
 # Phaser 4 Arcade Physics
 

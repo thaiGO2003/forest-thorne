@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "add a sprite", "cr
 version: 0.7.0
 ---
 
-> Companion reference (do not duplicate here): See P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/game-object-components/SKILL.md and P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/sprites-and-images/SKILL.md for the API reference already installed alongside this skill.
+> Companion reference (do not duplicate here): See `.agents/skills/game-object-components/SKILL.md` and `.agents/skills/sprites-and-images/SKILL.md` for the API references already installed alongside this skill.
 
 # Phaser 4 Game Objects
 
