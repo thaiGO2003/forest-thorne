@@ -295,6 +295,12 @@ describe("Planning drag controller", () => {
     scene.updateMatrixWorld(true);
     click(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 6);
     expect(selections).toEqual([{ kind: "board", index: boardAIndex }]);
+    // The tile under a unit is a click target too, even when the ray misses the model silhouette.
+    playerRoot.visible = false;
+    click(new THREE.Vector3(boardAWorld.x + 0.42, TILE_HEIGHT, boardAWorld.z), 14);
+    playerRoot.visible = true;
+    expect(selections).toHaveLength(2);
+    expect(selections.at(-1)).toEqual({ kind: "board", index: boardAIndex });
     hiddenOverlay.removeFromParent(); hiddenMesh.geometry.dispose(); hiddenMesh.material.dispose();
 
     const sameCell = clientPointForWorld(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), camera, rect);
@@ -325,7 +331,7 @@ describe("Planning drag controller", () => {
     const boardBIndex = boardB.row * 5 + boardB.col;
     expect(run.board[boardAIndex]).toBeNull();
     expect(run.board[boardBIndex]?.uid).toBe(playerUid);
-    expect(selections).toHaveLength(1);
+    expect(selections).toHaveLength(2);
 
     placeRoot(playerRoot, boardBWorld.x, boardBWorld.z, scene);
     drag(
@@ -340,6 +346,7 @@ describe("Planning drag controller", () => {
     playerRoot.position.set(bench[1]!.x, TILE_HEIGHT, bench[1]!.z);
     click(new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z), 7);
     expect(selections).toEqual([
+      { kind: "board", index: boardAIndex },
       { kind: "board", index: boardAIndex },
       { kind: "bench", index: 1 },
     ]);
@@ -357,7 +364,7 @@ describe("Planning drag controller", () => {
     expect(moves).toHaveLength(moveCount);
     expect(inspected).toEqual([]);
     click(enemyPoint, 8);
-    expect(selections).toHaveLength(2);
+    expect(selections).toHaveLength(3);
     // A tap on an enemy opens its read-only detail, exactly like an ally tap.
     expect(inspected).toEqual(["enemy-preview"]);
 
@@ -370,7 +377,7 @@ describe("Planning drag controller", () => {
     expect(selections.at(-1)).toEqual({ kind: "bench", index: 0 });
     drag(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 11);
     expect(moves).toHaveLength(moveCount);
-    expect(selections).toHaveLength(3);
+    expect(selections).toHaveLength(4);
     expect(JSON.stringify(run)).toBe(combatBefore);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",

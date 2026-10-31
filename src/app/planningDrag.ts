@@ -317,7 +317,10 @@ export function createPlanningDragController({
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0) || !enabled()) return;
     const run = getRun();
     if (!run || (run.phase !== "PLANNING" && !inspectOnly())) return;
-    const picked = pickUnit(event.clientX, event.clientY);
+    // A finger on the tile under a model should hit that unit too; raycasting only the mesh
+    // leaves visible occupied tiles dead when the pointer misses the silhouette.
+    const picked = pickUnit(event.clientX, event.clientY)
+      ?? pickOccupiedTile(boardPicker.pick(event.clientX, event.clientY), run);
     const source = picked && picked.kind !== "enemy" ? sourceForUid(run, picked.uid) : null;
     if (!source) {
       // Enemy tokens are never drag sources, but a tap still inspects them like allies.
