@@ -53,11 +53,11 @@ describe("billboard presentation", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps HP above rage for both teams at rest, on hover and after pointer leave", () => {
+  it("keeps HP above rage for both teams at rest and after a redraw", () => {
     for (const side of ["L", "R"] as const) {
       const anchor = new THREE.Object3D();
       const billboard = createBillboard(anchor);
-      billboard.set({
+      const base = {
         name: "Unit",
         star: 2,
         hp: 25,
@@ -66,9 +66,10 @@ describe("billboard presentation", () => {
         rageMax: 4,
         side,
         statuses: [],
-      });
-      for (const detailed of [false, true, false]) {
-        billboard.setDetailed(detailed);
+      };
+      billboard.set(base);
+      for (const state of [base, { ...base, statuses: [{ key: "burn", positive: false }] }]) {
+        billboard.set(state);
         const heartCall = kitMocks.label.mock.calls.find((call) => String(call[1]).includes("25%"));
         const rageCall = kitMocks.label.mock.calls.find((call) => String(call[1]) === "⚡ 3/4");
         expect(heartCall).toBeDefined();

@@ -8,6 +8,7 @@ import type {
 } from "../core/combat";
 import {
   basicContactCell,
+  meleeContactUsesRiverSeam,
   stageBasicCombatEvent,
   type BasicCombatEvent,
 } from "../core/combatStaging";
@@ -119,6 +120,22 @@ export function playCombat(o: {
     if (duration <= 0) root.position.copy(to);
     else moves.push({ root, from: from.clone(), to: to.clone(), elapsed: 0, duration });
   };
+  // Old_src current-tile highlight: purple turn marker + gold actor outline; skills swap the
+  // outline for the stepped rainbow border (setCombatBorder("skill")).
+  let focusedUid: string | null = null;
+  const focusActor = (uid: string) => {
+    focusedUid = uid;
+    board.setTurnIndicator?.(uid);
+    board.setActorHighlight?.(uid);
+  };
+  const clearActorFocus = (uid: string) => {
+    // Overlapping skill/basic animations must not clear a newer actor's marker.
+    if (focusedUid !== uid) return;
+    focusedUid = null;
+    board.setTurnIndicator?.(null);
+    board.setActorHighlight?.(null);
+    board.setCombatBorder?.(null);
+  };
   const present = (event: CombatEvent): number => {
     if (event.t === "cycle") {
       o.onEvent?.(event);
@@ -148,14 +165,20 @@ export function playCombat(o: {
         : { t: "basic", src: event.src, dst: event.dst, dmg: event.dmg, absorbed: event.absorbed, crit: event.crit };
       const staged = stageBasicCombatEvent(stagedEvent, actor, speedLevel);
       const { timing } = staged;
+      focusActor(event.src);
 
       if (staged.pattern === "RANGED_STATIC") {
+        board.setCombatBorder?.(event.src, "attack");
         pendingActions++;
         const attackMs = scaleCombatPresentationMs(360, speedLevel);
         visual.play("attack", {
           duration: attackMs / 1000,
           onImpact: semanticImpact,
-          onDone: () => { if (!disposed) pendingActions--; },
+          onDone: () => {
+            if (disposed) return;
+            pendingActions--;
+            clearActorFocus(event.src);
+          },
         });
         const targetVisual = board.visual(event.dst);
         if (targetVisual) {
@@ -174,6 +197,12 @@ export function playCombat(o: {
       const actorSlot = board.slot(event.src), targetSlot = board.slot(event.dst);
       const contact = actorSlot && targetSlot && actorSlot.kind !== "bench" && targetSlot.kind !== "bench"
         ? (() => {
+            // Old_src: melee front-line contact lands on the river seam, not the attacker's edge tile.
+            if (meleeContactUsesRiverSeam(staged.pattern, actor.side, targetSlot)) {
+              const left = board.cellCenter(4, targetSlot.row);
+              const right = board.cellCenter(5, targetSlot.row);
+              return new THREE.Vector3((left.x + right.x) / 2, home.y - 0.14, (left.z + right.z) / 2);
+            }
             const cell = basicContactCell(staged.pattern, actor, targetSlot);
             const center = board.cellCenter(cell.col, cell.row);
             return new THREE.Vector3(center.x, home.y, center.z);
@@ -182,6 +211,7 @@ export function playCombat(o: {
       const target = board.visual(event.dst)?.root.position.clone();
       const attackMs = timing.preImpactMs + timing.postImpactMs;
       pendingActions++;
+      board.setCombatBorder?.(event.src, "attack");
       visual.play("move");
       move(visual.root, home, contact, timing.approachMs);
       after(timing.approachMs, () => {
@@ -203,6 +233,7 @@ export function playCombat(o: {
               visual.setFacing(actor.side);
               visual.play("idle");
               pendingActions--;
+              clearActorFocus(event.src);
             });
           },
         });
@@ -240,6 +271,8 @@ export function playCombat(o: {
         event.targets.forEach((uid, targetIndex) => board.flashTile?.(uid, targetIndex === 0 ? "direct" : "splash"));
         const visual = board.visual(event.src);
         if (!visual) break;
+        focusActor(event.src);
+        board.setCombatBorder?.(event.src, "skill");
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
         const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
@@ -253,6 +286,7 @@ export function playCombat(o: {
           },
           onDone: () => {
             if (skillImpact === window) skillImpact = null;
+            if (!disposed) clearActorFocus(event.src);
           },
         });
         break;
