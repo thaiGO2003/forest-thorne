@@ -5,6 +5,7 @@ import { t, type MsgKey } from "../core/i18n";
 import { canResearch, maxLevel, researchCost, TECH_BY_ID, TECH_NODES, type Branch, type TechNode } from "../core/tech";
 import { ICONS } from "../core/emojiIcon";
 import { h, kitButton, LABEL, label, nineSlice, panelEl, SLICE } from "./kit";
+import { uiFont } from "./fontScale";
 import type { ModalHandle } from "./modal";
 
 const FOCUS_KEY = "forest-throne:planning:last-tech-focus";
@@ -125,7 +126,7 @@ export function mountTechTree(modal: ModalHandle, model: TechModel, research: (i
       nineSlice(g, skin, SLICE.btn_icon, p.x - r, p.y - r, r * 2, r * 2, 1.5);
       if (id === sel) { g.strokeStyle = "#ffe08a"; g.lineWidth = 3; g.strokeRect(p.x - r - 4, p.y - r - 4, r * 2 + 8, r * 2 + 8); }
       label(g, glyph, p.x, p.y - 2, { size: r * 0.8, fill: LABEL, stroke: null });
-      label(g, lvText, p.x, p.y + r + 10, { size: 12 });
+      label(g, lvText, p.x, p.y + r + 10, { size: uiFont(12), fill: LABEL });
     };
     nodeAt("root", "btn_icon_selected", ICONS.tech, t("tech.root"));
     for (const n of TECH_NODES) {

@@ -30,7 +30,7 @@
   font-display: swap;
 }
 
-.ui-root { position: absolute; inset: 0; pointer-events: none; color: #111; font-family: "Forest Normal", "Noto Sans", sans-serif; }
+.ui-root { position: absolute; inset: 0; pointer-events: none; color: #111; font-family: "Forest Normal", "Noto Sans", sans-serif; --ft-font-scale: 2; --ft-font-min: 14px; }
 .ui-root :is(h1, h2, h3, h4, h5, h6), .tt-title { font-family: "Forest Heading", "Noto Sans", sans-serif; }
 .ui-root * { box-sizing: border-box; }
 .layer { position: absolute; inset: 0; pointer-events: none; }
@@ -583,3 +583,62 @@
   .field > * { min-width: 0; }
   .stepper { grid-template-columns: 48px 1fr 48px; }
 }
+
+/* ---------- readable text policy ----------
+   Typography scale for modal bodies and the shared tooltip. It is intentionally limited to
+   those two surfaces: the 3D billboards and fixed-art HUD cards have their own layout budgets.
+   --ft-font-scale: 2 doubles authored sizes; --ft-font-min stops any readable label from
+   collapsing below 14px on small viewports. */
+.ui-root {
+  --ft-10: max(var(--ft-font-min), calc(10px * var(--ft-font-scale)));
+  --ft-11: max(var(--ft-font-min), calc(11px * var(--ft-font-scale)));
+  --ft-12: max(var(--ft-font-min), calc(12px * var(--ft-font-scale)));
+  --ft-13: max(var(--ft-font-min), calc(13px * var(--ft-font-scale)));
+  --ft-14: max(var(--ft-font-min), calc(14px * var(--ft-font-scale)));
+  --ft-15: max(var(--ft-font-min), calc(15px * var(--ft-font-scale)));
+  --ft-16: max(var(--ft-font-min), calc(16px * var(--ft-font-scale)));
+  --ft-18: max(var(--ft-font-min), calc(18px * var(--ft-font-scale)));
+  --ft-22: max(var(--ft-font-min), calc(22px * var(--ft-font-scale)));
+  --ft-23: max(var(--ft-font-min), calc(23px * var(--ft-font-scale)));
+  --ft-24: max(var(--ft-font-min), calc(24px * var(--ft-font-scale)));
+}
+.tooltip { max-width: min(480px, calc(100vw - 16px)); }
+.tooltip-inner { font-size: var(--ft-13); }
+.tt-title { font-size: var(--ft-15); }
+.tt-sub, .tt-body { font-size: var(--ft-12); }
+
+.modal-body { font-size: var(--ft-16); }
+.modal-body small { font-size: max(var(--ft-font-min), .68em); }
+
+/* Owned-unit inspection */
+.modal-body .ui-inventory h3 { font-size: var(--ft-15); }
+.modal-body .ui-inventory-name { font-size: var(--ft-24); }
+.modal-body .ui-inventory-stars { font-size: var(--ft-22); }
+.modal-body :is(.ui-inventory-identity, .ui-inventory-skill, .ui-inventory-item-name,
+  .ui-inventory-effect, .ui-inventory-effect strong, .ui-inventory-confirm) { font-size: var(--ft-12); }
+.modal-body :is(.ui-inventory-column-hint, .ui-inventory-secondary, .ui-inventory-item-reason,
+  .ui-inventory-item-details, .ui-inventory-effect small) { font-size: var(--ft-10); }
+.modal-body :is(.ui-inventory-item-empty small, .ui-inventory-note, .ui-inventory-sale-hint,
+  .ui-inventory-notice) { font-size: var(--ft-11); }
+.modal-body .ui-inventory-gold { font-size: var(--ft-14); }
+
+/* Crafting workbench */
+.modal-body :is(.crafting-eyebrow, .crafting-rank span, .crafting-slot-number) { font-size: var(--ft-10); }
+.modal-body .crafting-rank strong { font-size: var(--ft-23); }
+.modal-body :is(.crafting-counter, .crafting-hint, .crafting-item-count, .crafting-selection,
+  .crafting-recipe-copy small, .crafting-result-info p, .crafting-feedback) { font-size: var(--ft-12); }
+.modal-body .crafting-item-name { font-size: var(--ft-13); }
+.modal-body .crafting-recipe-copy strong { font-size: var(--ft-15); }
+
+/* Library, settings, history, mods */
+.modal-body .lib-input { font-size: var(--ft-15); }
+.modal-body :is(.lib-pending, .lib-p, .lib-table, .lib-count) { font-size: var(--ft-13); }
+.modal-body .lib-h { font-size: var(--ft-15); }
+.modal-body .cb-row { font-size: var(--ft-15); }
+.modal-body .settings-note { font-size: var(--ft-14); }
+.modal-body :is(.history-round, .history-time) { font-size: var(--ft-12); }
+.modal-body .ui-inventory-stat { height: 64px; }
+/* Dark oak/ribbon surfaces carry light copy; the parchment/well surfaces keep dark ink. */
+.pl-action-label, .menu-utility-label { color: #fff8ec; }
+/* Crafting's hero/bench/result are dark oak; the parchment inventory/recipe panels keep ink. */
+.crafting-hero, .crafting-bench, .crafting-result { color: #fff8ec; }

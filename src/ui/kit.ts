@@ -224,7 +224,8 @@ export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `kit-panel ${cls}`.trim();
   el.dataset.skin = skin;
-  el.style.color = INK;
+  // Text on oak/billboard chrome is light; parchment and slot wells keep the dark ink.
+  el.style.color = skin === "panel_wood" || skin === "shell_billboard" ? LABEL : INK;
   surface(el, (g, w, hh) => nineSlice(g, skin, SLICE[skin], 0, 0, w, hh));
   return el;
 }

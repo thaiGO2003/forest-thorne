@@ -57,7 +57,7 @@ export function createCard(portraits: PortraitProvider, cls = ""): CardView {
     const pad = Math.max(6, Math.round(w * 0.09)), inner = hh - pad * 2;
     const pw = w - pad * 2;
     const ph = Math.max(0, Math.min(Math.round(inner * 0.47), inner - 4 * Math.min(9, inner / 4)));
-    const band = (inner - ph) / 4, fs = Math.max(8, Math.min(15, band * 0.75, w / 8));
+    const band = (inner - ph) / 4, fs = Math.max(10, Math.min(15, band * 0.75, w / 8));
     nineSlice(g, "slot_well", SLICE.slot_well, pad, pad, pw, ph);
     const p = portraits.get(unit.id, star);
     if (p) {

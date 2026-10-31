@@ -12,6 +12,7 @@ import type { OwnedUnitInspection } from "../core/unitInventory";
 import type { UnitDiagnostics, UnitDiagnosticEffect, UnitStatSnapshot } from "../core/inspection";
 import type { Portraits } from "../units/portraits";
 import { h, INK, kitButton, label, nineSlice, SLICE, surface, threeSlice, type KitButton, type Surface } from "./kit";
+import { uiFont } from "./fontScale";
 import type { ModalHandle } from "./modal";
 
 export interface UnitInventoryModel {
@@ -112,9 +113,10 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
         const max = row.key === "hp" ? current.maxHp : row.key === "rage" ? current.rageMax : Math.max(1, ...stats.map((s) => s[row.key]));
         const delta = col === 2 ? value - stats[1][row.key] : 0;
         const text = row.key === "hp" ? `${fmt(value)} / ${fmt(current.maxHp)}` : row.key === "rage" ? `${fmt(value)} / ${fmt(current.rageMax)}` : fmt(value);
-        const font = Math.max(10, Math.min(13, w / 13));
-        label(g, `${row.icon} ${statName(row.key)}`, 3, 12, { size: font, align: "left", fill: INK, stroke: null });
-        label(g, text, w - 3, 12, { size: font, align: "right", fill: INK, stroke: null });
+        const font = uiFont(Math.max(10, Math.min(13, w / 13)));
+        const textY = Math.max(13, font * 0.58);
+        label(g, `${row.icon} ${statName(row.key)}`, 3, textY, { size: font, align: "left", fill: INK, stroke: null });
+        label(g, text, w - 3, textY, { size: font, align: "right", fill: INK, stroke: null });
         const y = hh - 16, barW = w - 6;
         nineSlice(g, "bar_trough", 1, 3, y + 2, barW, 9);
         const ratio = Math.max(0, Math.min(1, value / Math.max(1, max)));
@@ -124,7 +126,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
           for (let i = 0; i < count; i++) if ((i + 1) / count <= ratio + .001) g.fillRect(3 + i * (seg + gap), y + 2, seg, 9);
         } else g.fillRect(3, y + 2, barW * ratio, 9);
         threeSlice(g, "frame_bar", 3, 1, y, w - 2, 14);
-        if (delta) label(g, `${delta > 0 ? "+" : ""}${fmt(delta)}`, w - 5, y + 7, { size: 9, align: "right" });
+        if (delta) label(g, `${delta > 0 ? "+" : ""}${fmt(delta)}`, w - 5, y - 10, { size: uiFont(9), align: "right" });
         el.setAttribute("aria-valuenow", String(value)); el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", String(max));
         el.setAttribute("aria-valuetext", `${text}${delta ? ` (${delta > 0 ? "+" : ""}${fmt(delta)})` : ""}`);
       });
