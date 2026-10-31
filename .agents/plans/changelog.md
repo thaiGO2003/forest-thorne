@@ -82,3 +82,10 @@
 - Added sparse multi-unit interleaving and hard 20-cycle regression coverage to `tests/combat.test.ts`; the existing `src/core/combat.ts` implementation already satisfies the WBS-019 ordering contract.
 - Verified `corepack pnpm exec vitest --run tests/combat.test.ts` (38 passed) and `corepack pnpm typecheck` (passed).
 - Executed the production combat engine with Bun: a balanced one-vs-one simulation produced 20 cycles, 40 actions, and no winner; rendered presentation timing has not been visually verified.
+
+## 2026-10-31 — Issue #9 geometry contract regression expansion
+
+- Existing `6eed188` already added `RangeError` input validation to `toVisual`; no production change was needed on the `origin/dev` baseline.
+- Expanded `tests/geometry.test.ts` with invalid/non-finite coordinate rejection, explicit river boundary mapping, exhaustive visual→logical coverage (50/100/200 cells), one river cell per row (5/10/20), and ring/perimeter uniqueness for solo/coop2/coop4.
+- Spec §11.4's 40-cell solo brown ring contradicts the coordinate rectangle (13×7 − 11×5 = 36 unique cells); the test documents the existing coordinate-authoritative choice.
+- Verified in the isolated geometry worktree: `pnpm exec vitest --run tests/geometry.test.ts` (**8/8 PASS**) and `pnpm typecheck` (**PASS**); no plan was moved.
