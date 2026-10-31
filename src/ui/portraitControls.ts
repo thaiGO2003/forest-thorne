@@ -9,9 +9,9 @@ export function mountPortraitControls(host: HTMLElement, viewer: PortraitViewer)
   controls.setAttribute("aria-label", "Điều khiển camera 3D");
   const buttons = [
     { dir: "up", label: "↑", aria: "Nâng camera", dx: 0, dy: 0.14 },
-    { dir: "left", label: "←", aria: "Xoay camera sang trái", dx: 0.16, dy: 0 },
+    { dir: "left", label: "←", aria: "Di chuyển camera sang trái", dx: -0.16, dy: 0 },
     { dir: "down", label: "↓", aria: "Hạ camera", dx: 0, dy: -0.14 },
-    { dir: "right", label: "→", aria: "Xoay camera sang phải", dx: -0.16, dy: 0 },
+    { dir: "right", label: "→", aria: "Di chuyển camera sang phải", dx: 0.16, dy: 0 },
   ].map((item) => {
     const button = kitButton({
       skin: "wood",

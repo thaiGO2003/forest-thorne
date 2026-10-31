@@ -42,6 +42,21 @@ export function meleeContactUsesRiverSeam(
   if (pattern !== "MELEE_FRONT") return false;
   return target.col === (actorSide === "L" ? 5 : 4);
 }
+
+/**
+ * Old_src backline assassin contact: when the victim already stands on the defender's
+ * backline, a logical-cell clamp would park the assassin on that victim's own tile. The
+ * renderer instead resolves one visual block away from the river, onto the dark-brown ring
+ * exactly like the river-seam contact used by front-line melee.
+ */
+export function assassinBackContactUsesRing(
+  pattern: CombatActionPattern,
+  actorSide: "L" | "R",
+  target: { col: number },
+): boolean {
+  if (pattern !== "ASSASSIN_BACK") return false;
+  return target.col === (actorSide === "L" ? LOGICAL_COLS - 1 : 0);
+}
 type DamageCombatEvent = Extract<CombatEvent, { t: "basic" | "skill" }>;
 export type BasicCombatEvent =
   | (Omit<DamageCombatEvent, "t"> & { t: "basic" })

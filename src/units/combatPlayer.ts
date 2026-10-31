@@ -7,6 +7,7 @@ import type {
   CombatUnitSnapshot
 } from "../core/combat";
 import {
+  assassinBackContactUsesRing,
   basicContactCell,
   meleeContactUsesRiverSeam,
   stageBasicCombatEvent,
@@ -20,9 +21,10 @@ import {
 } from "../core/gameSpeed";
 import { ICONS } from "../core/emojiIcon";
 import type { BillboardStatus } from "./billboard";
-import type { BoardView } from "./boardView";
+import { TILE_TOP, type BoardView } from "./boardView";
 import type { CombatFx } from "./fx";
 import { RIGS } from "./registry";
+import { BLOCK } from "../world/arena";
 import { RIG_DEFAULT_DURATIONS, RIG_DEFAULT_IMPACT } from "./rig";
 export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; inspection?: CombatUnitSnapshot }
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
@@ -202,6 +204,11 @@ export function playCombat(o: {
               const left = board.cellCenter(4, targetSlot.row);
               const right = board.cellCenter(5, targetSlot.row);
               return new THREE.Vector3((left.x + right.x) / 2, home.y - 0.14, (left.z + right.z) / 2);
+            }
+            if (assassinBackContactUsesRing(staged.pattern, actor.side, targetSlot)) {
+              const center = board.cellCenter(targetSlot.col, targetSlot.row);
+              const awayFromRiver = actor.side === "L" ? 1 : -1;
+              return new THREE.Vector3(center.x + awayFromRiver * BLOCK, TILE_TOP, center.z);
             }
             const cell = basicContactCell(staged.pattern, actor, targetSlot);
             const center = board.cellCenter(cell.col, cell.row);

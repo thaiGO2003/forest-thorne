@@ -438,6 +438,7 @@
 .lib-back { height: 40px; min-width: 140px; padding: 0 12px; align-self: flex-start; flex: none; }
 .lib-detail { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(260px, 42%) 1fr; gap: 12px; }
 .lib-left { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.lib-name { margin: 0; text-align: center; font-size: 22px; line-height: 1.15; }
 .lib-stage { position: relative; flex: 1 1 auto; min-height: 260px; }
 .lib-stage > .lib-view { position: absolute; inset: 8px; }
 .portrait-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
@@ -621,6 +622,7 @@
 .modal-body .lib-input { font-size: var(--ft-15); }
 .modal-body :is(.lib-pending, .lib-p, .lib-table, .lib-count) { font-size: var(--ft-13); }
 .modal-body .lib-h { font-size: var(--ft-15); }
+.modal-body .lib-name { font-size: var(--ft-22); }
 .modal-body .cb-row { font-size: var(--ft-15); }
 .modal-body .settings-note { font-size: var(--ft-14); }
 .modal-body :is(.history-round, .history-time) { font-size: var(--ft-12); }

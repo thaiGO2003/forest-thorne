@@ -16,7 +16,7 @@ import { createUnit } from "./registry";
 import type { Star, UnitVisual } from "./rig";
 
 /** Tile top: units stand on the thin tactical tiles. */
-const TILE_TOP = 0.12;
+export const TILE_TOP = 0.12;
 const BOARD = 5;
 export const LOW_CORTISOL_DURATION_MS = 120_000;
 

@@ -10,6 +10,7 @@ import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
 import { basicAttackCopy } from "../core/unitText";
+import { unitEvolutionName } from "../content/unitNames";
 import { createCard, unitCardTooltip, type CardView } from "./card";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
@@ -311,7 +312,7 @@ export function mountLibrary(
     gridRo?.disconnect(); gridRo = null;
     disposeSurfaceTree(root);
     root.replaceChildren();
-    modal.setTitle(u.nameVi);
+    modal.setTitle(unitEvolutionName(u, 1));
     const equippedSkinId = collection.equippedSkinByUnitId[u.id];
     let star: Star = 1;
     let skinId: string | null = u.skin?.id === equippedSkinId && collection.unlockedSkinIds.includes(equippedSkinId) ? equippedSkinId : null;
@@ -354,8 +355,14 @@ export function mountLibrary(
       }
     }
     const stars = h("div", "lib-stars");
+    const nameHeading = h("h2", "lib-name", unitEvolutionName(u, star));
+    const syncEvolutionName = () => {
+      const name = unitEvolutionName(u, star);
+      modal.setTitle(name);
+      nameHeading.textContent = name;
+    };
     const starBtns = ([1, 2, 3] as const).map((n) => {
-      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
+      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); syncEvolutionName(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
       stars.append(b.el);
       return b;
     });
@@ -364,7 +371,7 @@ export function mountLibrary(
     const info = h("div", "lib-info");
     const back = kitButton({ skin: "wood", label: t("library.back"), cls: "lib-back", onClick: () => renderBrowse() });
     const left = h("div", "lib-left");
-    left.append(stagePanel, actions, stars);
+    left.append(nameHeading, stagePanel, actions, stars);
     wrap.append(left, info);
     root.append(back.el, wrap);
 
@@ -423,6 +430,7 @@ export function mountLibrary(
           skinId = null;
           viewer?.setUnit(u.id, star, skinId);
           scheduleIdle();
+          syncEvolutionName();
           renderInfo();
         } });
         base.setSelected(skinId === null);
@@ -437,6 +445,7 @@ export function mountLibrary(
             skinId = skin.id;
             viewer?.setUnit(u.id, star, skinId);
             scheduleIdle();
+            syncEvolutionName();
             for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === star);
             renderInfo();
           } });

@@ -1,5 +1,6 @@
 // Owned creature modal. Stat values and quoted prices are supplied by canonical core owners.
 import { getUnit } from "../content/catalog";
+import { unitEvolutionName } from "../content/unitNames";
 import type { CombatUnitSnapshot } from "../core/combat";
 import { ICONS } from "../core/emojiIcon";
 import { getEquipment, slotCapForUnit } from "../core/equipment";
@@ -80,7 +81,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   const controlsOff = mountPortraitControls(portraitHost, viewer);
   let shownStar = initial.star;
   viewer.setUnit(unit.id, shownStar as Parameters<typeof viewer.setUnit>[1]);
-  const name = h("h2", "ui-inventory-name", unit.nameVi);
+  const name = h("h2", "ui-inventory-name", unitEvolutionName(unit, initial.star));
   const stars = h("div", "ui-inventory-stars", ICONS.star.repeat(initial.star));
   const identity = h("div", "ui-inventory-identity");
   identity.append(h("span", "", `${ICONS[unit.role]} ${t(`role.${unit.role}` as MsgKey)}`),
@@ -186,6 +187,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
       const display = getDisplay();
       if (display.star !== shownStar) {
         shownStar = display.star;
+        name.textContent = unitEvolutionName(unit, shownStar);
         viewer.setUnit(unit.id, shownStar as Parameters<typeof viewer.setUnit>[1]);
         stars.textContent = ICONS.star.repeat(shownStar);
         skillDescription.textContent = unit.skill.starDetailVi[shownStar - 1] ?? unit.skill.detailVi ?? unit.pitchVi;

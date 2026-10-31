@@ -21,18 +21,19 @@ function light(scene: THREE.Scene) {
 }
 
 /** Fit the entire 3D rig, including depth, at every aspect ratio and orbital angle. */
-function frame(camera: THREE.PerspectiveCamera, bounds: THREE.Sphere, zoom = 1, lift = 0) {
+function frame(camera: THREE.PerspectiveCamera, bounds: THREE.Sphere, zoom = 1, lift = 0, panX = 0) {
   const halfVertical = THREE.MathUtils.degToRad(camera.fov) / 2;
   const halfHorizontal = Math.atan(Math.tan(halfVertical) * camera.aspect);
   const limitingHalfAngle = Math.min(halfVertical, halfHorizontal);
   const dist = Math.max(0.5, bounds.radius * 1.08 / Math.sin(limitingHalfAngle)) * zoom;
   const center = bounds.center;
+  const focusX = center.x + panX;
   camera.position.set(
-    center.x + Math.sin(VIEW_YAW) * dist,
+    focusX + Math.sin(VIEW_YAW) * dist,
     center.y + dist * (0.28 + lift * 0.55),
     center.z + Math.cos(VIEW_YAW) * dist,
   );
-  camera.lookAt(center);
+  camera.lookAt(focusX, center.y, center.z);
   camera.near = Math.max(0.01, dist / 100);
   camera.far = dist + bounds.radius * 4 + 2;
   camera.updateProjectionMatrix();
@@ -141,7 +142,7 @@ export function createPortraits(): Portraits {
       const turn = new THREE.Group();
       vs.add(turn);
       let unit: UnitVisual | null = null, currentId: string | null = null, combat = false, zoom = 1;
-      let yaw = 0, pitch = 0, lift = 0, idleWindow = 2, previewAction = false;
+      let yaw = 0, pitch = 0, lift = 0, panX = 0, idleWindow = 2, previewAction = false;
       const bounds = new THREE.Sphere();
       const pointers = new Map<number, { x: number; y: number }>();
       let pinch = 0;
@@ -150,7 +151,7 @@ export function createPortraits(): Portraits {
         const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
         r.setSize(w, h, false);
         cam.aspect = w / h;
-        if (unit) frame(cam, bounds, zoom, lift);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
         else cam.updateProjectionMatrix();
       };
       const ro = new ResizeObserver(resize);
@@ -184,19 +185,28 @@ export function createPortraits(): Portraits {
       const wheel = (e: WheelEvent) => { e.preventDefault(); setZoom(zoom * (1 + Math.sign(e.deltaY) * 0.15)); };
       const setZoom = (z: number) => {
         zoom = Math.min(6, Math.max(0.3, z));
-        if (unit) frame(cam, bounds, zoom, lift);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
       };
       const moveLift = (delta: number) => {
         lift = THREE.MathUtils.clamp(lift + delta, -0.9, 1.4);
-        if (unit) frame(cam, bounds, zoom, lift);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
+      };
+      const movePan = (delta: number) => {
+        const limit = Math.max(0.35, bounds.radius * 0.9);
+        panX = THREE.MathUtils.clamp(panX + delta, -limit, limit);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
+      };
+      const moveCamera = (dx: number, dy: number) => {
+        if (dx) movePan(dx);
+        if (dy) moveLift(dy);
       };
       const keyDown = (e: KeyboardEvent) => {
         let handled = true;
         switch (e.key) {
-          case "ArrowLeft": yaw += 0.16; break;
-          case "ArrowRight": yaw -= 0.16; break;
-          case "ArrowUp": moveLift(0.14); break;
-          case "ArrowDown": moveLift(-0.14); break;
+          case "ArrowLeft": moveCamera(-0.16, 0); break;
+          case "ArrowRight": moveCamera(0.16, 0); break;
+          case "ArrowUp": moveCamera(0, 0.14); break;
+          case "ArrowDown": moveCamera(0, -0.14); break;
           case "+": case "=": setZoom(zoom * 0.85); break;
           case "-": case "_": setZoom(zoom * 1.18); break;
           default: handled = false;
@@ -207,7 +217,7 @@ export function createPortraits(): Portraits {
         }
       };
       r.domElement.tabIndex = 0;
-      r.domElement.setAttribute("aria-label", "Xem 3D: kéo để xoay, lăn để zoom, phím mũi tên để chỉnh camera.");
+      r.domElement.setAttribute("aria-label", "Xem 3D: kéo để xoay, lăn để zoom, phím mũi tên để di chuyển camera.");
       r.domElement.addEventListener("pointerdown", down);
       r.domElement.addEventListener("pointermove", move);
       r.domElement.addEventListener("pointerup", up);
@@ -254,6 +264,7 @@ export function createPortraits(): Portraits {
           yaw = 0;
           pitch = 0;
           lift = 0;
+          panX = 0;
           zoom = 1;
           previewAction = false;
           idleWindow = 1.5 + Math.random();
@@ -274,10 +285,7 @@ export function createPortraits(): Portraits {
             unit.play(state, { onDone: () => { previewAction = false; idleWindow = -(2 + Math.random() * 3); } });
           }
         },
-        moveCamera(dx, dy) {
-          yaw += dx;
-          moveLift(dy);
-        },
+        moveCamera,
         zoomBy(factor) {
           setZoom(zoom * factor);
         },
@@ -285,9 +293,10 @@ export function createPortraits(): Portraits {
           yaw = 0;
           pitch = 0;
           lift = 0;
+          panX = 0;
           zoom = 1;
           turn.rotation.set(0, 0, 0);
-          if (unit) frame(cam, bounds, zoom, lift);
+          if (unit) frame(cam, bounds, zoom, lift, panX);
         },
         dispose() {
           combat = false;
