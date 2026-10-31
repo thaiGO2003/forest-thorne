@@ -1,22 +1,22 @@
-// Board position markers (old_src `createPlanningBoardEdgeLabels`): chess files A..J along the
-// near/far edges and row numbers on both flanks, so players can name a cell ("D2") the same way
-// the legacy planning scene did. All markers share one canvas atlas and one merged geometry, so
-// the whole layer costs a single draw call.
+// Board position markers (old_src `toPlanningChessCoord`): every playable cell carries a faint,
+// embossed "A1" coordinate so players can name a tile the way the legacy planning tooltip did.
+// All markers share one canvas atlas and one merged geometry → one draw call for the whole board.
 import * as THREE from "three";
 import { totalRows, toVisual, VISUAL_COLS, type Profile } from "../board/geometry";
 import { onKitReady, label } from "../ui/kit";
 
 export const BOARD_FILES = "ABCDEFGHIJ";
 const BLOCK = 1;
-const LABEL_W = 0.42;
-const LABEL_D = 0.54;
-const LABEL_Y = 0.137;
-const CELL = 64;
+const LABEL_Y = 0.126;
+const CELL_W = 72;
+const CELL_H = 36;
 const ATLAS_COLS = 8;
-const ATLAS_W = CELL * ATLAS_COLS;
-const ATLAS_H = 512;
-/** Markers sit on the inner half of the border tile, inside the board footprint. */
-const EDGE_GAP = 0.3;
+const ATLAS_W = CELL_W * ATLAS_COLS;
+const ATLAS_H = 1024;
+/** Marker plane is 2:1 like the atlas cell; kept small and faint on the tile. */
+const PLANE_W = 0.34;
+const PLANE_D = PLANE_W * (CELL_H / CELL_W);
+const CORNER = 0.29;
 
 /** Same projection as arena.cellToWorld; kept local to avoid an arena ↔ labels import cycle. */
 const cellToWorld = (c: { x: number; z: number }, p: Profile) => ({
@@ -24,31 +24,33 @@ const cellToWorld = (c: { x: number; z: number }, p: Profile) => ({
   z: (c.z - (totalRows(p) - 1) / 2) * BLOCK,
 });
 
-export type BoardPositionEdge = "file-near" | "file-far" | "row-left" | "row-right";
 export interface BoardPositionLabel {
   text: string;
   x: number;
   z: number;
-  edge: BoardPositionEdge;
+  col: number;
+  row: number;
 }
 
-/** Pure label layout so tests can verify the file/rank convention without WebGL. */
+/**
+ * One coordinate per playable cell: file A..J + rank counted from the player's near edge (1-based),
+ * so A1 is the bottom-left ally tile and A5 the top-left tile of a solo board.
+ */
 export function boardPositionLabels(p: Profile = "solo"): BoardPositionLabel[] {
   const rows = totalRows(p);
   const out: BoardPositionLabel[] = [];
-  // Both edges carry the full A..J file set: the near edge sits behind the shop dock on
-  // desktop/landscape, so the far edge must stay readable on its own.
-  for (let col = 0; col < BOARD_FILES.length; col++) {
-    const near = cellToWorld(toVisual(col, rows - 1, p), p);
-    const far = cellToWorld(toVisual(col, 0, p), p);
-    out.push({ text: BOARD_FILES[col]!, x: near.x, z: near.z - EDGE_GAP, edge: "file-near" });
-    out.push({ text: BOARD_FILES[col]!, x: far.x, z: far.z + EDGE_GAP, edge: "file-far" });
-  }
   for (let row = 0; row < rows; row++) {
-    const left = cellToWorld(toVisual(0, row, p), p);
-    const right = cellToWorld(toVisual(9, row, p), p);
-    out.push({ text: String(row), x: left.x + EDGE_GAP, z: left.z, edge: "row-left" });
-    out.push({ text: String(row), x: right.x - EDGE_GAP, z: right.z, edge: "row-right" });
+    const rank = rows - row;
+    for (let col = 0; col < BOARD_FILES.length; col++) {
+      const w = cellToWorld(toVisual(col, row, p), p);
+      out.push({
+        text: `${BOARD_FILES[col]!}${rank}`,
+        x: w.x - CORNER,
+        z: w.z - CORNER,
+        col,
+        row,
+      });
+    }
   }
   return out;
 }
@@ -77,7 +79,7 @@ export function createBoardLabels(p: Profile): BoardLabels {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    texture.anisotropy = 2;
+    texture.generateMipmaps = false;
 
     const draw = () => {
       if (!canvas || !texture) return;
@@ -87,9 +89,13 @@ export function createBoardLabels(p: Profile): BoardLabels {
       labels.forEach((marker, index) => {
         const col = index % ATLAS_COLS;
         const row = Math.floor(index / ATLAS_COLS);
-        label(g, marker.text, col * CELL + CELL / 2, row * CELL + CELL / 2 + 1, {
-          size: 48, fill: "#f4e6c3", stroke: "#231608", weight: 800, maxW: CELL - 6,
-        });
+        const cx = col * CELL_W + CELL_W / 2;
+        const cy = row * CELL_H + CELL_H / 2 + 1;
+        const style = { size: 22, weight: 800, maxW: CELL_W - 6 } as const;
+        // Embossed copies: warm highlight up-left, dark extrusion down-right, outlined face.
+        label(g, marker.text, cx - 1, cy - 1, { ...style, fill: "#fff3cf", stroke: null });
+        label(g, marker.text, cx + 1, cy + 1.6, { ...style, fill: "#4a3517", stroke: null });
+        label(g, marker.text, cx, cy, { ...style, fill: "#f1dfb4", stroke: "#2a1f0d" });
       });
       texture.needsUpdate = true;
     };
@@ -102,12 +108,13 @@ export function createBoardLabels(p: Profile): BoardLabels {
     labels.forEach((marker, index) => {
       const col = index % ATLAS_COLS;
       const row = Math.floor(index / ATLAS_COLS);
-      const u0 = (col * CELL) / ATLAS_W, u1 = ((col + 1) * CELL) / ATLAS_W;
-      const vTop = 1 - (row * CELL) / ATLAS_H, vBottom = 1 - ((row + 1) * CELL) / ATLAS_H;
+      const u0 = (col * CELL_W) / ATLAS_W, u1 = ((col + 1) * CELL_W) / ATLAS_W;
+      const vTop = 1 - (row * CELL_H) / ATLAS_H;
+      const vBottom = 1 - ((row + 1) * CELL_H) / ATLAS_H;
       const base = positions.length / 3;
-      const x0 = marker.x - LABEL_W / 2, x1 = marker.x + LABEL_W / 2;
+      const x0 = marker.x - PLANE_W / 2, x1 = marker.x + PLANE_W / 2;
       // Local +y of the plane maps to world -z, so "top" of the glyph sits away from the camera.
-      const z0 = marker.z - LABEL_D / 2, z1 = marker.z + LABEL_D / 2;
+      const z0 = marker.z - PLANE_D / 2, z1 = marker.z + PLANE_D / 2;
       positions.push(x0, LABEL_Y, z0, x1, LABEL_Y, z0, x0, LABEL_Y, z1, x1, LABEL_Y, z1);
       for (let i = 0; i < 4; i++) normals.push(0, 1, 0);
       uvs.push(u0, vTop, u1, vTop, u0, vBottom, u1, vBottom);
@@ -121,7 +128,7 @@ export function createBoardLabels(p: Profile): BoardLabels {
     geometry.computeBoundingSphere();
 
     material = new THREE.MeshBasicMaterial({
-      map: texture, transparent: true, depthWrite: false, toneMapped: false,
+      map: texture, transparent: true, opacity: .58, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = "board-position-labels-mesh";
