@@ -13,8 +13,14 @@ export interface Cell { x: number; z: number }
 
 export const totalRows = (p: Profile) => PROFILE_PLAYERS[p] * ROWS_PER_PLAYER;
 
-/** Logical (col,row) → visual grid cell. */
-export const toVisual = (col: number, row: number): Cell => ({ x: col < RIVER_X ? col : col + 1, z: row });
+/** Logical (col,row) → visual grid cell. Throws on cells outside the battlefield so callers cannot
+ * silently project a bad index onto the brown ring (`toLogical` is the validating inverse). */
+export function toVisual(col: number, row: number, p: Profile = "solo"): Cell {
+  if (!Number.isInteger(col) || !Number.isInteger(row) || col < 0 || col >= LOGICAL_COLS || row < 0 || row >= totalRows(p)) {
+    throw new RangeError(`toVisual: logical cell (${col}, ${row}) is outside the ${p} battlefield`);
+  }
+  return { x: col < RIVER_X ? col : col + 1, z: row };
+}
 
 /** Visual cell → logical (col,row), or null for the river lane / outside the battlefield. */
 export function toLogical(x: number, z: number, p: Profile = "solo"): { col: number; row: number } | null {

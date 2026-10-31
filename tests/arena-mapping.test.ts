@@ -14,7 +14,7 @@ describe("arena world mapping (A91.2)", () => {
     for (const p of ["solo", "coop2", "coop4"] as const) {
       const rows = { solo: 5, coop2: 10, coop4: 20 }[p];
       for (let col = 0; col < 10; col++) for (let row = 0; row < rows; row++) {
-        const w = cellToWorld(toVisual(col, row), p);
+        const w = cellToWorld(toVisual(col, row, p), p);
         expect(worldToLogical(w.x, w.z, p)).toEqual({ col, row });
       }
     }
@@ -217,7 +217,7 @@ describe("arena world mapping (A91.2)", () => {
     sun!.shadow.updateMatrices(sun!);
 
     for (let col = 0; col < 10; col++) for (let row = 0; row < 20; row++) {
-      const world = cellToWorld(toVisual(col, row), "coop4");
+      const world = cellToWorld(toVisual(col, row, "coop4"), "coop4");
       const projected = new THREE.Vector3(world.x, 0.12, world.z).project(sun!.shadow.camera);
       expect(Math.abs(projected.x)).toBeLessThanOrEqual(1);
       expect(Math.abs(projected.y)).toBeLessThanOrEqual(1);

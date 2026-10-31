@@ -44,6 +44,30 @@ describe("loot", () => {
     expect(rollEquipmentLoot(4, seq(0.01, 0), pool)).toEqual([]);
   });
 
+  it("equipment roll never consumes a chance draw when the tier pool is empty", () => {
+    let draws = 0;
+    const rng = () => { draws++; return 0.01; };
+    expect(rollEquipmentLoot(3, rng, [{ id: "only_t1", tier: 1 }])).toEqual([]);
+    expect(draws).toBe(0);
+  });
+
+  it("tier 3 rolls a real tier-3 item once the catalog has one", () => {
+    const pool = [{ id: "t1", tier: 1 }, { id: "t3a", tier: 3 }, { id: "t3b", tier: 3 }] as const;
+    expect(rollEquipmentLoot(3, seq(0.049, 0.75), pool)).toEqual([
+      { item: "t3b", source: "3", rule: "equipment" },
+    ]);
+    expect(rollEquipmentLoot(3, seq(0.05, 0.75), pool)).toEqual([]);
+  });
+
+  it("equipment selection replays identically from the same seeded sequence", () => {
+    const seeded = (seed: number) => {
+      let s = seed;
+      return () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+    };
+    const pool = [{ id: "a", tier: 2 }, { id: "b", tier: 2 }, { id: "c", tier: 2 }] as const;
+    expect(rollEquipmentLoot(2, seeded(7), pool)).toEqual(rollEquipmentLoot(2, seeded(7), pool));
+  });
+
   it("groups accepted loot by item while preserving the total quantity", () => {
     const drops = [
       { item: "tear", source: "a", rule: "material" as const },
