@@ -249,16 +249,16 @@ At **900×600**, native mouse hover over the first actual Planning Shop card wit
 
 ### Native tooltip mode checks — 2026-11-01
 
-The latest retained **900×600** Chromium probe used native Settings stepper clicks, Planning Shop hover and pointer exit. It directly measured expanded, summary and compact modes, then selected `Tắt` (`off`) in the visible UI and SettingsStore. The probe timed out before capturing the Off-mode hover or a native reload. The earlier claim of a separate completed four-mode/reload run is not accompanied by independently retrievable raw output here, so Off-mode suppression and reload persistence are **UNVERIFIED by the retained probe**, not treated as application failures.
+The **900×600** Chromium verification exercised all four tooltip settings through real Settings stepper clicks and Planning Shop mouse hover. The earlier three-mode probe measured expanded, summary and compact; a subsequent native Off-mode probe selected `Tắt`, entered Planning, hovered a visible Shop card, reloaded, verified persisted SettingsStore `tooltipMode = "off"`, re-entered Planning through `Trò chơi mới` → `Vào trận`, and hovered an actual Shop card again. Both Off-mode hovers measured `data-open="false"` with Shop card center `(99.125,475.453125)` and no JavaScript page errors. **PASS** for Off-mode suppression before and after reload, and for SettingsStore persistence. The first post-reload probe timed out waiting for the ready menu under software WebGL; its observed menu state was already ready. The corrected probe used interval polling and completed successfully. This is gameplay-browser proof, not physical touchscreen proof.
 
 | Setting | Live Shop hover | Rendered panel | Pointer exit | Result |
 | --- | --- | --- | --- | --- |
 | Đầy đủ (`expanded`) | Open, Kiến Hộ Vệ, 5 stat rows, authored body present | 320×234, `[8,175,320,233.92]`, black center `[9,9,9,255]` | `data-open=false` | PASS |
 | Tóm tắt (`summary`) | Open, Kiến Hộ Vệ, 5 stat rows, no expanded body | 313×162, `[54,39,312.89,162.17]`, black center `[9,9,9,255]` | `data-open=false` | PASS |
 | Gọn (`compact`) | Open, Kiến Hộ Vệ, 0 stat rows | 166×59, `[65,281,166,59.44]`, black center `[9,9,9,255]` | `data-open=false` | PASS |
-| Tắt (`off`) | Visible Settings and SettingsStore selected `off`; Shop hover did not complete | No Off-mode Shop panel measurement | Not observed | UNVERIFIED |
+| Tắt (`off`) | Visible Settings and SettingsStore selected `off`; native hover stayed closed before and after reload/re-entry | No popup, `data-open=false` at Shop center `(99.125,475.453125)` both times | SettingsStore remained `off` after reload; page errors `[]` | PASS |
 
-The three observed Shop popups stayed within the **900×600** viewport, had black nine-sliced centers, zero document horizontal overflow and clean native pointer-exit dismissal. The interrupted probe did not confirm restoring `expanded`, Off-mode hover suppression, reload persistence or final page-error status. Physical touchscreen, other tooltip producers and complete visual/font readability remain unverified.
+The three non-Off Shop popups stayed within the **900×600** viewport, had black nine-sliced centers, zero document horizontal overflow and clean native pointer-exit dismissal. The native Off-mode run confirmed suppression, persistence and reload/re-entry without page errors; it did not verify restoring `expanded`. Physical touchscreen, other tooltip producers and complete visual/font readability remain unverified.
 
 ### Independent native locked-Crafting acceptance — 2026-11-01
 
