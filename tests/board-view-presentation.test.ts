@@ -221,13 +221,16 @@ describe("BoardView presentation", () => {
     const hsl = { h: 0, s: 0, l: 0 };
     rainbow.material.color.getHSL(hsl);
     expect(hsl.h).toBeCloseTo(0, 5);
-    advance(0.05);
+    advance(0.04);
     rainbow.material.color.getHSL(hsl);
     expect(hsl.h).toBeCloseTo(0, 5);
-    advance(0.06);
+    advance(0.02);
     rainbow.material.color.getHSL(hsl);
     expect(hsl.h).toBeCloseTo(60 / 360, 5);
     expect(hsl.l).toBeCloseTo(0.55, 5);
+    advance(0.05);
+    rainbow.material.color.getHSL(hsl);
+    expect(hsl.h).toBeCloseTo(120 / 360, 5);
 
     board.setCombatBorder!(null);
     board.setTurnIndicator!(null);

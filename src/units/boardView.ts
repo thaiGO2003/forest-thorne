@@ -30,6 +30,7 @@ const PREVIEW_STYLE: Record<CombatPreviewEffect, { color: number; opacity: numbe
   control: { color: 0xb58cff, opacity: .32 },
 };
 const PREVIEW_BASIC = { color: 0xffd36b, opacity: .40 };
+const RAINBOW_STEP_MS = 50;
 const PREVIEW_ICON_SIZE = 0.46;
 const PREVIEW_ICON_Y = 0.95;
 const HEAL_ARROW_SIZE = 0.5;
@@ -260,7 +261,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const rainbowMaterial = new THREE.MeshBasicMaterial({ color: 0xff568c, side: THREE.DoubleSide, depthWrite: false });
   // Old_src draws the current tile as a diamond outline (drawDiamond), not a filled recolour.
   // A four-segment RingGeometry is a square annulus, so it matches the voxel tile.
-  const borderGeometry = () => new THREE.RingGeometry(.64, .68, 4, 1, Math.PI / 4);
+  const borderGeometry = () => new THREE.RingGeometry(.62, .68, 4, 1, Math.PI / 4);
   const rainbow = new THREE.Mesh(borderGeometry(), rainbowMaterial);
   rainbow.rotation.x = -Math.PI / 2;
   rainbow.visible = false;
@@ -287,7 +288,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   actorBorder.raycast = () => {};
   stage.scene.add(actorBorder);
   const rainbowFillMaterial = new THREE.MeshBasicMaterial({
-    color: 0xff568c, transparent: true, opacity: .14, side: THREE.DoubleSide, depthWrite: false,
+    color: 0xff568c, transparent: true, opacity: .22, side: THREE.DoubleSide, depthWrite: false,
   });
   const rainbowFill = new THREE.Mesh(new THREE.PlaneGeometry(.88, .88), rainbowFillMaterial);
   rainbowFill.rotation.x = -Math.PI / 2;
@@ -645,8 +646,8 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       rainbow.position.set(caster.x, TILE_TOP + .07, caster.z);
       rainbowFill.position.set(caster.x, TILE_TOP + .066, caster.z);
       rainbowStepMs += Math.max(0, dt) * 1000;
-      if (rainbowStepMs >= 100) {
-        rainbowStepMs %= 100;
+      if (rainbowStepMs >= RAINBOW_STEP_MS) {
+        rainbowStepMs %= RAINBOW_STEP_MS;
         rainbowHue = (rainbowHue + 60) % 360;
         rainbowMaterial.color.setHSL(rainbowHue / 360, 1, .55);
         rainbowFillMaterial.color.setHSL(rainbowHue / 360, 1, .55);
