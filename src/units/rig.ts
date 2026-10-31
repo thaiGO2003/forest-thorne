@@ -63,11 +63,18 @@ const FORMATION: Record<Star, [number, number, number][]> = {
 };
 const DEATH_S = 0.6;
 
-const MATS: Record<Bucket, THREE.Material> = {
-  solid: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 }),
-  glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
-  glass: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.15, transparent: true, opacity: 0.55, depthWrite: false }),
-};
+export type RigMaterials = Record<Bucket, THREE.Material>;
+
+/** Renderer-owned materials; battlefield rigs use the long-lived shared set. */
+export function createRigMaterials(): RigMaterials {
+  return {
+    solid: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 }),
+    glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+    glass: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.15, transparent: true, opacity: 0.55, depthWrite: false }),
+  };
+}
+
+const MATS = createRigMaterials();
 
 /** A90.3 visible creature count from star + HP ratio. */
 export function visibleBodies(star: Star, hpRatio: number): number {
@@ -111,7 +118,7 @@ export interface UnitVisual {
   dispose(): void;
 }
 
-export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: string | null = null): UnitVisual {
+export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: string | null = null, mats: RigMaterials = MATS): UnitVisual {
   const root = new THREE.Group();
   root.name = `unit:${def.id}`;
   const anchor = new THREE.Object3D();
@@ -130,7 +137,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     group.name = `body${i}`;
     const k = new Kit(inner);
     const parts = def.build(k, { star, skin });
-    for (const p of k.parts) p.bake(MATS, geos);
+    for (const p of k.parts) p.bake(mats, geos);
     const rest: Body["rest"] = [];
     inner.traverse((o) => { if (o !== inner) rest.push({ o, p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }); });
     root.add(group);

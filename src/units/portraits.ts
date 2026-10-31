@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import type { PortraitProvider } from "../ui/card";
 import { createUnit } from "./registry";
-import type { ActionState, Star, UnitVisual } from "./rig";
+import { createRigMaterials, type ActionState, type Star, type UnitVisual } from "./rig";
 
 const SNAP = 192;
 const PER_FRAME = 3;
@@ -52,8 +52,11 @@ export function createPortraits(): Portraits {
   const queued = new Set<string>();
   const listeners = new Set<() => void>();
   let renderer: THREE.WebGLRenderer | null = null;
+  // Keep at most one idle viewer renderer; new contexts register persistent DFG LUT listeners.
+  let idleViewerRenderer: THREE.WebGLRenderer | null = null;
   let disposed = false;
   const scene = new THREE.Scene();
+  const snapshotMaterials = createRigMaterials();
   light(scene);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
 
@@ -66,7 +69,7 @@ export function createPortraits(): Portraits {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     for (let n = 0; n < PER_FRAME && queue.length; n++) {
       const job = queue.shift()!;
-      const u = createUnit(job.id, job.star);
+      const u = createUnit(job.id, job.star, null, snapshotMaterials);
       u.update(0.016);
       scene.add(u.root);
       frame(camera, new THREE.Box3().setFromObject(u.root, true).getBoundingSphere(new THREE.Sphere()));
@@ -83,7 +86,20 @@ export function createPortraits(): Portraits {
   };
 
   return {
-    dispose() { disposed = true; queue.length = 0; cache.clear(); queued.clear(); listeners.clear(); renderer?.dispose(); },
+    dispose() {
+      disposed = true;
+      queue.length = 0;
+      cache.clear();
+      queued.clear();
+      listeners.clear();
+      for (const material of Object.values(snapshotMaterials)) material.dispose();
+      renderer?.dispose();
+      // Snapshot rendering owns its context; release it when the provider ends.
+      renderer?.forceContextLoss();
+      idleViewerRenderer?.dispose();
+      idleViewerRenderer?.forceContextLoss();
+      idleViewerRenderer = null;
+    },
     get(id, star) {
       if (disposed) return null;
       const st = Math.min(3, Math.max(1, star)) as Star, key = `${id}@${st}`;
@@ -99,7 +115,9 @@ export function createPortraits(): Portraits {
     onReady(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
     createViewer(host) {
-      const r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      const r = idleViewerRenderer ?? new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      idleViewerRenderer = null;
+      const viewerMaterials = createRigMaterials();
       r.setPixelRatio(Math.min(2, devicePixelRatio || 1));
       r.setClearColor(0x000000, 0);
       r.outputColorSpace = THREE.SRGBColorSpace;
@@ -189,7 +207,7 @@ export function createPortraits(): Portraits {
           if (currentId !== null && currentId !== id) combat = false;
           unit?.dispose();
           turn.rotation.set(0, 0, 0);
-          unit = createUnit(id, star, skin);
+          unit = createUnit(id, star, skin, viewerMaterials);
           currentId = id;
           unit.setCombat(combat);
           unit.update(0.016);
@@ -223,8 +241,21 @@ export function createPortraits(): Portraits {
           r.setAnimationLoop(null);
           timer.dispose();
           ro.disconnect();
+          r.domElement.removeEventListener("pointerdown", down);
+          r.domElement.removeEventListener("pointermove", move);
+          r.domElement.removeEventListener("pointerup", up);
+          r.domElement.removeEventListener("pointercancel", up);
+          r.domElement.removeEventListener("wheel", wheel);
+          pointers.clear();
           unit?.dispose();
-          r.dispose();
+          for (const material of Object.values(viewerMaterials)) material.dispose();
+          r.renderLists.dispose();
+          if (!disposed && idleViewerRenderer === null) {
+            idleViewerRenderer = r;
+          } else {
+            r.dispose();
+            r.forceContextLoss();
+          }
           r.domElement.remove();
         },
       };

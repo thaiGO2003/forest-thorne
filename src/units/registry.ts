@@ -2,7 +2,7 @@
 // Ids without art yet resolve to `pendingArt`: an explicit "art in progress" signpost, deliberately
 // NOT a creature, so an unfinished id can never pass as a generic animal (A90 acceptance).
 import { getUnit } from "../content/catalog";
-import { createUnitVisual, defineUnit, type Star, type UnitRigDef, type UnitVisual } from "./rig";
+import { createUnitVisual, defineUnit, type RigMaterials, type Star, type UnitRigDef, type UnitVisual } from "./rig";
 import jaguarHunt from "./roster/jaguarHunt";
 import toadPoison from "./roster/toadPoison";
 
@@ -34,6 +34,6 @@ function pendingArt(id: string): UnitRigDef<unknown> {
 
 export const hasRig = (id: string) => id in RIGS;
 
-export function createUnit(id: string, star: Star, skin: string | null = null): UnitVisual {
-  return createUnitVisual(RIGS[id] ?? pendingArt(id), star, skin);
+export function createUnit(id: string, star: Star, skin: string | null = null, materials?: RigMaterials): UnitVisual {
+  return createUnitVisual(RIGS[id] ?? pendingArt(id), star, skin, materials);
 }
