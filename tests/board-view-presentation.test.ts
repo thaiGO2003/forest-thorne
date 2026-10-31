@@ -36,6 +36,7 @@ const billboardMocks = vi.hoisted(() => ({
     set: Mock;
     setVisible: Mock;
     setPriority: Mock;
+    setDetailed: Mock;
     dispose: Mock;
   }>,
 }));
@@ -48,6 +49,7 @@ vi.mock("../src/units/billboard", async (importOriginal) => ({
       set: vi.fn(),
       setVisible: vi.fn(),
       setPriority: vi.fn(),
+      setDetailed: vi.fn(),
       dispose: vi.fn(),
     };
     billboardMocks.instances.push(instance);
@@ -298,14 +300,18 @@ describe("BoardView presentation", () => {
     board.setHovered("board-1");
     advance(1 / 60);
     expect(first.setPriority).toHaveBeenLastCalledWith(true);
+    expect(first.setDetailed).toHaveBeenLastCalledWith(true);
 
     board.setHovered("board-2");
     advance(1 / 60);
     expect(second.setPriority).toHaveBeenLastCalledWith(true);
+    expect(first.setDetailed).toHaveBeenLastCalledWith(false);
+    expect(second.setDetailed).toHaveBeenLastCalledWith(true);
 
     board.setHovered(null);
     advance(1 / 60);
     expect(second.setPriority).toHaveBeenLastCalledWith(false);
+    expect(second.setDetailed).toHaveBeenLastCalledWith(false);
     board.dispose();
   });
 

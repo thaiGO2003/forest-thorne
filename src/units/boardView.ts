@@ -127,8 +127,8 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     camera.updateMatrixWorld();
     const worldPerPixelAtDepth = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / view.height;
-    // One size for every billboard — hovering never scales a label up or down, it only
-    // raises draw order so the hovered card sits on top of its neighbours.
+    // Every billboard keeps a consistent size. Hover/selection expands its contents
+    // and raises draw order without moving the unit's world-space anchor.
     const labelWidth = Math.min(252, Math.max(202, view.width * .43), Math.max(1, view.width - 12));
     candidateCount = 0;
     for (const [uid, s] of slots) {
@@ -137,6 +137,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         continue;
       }
       const priority = uid === selected ? 2 : uid === hovered ? 1 : 0;
+      s.bb.setDetailed(priority > 0);
       // The rig's head anchor is directly above its root; avoid updating all
       // creature matrices just to project fifty labels each frame.
       projected.set(s.v.root.position.x, s.v.root.position.y + s.v.anchor.position.y * s.v.root.scale.y, s.v.root.position.z);
@@ -369,8 +370,8 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const u = getUnit(baseId), maxHp = Math.round(u.stats.hp * (STAR_STAT[st] ?? 1));
       const base: BillboardState = { name: u.nameVi, star: st, hp: maxHp, maxHp, rage: 0, rageMax: u.stats.rageMax, side: kind === "enemy" ? "R" : "L", statuses: [] };
       const bb = createBillboard(v.anchor);
+      bb.setDetailed(uid === hovered || uid === selected);
       bb.set(base);
-      // Every billboard renders the full panel; hovering only raises it above peers.
       bb.setPriority(uid === hovered || uid === selected);
       s = { v, bb, key, kind, col, row, x, z, base };
       slots.set(uid, s);

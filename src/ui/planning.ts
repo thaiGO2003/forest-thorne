@@ -8,8 +8,8 @@ import { refreshCost, xpBuyCost, xpToNext } from "../core/economy";
 import type { RunState } from "../core/run";
 import type { SynergyLine } from "../core/synergy";
 import type { TutorialStep } from "../core/tutorial";
-import { createCard, type CardView, type PortraitProvider } from "./card";
-import { drawFit, h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
+import { h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import type { Tooltip } from "./tooltip";
 
 export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
@@ -33,8 +33,6 @@ export interface PlanningIntents {
   tutorialDismiss(stepId: string): void;
   tutorialSkip(): void;
   cortisol(): void;
-  /** Camera pan vector in [-1,1]², (0,0) when released. */
-  pan(x: number, y: number): void;
 }
 
 export interface PlanningModel {
@@ -58,8 +56,9 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const compactShop = matchMedia("(max-width: 760px)");
   const portraitPlanning = matchMedia("(max-width: 760px) and (orientation: portrait)");
   const portraitShop = matchMedia("(max-width: 760px) and (orientation: portrait)");
+  const smallLandscapeShop = matchMedia("(max-width: 960px) and (max-height: 560px) and (orientation: landscape)");
   let shopOpen = false;
-  const shopPageSize = () => compactShop.matches ? SHOP_PAGE_COMPACT : SHOP_PAGE_WIDE;
+  const shopPageSize = () => portraitShop.matches ? 2 : compactShop.matches || smallLandscapeShop.matches ? SHOP_PAGE_COMPACT : SHOP_PAGE_WIDE;
   const root = h("div", "planning");
   root.dataset.screen = "planning";
 
@@ -134,35 +133,6 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   tip.bind(shopToggle.el, () => ({ title: t("planning.shop") }));
   rail.append(shopToggle.el);
 
-  // ---- camera joystick (A91.1: 44 px radius, left side of the board) ----
-  const joy = h("div", "pl-joystick");
-  joy.setAttribute("aria-hidden", "true");
-  let knob = { x: 0, y: 0 }, joyId = -1;
-  const JOY_R = 44;
-  const joyS = surface(joy, (g, w, hh) => {
-    const base = (JOY_R + 10) * 2;
-    drawFit(g, "joy_base", w / 2 - base / 2, hh / 2 - base / 2, base, base);
-    drawFit(g, "joy_knob", w / 2 + knob.x * JOY_R - 20, hh / 2 + knob.y * JOY_R - 20, 40, 40);
-  });
-  const moveJoy = (e: PointerEvent) => {
-    if (e.pointerId !== joyId) return;
-    const r = joy.getBoundingClientRect();
-    let x = (e.clientX - r.left - r.width / 2) / JOY_R, y = (e.clientY - r.top - r.height / 2) / JOY_R;
-    const d = Math.hypot(x, y);
-    if (d > 1) { x /= d; y /= d; }
-    knob = { x, y };
-    it.pan(x, y);
-    joyS.paint();
-  };
-  const endJoy = (e: PointerEvent) => {
-    if (e.pointerId !== joyId) return;
-    joyId = -1; knob = { x: 0, y: 0 }; it.pan(0, 0); joyS.paint();
-  };
-  joy.addEventListener("pointerdown", (e) => { joyId = e.pointerId; joy.setPointerCapture(e.pointerId); moveJoy(e); });
-  joy.addEventListener("pointermove", moveJoy);
-  joy.addEventListener("pointerup", endJoy);
-  joy.addEventListener("pointercancel", endJoy);
-
   // ---- authored tutorial guidance ----
   const tutorial = panelEl("panel_parchment", "pl-tutorial");
   tutorial.setAttribute("role", "status");
@@ -212,19 +182,31 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     shopToggle.el.setAttribute("aria-controls", "planning-creature-shop");
   }
   dock.id = "planning-creature-shop";
-  const onShopViewportChange = () => { shopOpen = false; syncShopVisibility(); };
+  const onShopViewportChange = () => { shopOpen = false; page = 0; syncShopVisibility(); renderShop(); };
   portraitShop.addEventListener("change", onShopViewportChange);
 
-  interface Slot { card: CardView; buy: KitButton; info: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string }
+  interface Slot { card: CardView; buy: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string; offerId?: string | null; unbindTip?: () => void }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
     const wrap = h("div", "pl-offer");
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
     const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
-      buy: kitButton({ skin: "green", icon: ICONS.gold, cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
-      info: kitButton({ skin: "icon", icon: ICONS.info, aria: t("menu.information"), onClick: () => { const id = m?.run.shop[slot.index]; if (id) it.details(id); } }),
+      // Price-only buy control: the card already names the unit, so the button shows "<giá> 🪙".
+      buy: kitButton({ skin: "green", cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
     };
-    row.append(slot.info.el, slot.buy.el);
+    const activeId = () => {
+      if (!m || slot.wrap.hidden || slot.index < 0) return undefined;
+      return m.run.shop[slot.index];
+    };
+    const openDetail = () => { const id = activeId(); if (id) { tip.hide(); it.details(id); } };
+    card.el.setAttribute("role", "button");
+    card.el.tabIndex = -1;
+    card.el.addEventListener("click", openDetail);
+    card.el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(); }
+    });
+    slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id)) : null; });
+    row.append(slot.buy.el);
     wrap.append(card.el, row);
     grid.append(wrap);
     return slot;
@@ -251,29 +233,31 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     next.setDisabled(page >= pages - 1);
     slots.forEach((s, i) => {
       const idx = page * pageSize + i, id = i < pageSize && idx < shop.length ? shop[idx] : undefined;
+      if (s.offerId !== id) { tip.hide(); s.offerId = id; }
       s.index = idx;
       s.wrap.hidden = i >= pageSize || idx >= shop.length;
       if (!id) {
-        s.card.set(null); s.buyText = ""; s.buyCost = ""; s.buy.setAria(t("planning.buy"));
-        s.buy.setDisabled(true); s.info.setDisabled(true); return;
+        s.card.set(null); s.card.el.tabIndex = -1;
+        s.buyText = ""; s.buyCost = ""; s.buy.setAria(t("planning.buy"));
+        s.buy.setDisabled(true); return;
       }
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
-      s.card.set({ unit: u, star: 1, cost: u.tier, detail: "planning", affordable: afford });
-      s.buyText = `${t("planning.buy")} (${u.tier} ${ICONS.gold})`;
-      s.buyCost = String(u.tier);
-      s.buy.setAria(`${s.buyText} ${u.nameVi}`);
+      s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
+      s.card.el.tabIndex = 0;
+      s.buyText = `${u.tier} ${ICONS.gold}`;
+      s.buyCost = `${u.tier} ${ICONS.gold}`;
+      s.buy.setAria(`${t("planning.buy")} ${u.nameVi} (${u.tier} ${ICONS.gold})`);
       s.buy.setDisabled(m!.locked || !afford);
-      s.info.setAria(`${t("menu.information")} ${u.nameVi}`);
-      s.info.setDisabled(false);
     });
     headS.paint();
     syncResponsiveLabels();
   }
   const onShopLayoutChange = () => { page = 0; renderShop(); };
   compactShop.addEventListener("change", onShopLayoutChange);
+  smallLandscapeShop.addEventListener("change", onShopLayoutChange);
   syncShopVisibility();
 
-  root.append(battle, rail, joy, tutorial, dock);
+  root.append(battle, rail, tutorial, dock);
   host.append(root);
 
   function refreshCopy() {
@@ -320,11 +304,12 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     el: root, update, refreshCopy,
     dispose() {
       compactShop.removeEventListener("change", onShopLayoutChange);
+      smallLandscapeShop.removeEventListener("change", onShopLayoutChange);
       portraitPlanning.removeEventListener("change", syncPlanningComposition);
       shopButtonResize.disconnect();
       portraitShop.removeEventListener("change", onShopViewportChange);
-      it.pan(0, 0);
-      for (const s of slots) s.card.dispose();
+      for (const s of slots) { s.unbindTip?.(); s.card.dispose(); }
+      tip.hide();
       root.remove();
     },
   };

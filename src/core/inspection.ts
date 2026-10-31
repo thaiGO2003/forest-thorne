@@ -3,6 +3,7 @@ import { NORMAL_UNITS, getUnit, type Role, type UnitDef } from "../content/catal
 import { combatStat, makeFighter, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
 import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
+import type { DamageType } from "./skills";
 
 export const ROLE_EVASION_BASE: Readonly<Record<Role, number>> = {
   TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.10, MAGE: 0.05, SUPPORT: 0.07,
@@ -107,8 +108,12 @@ export interface UnitDiagnosticEffect {
   key: string;
   turns: number;
   value: number;
+  /** Combat stat modifiers store percentage points (e.g. -20 means -20%). */
   pct?: boolean;
-  detail?: string;
+  reflectByDamageType?: Partial<Record<DamageType, number>>;
+  sourceUnitBaseId?: string;
+  firstBasicMultiplier?: number;
+  rageOnKill?: number;
 }
 
 export interface UnitDiagnostics {
@@ -178,22 +183,23 @@ function fighterSnapshot(fighter: Fighter, live: boolean): UnitStatSnapshot {
 function diagnosticEffects(fighter: Fighter): UnitDiagnosticEffect[] {
   const effects: UnitDiagnosticEffect[] = [];
   for (const [key, status] of Object.entries(fighter.status)) {
-    effects.push({ kind: "status", key, turns: status.turns, value: status.value, detail: status.source?.skillId });
+    if (status.turns <= 0) continue;
+    effects.push({ kind: "status", key, turns: status.turns, value: status.value, sourceUnitBaseId: status.source?.unitBaseId });
   }
   for (const mod of fighter.mods) {
-    effects.push({ kind: "modifier", key: mod.stat, turns: mod.turns, value: mod.value, pct: mod.pct, detail: mod.stackKey });
+    effects.push({ kind: "modifier", key: mod.stat, turns: mod.turns, value: mod.value, pct: mod.pct });
   }
   if (fighter.reflect) {
     const reflected = Object.entries(fighter.reflect.pctByDamageType);
     effects.push({
       kind: "reaction", key: "reflect", turns: fighter.reflect.turns,
       value: Math.max(0, ...reflected.map(([, pct]) => pct ?? 0)),
-      detail: reflected.map(([type, pct]) => `${type}: ${Math.round((pct ?? 0) * 100)}%`).join(", "),
+      reflectByDamageType: { ...fighter.reflect.pctByDamageType },
     });
   }
   if (fighter.counterTurns > 0) effects.push({ kind: "reaction", key: "counter", turns: fighter.counterTurns, value: 0 });
   if (fighter.phoenix.armed || fighter.phoenix.used) effects.push({ kind: "reaction", key: fighter.phoenix.used ? "phoenix-used" : "phoenix", turns: 0, value: fighter.phoenix.revivePct });
-  if (fighter.berserk) effects.push({ kind: "reaction", key: "berserk", turns: fighter.berserk.turns, value: fighter.berserk.lifestealPct });
+  if (fighter.berserk) effects.push({ kind: "reaction", key: "berserk", turns: fighter.berserk.turns, value: fighter.berserk.lifestealPct, firstBasicMultiplier: fighter.berserk.firstBasicMultiplier, rageOnKill: fighter.berserk.rageOnKill });
   return effects;
 }
 

@@ -9,7 +9,7 @@ import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
-import { mountUnitInventory } from "../ui/unitInventory";
+import { mountReadonlyUnitInventory, mountUnitInventory } from "../ui/unitInventory";
 import { mountCraftWorkbench } from "../ui/crafting/workbench";
 import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
 import { combatTargetPreview, snapshotWithResources } from "../core/combat";
@@ -27,7 +27,7 @@ import { getUnit } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
-import { teamStrength, unitDiagnostics, type UnitDiagnostics, type UnitStatSnapshot } from "../core/inspection";
+import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
 import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
@@ -815,37 +815,6 @@ function enemyDiagnostics(app: App, uid: string) {
   );
 }
 
-const diagnosticStatLine = (stats: UnitStatSnapshot) =>
-  `HP ${Math.round(stats.hp)}/${Math.round(stats.maxHp)} · ATK ${Math.round(stats.atk)} · DEF ${Math.round(stats.def)} · MATK ${Math.round(stats.matk)} · MDEF ${Math.round(stats.mdef)}`;
-
-function diagnosticTooltipContent(diagnostics: UnitDiagnostics) {
-  const unitDef = getUnit(diagnostics.baseId);
-  const lines = [
-    { text: `Hiện tại · ${diagnosticStatLine(diagnostics.live)}` },
-    { text: `Gốc · ${diagnosticStatLine(diagnostics.base)}` },
-    { text: `Suy ra · ${diagnosticStatLine(diagnostics.derived)}` },
-    { text: `Rage ${Math.round(diagnostics.live.rage)}/${Math.round(diagnostics.live.rageMax)} · Shield ${Math.round(diagnostics.live.shield)} · Range ${diagnostics.live.range}` },
-    { text: `CRIT ${Math.round(diagnostics.live.crit * 100)}% · ACC ${Math.round(diagnostics.live.accuracy * 100)}% · EVA ${Math.round(diagnostics.live.evade * 100)}% · LS ${Math.round(diagnostics.live.lifesteal * 100)}%` },
-    { text: `${t("library.basic")}: ${unitDef.basic.textVi}` },
-    { text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: diagnostics.derived.rageMax })})` },
-  ];
-  if (unitDef.skill.targetVi) lines.push({ text: `${t("library.target")}: ${unitDef.skill.targetVi}` });
-  if (unitDef.skill.shapeVi) lines.push({ text: `${t("library.shape")}: ${unitDef.skill.shapeVi}` });
-  for (const effect of diagnostics.effects) {
-    const value = effect.pct ? `${effect.value}%` : String(effect.value);
-    lines.push({ text: `${effect.kind} · ${effect.key} · ${value} · ${effect.turns}T${effect.detail ? ` · ${effect.detail}` : ""}` });
-  }
-  return {
-    title: `${unitDef.nameVi} ★${diagnostics.star}`,
-    subtitle: [
-      t(`role.${unitDef.role}` as MsgKey),
-      t(`element.${unitDef.element}` as MsgKey),
-      t(`faction.${unitDef.faction}` as MsgKey),
-    ].join(" · "),
-    lines,
-    body: `${unitDef.pitchVi}\n${unitDef.skill.starDetailVi[diagnostics.star - 1] ?? unitDef.skill.detailVi}`,
-  };
-}
 
 /** Hover summary (A96 summary mode, cf. old-src `buildSummaryUnitSectionBlocks`): traits, headline
  *  combat numbers, active statuses and the star-resolved skill. The current/base/derived numeric
@@ -884,54 +853,15 @@ function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent
   };
 }
 
-function appendDiagnosticSummary(app: App, root: HTMLElement, diagnostics: UnitDiagnostics) {
-  const unitDef = getUnit(diagnostics.baseId);
-  const heading = h("strong", "", `${unitDef.nameVi} ★${diagnostics.star}`);
-  app.tooltip.bind(heading, () => diagnosticTooltipContent(diagnostics));
-  root.append(
-    heading,
-    h("div", "slot", `${unitDef.role} · ${unitDef.element} · ${unitDef.faction}`),
-    h("div", "slot", `Gốc · ${diagnosticStatLine(diagnostics.base)}`),
-    h("div", "slot", `Suy ra · ${diagnosticStatLine(diagnostics.derived)}`),
-    h("div", "slot", `Hiện tại · ${diagnosticStatLine(diagnostics.live)} · Rage ${Math.round(diagnostics.live.rage)}/${Math.round(diagnostics.live.rageMax)} · Shield ${Math.round(diagnostics.live.shield)}`),
-    h("div", "slot", `CRIT ${Math.round(diagnostics.live.crit * 100)}% · ACC ${Math.round(diagnostics.live.accuracy * 100)}% · EVA ${Math.round(diagnostics.live.evade * 100)}% · LS ${Math.round(diagnostics.live.lifesteal * 100)}%`),
-    h("div", "slot", `${t("library.basic")}: ${unitDef.basic.textVi} · ${t("library.target")}: ${diagnostics.derived.range}`),
-    h("div", "slot", `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: diagnostics.derived.rageMax })})`),
-    h("div", "slot", unitDef.skill.starDetailVi[diagnostics.star - 1] ?? unitDef.skill.detailVi),
-  );
-  if (unitDef.skill.targetVi) root.append(h("div", "slot", `${t("library.target")}: ${unitDef.skill.targetVi}`));
-  if (unitDef.skill.shapeVi) root.append(h("div", "slot", `${t("library.shape")}: ${unitDef.skill.shapeVi}`));
-  if (diagnostics.effects.length) {
-    root.append(h("strong", "", "Hiệu ứng"));
-    for (const effect of diagnostics.effects) {
-      const value = effect.pct ? `${effect.value}%` : String(effect.value);
-      root.append(h("div", "slot", `${effect.kind} · ${effect.key} · ${value} · ${effect.turns}T${effect.detail ? ` · ${effect.detail}` : ""}`));
-    }
-  }
-}
 
 
 function openEnemyUnitDetail(app: App, uid: string) {
   const initial = enemyDiagnostics(app, uid);
   if (!initial) return;
-  const title = getUnit(initial.baseId).nameVi;
-  openPanelModal(app, { id: "enemy-unit-detail", title, size: "lg" }, (m) => {
-    const render = () => {
-      const diagnostics = enemyDiagnostics(app, uid);
-      if (!diagnostics) {
-        m.close();
-        return;
-      }
-      const root = h("div", "stack owned-unit-detail");
-      appendDiagnosticSummary(app, root, diagnostics);
-      root.append(h("strong", "", `${t("planning.items")} · ${diagnostics.equips.length}`));
-      if (!diagnostics.equips.length) root.append(h("div", "slot", t("planning.empty")));
-      for (const itemId of diagnostics.equips) root.append(h("div", "slot", itemName(itemId)));
-      m.body.replaceChildren(root);
-    };
-    const off = app.bridge.onChange(render);
-    render();
-    return { dispose: off };
+  openPanelModal(app, { id: "enemy-unit-detail", title: getUnit(initial.baseId).nameVi, size: "lg" }, (m) => {
+    const view = mountReadonlyUnitInventory(m, portraits, () => enemyDiagnostics(app, uid));
+    const off = app.bridge.onChange(view.update);
+    return { dispose() { off(); view.dispose(); } };
   });
 }
 
@@ -1146,7 +1076,6 @@ registerScreen("planning", (app) => {
     cortisol: () => {
       if (!combat && bridge.run()?.phase === "PLANNING") board.startLowCortisol();
     },
-    pan: (x, y) => stage.setPan(x, y),
   });
   const sync = () => {
     const run = bridge.run();
