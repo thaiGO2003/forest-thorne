@@ -59,6 +59,7 @@ export interface App {
     combatCycle: number | null;
     liveRoster: Map<string, RosterEntry>;
     openOwnedInventory: ((uid: string) => void) | null;
+    refreshEnemyDetail: (() => void) | null;
   };
   route(): Route;
   go(r: Route): void;
@@ -128,6 +129,7 @@ export async function boot(root: HTMLElement): Promise<App> {
     combatCycle: null as number | null,
     liveRoster: new Map<string, RosterEntry>(),
     openOwnedInventory: null as ((uid: string) => void) | null,
+    refreshEnemyDetail: null as (() => void) | null,
   };
 
   const app: App = {

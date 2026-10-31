@@ -19,9 +19,20 @@ const BOARD = 5;
 export const LOW_CORTISOL_DURATION_MS = 120_000;
 
 
-interface Slot { v: UnitVisual; bb: Billboard; key: string; kind: "board" | "bench" | "enemy"; col: number; row: number; x: number; z: number; base: BillboardState }
+interface Slot { v: UnitVisual; bb: Billboard; key: string; kind: "board" | "bench" | "enemy"; col: number; row: number; x: number; z: number; base: BillboardState; modelBounds: THREE.Box3 | null }
 interface LabelRect { left: number; top: number; right: number; bottom: number }
-interface LabelCandidate extends LabelRect { uid: string; depth: number; priority: number; anchorX: number; width: number; worldWidth: number }
+interface LabelCandidate extends LabelRect { uid: string; depth: number; modelArea: number; priority: number; anchorX: number; anchorY: number; width: number; height: number; worldWidth: number }
+interface BeamPosition extends LabelRect {
+  lane: number;
+  center: number;
+  score: number;
+  coverage: Float64Array;
+}
+interface BeamState {
+  score: number;
+  positions: Int16Array;
+  coverage: Float64Array;
+}
 interface MoveTween {
   fromX: number;
   fromZ: number;
@@ -70,13 +81,68 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   let selected: string | null = null;
   let hovered: string | null = null;
   // One reusable projection/candidate pool for the Stage's existing frame callback.
-  // HUD chrome is DOM, but labels remain depth-tested Three.js sprites.
+  // HUD chrome is DOM; tactical labels are Three.js sprites above the board.
   const projected = new THREE.Vector3();
   const eyePoint = new THREE.Vector3();
+  const modelPoint = new THREE.Vector3();
+  const modelRects: LabelRect[] = [];
+  let modelCount = 0;
+  // Authored geometry is static. Cache local bounds once per rig, then project
+  // eight corners per frame; never traverse meshes in the render loop.
+  const modelBoundsFor = (root: THREE.Group): THREE.Box3 | null => {
+    root.updateMatrixWorld(true);
+    const inverseRoot = root.matrixWorld.clone().invert();
+    const localMatrix = new THREE.Matrix4();
+    const meshBox = new THREE.Box3();
+    const bounds = new THREE.Box3();
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const geometry = object.geometry;
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      if (!geometry.boundingBox) return;
+      localMatrix.multiplyMatrices(inverseRoot, object.matrixWorld);
+      meshBox.copy(geometry.boundingBox).applyMatrix4(localMatrix);
+      bounds.union(meshBox);
+    });
+    return bounds.isEmpty() ? null : bounds.expandByScalar(0.2);
+  };
+  const projectModel = (root: THREE.Group, bounds: THREE.Box3, view: DOMRect) => {
+    root.updateWorldMatrix(true, false);
+    let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+    for (let corner = 0; corner < 8; corner++) {
+      modelPoint.set(
+        corner & 1 ? bounds.max.x : bounds.min.x,
+        corner & 2 ? bounds.max.y : bounds.min.y,
+        corner & 4 ? bounds.max.z : bounds.min.z,
+      ).applyMatrix4(root.matrixWorld).project(camera);
+      const x = view.left + (modelPoint.x + 1) * view.width * .5;
+      const y = view.top + (1 - modelPoint.y) * view.height * .5;
+      left = Math.min(left, x); right = Math.max(right, x);
+      top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+    const rect = modelRects[modelCount] ?? (modelRects[modelCount] = { left: 0, top: 0, right: 0, bottom: 0 });
+    rect.left = left; rect.top = top; rect.right = right; rect.bottom = bottom;
+    modelCount++;
+    return Math.max(0, (right - left) * (bottom - top));
+  };
   const candidates: LabelCandidate[] = [];
   const candidatePool: LabelCandidate[] = [];
   const hudRects: LabelRect[] = [];
-  const labelCenters = [0.5, 0, 1] as const;
+  const labelCenters = [0.5, 0.25, 0.75, 0, 1, -0.25, 1.25, -0.5, 1.5] as const;
+  const expandedCenters = [0.5, 0, 1, -0.5, 1.5, -1, 2, -1.5, 2.5] as const;
+  const labelLanes = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8, -9, 9] as const;
+  // Precompute bounded candidates once, never during a Stage frame. Compact
+  // landscape uses lateral room; desktop keeps cards above the model heads.
+  const positionsFor = (centers: readonly number[]) => labelLanes.flatMap(lane =>
+    centers.map(center => ({
+      lane, center,
+      cost: (center - 0.5) ** 2 + ((lane + 0.5) * BILLBOARD_H / BILLBOARD_W) ** 2,
+    })),
+  ).sort((a, b) => a.cost - b.cost);
+  const labelPositions = positionsFor(labelCenters);
+  const expandedPositions = positionsFor(expandedCenters);
+  const abovePositions = expandedPositions.filter(({ lane }) => lane >= 0);
+  const placedLabels: LabelCandidate[] = [];
   let candidateCount = 0, hudCount = 0;
   const canvas = stage.renderer.domElement;
   const camera = stage.camera;
@@ -96,6 +162,132 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const labelOverlap = (a: LabelRect, b: LabelRect, margin = 0) =>
     a.left < b.right + margin && a.right + margin > b.left &&
     a.top < b.bottom + margin && a.bottom + margin > b.top;
+  // Compact boards benefit from evaluating a few complete arrangements rather
+  // than irrevocably reserving a good slot for the first label. Pools persist
+  // across frames; invalid layouts fall back to the established greedy path.
+  const BEAM_WIDTH = 4;
+  const BEAM_CHOICES = 6;
+  const beamRows: BeamPosition[][] = [];
+  const beamBuffers: BeamState[][] = [[], []];
+  const beamState = (buffer: BeamState[], index: number, count: number) => {
+    let state = buffer[index];
+    if (!state || state.positions.length < count) {
+      state = { score: 0, positions: new Int16Array(count), coverage: new Float64Array(count) };
+      buffer[index] = state;
+    }
+    return state;
+  };
+  const placeCompactLabels = (positions: readonly { lane: number; center: number; cost: number }[], view: DOMRect) => {
+    for (let index = 0; index < candidateCount; index++) {
+      const c = candidates[index]!;
+      const row = beamRows[index] ?? (beamRows[index] = []);
+      let count = 0;
+      for (const { lane, center, cost } of positions) {
+        const bottom = c.anchorY - lane * c.height;
+        const top = bottom - c.height;
+        const left = c.anchorX - c.width * center;
+        const right = left + c.width;
+        if (top < view.top + 6 || bottom > view.bottom - 6 ||
+          left < view.left + 6 || right > view.right - 6) continue;
+        const bounds = { left, top, right, bottom };
+        let blocked = false;
+        for (let i = 0; i < hudCount; i++) {
+          if (labelOverlap(bounds, hudRects[i]!, 3)) { blocked = true; break; }
+        }
+        if (blocked) continue;
+        let p = row[count];
+        if (!p || p.coverage.length < modelCount) {
+          p = { left, top, right, bottom, lane, center, score: 0, coverage: new Float64Array(modelCount) };
+          row[count] = p;
+        }
+        p.left = left; p.top = top; p.right = right; p.bottom = bottom;
+        p.lane = lane; p.center = center;
+        let score = cost * (c.priority > 0 ? 2 : 1);
+        for (let i = 0; i < modelCount; i++) {
+          const m = modelRects[i]!;
+          const w = Math.max(0, Math.min(right, m.right) - Math.max(left, m.left));
+          const h = Math.max(0, Math.min(bottom, m.bottom) - Math.max(top, m.top));
+          const covered = w * h / Math.max(1, (m.right - m.left) * (m.bottom - m.top));
+          p.coverage[i] = covered;
+          score += 3 * covered;
+        }
+        p.score = score;
+        count++;
+      }
+      row.length = count;
+      if (!count) return false;
+      row.sort((a, b) => a.score - b.score);
+    }
+    let current = beamBuffers[0]!;
+    let next = beamBuffers[1]!;
+    let currentCount = 1;
+    const first = beamState(current, 0, candidateCount);
+    first.score = 0;
+    first.coverage.fill(0, 0, modelCount);
+    for (let index = 0; index < candidateCount; index++) {
+      let nextCount = 0;
+      const row = beamRows[index]!;
+      for (let j = 0; j < currentCount; j++) {
+        const parent = current[j]!;
+        let explored = 0;
+        for (let k = 0; k < row.length; k++) {
+          const p = row[k]!;
+          let collides = false;
+          for (let earlier = 0; earlier < index; earlier++) {
+            if (labelOverlap(p, beamRows[earlier]![parent.positions[earlier]!]!, 3)) {
+              collides = true;
+              break;
+            }
+          }
+          if (collides) continue;
+          let score = parent.score + p.score;
+          for (let m = 0; m < modelCount; m++) {
+            const prev = parent.coverage[m]!;
+            const cover = prev + p.coverage[m]!;
+            // Penalize hiding a substantial part of *any* creature, not just
+            // the label's owner. Prevents shifting obstruction to a neighbor.
+            score += 80 * (Math.max(0, cover - .12) ** 2 - Math.max(0, prev - .12) ** 2);
+          }
+          if (nextCount < BEAM_WIDTH || score < next[nextCount - 1]!.score) {
+            let slot = Math.min(nextCount, BEAM_WIDTH - 1);
+            while (slot > 0 && next[slot - 1]!.score > score) slot--;
+            const last = nextCount < BEAM_WIDTH ? nextCount++ : BEAM_WIDTH - 1;
+            const state = beamState(next, last, candidateCount);
+            for (let n = last; n > slot; n--) {
+              const prior = next[n - 1]!;
+              const target = next[n]!;
+              target.score = prior.score;
+              target.positions.set(prior.positions);
+              target.coverage.set(prior.coverage);
+            }
+            const chosen = next[slot]!;
+            chosen.score = score;
+            for (let n = 0; n < index; n++) chosen.positions[n] = parent.positions[n]!;
+            chosen.positions[index] = k;
+            for (let m = 0; m < modelCount; m++) {
+              chosen.coverage[m] = parent.coverage[m]! + p.coverage[m]!;
+            }
+          }
+          if (++explored === BEAM_CHOICES) break;
+        }
+      }
+      if (!nextCount) return false;
+      const swap = current; current = next; next = swap;
+      currentCount = nextCount;
+    }
+    const best = current[0]!;
+    for (let index = 0; index < candidateCount; index++) {
+      const c = candidates[index]!;
+      const p = beamRows[index]![best.positions[index]!]!;
+      const bb = slots.get(c.uid)?.bb;
+      if (!bb) continue;
+      bb.setPriority(c.priority > 0);
+      bb.sprite.center.set(p.center, -p.lane);
+      bb.sprite.scale.set(c.worldWidth, c.worldWidth * (BILLBOARD_H / BILLBOARD_W), 1);
+      bb.setVisible(true);
+    }
+    return true;
+  };
   const layoutLabels = () => {
     if (!slots.size) return;
     const view = canvas.getBoundingClientRect();
@@ -127,10 +319,18 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     camera.updateMatrixWorld();
     const worldPerPixelAtDepth = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / view.height;
-    // Every billboard keeps a consistent size. Hover/selection expands its contents
-    // and raises draw order without moving the unit's world-space anchor.
-    const labelWidth = Math.min(252, Math.max(202, view.width * .43), Math.max(1, view.width - 12));
+    // Dense landscape needs small lateral labels; desktop labels stay above
+    // creature heads, leaving the playable model silhouettes unobscured.
+    const compactLabels = view.width > view.height && view.height <= 560;
+    const portraitLabels = view.width <= 560 && view.height > view.width;
+    const labelWidth = compactLabels
+      ? Math.min(125, Math.max(110, view.width * .15))
+      : portraitLabels
+        ? Math.min(154, Math.max(130, view.width / 3))
+        : Math.min(160, Math.max(120, view.width * .11));
+    const positions = compactLabels ? expandedPositions : portraitLabels ? labelPositions : abovePositions;
     candidateCount = 0;
+    modelCount = 0;
     for (const [uid, s] of slots) {
       if (s.kind === "bench" || !s.v.root.visible || !s.v.anchor.visible) {
         s.bb.setVisible(false);
@@ -138,6 +338,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       }
       const priority = uid === selected ? 2 : uid === hovered ? 1 : 0;
       s.bb.setDetailed(priority > 0);
+      const modelArea = s.modelBounds ? projectModel(s.v.root, s.modelBounds, view) : 0;
       // The rig's head anchor is directly above its root; avoid updating all
       // creature matrices just to project fifty labels each frame.
       projected.set(s.v.root.position.x, s.v.root.position.y + s.v.anchor.position.y * s.v.root.scale.y, s.v.root.position.z);
@@ -157,32 +358,41 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       const x = view.left + (projected.x + 1) * view.width * .5;
       const y = view.top + (1 - projected.y) * view.height * .5;
       const rect = candidatePool[candidateCount] ?? (candidatePool[candidateCount] = {
-        uid, left: 0, top: 0, right: 0, bottom: 0, priority: 0, depth: 0, anchorX: 0, width: 0, worldWidth: 0,
+        uid, left: 0, top: 0, right: 0, bottom: 0, priority: 0, depth: 0, modelArea: 0,
+        anchorX: 0, anchorY: 0, width: 0, height: 0, worldWidth: 0,
       });
       candidates[candidateCount] = rect;
       rect.uid = uid;
       rect.priority = priority;
       rect.depth = depth;
+      rect.modelArea = modelArea;
       rect.anchorX = x;
+      rect.anchorY = y;
       rect.width = width;
+      rect.height = width * (BILLBOARD_H / BILLBOARD_W);
       rect.worldWidth = worldWidth;
       rect.left = x - width / 2; rect.right = x + width / 2;
-      rect.top = y - width * (BILLBOARD_H / BILLBOARD_W); rect.bottom = y;
+      rect.top = y - rect.height; rect.bottom = y;
       candidateCount++;
       s.bb.setVisible(false);
     }
-    // Every on-screen tactical unit keeps its card; only the HUD chrome can
-    // suppress a label. Cards may overlap each other when units stand close —
-    // the hovered/selected card still draws on top via render-order priority.
+    // In crowded compact layouts, place smaller projected creatures first so
+    // their labels do not reserve the space needed to reveal larger models.
+    // Desktop keeps the established near-to-far ordering.
     candidates.length = candidateCount;
-    candidates.sort((a, b) => b.priority - a.priority || a.depth - b.depth);
+    candidates.sort((a, b) => b.priority - a.priority ||
+      (compactLabels || portraitLabels ? a.modelArea - b.modelArea : 0) || a.depth - b.depth);
+    if (compactLabels && candidateCount > 6 && placeCompactLabels(positions, view)) return;
+    let placedCount = 0;
     for (const c of candidates) {
-      if (c.top < view.top + 6 || c.bottom > view.bottom - 6) continue;
-      // Priority cards can pivot around their unit's head to the left/right if
-      // the centered card would clip or cover HUD. The Sprite stays attached to
-      // that same 3D anchor and retains normal depth testing.
-      for (let trial = 0; trial < (c.priority ? labelCenters.length : 1); trial++) {
-        const center = labelCenters[trial]!;
+      const bb = slots.get(c.uid)?.bb;
+      if (!bb) continue;
+      let bestLane = 0, bestCenter = 0.5, bestLeft = 0, bestTop = 0;
+      let bestScore = Infinity;
+      for (const { lane, center, cost } of positions) {
+        c.bottom = c.anchorY - lane * c.height;
+        c.top = c.bottom - c.height;
+        if (c.top < view.top + 6 || c.bottom > view.bottom - 6) continue;
         c.left = c.anchorX - c.width * center;
         c.right = c.left + c.width;
         if (c.left < view.left + 6 || c.right > view.right - 6) continue;
@@ -191,15 +401,37 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
           if (labelOverlap(c, hudRects[i]!, 3)) { blocked = true; break; }
         }
         if (blocked) continue;
-        const bb = slots.get(c.uid)?.bb;
-        if (!bb) break;
-        bb.setPriority(c.priority > 0);
-        bb.sprite.center.x = center;
-        bb.sprite.scale.set(c.worldWidth, c.worldWidth * (BILLBOARD_H / BILLBOARD_W), 1);
-        bb.setVisible(true);
-        break;
+        for (let i = 0; i < placedCount; i++) {
+          if (labelOverlap(c, placedLabels[i]!, 3)) { blocked = true; break; }
+        }
+        if (blocked) continue;
+        let score = cost;
+        for (let i = 0; i < modelCount; i++) {
+          const model = modelRects[i]!;
+          const width = Math.min(c.right, model.right) - Math.max(c.left, model.left);
+          const height = Math.min(c.bottom, model.bottom) - Math.max(c.top, model.top);
+          if (width > 0 && height > 0) {
+            score += 3 * width * height / Math.max(1, (model.right - model.left) * (model.bottom - model.top));
+          }
+        }
+        if (score < bestScore) {
+          bestScore = score;
+          bestLane = lane;
+          bestCenter = center;
+          bestLeft = c.left;
+          bestTop = c.top;
+          if (score === 0) break;
+        }
       }
-    }
+      if (bestScore === Infinity) continue;
+      c.left = bestLeft; c.top = bestTop;
+      c.right = bestLeft + c.width; c.bottom = bestTop + c.height;
+      bb.setPriority(c.priority > 0);
+      bb.sprite.center.set(bestCenter, -bestLane);
+      bb.sprite.scale.set(c.worldWidth, c.worldWidth * (BILLBOARD_H / BILLBOARD_W), 1);
+      placedLabels[placedCount++] = c;
+      bb.setVisible(true);
+      }
   };
   const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .66, 40), new THREE.MeshBasicMaterial({ color: 0xffd36b, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2;
@@ -373,7 +605,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       bb.setDetailed(uid === hovered || uid === selected);
       bb.set(base);
       bb.setPriority(uid === hovered || uid === selected);
-      s = { v, bb, key, kind, col, row, x, z, base };
+      s = { v, bb, key, kind, col, row, x, z, base, modelBounds: modelBoundsFor(v.root) };
       slots.set(uid, s);
       s.v.root.position.set(x, TILE_TOP, z);
     } else {

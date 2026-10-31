@@ -1,5 +1,5 @@
 // Planning HUD (§14.1, §14.5, §50.2, A22): one command table around the board.
-// Top: stats + battle controls. Right: contextual actions and a portrait-only shop toggle.
+// Top: stats + battle controls. Right: contextual actions and a collapsible shop on constrained viewports.
 // Shop shows 8 offers on wide screens or 4 on compact screens, with paging.
 import { getUnit } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
@@ -174,16 +174,18 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const grid = h("div", "pl-shop-grid");
   dock.append(dockHead, grid);
   function syncShopVisibility() {
-    const shown = !portraitShop.matches || shopOpen;
+    const collapsible = portraitShop.matches || smallLandscapeShop.matches;
+    const shown = !collapsible || shopOpen;
     dock.hidden = !shown;
     root.dataset.shopOpen = String(shown);
-    shopToggle.setSelected(portraitShop.matches && shown);
+    shopToggle.setSelected(collapsible && shown);
     shopToggle.el.setAttribute("aria-expanded", String(shown));
     shopToggle.el.setAttribute("aria-controls", "planning-creature-shop");
   }
   dock.id = "planning-creature-shop";
   const onShopViewportChange = () => { shopOpen = false; page = 0; syncShopVisibility(); renderShop(); };
   portraitShop.addEventListener("change", onShopViewportChange);
+  smallLandscapeShop.addEventListener("change", onShopViewportChange);
 
   interface Slot { card: CardView; buy: KitButton; wrap: HTMLElement; index: number; buyText: string; buyCost: string; drawnText: string; offerId?: string | null; unbindTip?: () => void }
   const slots: Slot[] = Array.from({ length: SHOP_PAGE_WIDE }, () => {
@@ -191,7 +193,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const card = createCard(portraits, "pl-offer-card");
     const row = h("div", "pl-offer-actions");
     const slot: Slot = { card, wrap, index: -1, buyText: "", buyCost: "", drawnText: "",
-      // Price-only buy control: the card already names the unit, so the button shows "<giá> 🪙".
+      // The full label fits wide buttons; compact controls show only the price.
       buy: kitButton({ skin: "green", cls: "pl-buy", onClick: () => slot.index >= 0 && it.buy(slot.index) }),
     };
     const activeId = () => {
@@ -244,7 +246,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       const u = getUnit(id), afford = m!.run.gold >= u.tier;
       s.card.set({ unit: u, star: 1, cost: u.tier, affordable: afford });
       s.card.el.tabIndex = 0;
-      s.buyText = `${u.tier} ${ICONS.gold}`;
+      s.buyText = `${t("planning.buy")} ${u.tier} ${ICONS.gold}`;
       s.buyCost = `${u.tier} ${ICONS.gold}`;
       s.buy.setAria(`${t("planning.buy")} ${u.nameVi} (${u.tier} ${ICONS.gold})`);
       s.buy.setDisabled(m!.locked || !afford);
@@ -308,6 +310,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       portraitPlanning.removeEventListener("change", syncPlanningComposition);
       shopButtonResize.disconnect();
       portraitShop.removeEventListener("change", onShopViewportChange);
+      smallLandscapeShop.removeEventListener("change", onShopViewportChange);
       for (const s of slots) { s.unbindTip?.(); s.card.dispose(); }
       tip.hide();
       root.remove();

@@ -419,16 +419,14 @@
   .pl-offer-card { aspect-ratio: 5 / 4; }
 }
 @media (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
-  .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@media (min-width: 761px) and (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
-  /* Reserve a right rail instead of overlaying the top actions and shop. */
-  /* Keep the center bench hit targets clear while retaining the synergy hover target. */
-  .pl-synergy { width: 112px; }
+  /* Keep the board accessible with a compact action rail and collapsible shop. */
   .pl-battle { left: 8px; transform: none; width: calc(100% - 96px); }
-  .pl-actions { top: 84px; transform: none; gap: 2px; padding: 6px; }
-  .pl-actions .kit-btn { width: 40px; height: 40px; }
+  .pl-actions { top: 44px; transform: none; gap: 2px; padding: 6px; max-height: calc(100% - 52px); overflow-y: auto; }
+  .pl-action-label { display: none; }
+  .pl-actions .kit-btn { width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+  .pl-shop-toggle { display: block; }
   .pl-shop { left: 8px; transform: none; width: calc(100% - 90px); }
+  .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 /* ---------- library ---------- */

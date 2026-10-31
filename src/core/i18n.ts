@@ -285,6 +285,7 @@ const vi = {
   "inventory.liveHint": "Đang giao tranh — cập nhật theo diễn biến",
   "inventory.benchHint": "Hàng chờ — dự kiến khi ra trận, chưa có cộng hưởng",
   "inventory.board": "Phe ta · Trên sân",
+  "inventory.enemyBoard": "Phe địch · Trên sân",
   "inventory.bench": "Phe ta · Hàng chờ",
   "inventory.equipped": "Đang trang bị",
   "inventory.bag": "Đồ trong kho",

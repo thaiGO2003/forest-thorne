@@ -67,7 +67,9 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: true });
+  // Tactical cards are screen-space overlays: depth testing against the
+  // battlefield hides compact HP/rage even after collision-safe placement.
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(WORLD_W, (WORLD_W * BILLBOARD_H) / BILLBOARD_W, 1);
   sprite.center.set(0.5, 0);
@@ -121,15 +123,15 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
         g.strokeText(bottom, 304, 93, 390);
         g.fillText(bottom, 304, 93, 390);
       }
-      const x = 16, w = BILLBOARD_W - 32, hpY = 110, hpH = 27;
+      const x = 16, w = BILLBOARD_W - 32, hpY = 107, hpH = 33;
       const pct = s.hp / s.maxHp;
       nineSlice(g, "bar_trough", 1, x + 6, hpY + 6, w - 12, hpH - 12);
       g.fillStyle = s.side === "R" ? "#e0503a" : pct > .5 ? "#5fd04a" : pct > .25 ? "#e8c23a" : "#e0503a";
       g.fillRect(x + 6, hpY + 6, Math.round((w - 12) * pct), hpH - 12);
       threeSlice(g, "frame_bar", 3, x, hpY, w, hpH);
-      label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, x + w / 2, hpY + hpH / 2, { size: 22, fill: LABEL });
+      label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, x + w / 2, hpY + hpH / 2, { size: 38, fill: LABEL });
 
-      const rageY = 141, rageH = 17, rageW = w - 112, gap = 3;
+      const rageY = 141, rageH = 21, rageW = w - 142, gap = 3;
       const cellW = (rageW - gap * (s.segments - 1)) / s.segments;
       for (let i = 0; i < s.segments; i++) {
         const cellX = x + i * (cellW + gap);
@@ -137,7 +139,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
         if (i < s.filled) { g.fillStyle = "#ffcf3a"; g.fillRect(cellX + 3, rageY + 3, cellW - 6, rageH - 6); }
         threeSlice(g, "frame_rage_cell", 2, cellX, rageY, cellW, rageH);
       }
-      label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, x + rageW + 56, rageY + rageH / 2, { size: 19, fill: LABEL });
+      label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, x + rageW + 71, rageY + rageH / 2, { size: 38, fill: LABEL });
       tex.needsUpdate = true;
       return;
     }

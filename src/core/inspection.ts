@@ -1,6 +1,6 @@
 // Shared unit readout + combat-strength formulas (spec A59, A68). No UI formatting/layout ownership here.
 import { NORMAL_UNITS, getUnit, type Role, type UnitDef } from "../content/catalog";
-import { combatStat, makeFighter, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
+import { combatStat, makeFighter, type CombatUnitSnapshot, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
 import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
 import type { DamageType } from "./skills";
@@ -180,7 +180,7 @@ function fighterSnapshot(fighter: Fighter, live: boolean): UnitStatSnapshot {
   };
 }
 
-function diagnosticEffects(fighter: Fighter): UnitDiagnosticEffect[] {
+function diagnosticEffects(fighter: Pick<Fighter, "status" | "mods" | "reflect" | "counterTurns" | "phoenix" | "berserk">): UnitDiagnosticEffect[] {
   const effects: UnitDiagnosticEffect[] = [];
   for (const [key, status] of Object.entries(fighter.status)) {
     if (status.turns <= 0) continue;
@@ -225,6 +225,24 @@ export function unitDiagnostics(
     derived: fighterSnapshot(derivedFighter, false),
     live: fighterSnapshot(live, true),
     effects: diagnosticEffects(live),
+  };
+}
+
+/** Apply the inspection frame published at the visual event boundary, not the precomputed combat result. */
+export function projectLiveDiagnostics(diagnostics: UnitDiagnostics, snapshot: CombatUnitSnapshot): UnitDiagnostics {
+  if (diagnostics.uid !== snapshot.uid) return diagnostics;
+  return {
+    ...diagnostics,
+    live: {
+      ...diagnostics.live,
+      hp: snapshot.hp, maxHp: snapshot.maxHp,
+      atk: snapshot.atk, matk: snapshot.matk, def: snapshot.def, mdef: snapshot.mdef,
+      rage: snapshot.rage, rageMax: snapshot.rageMax, shield: snapshot.shield,
+      range: snapshot.range, evade: snapshot.evade, crit: snapshot.crit, accuracy: snapshot.accuracy,
+      lifesteal: snapshot.lifesteal, healPct: snapshot.healPct, rageGainPct: snapshot.rageGainPct,
+      onHitBurn: snapshot.onHitBurn, onHitPoison: snapshot.onHitPoison, alive: snapshot.alive,
+    },
+    effects: diagnosticEffects(snapshot),
   };
 }
 

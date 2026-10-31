@@ -451,7 +451,7 @@ export function mountReadonlyUnitInventory(
     baseId: diagnostics.baseId,
     star: diagnostics.star,
     stats: [diagnostics.base, diagnostics.derived, diagnostics.live],
-    location: t("inventory.board"),
+    location: t(diagnostics.side === "R" ? "inventory.enemyBoard" : "inventory.board"),
     hint: t("inventory.liveHint"),
   }), true);
   modal.body.append(view.root);

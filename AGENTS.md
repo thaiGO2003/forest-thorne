@@ -29,7 +29,7 @@ Chi tiết: `.agents/rules/plans-workflow.md`.
 - Không thêm `color`, `background-color`, border/outline color, gradient, shadow, pseudo-element trang trí, filter/tint/hue để vẽ button/panel/card/badge/status.
 - Ưu tiên cắt PNG từ asset pack đã duyệt và render bằng `<img>`, Canvas `drawImage`, sprite/texture hoặc 9-slice/3-slice; không stretch nguyên PNG làm méo viền.
 - Emojis/icons semantic ưu tiên theo `src/core/emojiIcon.ts` + emoji-api.com; không hardcode emoji riêng lẻ nếu helper chung đã hỗ trợ, tuyệt đối không commit API key.
-- Khi production dùng template/engine đặt constraint khác mà asset-first phải theo, priority vẫn ưu tiên asset; chỉ chọn phương án khác khi có ràng buộc硬 và phải ghi rõ.
+- Khi production dùng template/engine đặt constraint khác mà asset-first phải theo, priority vẫn ưu tiên asset; chỉ chọn phương án khác khi có ràng buộc cứng và phải ghi rõ.
 
 ## Package Manager
 

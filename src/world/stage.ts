@@ -73,12 +73,18 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   };
 
   const resize = () => {
+    const previousAspect = camera.aspect;
+    const distance = camera.position.distanceTo(controls.target);
+    const followedFraming = Math.abs(distance - framingDistance(current, previousAspect)) < Math.max(0.75, distance * 0.03);
     applyPixelRatio();
     const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
     renderer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     controls.maxDistance = maxDistance(current, camera.aspect);
+    // Orientation changes otherwise retain a landscape dolly and crop the
+    // battlefield on portrait. Respect an intentionally zoomed camera.
+    if (followedFraming && Math.abs(camera.aspect - previousAspect) > 0.01) frame(false);
   };
   const ro = new ResizeObserver(resize);
   ro.observe(host);

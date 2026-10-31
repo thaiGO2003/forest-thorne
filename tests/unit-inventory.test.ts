@@ -8,7 +8,7 @@ import { playerCombatBonus } from "../src/core/run";
 import { sellValue } from "../src/core/economy";
 import { createBridge } from "../src/app/bridge";
 import { inspectSave } from "../src/core/save";
-import { unitDiagnostics } from "../src/core/inspection";
+import { projectLiveDiagnostics, unitDiagnostics } from "../src/core/inspection";
 
 const fixture = () => {
   const run = createRun(42);
@@ -140,6 +140,33 @@ describe("owned creature inspection", () => {
     });
     expect(JSON.stringify(diagnostics.effects)).not.toContain("internal");
     expect(JSON.stringify(diagnostics.effects)).not.toContain("private");
+  });
+
+  it("projects impact-time enemy HP, rage, shield and sourced effects without changing derived stats", () => {
+    const placement = { uid: "enemy-live", baseId: "jaguar_hunt", star: 1 as const, row: 0, col: 5 };
+    const fighter = materializeCombat([], [placement])[0]!;
+    const diagnostics = unitDiagnostics(placement, "R", {}, undefined, fighter);
+    const snapshot = snapshotFighter(fighter);
+    snapshot.status.poison = {
+      value: 6, turns: 2,
+      source: { skillId: "poison", unitUid: "source", unitBaseId: "toad_poison", unitStar: 1, turns: 2, value: 6 },
+    };
+    snapshot.mods.push({ stat: "def", value: -15, pct: true, turns: 1 });
+    const displayed = snapshotWithResources(snapshot, {
+      hp: Math.floor(snapshot.maxHp / 2), maxHp: snapshot.maxHp,
+      rage: 2, rageMax: snapshot.rageMax, shield: 11,
+    }, "FIGHTER");
+    const projected = projectLiveDiagnostics(diagnostics, displayed);
+    expect(projected.base).toEqual(diagnostics.base);
+    expect(projected.derived).toEqual(diagnostics.derived);
+    expect(projected.live).toMatchObject({ hp: displayed.hp, rage: 2, shield: 11, atk: displayed.atk });
+    expect(projected.live.atk).toBeGreaterThan(diagnostics.live.atk);
+    expect(projected.effects).toContainEqual({
+      kind: "status", key: "poison", turns: 2, value: 6, sourceUnitBaseId: "toad_poison",
+    });
+    expect(projected.effects).toContainEqual({ kind: "modifier", key: "def", turns: 1, value: -15, pct: true });
+    expect(diagnostics.effects).toEqual([]);
+    expect(projectLiveDiagnostics(diagnostics, snapshot).live.hp).toBe(snapshot.hp);
   });
 
   it("bridge unequip-all persists a single accepted transaction and ignores combat edits", () => {
