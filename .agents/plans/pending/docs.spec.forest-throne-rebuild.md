@@ -3161,9 +3161,9 @@ Star presentation and star mechanics are separate concerns. A skin may provide i
 
 ## A42. Mandatory roster coverage
 
-The active normal-unit content set currently contains **120 unit ids**. Treat this list as a rebuild coverage gate: every id must resolve through catalog → Planning card → Shop/AI eligibility where applicable → Library detail → combat-unit construction → rig/animation presentation.
+The active normal-unit content set currently contains **121 unit ids**. Treat this list as a rebuild coverage gate: every id must resolve through catalog → Planning card → Shop/AI eligibility where applicable → Library detail → combat-unit construction → rig/animation presentation.
 
-`albatross_wind, angel_guardian, ant_guard, armadillo_roll, badger_stone, bat_blood, bear_ancient, beetle_drill, beetle_mystic, bison_stampede, buffalo_mist, bug_plague, butterfly_mirror, cat_goldbow, chameleon_stealth, chimera_flame, cobra_venom, condor_sky, crab_shell, crane_blessing, crocodile_bite, crow_storm, deer_song, dove_peace, dragon_breath, dragon_earth, dryad_tree, eagle_marksman, elephant_guard, fairy_forest, falcon_dive, ferret_shadow, firefly_heal, firefly_light, flamingo_shot, fox_flame, garuda_divine, golem_stone, gorilla_smash, hawk_hunter, heron_pierce, hippo_maul, horse_charge, hydra_swamp, hyena_pack, ice_mage, jaguar_hunt, jellyfish_shock, kangaroo_kick, kirin_thunder, komodo_bite, kraken_deep, kraken_void, lich_undead, lion_general, lizard_elder, lynx_echo, mammoth_ancient, mantis_blade, mink_silent, monkey_spear, mosquito_toxic, moth_dust, newt_fire, nymph_water, octopus_mind, oracle_wisdom, otter_river, owl_nightshot, ox_mountain, pangolin_plate, panther_void, peacock_dazzle, pelican_bomb, phoenix_arrow, phoenix_rebirth, qilin_breeze, ram_charge, raven_death, reaper_void, rhino_quake, roc_legend, salamander_flame, scorpion_king, scorpion_shadow, seraphim_light, shark_frenzy, snail_fortress, spider_venom, spore_mage, sprite_wind, squid_ink, stork_sniper, storm_mage, swan_grace, thunderbird_storm, tiger_fang, titan_earth, toad_poison, toucan_snipe, trex_bite, triceratops_charge, turtle_mire, unicorn_light, viper_strike, vulture_scavunge, walrus_ice, wasp_arcane, wasp_assassin, wasp_sting, weasel_quick, whale_song, wisp_light, wolf_alpha, wolverine_rage, woodpecker_drill, worm_ice, worm_queen, wraith_shadow, yak_highland`.
+`albatross_wind, angel_guardian, ant_guard, armadillo_roll, badger_stone, bat_blood, bear_ancient, beetle_drill, beetle_mystic, bison_stampede, buffalo_mist, bug_plague, butterfly_mirror, cat_goldbow, chameleon_stealth, chimera_flame, cobra_venom, condor_sky, crab_shell, crane_blessing, crocodile_bite, crow_storm, deer_song, dove_peace, dragon_breath, dragon_earth, dryad_tree, eagle_marksman, elephant_guard, fairy_forest, falcon_dive, ferret_shadow, firefly_heal, firefly_light, flamingo_shot, fox_flame, frog_alchemy, garuda_divine, golem_stone, gorilla_smash, hawk_hunter, heron_pierce, hippo_maul, horse_charge, hydra_swamp, hyena_pack, ice_mage, jaguar_hunt, jellyfish_shock, kangaroo_kick, kirin_thunder, komodo_bite, kraken_deep, kraken_void, lich_undead, lion_general, lizard_elder, lynx_echo, mammoth_ancient, mantis_blade, mink_silent, monkey_spear, mosquito_toxic, moth_dust, newt_fire, nymph_water, octopus_mind, oracle_wisdom, otter_river, owl_nightshot, ox_mountain, pangolin_plate, panther_void, peacock_dazzle, pelican_bomb, phoenix_arrow, phoenix_rebirth, qilin_breeze, ram_charge, raven_death, reaper_void, rhino_quake, roc_legend, salamander_flame, scorpion_king, scorpion_shadow, seraphim_light, shark_frenzy, snail_fortress, spider_venom, spore_mage, sprite_wind, squid_ink, stork_sniper, storm_mage, swan_grace, thunderbird_storm, tiger_fang, titan_earth, toad_poison, toucan_snipe, trex_bite, triceratops_charge, turtle_mire, unicorn_light, viper_strike, vulture_scavunge, walrus_ice, wasp_arcane, wasp_assassin, wasp_sting, weasel_quick, whale_song, wisp_light, wolf_alpha, wolverine_rage, woodpecker_drill, worm_ice, worm_queen, wraith_shadow, yak_highland`.
 
 The five scheduled boss ids are:
 
@@ -5599,6 +5599,17 @@ When a skill line contains explicit target/shape/selection/duration prose, that 
 - **3★:** Lao vào 1 pháp sư hoặc hỗ trợ ở cột cuối cùng phía địch; nếu không có thì nhắm kẻ địch ở đó có % máu thấp nhất, gây (18 + 75% ATK) sát thương vật lý và thiêu đốt 18 mỗi lượt trong 2 lượt. Nếu kết liễu mục tiêu, thiêu đốt thêm 1 kẻ địch kề bên 18 mỗi lượt trong 2 lượt.
 - **Skin/cosmetic đang authored:** emberTrick (achievement shopRefreshes_30): Lửa Mẹo → Hỏa Hồ → Hồ Ly Hỏa Vương
 
+### frog_alchemy — Ếch Giả Kim
+- **Identity:** Tier 3; Pháp sư (MAGE); faction Thủy sinh (AQUATIC); hệ Trùng (SWARM); species `ech-gia-kim`.
+- **Base stats 1★:** HP 300, ATK 22, DEF 11, MATK 90, MDEF 26, range 3, rageMax 4, crit 0.1, critDmg 1.5, evade 0.05, accuracy 0.95.
+- **Vai trò chơi:** Rắc mây độc lên nhiều mục tiêu ngẫu nhiên, bào mòn bằng độc và đổi độc lấy máu.
+- **Đánh thường:** tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất.
+- **Kỹ năng — Mây Độc:** effect family `alchemy_poison_cloud`; cost nộ 1★/2★/3★ = **3/3/4**. mục tiêu: 3 kẻ địch khác nhau; hình: mây độc phun ngẫu nhiên không trùng đích; chọn: Chọn ngẫu nhiên các kẻ địch còn sống, không trùng mục tiêu.; số lượng: 3 mục tiêu; thời lượng: nhiễm độc 2 lượt.
+- **1★:** Phun mây độc vào 3 kẻ địch khác nhau, gây (18 + 100% MATK) sát thương phép. Mục tiêu trúng mây bị nhiễm độc 12 mỗi lượt trong 2 lượt. Sau khi phun, Ếch Giả Kim tự hồi 8% HP tối đa.
+- **2★:** Phun mây độc vào 3 kẻ địch khác nhau, gây (18 + 100% MATK) sát thương phép. Mục tiêu trúng mây bị nhiễm độc 14 mỗi lượt trong 3 lượt và giảm 12 MDEF trong 2 lượt. Sau khi phun, Ếch Giả Kim tự hồi 10% HP tối đa.
+- **3★:** Phun mây độc vào 4 kẻ địch khác nhau, gây (18 + 100% MATK) sát thương phép. Mục tiêu trúng mây bị nhiễm độc 16 mỗi lượt trong 3 lượt và giảm 15 MDEF trong 2 lượt. Độc dược kết tinh: hồi 6% HP tối đa cho 4 đồng minh có % máu thấp nhất.
+- **Skin/cosmetic đang authored:** toxicBrew (locked): Ếch Nấu Độc → Ếch Giả Kim → Ếch Độc Vương
+
 ### garuda_divine — Garuda Thần
 - **Identity:** Tier 5; Xạ thủ (ARCHER); faction Huyền thoại (MYTHICAL); hệ Linh (SPIRIT); species `garuda`.
 - **Base stats 1★:** HP 357, ATK 93, DEF 19, MATK 19, MDEF 21, range 4, rageMax 4, crit 0.2, critDmg 1.5, evade 0.1, accuracy 0.95.
@@ -6688,9 +6699,9 @@ Status tooltips preserve where a status came from when known. Before a skill mut
 
 When rendering an active status, prefer source-skill name plus the first meaningful current-star skill-summary line and the status' current turns/value. If provenance cannot be resolved, use the canonical generic status description. Compact badge text uses remaining turns as nL plus its value; fractional non-integer absolute values at or below 1 display as percentages, otherwise as rounded flat values. Status chips represent real timed status state only; a numeric shield by itself still does not synthesize a shield-status chip.
 
-## A90. Canonical visual roster completion — 125/125 units and bosses must be bespoke
+## A90. Canonical visual roster completion — 126/126 units and bosses must be bespoke
 
-The rebuild is not visually complete merely because every catalog id can instantiate something. The canonical roster contains **125 gameplay identities: 120 normal units plus 5 scheduled bosses**. Every one of those 125 ids must resolve to a deliberate, unit-owned full-body composition and a deliberate action controller. A generic packed animal, generated full-creature geometry, unknown cube, grey placeholder, default dog-like head/body, family-shaped stand-in or generic default animation controller is a failed acceptance result for a canonical id.
+The rebuild is not visually complete merely because every catalog id can instantiate something. The canonical roster contains **126 gameplay identities: 121 normal units plus 5 scheduled bosses**. Every one of those 126 ids must resolve to a deliberate, unit-owned full-body composition and a deliberate action controller. A generic packed animal, generated full-creature geometry, unknown cube, grey placeholder, default dog-like head/body, family-shaped stand-in or generic default animation controller is a failed acceptance result for a canonical id.
 
 The ownership boundary is strict:
 
@@ -6753,9 +6764,9 @@ These extra bodies are presentation of one logical unit, never additional combat
 
 Star evolution also needs authored visual progression. A generic class/tribe aura or recolor is insufficient as the only distinction for a canonical unit. Preserve the species silhouette while adding deliberate star-specific detail such as stronger anatomy accents, equipment, crest/crown/armor, feather/tail complexity, material treatment or signature VFX. A skin is likewise a deliberate variant, not merely a tint. Gameplay identity remains unchanged unless the data contract explicitly says otherwise.
 
-### A90.4 Mandatory visual brief for all 120 normal units
+### A90.4 Mandatory visual brief for all 121 normal units
 
-Every normal canonical identity in A83 requires an explicit bespoke visual brief. Existing implementation coverage does not exempt a unit from this review: the final rebuild must inspect/re-author every one of the **120 normal units**, then apply the shared anatomy/action/star requirements above. The table below is deliberately one-to-one with A83 and stays in the same canonical order so coverage can be audited mechanically.
+Every normal canonical identity in A83 requires an explicit bespoke visual brief. Existing implementation coverage does not exempt a unit from this review: the final rebuild must inspect/re-author every one of the **121 normal units**, then apply the shared anatomy/action/star requirements above. The table below is deliberately one-to-one with A83 and stays in the same canonical order so coverage can be audited mechanically.
 
 These rows define silhouette, attack source and skill-readable staging. They do not override A83 gameplay math or A76/A89 targeting; animation and VFX must visualize the targets/effects already resolved by canonical gameplay.
 
@@ -6797,6 +6808,7 @@ These rows define silhouette, attack source and skill-readable staging. They do 
 | firefly_light | Bright offensive firefly whose abdomen charges into a battlefield flash; Lóe Sáng washes the enemy side once, then visibly marks only the highest-ATK enemies that actually receive blind. |
 | flamingo_shot | Tall pink flamingo marksman with long legs/neck and a wing-mounted fantasy launcher; Tên Lửa Hồng arcs a burning shot into the chosen low-HP/backline victim and only propagates the secondary flame cue after the authored condition is met. |
 | fox_flame | Low agile fox with multiple expressive flame-tail accents but one coherent body; Lửa Cáo dashes to the rear low-HP target, bites/slashes at contact and leaves the burn attached to that victim before the fox recovers its stance. |
+| frog_alchemy | Slim upright emerald alchemist frog with long folded hind legs, wide gold eyes and a leather flask bandolier; Mây Độc charges vapor inside the raised flask, then sprays a fan of distinct poison clouds at the separate random victims while the frog recoils and drinks its own antidote. |
 | garuda_divine | Mythic Garuda/avian marksman silhouette; divine needles/feathers launch as separate readable projectiles toward the distinct targets selected by the multi-target rule. |
 | golem_stone | Chunky stone golem built from connected blocks with an anchor-like fist/weapon integrated into its arms; Mỏ Neo Đá slams the ground, raises the self shield and visibly draws enemy attention toward the golem through the taunt cue. |
 | gorilla_smash | Gorilla mass, long forelimbs and knuckle-weighted locomotion; smash lands at the chosen frontline center and makes the 3x3 armor-break area obvious. |
@@ -6896,7 +6908,7 @@ Bosses use the same visual-integrity rules as normal units but must read as enco
 
 ### A90.6 Visual roster acceptance audit
 
-Before declaring the rebuild complete, enumerate all 125 canonical A83/A84 ids and resolve each through the production visual resolver. The audit fails if any id reports unknown, generated-full-roster fallback, unfinished placeholder, generic full-animal fallback, missing controller, missing required action state, detached anatomy or a mismatched preview/battle identity.
+Before declaring the rebuild complete, enumerate all 126 canonical A83/A84 ids and resolve each through the production visual resolver. The audit fails if any id reports unknown, generated-full-roster fallback, unfinished placeholder, generic full-animal fallback, missing controller, missing required action state, detached anatomy or a mismatched preview/battle identity.
 
 The audit also verifies:
 
@@ -7014,7 +7026,7 @@ Do not create duplicate behavior just because several implementations once exist
 Final sign-off therefore requires both:
 
 - **semantic coverage:** no meaningful gameplay/product/presentation capability is unexplained; and
-- **visual coverage:** all 125 A83/A84 identities pass A90 without canonical full-creature fallback.
+- **visual coverage:** all 126 A83/A84 identities pass A90 without canonical full-creature fallback.
 
 ## A94. Tutorial deterministic script — fixed shop, exact action gates and persisted progress
 
@@ -8058,7 +8070,7 @@ For the production rebuild:
 - preserve this **appearance/skin resolution ordering**;
 - keep visual lifetime/refresh deterministic so repeated previews do not stack duplicate layers;
 - **remove emoji as a whole-unit production fallback**;
-- give every one of the **125 canonical identities** its own deliberate bespoke 3D creature presentation;
+- give every one of the **126 canonical identities** its own deliberate bespoke 3D creature presentation;
 - if an identity has no finished visual, fail the visual completeness gate instead of silently substituting a generic animal or emoji.
 
 ## A113. Save envelope, import/export, migration and clear-data contract

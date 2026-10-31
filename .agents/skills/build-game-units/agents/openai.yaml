@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Game Units"
+  short_description: "Author and audit unit stat and damage budgets"
+  default_prompt: "Use $build-game-units to add or retune a unit and verify its stats and skill damage against the tier and role budgets."
