@@ -348,7 +348,7 @@
   "tier": 2,
   "role": "TANKER",
   "faction": "BEAST",
-  "element": "STONE",
+  "element": "WOOD",
   "boss": false,
   "stats": {
    "hp": 362,
@@ -1716,7 +1716,7 @@
   "tier": 3,
   "role": "ARCHER",
   "faction": "AVIAN",
-  "element": "FIRE",
+  "element": "WIND",
   "boss": false,
   "stats": {
    "hp": 242,
@@ -1935,7 +1935,7 @@
   "tier": 3,
   "role": "ARCHER",
   "faction": "AVIAN",
-  "element": "FIRE",
+  "element": "TIDE",
   "boss": false,
   "stats": {
    "hp": 291,
@@ -2904,7 +2904,7 @@
   "tier": 1,
   "role": "FIGHTER",
   "faction": "REPTILE",
-  "element": "SWARM",
+  "element": "STONE",
   "boss": false,
   "stats": {
    "hp": 282,
@@ -6495,7 +6495,7 @@
   "tier": 3,
   "role": "FIGHTER",
   "faction": "BEAST",
-  "element": "STONE",
+  "element": "NIGHT",
   "boss": false,
   "stats": {
    "hp": 370,
@@ -6552,7 +6552,7 @@
   "tier": 3,
   "role": "FIGHTER",
   "faction": "BEAST",
-  "element": "FIRE",
+  "element": "TIDE",
   "boss": false,
   "stats": {
    "hp": 334,
