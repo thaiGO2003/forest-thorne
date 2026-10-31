@@ -52,10 +52,10 @@ import {
 const portraits = createPortraits();
 
 /** Open a modal panel whose view lives exactly as long as the modal (closed or replaced → disposed). */
-function openPanelModal(app: App, o: ModalOptions, mount: (m: ModalHandle) => { dispose(): void }) {
+function openPanelModal(app: App, o: ModalOptions, mount: (m: ModalHandle) => { dispose(): void } | void) {
   const m = app.modals.open({ closeLabel: t("ui.close"), ...o });
   const view = mount(m);
-  const off = app.modals.onChange((active) => { if (active !== o.id) { off(); view.dispose(); } });
+  const off = app.modals.onChange((active) => { if (active !== o.id) { off(); view?.dispose(); } });
 }
 
 function openReturnToMenuConfirm(app: App) {
