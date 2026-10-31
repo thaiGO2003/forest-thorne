@@ -420,39 +420,69 @@ function openInformation(app: App) {
     body.replaceChildren();
   };
 
-  const appendKv = (host: HTMLElement, label: string, value: string | number) => {
-    const row = panelEl("panel_tooltip", "info-kv");
+  const appendKv = (host: HTMLElement, label: string, value: string | number, skin: "panel_tooltip" | "slot_well" = "slot_well") => {
+    const row = panelEl(skin, "info-kv");
     row.append(h("strong", "", label), h("span", "", String(value)));
     host.append(row);
   };
 
-  const unitList = (entries: Array<{ uid: string; baseId: string; star: number; equips?: string[] }>, empty: string, detailId: (entry: { uid: string }) => string) => {
+  const statTile = (host: HTMLElement, icon: string, label: string, value: string | number) => {
+    const tile = panelEl("shell_billboard", "info-stat");
+    tile.append(
+      h("span", "info-stat-icon", icon),
+      h("strong", "info-stat-value", String(value)),
+      h("span", "info-stat-label", label),
+    );
+    host.append(tile);
+  };
+
+  const section = (title: string, icon: string, cls = "") => {
+    const panel = panelEl("panel_parchment", `info-sec ${cls}`.trim());
+    const head = h("div", "info-sec-head");
+    head.append(h("span", "info-sec-icon", icon), h("h3", "info-sec-title", title));
+    const inner = h("div", "info-sec-body");
+    panel.append(head, inner);
+    return { panel, inner };
+  };
+
+  const unitList = (
+    host: HTMLElement,
+    entries: Array<{ uid: string; baseId: string; star: number; equips?: string[] }>,
+    empty: string,
+    detailId: (entry: { uid: string }) => string,
+  ) => {
     if (!entries.length) {
-      body.append(h("div", "slot", empty));
+      host.append(h("div", "info-empty", empty));
       return;
     }
     for (const entry of entries) {
       const unit = getUnit(entry.baseId);
-      const row = panelEl("panel_tooltip", "info-unit");
+      const row = panelEl("slot_well", "info-unit");
+      const medal = h("span", "info-medal", ICONS[unit.role]);
+      medal.setAttribute("aria-hidden", "true");
       const copy = h("div", "grow");
       copy.append(
         h("strong", "", `${unit.nameVi} ★${entry.star}`),
-        h("div", "", `${t(`role.${unit.role}` as MsgKey)} · ${t(`element.${unit.element}` as MsgKey)} · ${t(`faction.${unit.faction}` as MsgKey)}`),
+        h("div", "info-unit-meta", `${ICONS[unit.element]} ${t(`element.${unit.element}` as MsgKey)} · ${ICONS[unit.faction]} ${t(`faction.${unit.faction}` as MsgKey)} · ${t(`role.${unit.role}` as MsgKey)}`),
       );
       if (entry.equips?.length) copy.append(h("small", "", entry.equips.map(itemName).join(" · ")));
       const details = kitButton({ skin: "wood", label: t("planning.details"), onClick: () => app.openPanel("unit-detail", detailId(entry)) });
-      row.append(copy, details.el);
-      body.append(row);
+      row.append(medal, copy, details.el);
+      host.append(row);
     }
   };
 
-  const compareMetric = (label: string, ally: number, enemy: number) => {
-    const card = panelEl("panel_tooltip", "info-compare");
+  const compareMetric = (host: HTMLElement, icon: string, label: string, ally: number, enemy: number) => {
+    const card = panelEl("slot_well", "info-compare");
     const max = Math.max(1, ally, enemy);
     const head = h("div", "info-compare-head");
+    const medal = h("span", "info-medal", icon);
+    medal.setAttribute("aria-hidden", "true");
+    const labelRow = h("div", "info-compare-label");
+    labelRow.append(medal, h("strong", "", label));
     head.append(
-      h("strong", "", label),
-      h("span", "", `${t("info.allies")}: ${Math.round(ally)} · ${t("info.enemies")}: ${Math.round(enemy)}`),
+      labelRow,
+      h("span", "info-compare-values", `${t("info.allies")}: ${Math.round(ally)} · ${t("info.enemies")}: ${Math.round(enemy)}`),
     );
     const bars = h("div", "info-compare-bars");
     const meter = (side: "ally" | "enemy", value: number) => {
@@ -473,7 +503,7 @@ function openInformation(app: App) {
     };
     bars.append(meter("ally", ally), meter("enemy", enemy));
     card.append(head, bars);
-    body.append(card);
+    host.append(card);
   };
 
   const teamSnapshot = (entries: Array<{ uid: string }>, side: "L" | "R") => {
@@ -503,15 +533,68 @@ function openInformation(app: App) {
     const combat = app.bridge.combatSnapshot();
 
     if (active === "overview") {
-      const summary = h("div", "info-summary");
-      appendKv(summary, t("combat.round", { round: run.round }), t(`info.phase.${run.phase}` as MsgKey));
-      appendKv(summary, t("info.cycle"), app.presentation.combatCycle ?? "—");
-      appendKv(summary, t("info.level"), run.level);
-      appendKv(summary, t("info.gold"), run.gold);
-      appendKv(summary, t("info.hearts"), run.hp);
-      appendKv(summary, t("info.deployed"), allies.length);
-      appendKv(summary, t("info.environment"), t(`element.${combat?.environment ?? environmentFor(run.round)}` as MsgKey));
-      body.append(summary);
+      const friendly = teamSnapshot(allies, "L");
+      const enemy = teamSnapshot(enemies, "R");
+      const currentEnvironment = combat?.environment ?? environmentFor(run.round);
+
+      const hero = panelEl("panel_wood", "info-hero");
+      const heroCopy = h("div", "info-hero-copy");
+      heroCopy.append(
+        h("h2", "info-hero-title", t(`mode.${run.mode}` as MsgKey)),
+        h("p", "info-hero-sub", `${t("combat.round", { round: run.round })} · ${t(`info.phase.${run.phase}` as MsgKey)} · ${t(`ai.${run.aiMode}` as MsgKey)}`),
+      );
+      const heroStats = h("div", "info-hero-stats");
+      statTile(heroStats, ICONS.heart, t("info.hearts"), run.hp);
+      statTile(heroStats, ICONS.gold, t("info.gold"), run.gold);
+      statTile(heroStats, ICONS.level, t("info.level"), run.level);
+      statTile(heroStats, ICONS.atk, t("info.teamPower"), Math.round(friendly.power));
+      hero.append(heroCopy, heroStats);
+      body.append(hero);
+
+      const dashboard = h("div", "info-dashboard");
+
+      const overview = section(t("info.overview"), ICONS.info);
+      appendKv(overview.inner, t("combat.round", { round: run.round }), t(`info.phase.${run.phase}` as MsgKey));
+      appendKv(overview.inner, t("info.cycle"), app.presentation.combatCycle ?? "—");
+      appendKv(overview.inner, t("info.deployed"), allies.length);
+      appendKv(overview.inner, t("info.environment"), t(`element.${currentEnvironment}` as MsgKey));
+      appendKv(overview.inner, t("info.bench"), run.bench.length);
+      dashboard.append(overview.panel);
+
+      const formation = section(t("info.formations"), ICONS.synergy);
+      unitList(formation.inner, ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+      dashboard.append(formation.panel);
+
+      const enemiesSection = section(t("info.enemiesPreview"), ICONS.start);
+      unitList(enemiesSection.inner, enemies, t("info.noPreview"), (entry) => enemyPanelId(entry.uid));
+      dashboard.append(enemiesSection.panel);
+
+      const weather = section(t("info.weatherBlessings"), ICONS[currentEnvironment]);
+      appendKv(weather.inner, t("info.currentWeather"), t(`element.${currentEnvironment}` as MsgKey));
+      appendKv(weather.inner, t("info.nextWeather"), t(`element.${environmentFor(run.round + 1)}` as MsgKey));
+      if (run.blessingQueue.length) {
+        run.blessingQueue.forEach((id, index) => appendKv(weather.inner, `#${index + 1} ${t("info.weatherOrder")}`, t(`element.${WEATHER_BLESSING_ENVIRONMENT[id]}` as MsgKey)));
+      } else {
+        weather.inner.append(h("div", "info-empty", t("info.noBlessings")));
+      }
+      dashboard.append(weather.panel);
+
+      const comparison = section(t("info.comparison"), ICONS.atk);
+      compareMetric(comparison.inner, ICONS.hp, t("info.health"), friendly.hp, enemy.hp);
+      compareMetric(comparison.inner, ICONS.atk, t("info.power"), friendly.power, enemy.power);
+      appendKv(comparison.inner, t("info.allies"), friendly.units);
+      appendKv(comparison.inner, t("info.enemies"), enemy.units);
+      dashboard.append(comparison.panel);
+
+      const mods = section(t("info.mods"), ICONS.synergy);
+      if (!run.augments.length) mods.inner.append(h("div", "info-empty", t("info.noAugments")));
+      for (const id of run.augments) {
+        const def = AUGMENT_BY_ID.get(id);
+        appendKv(mods.inner, id, def ? `${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}` : id);
+      }
+      dashboard.append(mods.panel);
+
+      body.append(dashboard);
       return;
     }
 
@@ -533,8 +616,8 @@ function openInformation(app: App) {
     if (active === "sides") {
       const friendly = teamSnapshot(allies, "L");
       const enemy = teamSnapshot(enemies, "R");
-      compareMetric(t("info.health"), friendly.hp, enemy.hp);
-      compareMetric(t("info.power"), friendly.power, enemy.power);
+      compareMetric(body, ICONS.hp, t("info.health"), friendly.hp, enemy.hp);
+      compareMetric(body, ICONS.atk, t("info.power"), friendly.power, enemy.power);
       const counts = h("div", "info-summary");
       appendKv(counts, t("info.allies"), friendly.units);
       appendKv(counts, t("info.enemies"), enemy.units);
@@ -544,9 +627,9 @@ function openInformation(app: App) {
 
     if (active === "formations") {
       body.append(h("strong", "", t("info.allies")));
-      unitList(ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+      unitList(body, ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
       body.append(h("strong", "", t("info.enemies")));
-      unitList(enemies, t("info.noUnits"), (entry) => enemyPanelId(entry.uid));
+      unitList(body, enemies, t("info.noUnits"), (entry) => enemyPanelId(entry.uid));
       return;
     }
 

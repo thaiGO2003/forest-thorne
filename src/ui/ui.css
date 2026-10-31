@@ -195,6 +195,26 @@
 .info-compare-bars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .info-meter { position: relative; min-height: 22px; }
 .info-weather-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; padding: 10px 12px; }
+.info-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; }
+.info-hero-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.info-hero-title { margin: 0; font-size: 26px; line-height: 1.1; }
+.info-hero-sub { margin: 0; font-size: 13px; }
+.info-hero-stats { display: grid; grid-template-columns: repeat(4, minmax(72px, auto)); gap: 6px; }
+.info-stat { display: grid; place-items: center; gap: 1px; padding: 6px 8px; min-width: 72px; }
+.info-stat-icon { font-size: 18px; line-height: 1; }
+.info-stat-value { font-size: 18px; line-height: 1.1; }
+.info-stat-label { font-size: 11px; text-align: center; }
+.info-dashboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.info-sec { padding: 10px 12px 12px; min-width: 0; }
+.info-sec-head { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; }
+.info-sec-title { margin: 0; font-size: 16px; }
+.info-sec-icon { font-size: 18px; flex: none; }
+.info-sec-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.info-medal { width: 30px; height: 30px; flex: none; display: grid; place-items: center; font-size: 18px; }
+.info-unit-meta { font-size: 12px; line-height: 1.35; }
+.info-compare-label { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.info-compare-values { font-size: 12px; text-align: right; }
+.info-empty { padding: 10px; text-align: center; font-size: 13px; }
 .mods { min-height: 0; height: 100%; display: flex; flex-direction: column; }
 .mods-header { flex: none; }
 .mods-nav { margin-bottom: 0; }
@@ -502,6 +522,9 @@
 .cb-next { height: 52px; }
 @media (max-width: 760px) {
   .info-summary, .mods-summary { grid-template-columns: 1fr; }
+  .info-hero { grid-template-columns: 1fr; }
+  .info-hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .info-dashboard { grid-template-columns: 1fr; }
   .info-unit, .mod-row { align-items: stretch; flex-direction: column; }
   .mod-meta, .mod-relations { grid-template-columns: 1fr; }
   .mod-actions { width: 100%; justify-content: stretch; }
@@ -624,6 +647,10 @@
 .modal-body .lib-h { font-size: var(--ft-15); }
 .modal-body .lib-name { font-size: var(--ft-22); }
 .modal-body .cb-row { font-size: var(--ft-15); }
+.modal-body :is(.info-hero-sub, .info-unit-meta, .info-compare-values, .info-empty) { font-size: var(--ft-12); }
+.modal-body :is(.info-stat-label) { font-size: var(--ft-10); }
+.modal-body :is(.info-hero-title) { font-size: var(--ft-24); }
+.modal-body :is(.info-sec-title) { font-size: var(--ft-16); }
 .modal-body .settings-note { font-size: var(--ft-14); }
 .modal-body :is(.history-round, .history-time) { font-size: var(--ft-12); }
 .modal-body .ui-inventory-stat { height: 64px; }
