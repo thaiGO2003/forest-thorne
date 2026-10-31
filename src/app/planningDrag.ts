@@ -28,7 +28,8 @@ interface PlanningDragOptions {
   move(from: PlanningSlot, to: PlanningSlot): boolean;
   select?(source: PlanningSlot): void;
   preview?(source: PlanningSlot, anchor: DOMRect): void;
-  /** Enemy units are not draggable; they only get a hover summary tooltip. */
+  /** Enemy units are inspectable, but never draggable. */
+  selectEnemy?(uid: string): void;
   previewEnemy?(uid: string, anchor: DOMRect): void;
   previewEnd?(): void;
   onTargetState?(state: PlanningDragTargetState | null): void;
@@ -52,6 +53,7 @@ export function createPlanningDragController({
   move,
   select,
   preview,
+  selectEnemy,
   previewEnemy,
   previewEnd,
   onTargetState,
@@ -81,6 +83,7 @@ export function createPlanningDragController({
     visual?: UnitVisual; home?: THREE.Vector3; target?: THREE.Vector3;
   } | null = null;
   let dragging = false;
+  let enemyPressed: { pointerId: number; startX: number; startY: number; uid: string } | null = null;
   let captured = false;
   let previewed: PlanningSlot | null = null;
   let previewedEnemy: string | null = null;
@@ -309,12 +312,22 @@ export function createPlanningDragController({
     captured = false;
   };
 
-  const cancel = () => clearState(true);
+  const cancel = () => {
+    enemyPressed = null;
+    clearState(true);
+  };
 
   const onPointerDown = (event: PointerEvent) => {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0) || !enabled()) return;
     const run = getRun();
     if (!run || (run.phase !== "PLANNING" && !inspectOnly())) return;
+    const enemy = pickUnit(event.clientX, event.clientY) ?? pickOccupiedTile(boardPicker.pick(event.clientX, event.clientY), run);
+    if (enemy?.kind === "enemy") {
+      enemyPressed = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, uid: enemy.uid };
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const source = pickSource(event.clientX, event.clientY, run);
     if (!source) return;
     const entry = source.kind === "board" ? run.board[source.index] : run.bench[source.index];
@@ -334,6 +347,12 @@ export function createPlanningDragController({
   };
 
   const onPointerMove = (event: PointerEvent) => {
+    if (enemyPressed?.pointerId === event.pointerId) {
+      const dx = event.clientX - enemyPressed.startX;
+      const dy = event.clientY - enemyPressed.startY;
+      if (dx * dx + dy * dy >= DRAG_THRESHOLD_SQ) enemyPressed = null;
+      return;
+    }
     if (!pressed || event.pointerId !== pressed.pointerId) {
       const run = enabled() ? getRun() : null;
       if (!run || run.phase !== "PLANNING") {
@@ -378,6 +397,17 @@ export function createPlanningDragController({
   };
 
   const onPointerUp = (event: PointerEvent) => {
+    if (enemyPressed?.pointerId === event.pointerId) {
+      const uid = enemyPressed.uid;
+      const dx = event.clientX - enemyPressed.startX;
+      const dy = event.clientY - enemyPressed.startY;
+      enemyPressed = null;
+      clearState(false);
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (enabled() && dx * dx + dy * dy < DRAG_THRESHOLD_SQ) selectEnemy?.(uid);
+      return;
+    }
     if (!pressed || event.pointerId !== pressed.pointerId) return;
     const source = pressed.source;
     const wasDragging = dragging;
@@ -397,11 +427,21 @@ export function createPlanningDragController({
   };
 
   const onPointerCancel = (event: PointerEvent) => {
+    if (enemyPressed?.pointerId === event.pointerId) {
+      enemyPressed = null;
+      clearState(false);
+      return;
+    }
     if (!pressed) clearState(false);
     else if (pressed.pointerId === event.pointerId) cancel();
   };
 
   const onPointerLeave = (event: PointerEvent) => {
+    if (enemyPressed?.pointerId === event.pointerId) {
+      enemyPressed = null;
+      clearState(false);
+      return;
+    }
     if (pressed?.pointerId === event.pointerId && dragging) return;
     if (pressed?.pointerId === event.pointerId) {
       cancel();

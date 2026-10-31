@@ -216,6 +216,7 @@ describe("Planning drag controller", () => {
 
     const moves: Array<{ from: { kind: "bench" | "board"; index: number }; to: { kind: "bench" | "board"; index: number } }> = [];
     const selections: Array<{ kind: "bench" | "board"; index: number }> = [];
+    const enemySelections: string[] = [];
     const targetStates: Array<PlanningDragTargetState | null> = [];
     let inspectOnly = false;
     const controller = createPlanningDragController({
@@ -227,6 +228,7 @@ describe("Planning drag controller", () => {
         return bridge.move(from, to);
       },
       select: (source) => { selections.push(source); },
+      selectEnemy: (uid) => { enemySelections.push(uid); },
       onTargetState: (state) => { targetStates.push(state); },
       enabled: () => true,
       inspectOnly: () => inspectOnly,
@@ -353,8 +355,10 @@ describe("Planning drag controller", () => {
     const enemyPoint = new THREE.Vector3(enemyWorld.x, TILE_HEIGHT, enemyWorld.z);
     drag(enemyPoint, new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 5);
     expect(moves).toHaveLength(moveCount);
+    expect(enemySelections).toEqual([]);
     click(enemyPoint, 8);
     expect(selections).toHaveLength(2);
+    expect(enemySelections).toEqual(["enemy-preview"]);
 
     // Combat clicks still inspect owned units, while drags never mutate the formation.
     inspectOnly = true;
@@ -366,6 +370,8 @@ describe("Planning drag controller", () => {
     drag(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 11);
     expect(moves).toHaveLength(moveCount);
     expect(selections).toHaveLength(3);
+    click(enemyPoint, 12);
+    expect(enemySelections).toEqual(["enemy-preview", "enemy-preview"]);
     expect(JSON.stringify(run)).toBe(combatBefore);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",

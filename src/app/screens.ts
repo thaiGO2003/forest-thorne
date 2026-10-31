@@ -1020,6 +1020,7 @@ registerScreen("planning", (app) => {
         });
       }
     },
+    selectEnemy: (uid) => openEnemyUnitDetail(app, uid),
     preview: (source, anchor) => {
       const run = bridge.run();
       const unit = source.kind === "bench" ? run?.bench[source.index] : run?.board[source.index];

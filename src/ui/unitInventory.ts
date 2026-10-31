@@ -70,6 +70,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   root.dataset.uid = initial.uid;
   if (readonly) root.dataset.readonly = "true";
   const content = h("div", "ui-inventory-content");
+  content.tabIndex = 0;
   const profile = h("div", "ui-inventory-profile");
   const portraitPanel = panel("ui-inventory-portrait");
   const portraitHost = h("div", "ui-inventory-view");
