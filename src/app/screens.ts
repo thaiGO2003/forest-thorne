@@ -32,6 +32,7 @@ import { basicAttackCopy } from "../core/unitText";
 import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
+import { BLESSING_CHOICES, type BlessingChoiceId } from "../core/blessingChoice";
 import { getGameSpeedDisplayMultiplier } from "../core/gameSpeed";
 import { finishFastCost } from "../core/combatFast";
 import { createModManager, type ModManager, type ModPackageType, type ModSource, type ModValidationIssue } from "../mods/ModRegistry";
@@ -806,6 +807,63 @@ function augmentChoiceCopy(id: string): string {
   return `${id} · ${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}`;
 }
 
+const BLESSING_COPY: Record<BlessingChoiceId, { group: MsgKey; title: MsgKey; effect: MsgKey; icon: string; skin: "green" | "blue" | "plum" }> = {
+  gold_cache: { group: "blessing.group.economy", title: "blessing.gold.title", effect: "blessing.gold.effect", icon: ICONS.gold, skin: "green" },
+  forest_order: { group: "blessing.group.formation", title: "blessing.deploy.title", effect: "blessing.deploy.effect", icon: ICONS.synergy, skin: "blue" },
+  opening_fury: { group: "blessing.group.combat", title: "blessing.rage.title", effect: "blessing.rage.effect", icon: ICONS.rage, skin: "plum" },
+};
+
+function mountBlessingChoice(app: App, m: ModalHandle) {
+  const render = () => {
+    m.body.replaceChildren();
+    const run = app.bridge.run();
+    if (!run || !run.pendingBlessingChoice) {
+      m.close();
+      return;
+    }
+    const root = h("div", "blessing-modal");
+    const head = h("div", "blessing-head");
+    head.append(h("p", "blessing-subtitle", t("blessing.subtitle")));
+    const meta = h("div", "blessing-meta");
+    const roundChip = panelEl("slot_well", "blessing-chip");
+    roundChip.append(h("span", "", t("blessing.round", { round: run.round })));
+    const pickChip = panelEl("slot_well", "blessing-chip");
+    pickChip.append(h("span", "", t("blessing.pickOne")));
+    meta.append(roundChip, pickChip);
+    head.append(meta);
+
+    const cards = h("div", "blessing-cards");
+    for (const def of BLESSING_CHOICES) {
+      const copy = BLESSING_COPY[def.id];
+      const card = panelEl("panel_wood", "blessing-card");
+      const art = h("div", "blessing-art");
+      art.append(h("span", "blessing-icon", copy.icon));
+      const text = h("div", "blessing-copy");
+      text.append(
+        h("span", "blessing-group", t(copy.group)),
+        h("h3", "blessing-title", t(copy.title)),
+        h("p", "blessing-effect", t(copy.effect)),
+      );
+      const choose = kitButton({
+        skin: copy.skin,
+        label: t("blessing.choose"),
+        cls: "blessing-choose",
+        aria: `${t(copy.title)} — ${t(copy.effect)}`,
+        onClick: () => { if (app.bridge.chooseBlessing(def.id)) m.close(); },
+      });
+      card.append(art, text, choose.el);
+      cards.append(card);
+    }
+    const footer = panelEl("panel_parchment", "blessing-footer");
+    footer.append(h("strong", "", t("blessing.footer")), h("small", "", t("blessing.noSkip")));
+    root.append(head, cards, footer);
+    m.body.append(root);
+  };
+  const off = app.bridge.onChange(render);
+  render();
+  return { dispose: off };
+}
+
 function mountAugments(app: App, m: ModalHandle) {
   const render = () => {
     const run = app.bridge.run();
@@ -1002,6 +1060,8 @@ registerPanel("craft", (app) =>
   openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "full" }, (m) => mountCraftWorkbench(app, m.body)));
 registerPanel("augment", (app) =>
   openPanelModal(app, { id: "augment", title: t("planning.augment"), size: "lg", dismissible: false }, (m) => mountAugments(app, m)));
+registerPanel("blessing-choice", (app) =>
+  openPanelModal(app, { id: "blessing-choice", title: t("blessing.title"), size: "lg", dismissible: false }, (m) => mountBlessingChoice(app, m)));
 
 registerScreen("planning", (app) => {
   const { bridge, stage } = app;
@@ -1156,6 +1216,7 @@ registerScreen("planning", (app) => {
       }),
     });
     if (!combat && run.phase === "AUGMENT" && !app.modals.blocking()) app.openPanel("augment");
+    else if (!combat && run.phase === "PLANNING" && run.pendingBlessingChoice && !app.modals.blocking()) app.openPanel("blessing-choice");
   };
 
   // Combat: logic resolves the battle; presentation swaps HUDs, replays events, then shows the result.

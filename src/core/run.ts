@@ -24,6 +24,7 @@ import {
 } from "./creative";
 import type { Placement, SideBonus } from "./combat";
 import { isWeatherBlessingId, type WeatherBlessingId } from "./blessings";
+import { syncBlessingChoice, type BlessingChoiceId } from "./blessingChoice";
 import type { AiMode } from "./encounter";
 import {
   createTutorialState, finishTutorialIfPastEnd, incrementTutorialShopVariant, isTutorialActive,
@@ -57,6 +58,12 @@ export interface RunState {
   heartEscrow: 0 | 1;
   /** Player-authored weather blessing order; combat consumes only this prefix order. */
   blessingQueue: WeatherBlessingId[];
+  /** Round-3 blessing choices already taken (canonical, persisted). */
+  blessingPicks: BlessingChoiceId[];
+  /** True while the modal must block planning until one blessing is chosen. */
+  pendingBlessingChoice: boolean;
+  /** One-shot starting rage granted by the round-3 combat blessing; consumed at battle start. */
+  pendingCombatRage: number;
   /** 5×5 allied board, row-major index r*5+c. */
   board: (OwnedUnit | null)[];
   /** Compact ordered bench, never sparse. */
@@ -151,6 +158,7 @@ function createModeRunInternal(seed: number, mode: GameMode): RunState {
   const s: RunState = {
     phase: "PLANNING", mode, aiMode: cfg.ai.def, lossCondition: cfg.lossCondition,
     round: 1, level: 1, xp: 0, gold: cfg.startGold, hp: cfg.startHp, heartEscrow: 0, blessingQueue: [],
+    blessingPicks: [], pendingBlessingChoice: false, pendingCombatRage: 0,
     board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), bench: [], itemBag: [],
     shop: [], shopSlotCount: SHOP_SLOTS, shopLocked: false, benchUpgradeLevel: 0, benchBonus: 0, deployCapBonus: 0,
     xpCostDelta: 0, rollCostDelta: 0, interestCapBonus: 0, interestRateBonus: 0, startingRage: 0, startingShield: 0,
@@ -632,6 +640,7 @@ export function chooseAugment(s: RunState, id: string): boolean {
   s.activeAugmentChoices = [];
   s.phase = "PLANNING";
   recordTutorialEvent(s, "choose_augment", ["lastAugmentName", id]);
+  syncBlessingChoice(s);
   return true;
 }
 
@@ -803,6 +812,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
     incomeEarned = payPlanningIncome(s);
     if (cfg.shop && !s.shopLocked) rollShop(s);
     offerAugmentsIfDue(s);
+    syncBlessingChoice(s);
   }
   return {
     winner: input.winner, goldEarned, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,

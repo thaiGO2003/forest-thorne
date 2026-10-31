@@ -13,6 +13,7 @@ import { BASE_MATERIALS } from "./craft";
 import { AUGMENT_BY_ID } from "./augments";
 import { TECH_BY_ID, maxLevel } from "./tech";
 import { normalizeWeatherBlessingQueue } from "./blessings";
+import { normalizeBlessingPicks, normalizePendingBlessingChoice } from "./blessingChoice";
 import {
   normalizeAchievementProfile, normalizeCollectionProfile,
   type AchievementProfile, type CollectionProfile,
@@ -116,6 +117,14 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.hp = clampInt(p.hp, 0, Number.MAX_SAFE_INTEGER, cfg.startHp);
   p.heartEscrow = (p.phase === "COMBAT" || p.phase === "PLANNING") && !cfg.creative && p.heartEscrow === 1 ? 1 : 0;
   p.blessingQueue = normalizeWeatherBlessingQueue(p.blessingQueue);
+  p.blessingPicks = normalizeBlessingPicks((p as Partial<RunState>).blessingPicks);
+  p.pendingBlessingChoice = normalizePendingBlessingChoice(
+    (p as Partial<RunState>).pendingBlessingChoice,
+    p.round,
+    p.phase,
+    p.blessingPicks,
+  );
+  p.pendingCombatRage = clampInt((p as Partial<RunState>).pendingCombatRage, 0, 10, 0);
   p.shopLocked = p.shopLocked === true;
   p.benchUpgradeLevel = clampInt(p.benchUpgradeLevel, 0, 4, 0);
   p.craftTableLevel = clampInt(p.craftTableLevel, 0, 3, 0);

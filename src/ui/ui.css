@@ -215,6 +215,31 @@
 .info-compare-label { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .info-compare-values { font-size: 12px; text-align: right; }
 .info-empty { padding: 10px; text-align: center; font-size: 13px; }
+.blessing-modal { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+.blessing-head { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; flex: none; }
+.blessing-subtitle { margin: 0; font-size: 14px; letter-spacing: .08em; }
+.blessing-meta { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.blessing-chip { padding: 4px 12px; min-width: 110px; text-align: center; }
+.blessing-cards { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; overflow: auto; overscroll-behavior: contain; }
+.blessing-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 8px; padding: 14px; min-width: 0; align-content: start; }
+.blessing-art { display: grid; place-items: center; min-height: 72px; }
+.blessing-icon { font-size: 56px; line-height: 1; }
+.blessing-copy { display: flex; flex-direction: column; gap: 4px; text-align: center; min-width: 0; }
+.blessing-group { font-size: 12px; letter-spacing: .12em; font-weight: 800; }
+.blessing-title { margin: 0; font-size: 20px; line-height: 1.1; }
+.blessing-effect { margin: 0; font-size: 14px; line-height: 1.4; }
+.blessing-choose { width: 100%; min-width: 0; height: 46px; }
+.blessing-footer { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; padding: 8px 12px; flex: none; }
+.blessing-footer strong { font-size: 13px; letter-spacing: .06em; }
+.blessing-footer small { font-size: 12px; }
+@media (max-width: 760px) {
+  .blessing-cards { grid-template-columns: minmax(0, 1fr); }
+  .blessing-card { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); align-items: center; padding: 10px; }
+  .blessing-art { min-height: 0; }
+  .blessing-icon { font-size: 40px; }
+  .blessing-copy { text-align: left; }
+  .blessing-choose { width: auto; min-width: 96px; padding: 0 8px; }
+}
 .mods { min-height: 0; height: 100%; display: flex; flex-direction: column; }
 .mods-header { flex: none; }
 .mods-nav { margin-bottom: 0; }
