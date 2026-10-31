@@ -208,6 +208,14 @@ At the clean `localhost:5207` Planning screen (844×390, DPR 1.25), native mouse
 
 Previously verified native wheel scrolling reached the bottom at 900×600 (`102/102`), portrait 390×844 (`724/724`) and landscape 844×390 (`327/327`); final Buff/Debuff content was visible and compact viewports had no document-level horizontal overflow. No DOM-injected `tabindex` or programmatic `.focus()` was used for the production keyboard acceptance. After the source edit, `pnpm typecheck`, `pnpm exec vitest --run tests/planning-drag.test.ts` (**3/3**), `pnpm build` and `git diff --check` all passed. Enemy live combat impact/status/death transitions, focus behavior in other modal variants, and full readonly lifecycle cleanup remain unverified.
 
+### Native friendly bench/board selection and deployment — 2026-10-31
+
+In the clean `localhost:5207` Chromium session (1280×800, DPR 1), the round-1 Planning run initially contained `u1 ant_guard` at bench index 0 with an empty board. Native mouse hover at `(200,171)` displayed `Kiến Hộ Vệ ★1`; native click opened Owned Inventory with `Phe ta · Trên ghế`. Native Escape dismissed the modal.
+
+A native pointer sequence `mouseDown(200,171) → mouseMove(400,400) → mouseUp(400,400)` deployed the same `u1` from `bench[0]` to `board[12]`. Persisted gameplay state then showed `board[12] = u1 ant_guard` and an empty bench. Native mouse hover and click at `(410,360)` on the deployed unit displayed `Kiến Hộ Vệ ★1` and opened Owned Inventory with `Phe ta · Trên sân`. Native Escape closed it; final DOM state had zero dialogs, no inventory and zero inventory canvases. **PASS** for native friendly bench selection, legitimate bench-to-board deployment, deployed-board selection and observed modal DOM cleanup.
+
+An earlier click at the drag destination `(400,400)` did not open inventory although the hover tooltip appeared; the successful pick at `(410,360)` demonstrates a valid hit target, not complete click coverage at every point under the visible label. Selection invalidation after unit removal, input-device coverage, long-run event/GPU lifecycle and full WBS-059 acceptance remain **UNVERIFIED**.
+
 
 ### Plan.pdf — sixteen requirement acceptance matrix
 
@@ -226,9 +234,9 @@ The statuses describe actual evidence; `PARTIAL` is not acceptance.
 | 09 | Shop/Library cards, statistics, gold and padding | PARTIAL | Shared cards and key interactions passed; full visual parity outstanding |
 | 10 | Tooltips vs `old_src` | UNVERIFIED | Legacy asset/behavior comparison outstanding |
 | 11 | Billboard HP/rage always visible | PARTIAL | Live 700×390 native-hover priority/cleanup and 12 battlefield labels inspected; Jaguar/Toad mesh projection and screenshot prove presence, but small HP/rage text, silhouette readability, physical-device presentation and signpost asset coverage remain incomplete |
-| 12 | Owned/Enemy Inventory Detail | PARTIAL | Native Three.js Owned selection, Equip/Unequip/Unequip All, duplicate guard, equipment persistence and Sell recovery passed; Enemy readonly and reactive HP/ATK/rage observed; friendly board/bench Owned Inventory mutation controls disabled during Combat (PASS for inspected cases). Full-slot/tier/affordability, Crafting combat locking, canonical bypass rejection, impact-sync and disposal remain outstanding |
+| 12 | Owned/Enemy Inventory Detail | PARTIAL | Native Three.js Owned bench/board selection, bench-to-board deployment, Equip/Unequip/Unequip All, duplicate guard, equipment persistence and Sell recovery passed; Enemy readonly and reactive HP/ATK/rage observed; friendly board/bench Owned Inventory mutation controls disabled during Combat (PASS for inspected cases). Native Escape removed modal and inventory canvases. Full-slot/tier/affordability, Crafting combat locking, canonical bypass rejection, impact-sync and comprehensive disposal remain outstanding |
 | 13 | Item/equipment legacy assets | UNVERIFIED | `old_src` asset comparison outstanding |
-| 14 | Friendly-unit hover tooltip beyond bench | PARTIAL | Native hover on friendly deployed `deer_song` displayed name, HP, attack/defense, range and rage; native click opened correct Owned Inventory. Other placements, input devices and tooltip lifecycle still outstanding |
+| 14 | Friendly-unit hover tooltip beyond bench | PARTIAL | Native hover/click on bench `u1 ant_guard`, deployment to board index 12, then hover/click on deployed `u1` opened correct Owned Inventory; deployed `deer_song` also displayed name, HP, attack/defense, range and rage. Other placements, input devices and tooltip lifecycle still outstanding |
 | 15 | External Emoji API | UNVERIFIED | Fallback and live coverage outstanding; do not expose API key |
 | 16 | Enhanced crafting modal | PARTIAL | Unlock, staging, rejected recipe, successful tear→Blue Charm transaction, single ingredient consumption, cleared staging, history and reload persistence passed. Final visual parity, input edges and accessibility outstanding |
 
