@@ -47,7 +47,7 @@
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Owned creature inspection: timber/parchment chrome is painted by the existing kit. */
-.modal-frame:has(.ui-inventory) { width: min(1600px, 100%); height: min(900px, 100%); }
+.modal-frame:has(.ui-inventory) { width: 100%; height: 100%; }
 .modal-body:has(.ui-inventory) { overflow: hidden; }
 .ui-inventory { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 6px; }
 .ui-inventory h2, .ui-inventory h3, .ui-inventory p { margin: 0; }
@@ -120,7 +120,7 @@
 .modal-frame { position: relative; display: flex; flex-direction: column; max-height: 100%; width: min(560px, 100%); min-width: 0; max-width: 100%; padding: 12px 20px 22px; outline: none; }
 .modal-sm { width: min(400px, 100%); }
 .modal-lg { width: min(900px, 100%); height: min(640px, 100%); }
-.modal-full { width: min(1680px, 100%); height: 100%; }
+.modal-full { width: 100%; height: 100%; }
 .modal-head { position: relative; flex: none; height: 52px; min-width: 0; margin: 0 0 10px; }
 .modal-body { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 10px 18px 16px 10px; line-height: 1.45; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .modal-close { position: absolute; z-index: 2; top: 16px; right: 14px; }
@@ -262,7 +262,7 @@
 .crafting-rank { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; flex: none; min-width: 126px; min-height: 66px; padding: 10px 18px; text-align: center; }
 .crafting-rank span { font-size: 10px; font-weight: 800; letter-spacing: 1px; }
 .crafting-rank strong { font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: 23px; line-height: 1; }
-.crafting-columns { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 12px; align-items: stretch; }
+.crafting-columns { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.1fr) minmax(0, .95fr); gap: 12px; align-items: stretch; }
 .crafting-bench { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 18px; min-width: 0; }
 .crafting-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-width: 0; }
 .crafting-section-heading > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -298,13 +298,13 @@
 .crafting-recipe-copy strong { font-size: 15px; line-height: 1.1; }
 .crafting-recipe-copy small { font-family: "Noto Sans", sans-serif; font-size: 12px; }
 .crafting-autofill { flex: none; min-width: 98px; height: 42px; }
-.crafting-result { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 10px 14px; }
-.crafting-result-icon { display: grid; place-items: center; width: 64px; height: 64px; padding: 8px; }
+.crafting-result { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(220px, 340px); align-items: center; gap: 14px; min-width: 0; padding: 12px 18px; }
+.crafting-result-icon { display: grid; place-items: center; width: 80px; height: 80px; padding: 8px; }
 .crafting-result-image { display: block; width: 100%; height: 100%; object-fit: contain; }
 .crafting-result-placeholder { font-size: 32px; }
 .crafting-result-info { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
 .crafting-result-info p { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.35; }
-.crafting-submit { grid-column: 1 / -1; width: 100%; height: 48px; }
+.crafting-submit { grid-column: auto; width: 100%; height: 64px; }
 .crafting-feedback { font-family: "Noto Sans", sans-serif; text-align: center; font-size: 12px; font-weight: 700; min-height: 18px; padding: 0 6px 5px; }
 .crafting-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 18px; text-align: center; }
 @media (max-width: 760px) {
@@ -325,6 +325,7 @@
   .crafting-items { max-height: 230px; }
   .crafting-inventory, .crafting-recipes { padding: 14px; }
   .crafting-result { grid-template-columns: 62px minmax(0, 1fr); gap: 10px; padding: 12px; }
+  .crafting-submit { grid-column: 1 / -1; }
   .crafting-result-icon { width: 62px; height: 62px; }
   .crafting-submit { grid-column: 1 / -1; height: 48px; }
 }
@@ -635,3 +636,29 @@
 .pl-action-label, .menu-utility-label { color: #fff8ec; }
 /* Crafting's hero/bench/result are dark oak; the parchment inventory/recipe panels keep ink. */
 .crafting-hero, .crafting-bench, .crafting-result { color: #fff8ec; }
+
+/* ---------- game-styled scrollbars ----------
+   Native white/blue scrollbars break the timber UI. Every scroll container inside the game uses
+   the same thin oak track with a gold thumb; modal bodies never scroll horizontally. */
+.ui-root * {
+  scrollbar-width: thin;
+  scrollbar-color: #c9a25f #2a1a10;
+}
+.ui-root *::-webkit-scrollbar { width: 10px; height: 10px; }
+.ui-root *::-webkit-scrollbar-track { background: #2a1a10; border-radius: 6px; }
+.ui-root *::-webkit-scrollbar-thumb {
+  background: #c9a25f;
+  border: 2px solid #2a1a10;
+  border-radius: 6px;
+}
+.ui-root *::-webkit-scrollbar-thumb:hover { background: #e6c987; }
+.ui-root *::-webkit-scrollbar-corner { background: #2a1a10; }
+.modal-body { overflow-x: hidden; }
+.modal-body :is(.ui-inventory-content, .crafting-items, .craft-bag, .tech-side, .history-list, .library-list) {
+  overflow-x: hidden;
+}
+/* Mobile tab strips scroll but keep the authored chrome clean (no visible track). */
+.tabs { scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.crafting-hero h2 { font-size: clamp(30px, 3vw, 46px); letter-spacing: .04em; text-transform: uppercase; }
+.crafting-subtitle { margin: 0; font-size: var(--ft-12); opacity: .92; }
