@@ -273,6 +273,12 @@ An independent Chromium gameplay run opened the Round-1 Enemy Detail from the ac
 
 **PARTIAL:** Native deployment did not confirm board placement: a pointer-drag attempt timed out after 70 seconds, followed by browser timeouts. This run did not observe combat-driven HP/DEF/shield/rage changes, status application/expiration, enemy death, inspector disappearance or automatic combat teardown; these are **UNVERIFIED in this run**. Source inspection of `mountReadonlyUnitInventory()`, `refreshEnemyDetail` and `endCombat()` suggests intended live refresh/close paths but is not runtime proof. Earlier distinct natural-combat observations in this document (rounds 2 and 5) remain valid for their explicitly observed HP/ATK/rage/status frames, not for impact synchronization, expiration or death teardown. The canonical Round-6 save was untouched.
 
+### Compact-viewport creature identity investigation — 2026-11-01
+
+The responsive 844×390 screenshot at `/tmp/forest-wbs059-responsive-844x390.png` shows a recognizable spotted upper creature and a lower nameplate for **Cừu Núi Húc**; the lower model remains visually ambiguous under the billboard. Canonical catalog data identifies that lower unit as `ram_charge` (`src/content/units.json`), but `src/units/registry.ts` registers bespoke rigs only for `jaguar_hunt` and `toad_poison`. Consequently, `createUnit("ram_charge", ...)` uses `pendingArt("ram_charge")`, which constructs a wooden signpost, **not a sheep mesh**. No billboard positioning change can make an unimplemented sheep rig recognizable. The screenshot alone does not prove there is no signpost occlusion; placement and readability of actual registered creature rigs remain a separate PARTIAL gate.
+
+The experimental sparse-group beam-solver change was reverted because its two proposed regression assertions also passed against the unmodified greedy implementation; both ineffective tests were discarded. `src/units/boardView.ts` and `tests/board-view-presentation.test.ts` were returned to the committed implementation. No creature art, geometry or layout modification is claimed from this investigation. Rig authoring belongs to the separate units-art backlog; WBS-059 creature-silhouette acceptance remains **PARTIAL**.
+
 ### Plan.pdf — sixteen requirement acceptance matrix
 
 The statuses describe actual evidence; `PARTIAL` is not acceptance.
