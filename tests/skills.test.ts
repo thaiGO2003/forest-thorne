@@ -91,4 +91,23 @@ describe("skill parser", () => {
     expect(materializeCombat([], [{ uid: "phoenix", baseId: "boss_storm_phoenix", star: 1, row: 2, col: 7 }])[0]!.rageMax).toBe(2);
     expect(materializeCombat([], [{ uid: "dragon", baseId: "boss_ember_dragon", star: 1, row: 2, col: 7 }])[0]!.rageMax).toBe(3);
   });
+
+  it("frog_alchemy escalates poison cloud targets, self-sustain and the 3★ ally elixir", () => {
+    expect(skillSpec("frog_alchemy", 1)).toMatchObject({
+      side: "enemy", area: "single", count: 3, selector: "random_unique",
+      damage: { base: 18, scale: 1, stat: "matk", type: "magic" },
+      dots: [{ kind: "poison", value: 12, turns: 2 }],
+      debuffs: [], heal: null, selfHealPctMaxHp: 0.08,
+    });
+    expect(skillSpec("frog_alchemy", 2)).toMatchObject({
+      count: 3, dots: [{ kind: "poison", value: 14, turns: 3 }],
+      debuffs: [{ stat: "mdef", value: 12, pct: false, turns: 2 }],
+      selfHealPctMaxHp: 0.1,
+    });
+    expect(skillSpec("frog_alchemy", 3)).toMatchObject({
+      count: 4, dots: [{ kind: "poison", value: 16, turns: 3 }],
+      debuffs: [{ stat: "mdef", value: 15, pct: false, turns: 2 }],
+      heal: { formula: null, pctMaxHp: 0.06 }, selfHealPctMaxHp: 0,
+    });
+  });
 });
