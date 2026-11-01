@@ -1,6 +1,6 @@
 // Recipe relationship helpers shared by the workbench, item info and crafting library.
 // Pure data: no DOM, no gameplay mutation.
-import { BASE_MATERIALS, RECIPES, type Recipe } from "./craft";
+import { BASE_MATERIALS, RECIPES, type Recipe } from "./itemRegistry";
 
 export interface IngredientCount {
   id: string;
@@ -14,7 +14,7 @@ export interface RecipeNode {
   children: RecipeNode[];
 }
 
-export const outputIdForRecipe = (recipe: Recipe): string => `eq_${recipe.id}`;
+export const outputIdForRecipe = (recipe: Recipe): string => recipe.outputId;
 export const isBaseMaterial = (id: string): boolean => (BASE_MATERIALS as readonly string[]).includes(id);
 
 export function recipeForOutput(outputId: string): Recipe | null {

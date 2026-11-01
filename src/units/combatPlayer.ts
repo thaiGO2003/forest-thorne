@@ -1,10 +1,12 @@
 // Replay the canonical event stream; combatStaging/gameSpeed own basic movement timing.
 import * as THREE from "three";
 import { getUnit } from "../content/catalog";
-import type {
-  CombatEvent,
-  CombatInspectionFrame,
-  CombatUnitSnapshot
+import {
+  SPORE_BURST_POINTS,
+  type CombatEvent,
+  type CombatInspectionFrame,
+  type CombatUnitSnapshot,
+  type SporeCell
 } from "../core/combat";
 import {
   assassinBackContactUsesRing,
@@ -31,6 +33,10 @@ export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; a
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
 const PROJECTILE_COLOR = 0xffd36a;
+/** Billboard badge while a delayed curse holds debuffs (ICONS.lock); negative group, it is a curse. */
+const CURSE_LOCK_STATUS: BillboardStatus = { key: "lock", positive: false };
+/** Sương Độc presentation: purple pool landing, lime detonation (matches the concept VFX). */
+const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -39,7 +45,25 @@ export function playCombat(o: {
   inspectionFrames?: CombatInspectionFrame[];
 }): CombatPlayer {
   const { board, fx } = o;
-  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[] }]));
+  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], locks: 0, spores: 0 }]));
+  // Active Sương Độc pools per owner (cell keys), mirrored onto the board as hazard tiles.
+  const hazards = new Map<string, Map<number, SporeCell>>();
+  const hazardKey = (cell: SporeCell) => cell.row * 100 + cell.col;
+  const syncHazards = () => {
+    const cells = new Map<number, SporeCell>();
+    for (const owned of hazards.values()) for (const [k, cell] of owned) cells.set(k, cell);
+    board.setHazardCells?.([...cells.values()]);
+  };
+  const removeHazards = (owner: string, cells: readonly SporeCell[]) => {
+    const owned = hazards.get(owner);
+    if (!owned) return;
+    for (const cell of cells) owned.delete(hazardKey(cell));
+    syncHazards();
+  };
+  const cellPoint = (cell: SporeCell) => {
+    const c = board.cellCenter(cell.col, cell.row);
+    return new THREE.Vector3(c.x, TILE_TOP + 0.25, c.z);
+  };
   const log: string[] = [];
   const timers: { remaining: number; run: () => void }[] = [];
   const moves: { root: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number }[] = [];
@@ -70,7 +94,11 @@ export function playCombat(o: {
   };
   const push = (uid: string) => {
     const unit = units.get(uid);
-    if (unit) board.setLive(uid, { hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax, statuses: unit.statuses });
+    if (unit) board.setLive(uid, {
+      hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax,
+      statuses: unit.locks > 0 ? [...unit.statuses, CURSE_LOCK_STATUS] : unit.statuses,
+      counter: unit.spores > 0 ? { icon: ICONS.poison, value: unit.spores, max: SPORE_BURST_POINTS } : undefined,
+    });
   };
   const name = (uid: string) => { const unit = units.get(uid); return unit ? getUnit(unit.baseId).nameVi : uid; };
   const tick = () => {
@@ -339,6 +367,52 @@ export function playCombat(o: {
       }
       case "skip":
         fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? ICONS.sleep, "status");
+        break;
+      case "curse": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.locks = event.locked; push(event.dst); }
+        if (!event.released.length) {
+          if (event.locked > 0) fx.float(position(event.dst), `${ICONS.lock}${event.locked}`, "status");
+        } else {
+          const icons = event.released.map((key) => ICONS[key as keyof typeof ICONS] ?? ICONS.question).join("");
+          fx.float(position(event.dst), `${ICONS.unlock}${icons}`, "status");
+        }
+        break;
+      }
+      case "sporeThrow": {
+        // Pools appear on the caster's skill impact, like skill damage; immediately if no window is open.
+        const land = () => {
+          const owned = hazards.get(event.src) ?? new Map<number, SporeCell>();
+          hazards.set(event.src, owned);
+          for (const cell of event.cells) {
+            owned.set(hazardKey(cell), cell);
+            fx.burst(cellPoint(cell), SPORE_POOL_COLOR);
+            board.flashCell?.(cell.col, cell.row, "splash");
+          }
+          syncHazards();
+        };
+        const window = skillImpact?.src === event.src && !skillImpact.fired ? skillImpact : null;
+        if (window) window.pending.push(exactImpact(land));
+        else land();
+        break;
+      }
+      case "sporePoint": {
+        const owner = units.get(event.owner);
+        if (owner) { owner.spores = event.points; push(event.owner); }
+        board.flashCell?.(event.col, event.row, "direct");
+        fx.float(position(event.dst), `${ICONS.poison}+1`, "status");
+        break;
+      }
+      case "sporeBurst": {
+        const owner = units.get(event.owner);
+        if (owner) { owner.spores = 0; push(event.owner); }
+        for (const cell of event.cells) fx.burst(cellPoint(cell), SPORE_BURST_COLOR);
+        fx.float(position(event.owner), `${ICONS.poison}×${event.points}`, "status");
+        removeHazards(event.owner, event.cells);
+        break;
+      }
+      case "sporeExpire":
+        removeHazards(event.owner, event.cells);
         break;
     }
     return scaleCombatPresentationMs(100, speedLevel);

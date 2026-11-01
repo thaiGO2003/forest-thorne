@@ -1,18 +1,10 @@
 // Crafting (spec A7). Staging is non-destructive: `staged` only references bag items; craft() is atomic.
-import { ITEM_RECIPES } from "../content/items";
+import { RECIPES, type Recipe, getRecipe } from "./itemRegistry";
 
-export interface Recipe {
-  id: string;
-  /** Footprint side: 1, 2 or 3. */
-  size: 1 | 2 | 3;
-  /** Row-major size×size pattern; null = must be empty. */
-  pattern: (string | null)[];
+/** A recipe ingredient is usable only when an authored recipe references it. */
+export function isCraftIngredient(id: string): boolean {
+  return RECIPES.some((recipe) => recipe.pattern.includes(id));
 }
-
-export const BASE_MATERIALS = ["bark", "feather", "belt", "claw", "tear", "crystal"] as const;
-
-/** T1..T3 authored recipes ported from the classic homeserver item DB (scripts/port-old-items.mjs). */
-export const RECIPES: Recipe[] = ITEM_RECIPES;
 
 /** Active square per craftTableLevel: [rowOffset, colOffset, side]. */
 const ACTIVE: Record<number, [number, number, number]> = { 1: [1, 1, 1], 2: [0, 0, 2], 3: [0, 0, 3] };
@@ -70,14 +62,13 @@ export function stage(staged: (string | null)[], index: number, item: string | n
 }
 
 /** A7 atomic commit. Returns crafted id, or null with state unchanged. Caller clears staged on success. */
-export function craft(s: CraftState, staged: (string | null)[], recipes = RECIPES): string | null {
-  const rec = matchRecipe(staged, s.craftTableLevel, recipes);
-  if (!rec || !bagCovers(s.itemBag, staged)) return null;
+export function craft(s: CraftState, staged: (string | null)[]): string | null {
+  const rec = matchRecipe(staged, s.craftTableLevel);
+  if (!rec || getRecipe(rec.id) !== rec || !bagCovers(s.itemBag, staged)) return null;
   const bag = s.itemBag.slice();
   for (const x of staged) if (x) bag.splice(bag.indexOf(x), 1);
-  const out = `eq_${rec.id}`;
-  bag.push(out);
+  bag.push(rec.outputId);
   s.itemBag = bag;
   s.craftHistory.push(rec.id);
-  return out;
+  return rec.outputId;
 }

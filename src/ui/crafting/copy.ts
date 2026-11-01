@@ -1,6 +1,5 @@
 // Shared copy/tooltip helpers for the crafting workbench, item sheet and recipe library.
-import { BASE_MATERIALS, type Recipe } from "../../core/craft";
-import { getEquipment } from "../../core/equipment";
+import { BASE_MATERIALS, getEquipment, type Recipe } from "../../core/itemRegistry";
 import {
   equipmentBonusCopy, itemDisplayName, itemIconChar,
 } from "../../core/itemPresentation";
@@ -29,10 +28,12 @@ export const recipeMissing = (recipe: Recipe, bag: Readonly<Record<string, numbe
 export const recipeCraftable = (recipe: Recipe, bag: Readonly<Record<string, number>>): boolean =>
   recipeMissing(recipe, bag).length === 0;
 
-export const specialLogicNote = (id: string): string | null =>
-  getEquipment(id)?.logic && Object.keys(getEquipment(id)!.logic!).length
+export const specialLogicNote = (id: string): string | null => {
+  const logic = getEquipment(id)?.logic;
+  return logic && Object.keys(logic).length
     ? "Hiệu ứng kích hoạt đặc biệt của bản classic chưa được mô phỏng trong bản dựng này."
     : null;
+};
 
 export function itemTooltipContent(itemId: string): TooltipContent {
   const equipment = getEquipment(itemId);

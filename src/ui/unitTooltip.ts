@@ -5,7 +5,8 @@
 import type { UnitDef } from "../content/catalog";
 import { unitEvolutionName } from "../content/unitNames";
 import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
-import { equipmentSaleValue, getEquipment } from "../core/equipment";
+import { equipmentSaleValue } from "../core/equipment";
+import { getEquipment } from "../core/itemRegistry";
 import { sellValue } from "../core/economy";
 import { hasMessage, t, type MsgKey } from "../core/i18n";
 import { equipmentBonusCopy, itemDisplayName } from "../core/itemPresentation";

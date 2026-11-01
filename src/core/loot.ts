@@ -1,6 +1,6 @@
 // Loot generation (A40) + combat result application (A18). Pure; RNG injected.
 import { getUnit, type UnitDef } from "../content/catalog";
-import { EQUIPMENT, type EquipmentDef } from "./equipment";
+import { EQUIPMENT, type EquipmentDef, getItem, isBaseMaterial } from "./itemRegistry";
 
 export type Rng = () => number;
 
@@ -20,7 +20,7 @@ export const EQUIP_DROP_CHANCE = 0.05;
 
 export function materialCandidates(u: UnitDef): string[] {
   const out: string[] = [];
-  const add = (m: string) => { if (!out.includes(m)) out.push(m); };
+  const add = (m: string) => { if (isBaseMaterial(m) && !out.includes(m)) out.push(m); };
   for (const [m, re] of SPECIES_MATERIAL) if (re.test(u.species)) add(m);
   if (u.element === "TIDE") add("tear");
   if (u.element === "SPIRIT" || u.element === "NIGHT" || u.role === "MAGE") add("crystal");
@@ -29,6 +29,12 @@ export function materialCandidates(u: UnitDef): string[] {
 }
 
 export interface Drop { item: string; source: string; rule: "material" | "equipment" }
+
+/** A drop can enter inventory only when its registered identity matches the declared loot kind. */
+export function isRegisteredDrop(drop: Drop): boolean {
+  const item = getItem(drop.item);
+  return item !== null && item.kind === drop.rule;
+}
 
 export function rollMaterialLoot(baseId: string, rng: Rng): Drop[] {
   const u = getUnit(baseId);
@@ -111,8 +117,16 @@ export function applyOutcome(t: RewardTarget, o: CombatOutcome, capacity: number
     t.loseStreak++; t.winStreak = 0;
   }
   t.gold += gold;
+  const accepted: Drop[] = [];
+  const rejected: Drop[] = [];
   const room = Math.max(0, capacity - t.itemBag.length);
-  const accepted = o.drops.slice(0, room);
-  for (const d of accepted) t.itemBag.push(d.item);
-  return { gold, damage, accepted, rejected: o.drops.slice(room) };
+  for (const drop of o.drops) {
+    if (!isRegisteredDrop(drop) || accepted.length >= room) {
+      rejected.push(drop);
+    } else {
+      accepted.push(drop);
+      t.itemBag.push(drop.item);
+    }
+  }
+  return { gold, damage, accepted, rejected };
 }

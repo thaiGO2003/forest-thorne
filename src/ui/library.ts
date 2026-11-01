@@ -2,9 +2,8 @@
 // 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
-import { BASE_MATERIALS } from "../core/craft";
 import { shopTierOdds } from "../core/economy";
-import { EQUIPMENT } from "../core/equipment";
+import { BASE_MATERIALS, EQUIPMENT } from "../core/itemRegistry";
 import { AUGMENTS, type AugGroup } from "../core/augments";
 import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";

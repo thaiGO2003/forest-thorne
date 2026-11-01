@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
-import { equipmentCategory, getEquipment, normalizeEquipment, slotCapForUnit } from "../src/core/equipment";
+import { equipmentCategory, normalizeEquipment, slotCapForUnit } from "../src/core/equipment";
+import { getEquipment } from "../src/core/itemRegistry";
 import { materializeCombat } from "../src/core/combat";
 import { normalizeVariantTraits, rollVariantTrait, sumVariantBonuses, VARIANT_TRAITS, VARIANTS_BY_ROLE } from "../src/core/variants";
 
@@ -41,11 +42,12 @@ describe("variant traits and equipment contracts", () => {
 
   it("caps equipment slots by star: 1★ one, 2★ two, 3★ three", () => {
     const unit = NORMAL_UNITS[0]!;
-    expect(slotCapForUnit(unit, 1)).toBe(1);
-    expect(slotCapForUnit(unit, 2)).toBe(2);
-    expect(slotCapForUnit(unit, 3)).toBe(3);
-    expect(slotCapForUnit(unit, 0)).toBe(1);
-    expect(slotCapForUnit(unit, 9)).toBe(3);
+    const rageCaps = unit.skill.rageCost;
+    expect(slotCapForUnit(unit, 1)).toBe(rageCaps[0]);
+    expect(slotCapForUnit(unit, 2)).toBe(rageCaps[1]);
+    expect(slotCapForUnit(unit, 3)).toBe(rageCaps[2]);
+    expect(slotCapForUnit(unit, 0)).toBe(rageCaps[0]);
+    expect(slotCapForUnit(unit, 9)).toBe(rageCaps[2]);
   });
 
   it("equipment normalization rejects invalid, duplicate and over-tier ids without guessing bonuses", () => {

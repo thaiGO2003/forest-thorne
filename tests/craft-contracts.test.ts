@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activeIndices, craft, matchRecipe, stage, type CraftState } from "../src/core/craft";
-import { getEquipment } from "../src/core/equipment";
+import { getEquipment } from "../src/core/itemRegistry";
 
 const blank = (): (string | null)[] => Array(9).fill(null);
 const makeState = (over: Partial<CraftState> = {}): CraftState => ({

@@ -64,7 +64,7 @@ export interface BoardView {
   cellCenter(col: number, row: number): { x: number; z: number };
   forEach(fn: (uid: string, v: UnitVisual, kind: Slot["kind"]) => void): void;
   /** Combat pushes live HP/rage/statuses; also drives star multiplicity (A90.3). */
-  setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses">>): void;
+  setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses" | "counter">>): void;
   setCombat(v: boolean): void;
   startLowCortisol(): void;
   stopLowCortisol(): void;
@@ -84,6 +84,8 @@ export interface BoardView {
   landUnit?(uid: string): void;
   /** Persistent Planning hover projection; null clears it without disturbing transient combat flashes. */
   setTargetPreview?(preview: CombatTargetPreview | null): void;
+  /** Combat ground hazards (Sương Độc pools): replaces the whole set; drawn under flashes and previews. */
+  setHazardCells?(cells: ReadonlyArray<{ col: number; row: number }>): void;
   dispose(): void;
 }
 
@@ -242,6 +244,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   };
   const tilePriority = { scan: 1, splash: 2, direct: 3 };
   type TileKind = keyof typeof tileMaterials;
+  // Lowest layer: persistent combat hazards (Sương Độc poison pools), purple like the pool VFX.
+  const hazardMaterial = new THREE.MeshBasicMaterial({ color: 0x9b40d6, transparent: true, opacity: .42, side: THREE.DoubleSide, depthWrite: false });
+  const hazardCells = new Set<number>();
   const tileEffects = new Map<number, { mesh: THREE.Mesh; time: number; kind: TileKind | null }>();
   interface PreviewCell { material: THREE.MeshBasicMaterial; priority: number }
   const previewCells = new Map<number, PreviewCell>();
@@ -481,6 +486,12 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     for (const sprite of previewIcons) sprite.visible = false;
     arrowTargets = [];
     if (activePreview) {
+      // Cell-based skill area first (secondary priority), so unit tags drawn below can override it.
+      for (const cell of activePreview.areaCells ?? []) {
+        if (cell.row < 0 || cell.row >= BOARD || cell.col < 0 || cell.col >= BOARD * 2) continue;
+        const { key } = ensureTileEffect(cell.col, cell.row);
+        if (!previewCells.has(key)) previewCells.set(key, { material: previewMaterial(cell.effect, false), priority: 1 });
+      }
       const tags = previewTags(activePreview);
       for (const tag of tags) {
         const s = slots.get(tag.uid);
@@ -539,9 +550,20 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     } else if (preview) {
       effect.mesh.visible = true;
       effect.mesh.material = preview.material;
+    } else if (hazardCells.has(key)) {
+      effect.mesh.visible = true;
+      effect.mesh.material = hazardMaterial;
     } else {
       effect.mesh.visible = false;
     }
+  };
+  const setHazardCells = (cells: ReadonlyArray<{ col: number; row: number }>) => {
+    hazardCells.clear();
+    for (const { col, row } of cells) {
+      if (row < 0 || row >= BOARD || col < 0 || col >= BOARD * 2) continue;
+      hazardCells.add(ensureTileEffect(col, row).key);
+    }
+    for (const [key, effect] of tileEffects) renderTileEffect(key, effect);
   };
   const ensureTileEffect = (col: number, row: number) => {
     const key = row * BOARD * 2 + col;
@@ -819,6 +841,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       dropLands.set(uid, 0);
     },
     setTargetPreview,
+    setHazardCells,
     setLive(uid, live) {
       const s = slots.get(uid);
       if (!s) return;
@@ -858,6 +881,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         hovered = null;
         for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
         tileEffects.clear();
+        hazardCells.clear();
         skillUid = null; skillTime = 0; previewSkillUid = null; previewCells.clear(); rainbow.visible = false; rainbowFill.visible = false;
         turnUid = null; actorUid = null; borderUid = null; borderKind = null; rainbowUid = null;
         return;
@@ -872,6 +896,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       off();
       offEmojiReady();
       rainbow.removeFromParent(); rainbow.geometry.dispose(); rainbowMaterial.dispose();
+      hazardMaterial.dispose(); hazardCells.clear();
       rainbowFill.removeFromParent(); rainbowFill.geometry.dispose(); rainbowFillMaterial.dispose();
       turnFill.removeFromParent(); turnFill.geometry.dispose(); turnFillMaterial.dispose();
       turnBorder.removeFromParent(); turnBorder.geometry.dispose(); turnBorderMaterial.dispose();

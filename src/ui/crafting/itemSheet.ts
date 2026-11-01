@@ -1,6 +1,5 @@
 // Item sheet shown from the crafting workbench. Read-only, keeps the workbench staged items intact.
-import { BASE_MATERIALS } from "../../core/craft";
-import { getEquipment } from "../../core/equipment";
+import { BASE_MATERIALS, getEquipment } from "../../core/itemRegistry";
 import { itemDisplayName } from "../../core/itemPresentation";
 import { baseIngredients, recipeForOutput, recipeIngredients, recipesUsing } from "../../core/recipeGraph";
 import { h, kitButton, panelEl } from "../kit";

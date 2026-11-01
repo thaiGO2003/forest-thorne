@@ -287,57 +287,57 @@
  {
   "id": "bat_blood",
   "species": "doi",
-  "nameVi": "Dơi Huyết",
+  "nameVi": "Dơi Tình Yêu",
   "tier": 3,
-  "role": "ASSASSIN",
+  "role": "MAGE",
   "faction": "BEAST",
   "element": "NIGHT",
   "boss": false,
   "stats": {
-   "hp": 272,
-   "atk": 84,
-   "def": 16,
-   "matk": 20,
-   "mdef": 15,
-   "range": 1,
-   "rageMax": 4,
-   "crit": 0.25,
+   "hp": 300,
+   "atk": 22,
+   "def": 11,
+   "matk": 90,
+   "mdef": 24,
+   "range": 4,
+   "rageMax": 5,
+   "crit": 0.1,
    "critDmg": 1.5,
-   "evade": 0.15,
+   "evade": 0.1,
    "accuracy": 0.95
   },
-  "pitchVi": "Sát thủ tự hồi cắn mục tiêu tuyến sau máu thấp và snowball khi kết liễu.",
+  "pitchVi": "Pháp sư bóng đêm bắn tia tim vào mục tiêu yếu máu rồi nổ ma lực vùng 3x3 quanh nó.",
   "basic": {
-   "delivery": "melee",
-   "damageType": "physical",
-   "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
+   "delivery": "projectile",
+   "damageType": "magic",
+   "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, bắn trái tim vào mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Cắn Mạch Hút Máu",
-   "family": "single_burst_lifesteal",
+   "nameVi": "Ma Lực Tình Yêu",
+   "family": "heart_burst_square",
    "rageCost": [
-    2,
     3,
-    4
+    4,
+    5
    ],
-   "targetVi": "kẻ địch % máu thấp nhất",
-   "shapeVi": "1 ô điểm",
-   "selectionVi": "địch % máu thấp nhất",
-   "countVi": "1",
-   "durationVi": "tức thì",
+   "targetVi": "kẻ địch % máu thấp nhất và vùng 3x3 quanh nó",
+   "shapeVi": "vùng 3x3 quanh mục tiêu",
+   "selectionVi": "địch % máu thấp nhất làm tâm nổ",
+   "countVi": "mọi kẻ địch trong vùng 3x3",
+   "durationVi": "tức thì; giảm MDEF 2 lượt từ 2★",
    "starDetailVi": [
-    "Lao vào kẻ địch tuyến sau có % máu thấp nhất, gây (30 + 115% ATK) sát thương vật lý và hút 40% sát thương thành máu.",
-    "Lao vào kẻ địch tuyến sau có % máu thấp nhất, gây (30 + 115% ATK) sát thương vật lý và hút 40% sát thương thành máu. Nếu mục tiêu đang chịu hiệu ứng bất lợi, hút máu tăng lên 60%.",
-    "Lao vào kẻ địch tuyến sau có % máu thấp nhất, gây (30 + 115% ATK) sát thương vật lý và hút 40% sát thương thành máu. Nếu mục tiêu đang chịu hiệu ứng bất lợi, hút máu tăng lên 60%. Kết liễu mục tiêu hồi 1 nộ."
+    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng.",
+    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng. Kẻ địch trúng đòn bị giảm 15 MDEF trong 2 lượt.",
+    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng. Kẻ địch trúng đòn bị giảm 15 MDEF trong 2 lượt. Tự hồi 10% HP tối đa."
    ]
   },
   "skin": {
    "id": "nightPulse",
    "unlock": "bestRound_16",
    "stagesVi": [
-    "Mạch Đêm",
-    "Huyết Mạch",
-    "Huyết Tộc Vương"
+    "Nhịp Đêm",
+    "Tim Ma Lực",
+    "Nữ Vương Tình Yêu"
    ]
   }
  },
@@ -4437,6 +4437,63 @@
   }
  },
  {
+  "id": "rabbit_blood",
+  "species": "tho",
+  "nameVi": "Huyết Thố",
+  "tier": 2,
+  "role": "FIGHTER",
+  "faction": "BEAST",
+  "element": "NIGHT",
+  "boss": false,
+  "stats": {
+   "hp": 320,
+   "atk": 72,
+   "def": 18,
+   "matk": 15,
+   "mdef": 15,
+   "range": 1,
+   "rageMax": 3,
+   "crit": 0.05,
+   "critDmg": 1.5,
+   "evade": 0.05,
+   "accuracy": 0.95
+  },
+  "pitchVi": "Đấu sĩ bộc phát: hy sinh thế thủ đổi lấy sát thương, hút máu bằng đòn đánh và trì hoãn lời nguyền.",
+  "basic": {
+   "delivery": "melee",
+   "damageType": "physical",
+   "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
+  },
+  "skill": {
+   "nameVi": "Huyết Nộ Bộc Phá",
+   "family": "blood_moon_frenzy",
+   "rageCost": [
+    2,
+    3,
+    4
+   ],
+   "targetVi": "mục tiêu đánh thường hiện tại + bản thân",
+   "shapeVi": "1 mục tiêu trước mặt; cuồng nộ trên bản thân",
+   "selectionVi": "Bùng nổ vào mục tiêu đánh thường hiện tại, rồi tự cường hóa.",
+   "countVi": "1 mục tiêu",
+   "durationVi": "cuồng nộ 2 lượt (3 lượt ở 3★)",
+   "starDetailVi": [
+    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 60% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.",
+    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 80% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.",
+    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 3 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 100% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết."
+   ]
+  },
+  "skin": {
+   "id": "bloodMoon",
+   "unlock": "locked",
+   "stagesVi": [
+    "Thỏ Đỏ",
+    "Huyết Thố",
+    "Huyết Nguyệt Vương"
+   ]
+  }
+ },
+ {
   "id": "ram_charge",
   "species": "cuu",
   "nameVi": "Cừu Núi Húc",
@@ -5655,29 +5712,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Dồn độc cộng tầng lên một mục tiêu để càng lúc càng đau.",
+  "pitchVi": "Rải bãi độc khắp nửa sân địch, gom điểm độc rồi bùng nổ hút máu.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Nhổ Độc",
-   "family": "toad_poison_spit",
+   "nameVi": "Sương Độc",
+   "family": "toad_spore_mist",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "1 kẻ địch bị nhắm",
-   "shapeVi": "1 ô khóa mục tiêu",
-   "selectionVi": "Khóa 1 kẻ địch trong tầm rồi dồn độc lặp lại lên đúng mục tiêu đó.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "độc cộng dồn 2 lượt, tối đa 5 lớp",
+   "targetVi": "3 ô ngẫu nhiên ở nửa sân địch",
+   "shapeVi": "3 bãi độc, mỗi bãi 1 ô",
+   "selectionVi": "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch, không cần ô đó có thú.",
+   "countVi": "3 bãi độc mỗi lần ném",
+   "durationVi": "mỗi bãi tồn tại 2 vòng; bùng nổ khi đủ 5 điểm độc",
    "starDetailVi": [
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (15 + 0.60 x MATK) sát thương phép. Mỗi lần trúng cộng thêm 12 độc mỗi lượt trong 2 lượt lên mục tiêu, tối đa 5 lớp.",
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (16 + 0.63 x MATK) sát thương phép. Nếu mục tiêu đã có từ 3 lớp độc, đòn này gây thêm 30% sát thương và kéo dài độc thêm 1 lượt. Mỗi lần trúng cộng thêm 15 độc mỗi lượt trong 2 lượt lên mục tiêu, tối đa 5 lớp.",
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (17 + 0.66 x MATK) sát thương phép. Nếu mục tiêu có 5 lớp độc, độc bùng nổ gây thêm 50% sát thương phép và lan 1 lớp độc sang kẻ địch gần nhất. Mỗi lần trúng cộng thêm 18 độc mỗi lượt trong 3 lượt lên mục tiêu, tối đa 5 lớp."
+    "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch (ô không cần có thú), mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, mỗi kẻ địch đứng trên bãi cho Cóc Độc 1 điểm độc. Cuối vòng, khi đủ 5 điểm độc: bùng nổ, mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch đã tạo ra điểm đó, Cóc Độc hồi máu bằng 50% sát thương HP thực tế; các bãi đã bùng nổ biến mất.",
+    "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch (ô không cần có thú), mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, mỗi kẻ địch đứng trên bãi cho Cóc Độc 1 điểm độc. Cuối vòng, khi đủ 5 điểm độc: bùng nổ, mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch đã tạo ra điểm đó, Cóc Độc hồi máu bằng 50% sát thương HP thực tế; các bãi đã bùng nổ biến mất. Mỗi lần ném có thêm 20% khả năng ưu tiên rơi vào ô đang có thú.",
+    "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch (ô không cần có thú), mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, mỗi kẻ địch đứng trên bãi cho Cóc Độc 1 điểm độc. Cuối vòng, khi đủ 5 điểm độc: bùng nổ, mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch đã tạo ra điểm đó, Cóc Độc hồi máu bằng 50% sát thương HP thực tế; các bãi đã bùng nổ biến mất. Mỗi lần ném có thêm 40% khả năng ưu tiên rơi vào ô đang có thú."
    ]
   },
   "skin": {

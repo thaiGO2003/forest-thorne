@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASE_MATERIALS, RECIPES } from "../src/core/craft";
+import { BASE_MATERIALS, RECIPES } from "../src/core/itemRegistry";
 import {
   baseIngredients, isBaseMaterial, outputIdForRecipe, recipeForOutput, recipeIngredients, recipeTree, recipesUsing,
 } from "../src/core/recipeGraph";

@@ -7,12 +7,12 @@ Your task is to rebuild the visual/presentation experience of **Bá Chủ Khu R�
 The visual implementation may be radically redesigned. The functional contract may not be silently reduced.
 
 The intended result is a production-quality browser auto-battler with a cohesive 3D voxel forest-fantasy identity, strong tactical readability, expressive animal characters, asset-driven medieval UI, responsive desktop/mobile composition, and clean technical ownership.
-> **Bố cục file plan (18/10/2026):** file này đặt phẳng tại `.omp/plans/pending/docs.spec.forest-throne-rebuild.md`, tên file = tên nhánh git `docs/spec/forest-throne-rebuild` với dấu `/` thay bằng dấu `.` (3 phần `động từ.tiêu đề nhánh.nội dung nhánh.md`). Nội dung thân giữ nguyên văn, đóng vai **Nội dung công việc — tham chiếu chi tiết** theo khung bố cục bên dưới.
+> **Bố cục file plan (18/10/2026; đường dẫn cập nhật 01/11/2026):** file này đặt phẳng tại `.agents/plans/pending/docs.spec.forest-throne-rebuild.md`, tên file = tên nhánh git `docs/spec/forest-throne-rebuild` với dấu `/` thay bằng dấu `.` (3 phần `động từ.tiêu đề nhánh.nội dung nhánh.md`). Nội dung thân giữ nguyên văn, đóng vai **Nội dung công việc — tham chiếu chi tiết** theo khung bố cục bên dưới.
 >
 > - **Nguồn / ngày lập:** mega prompt V3; tổ chức lại thành file plan thống nhất bố cục ngày 18/10/2026 (thân tài liệu giữ nguyên văn).
 > - **Trạng thái:** hợp đồng sản phẩm/kỹ thuật tham chiếu, không phải checklist thực thi trực tiếp; triển khai qua các file plan riêng, mỗi file là một nhánh.
 > - **Nhánh đích:** tên file = tên nhánh — `docs/spec/forest-thorne-rebuild`.
-> - **Plan thực thi liên quan:** `.omp/plans/pending/feat.ui-ux.gameplay.md` (kế hoạch UI/UX, thư viện, thú, âm thanh, đồ họa, giao tranh).
+> - **Plan thực thi liên quan:** `.agents/plans/pending/feat.ui-ux.gameplay.md` (kế hoạch UI/UX, thư viện, thú, âm thanh, đồ họa, giao tranh).
 >
 > ## Mục tiêu và phạm vi
 >
@@ -28,7 +28,7 @@ The intended result is a production-quality browser auto-battler with a cohesive
 >
 > ## Nội dung công việc (tham chiếu chi tiết)
 >
-> Toàn bộ phần thân từ `# 1. PRODUCT IDENTITY` đến `# 57. FINAL INSTRUCTION TO OPUS 5.5` dưới đây giữ nguyên văn và là nội dung hợp đồng chi tiết. Thứ tự thực hiện và phụ thuộc của từng gói công việc được định nghĩa trong các file plan thực thi riêng (mỗi file = một nhánh) dưới `.omp/plans/pending/`/`done/`.
+> Toàn bộ phần thân từ `# 1. PRODUCT IDENTITY` đến `# 57. FINAL INSTRUCTION TO OPUS 5.5` dưới đây giữ nguyên văn và là nội dung hợp đồng chi tiết. Thứ tự thực hiện và phụ thuộc của từng gói công việc được định nghĩa trong các file plan thực thi riêng (mỗi file = một nhánh) dưới `.agents/plans/pending/` hoặc `.agents/plans/done/`.
 
 ---
 
@@ -3161,9 +3161,9 @@ Star presentation and star mechanics are separate concerns. A skin may provide i
 
 ## A42. Mandatory roster coverage
 
-The active normal-unit content set currently contains **121 unit ids**. Treat this list as a rebuild coverage gate: every id must resolve through catalog → Planning card → Shop/AI eligibility where applicable → Library detail → combat-unit construction → rig/animation presentation.
+The active normal-unit content set currently contains **122 unit ids**. Treat this list as a rebuild coverage gate: every id must resolve through catalog → Planning card → Shop/AI eligibility where applicable → Library detail → combat-unit construction → rig/animation presentation.
 
-`albatross_wind, angel_guardian, ant_guard, armadillo_roll, badger_stone, bat_blood, bear_ancient, beetle_drill, beetle_mystic, bison_stampede, buffalo_mist, bug_plague, butterfly_mirror, cat_goldbow, chameleon_stealth, chimera_flame, cobra_venom, condor_sky, crab_shell, crane_blessing, crocodile_bite, crow_storm, deer_song, dove_peace, dragon_breath, dragon_earth, dryad_tree, eagle_marksman, elephant_guard, fairy_forest, falcon_dive, ferret_shadow, firefly_heal, firefly_light, flamingo_shot, fox_flame, frog_alchemy, garuda_divine, golem_stone, gorilla_smash, hawk_hunter, heron_pierce, hippo_maul, horse_charge, hydra_swamp, hyena_pack, ice_mage, jaguar_hunt, jellyfish_shock, kangaroo_kick, kirin_thunder, komodo_bite, kraken_deep, kraken_void, lich_undead, lion_general, lizard_elder, lynx_echo, mammoth_ancient, mantis_blade, mink_silent, monkey_spear, mosquito_toxic, moth_dust, newt_fire, nymph_water, octopus_mind, oracle_wisdom, otter_river, owl_nightshot, ox_mountain, pangolin_plate, panther_void, peacock_dazzle, pelican_bomb, phoenix_arrow, phoenix_rebirth, qilin_breeze, ram_charge, raven_death, reaper_void, rhino_quake, roc_legend, salamander_flame, scorpion_king, scorpion_shadow, seraphim_light, shark_frenzy, snail_fortress, spider_venom, spore_mage, sprite_wind, squid_ink, stork_sniper, storm_mage, swan_grace, thunderbird_storm, tiger_fang, titan_earth, toad_poison, toucan_snipe, trex_bite, triceratops_charge, turtle_mire, unicorn_light, viper_strike, vulture_scavunge, walrus_ice, wasp_arcane, wasp_assassin, wasp_sting, weasel_quick, whale_song, wisp_light, wolf_alpha, wolverine_rage, woodpecker_drill, worm_ice, worm_queen, wraith_shadow, yak_highland`.
+`albatross_wind, angel_guardian, ant_guard, armadillo_roll, badger_stone, bat_blood, bear_ancient, beetle_drill, beetle_mystic, bison_stampede, buffalo_mist, bug_plague, butterfly_mirror, cat_goldbow, chameleon_stealth, chimera_flame, cobra_venom, condor_sky, crab_shell, crane_blessing, crocodile_bite, crow_storm, deer_song, dove_peace, dragon_breath, dragon_earth, dryad_tree, eagle_marksman, elephant_guard, fairy_forest, falcon_dive, ferret_shadow, firefly_heal, firefly_light, flamingo_shot, fox_flame, frog_alchemy, garuda_divine, golem_stone, gorilla_smash, hawk_hunter, heron_pierce, hippo_maul, horse_charge, hydra_swamp, hyena_pack, ice_mage, jaguar_hunt, jellyfish_shock, kangaroo_kick, kirin_thunder, komodo_bite, kraken_deep, kraken_void, lich_undead, lion_general, lizard_elder, lynx_echo, mammoth_ancient, mantis_blade, mink_silent, monkey_spear, mosquito_toxic, moth_dust, newt_fire, nymph_water, octopus_mind, oracle_wisdom, otter_river, owl_nightshot, ox_mountain, pangolin_plate, panther_void, peacock_dazzle, pelican_bomb, phoenix_arrow, phoenix_rebirth, qilin_breeze, rabbit_blood, ram_charge, raven_death, reaper_void, rhino_quake, roc_legend, salamander_flame, scorpion_king, scorpion_shadow, seraphim_light, shark_frenzy, snail_fortress, spider_venom, spore_mage, sprite_wind, squid_ink, stork_sniper, storm_mage, swan_grace, thunderbird_storm, tiger_fang, titan_earth, toad_poison, toucan_snipe, trex_bite, triceratops_charge, turtle_mire, unicorn_light, viper_strike, vulture_scavunge, walrus_ice, wasp_arcane, wasp_assassin, wasp_sting, weasel_quick, whale_song, wisp_light, wolf_alpha, wolverine_rage, woodpecker_drill, worm_ice, worm_queen, wraith_shadow, yak_highland`.
 
 The five scheduled boss ids are:
 
@@ -6061,6 +6061,17 @@ When a skill line contains explicit target/shape/selection/duration prose, that 
 - **3★:** Ban phước cho toàn bộ đồng minh cùng cột, tăng 20 ATK và 20% né tránh trong 3 lượt. Đồng minh ở 2 cột kề bên nhận 10 ATK và 10% né tránh trong 3 lượt.
 - **Skin/cosmetic đang authored:** jadeBreeze (achievement augmentsChosen_20): Ngọc Phong → Kỳ Lân Ngọc → Ngọc Phong Vương
 
+### rabbit_blood — Huyết Thố
+- **Identity:** Tier 2; Đấu sĩ (FIGHTER); faction Thú (BEAST); hệ Dạ (NIGHT); species `tho`.
+- **Base stats 1★:** HP 320, ATK 72, DEF 18, MATK 15, MDEF 15, range 1, rageMax 3, crit 0.05, critDmg 1.5, evade 0.05, accuracy 0.95.
+- **Vai trò chơi:** Đấu sĩ bộc phát hy sinh thế thủ đổi lấy sát thương, hút máu bằng đòn đánh và trì hoãn các hiệu ứng bất lợi.
+- **Đánh thường:** cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất.
+- **Kỹ năng — Huyết Nộ Bộc Phá:** effect family `blood_moon_frenzy`; cost nộ 1★/2★/3★ = **2/3/4**. mục tiêu: mục tiêu đánh thường hiện tại + bản thân; hình: 1 mục tiêu trước mặt; cuồng nộ trên bản thân; chọn: Bùng nổ vào mục tiêu đánh thường hiện tại, rồi tự cường hóa.; số lượng: 1 mục tiêu; thời lượng: cuồng nộ 2 lượt (3 lượt ở 3★).
+- **1★:** Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 60% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.
+- **2★:** Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 80% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.
+- **3★:** Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 3 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 100% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.
+- **Skin/cosmetic đang authored:** bloodMoon (locked): Thỏ Đỏ → Huyết Thố → Huyết Nguyệt Vương
+
 ### ram_charge — Cừu Núi Húc
 - **Identity:** Tier 1; Đỡ đòn (TANKER); faction Thú (BEAST); hệ Nham (STONE); species `cuu`.
 - **Base stats 1★:** HP 310, ATK 60, DEF 21, MATK 15, MDEF 17, range 1, rageMax 3, crit 0.05, critDmg 1.5, evade 0.05, accuracy 0.95.
@@ -6699,9 +6710,9 @@ Status tooltips preserve where a status came from when known. Before a skill mut
 
 When rendering an active status, prefer source-skill name plus the first meaningful current-star skill-summary line and the status' current turns/value. If provenance cannot be resolved, use the canonical generic status description. Compact badge text uses remaining turns as nL plus its value; fractional non-integer absolute values at or below 1 display as percentages, otherwise as rounded flat values. Status chips represent real timed status state only; a numeric shield by itself still does not synthesize a shield-status chip.
 
-## A90. Canonical visual roster completion — 126/126 units and bosses must be bespoke
+## A90. Canonical visual roster completion — 127/127 units and bosses must be bespoke
 
-The rebuild is not visually complete merely because every catalog id can instantiate something. The canonical roster contains **126 gameplay identities: 121 normal units plus 5 scheduled bosses**. Every one of those 126 ids must resolve to a deliberate, unit-owned full-body composition and a deliberate action controller. A generic packed animal, generated full-creature geometry, unknown cube, grey placeholder, default dog-like head/body, family-shaped stand-in or generic default animation controller is a failed acceptance result for a canonical id.
+The rebuild is not visually complete merely because every catalog id can instantiate something. The canonical roster contains **127 gameplay identities: 122 normal units plus 5 scheduled bosses**. Every one of those 126 ids must resolve to a deliberate, unit-owned full-body composition and a deliberate action controller. A generic packed animal, generated full-creature geometry, unknown cube, grey placeholder, default dog-like head/body, family-shaped stand-in or generic default animation controller is a failed acceptance result for a canonical id.
 
 The ownership boundary is strict:
 
@@ -6764,9 +6775,9 @@ These extra bodies are presentation of one logical unit, never additional combat
 
 Star evolution also needs authored visual progression. A generic class/tribe aura or recolor is insufficient as the only distinction for a canonical unit. Preserve the species silhouette while adding deliberate star-specific detail such as stronger anatomy accents, equipment, crest/crown/armor, feather/tail complexity, material treatment or signature VFX. A skin is likewise a deliberate variant, not merely a tint. Gameplay identity remains unchanged unless the data contract explicitly says otherwise.
 
-### A90.4 Mandatory visual brief for all 121 normal units
+### A90.4 Mandatory visual brief for all 122 normal units
 
-Every normal canonical identity in A83 requires an explicit bespoke visual brief. Existing implementation coverage does not exempt a unit from this review: the final rebuild must inspect/re-author every one of the **121 normal units**, then apply the shared anatomy/action/star requirements above. The table below is deliberately one-to-one with A83 and stays in the same canonical order so coverage can be audited mechanically.
+Every normal canonical identity in A83 requires an explicit bespoke visual brief. Existing implementation coverage does not exempt a unit from this review: the final rebuild must inspect/re-author every one of the **122 normal units**, then apply the shared anatomy/action/star requirements above. The table below is deliberately one-to-one with A83 and stays in the same canonical order so coverage can be audited mechanically.
 
 These rows define silhouette, attack source and skill-readable staging. They do not override A83 gameplay math or A76/A89 targeting; animation and VFX must visualize the targets/effects already resolved by canonical gameplay.
 
@@ -6850,6 +6861,7 @@ These rows define silhouette, attack source and skill-readable staging. They do 
 | phoenix_arrow | Archer-like phoenix with flame-feather projectile language; cone volley clearly shows the real cone footprint and burn victims. |
 | phoenix_rebirth | Support phoenix distinct from the projectile phoenix; rebirth mark belongs to the caster, followed by a separate heal beat on the selected low-HP ally. |
 | qilin_breeze | Qilin/Kirin support silhouette; breeze blessing travels through the caster's allied column and at 3★ softly reaches the adjacent columns according to gameplay. |
+| rabbit_blood | Bipedal crimson brawler rabbit with very long pink-lined ears, glowing red eyes, a chest heart, leather gauntlets and a trailing red scarf; Huyết Nộ Bộc Phá crouches to gather, ignites the eyes, bursts the basic target in an airborne crescent, then shows the delayed-curse seal (locked debuffs) and a blood-moon aura while its hits heal it. |
 | ram_charge | Compact mountain ram with oversized curled horns and hoof-scrape windup; Sừng Húc drives the nearest frontline enemy backward along the real path and shows the bonus impact only when the knockback condition succeeds. |
 | raven_death | Dark raven/carrion Assassin silhouette; death-mark strike emphasizes the selected frontline/tank or shielded victim and keeps the recurring curse attached to that unit. |
 | reaper_void | Reaper-like Assassin with coherent body/weapon silhouette; backline execute has approach, impact and recovery, with low-HP amplification readable without arbitrary target switching. |
@@ -6908,7 +6920,7 @@ Bosses use the same visual-integrity rules as normal units but must read as enco
 
 ### A90.6 Visual roster acceptance audit
 
-Before declaring the rebuild complete, enumerate all 126 canonical A83/A84 ids and resolve each through the production visual resolver. The audit fails if any id reports unknown, generated-full-roster fallback, unfinished placeholder, generic full-animal fallback, missing controller, missing required action state, detached anatomy or a mismatched preview/battle identity.
+Before declaring the rebuild complete, enumerate all 127 canonical A83/A84 ids and resolve each through the production visual resolver. The audit fails if any id reports unknown, generated-full-roster fallback, unfinished placeholder, generic full-animal fallback, missing controller, missing required action state, detached anatomy or a mismatched preview/battle identity.
 
 The audit also verifies:
 
@@ -7026,7 +7038,7 @@ Do not create duplicate behavior just because several implementations once exist
 Final sign-off therefore requires both:
 
 - **semantic coverage:** no meaningful gameplay/product/presentation capability is unexplained; and
-- **visual coverage:** all 126 A83/A84 identities pass A90 without canonical full-creature fallback.
+- **visual coverage:** all 127 A83/A84 identities pass A90 without canonical full-creature fallback.
 
 ## A94. Tutorial deterministic script — fixed shop, exact action gates and persisted progress
 
@@ -8070,7 +8082,7 @@ For the production rebuild:
 - preserve this **appearance/skin resolution ordering**;
 - keep visual lifetime/refresh deterministic so repeated previews do not stack duplicate layers;
 - **remove emoji as a whole-unit production fallback**;
-- give every one of the **126 canonical identities** its own deliberate bespoke 3D creature presentation;
+- give every one of the **127 canonical identities** its own deliberate bespoke 3D creature presentation;
 - if an identity has no finished visual, fail the visual completeness gate instead of silently substituting a generic animal or emoji.
 
 ## A113. Save envelope, import/export, migration and clear-data contract
@@ -9772,5 +9784,5 @@ The target is **Forest Throne rebuilt as a visually coherent, expressive, produc
 ## Nghiệm thu và bàn giao
 
 - Tài liệu này là hợp đồng tham chiếu: nghiệm thu cuối cùng là chứng minh **mọi mục "Definition of Done" / capability** trong phần thân bằng hành vi game thật (evidence runtime/browser) và targeted tests, cùng census capability với zero `missing`/`stale`/`duplicate` (mục 56).
-- Triển khai từng gói công việc theo file plan riêng dưới `.omp/plans/`; mỗi file plan = một nhánh, tên file `động từ.tiêu đề nhánh.nội dung nhánh.md` (dấu `/` của nhánh thay bằng dấu `.`), nằm phẳng trong `pending/` hoặc `done/` theo tiến độ.
-- Đối chiếu giao (mapping nguồn → checklist) nằm trong plan thực thi tương ứng, ví dụ Phụ lục A của `.omp/plans/pending/feat.ui-ux.gameplay.md`; khi yêu cầu mới đính chính spec này, ghi đính chính vào plan thực thi theo nguyên tắc đính chính mới nhất ưu tiên.
+- Triển khai từng gói công việc theo file plan riêng dưới `.agents/plans/`; mỗi file plan = một nhánh, tên file `động từ.tiêu đề nhánh.nội dung nhánh.md` (dấu `/` của nhánh thay bằng dấu `.`), nằm phẳng trong `pending/` hoặc `done/` theo tiến độ.
+- Đối chiếu giao (mapping nguồn → checklist) nằm trong plan thực thi tương ứng, ví dụ Phụ lục A của `.agents/plans/pending/feat.ui-ux.gameplay.md`; khi yêu cầu mới đính chính spec này, ghi đính chính vào plan thực thi theo nguyên tắc đính chính mới nhất ưu tiên.

@@ -1,8 +1,8 @@
 // Crafting workbench: 3×3 forge table + output well, draggable bag, filtered recipe journal,
 // and nested item/recipe overlays. Staging stays in the bridge; this file is presentation only.
 import type { App } from "../../app/app";
-import { activeIndices, BASE_MATERIALS, matchRecipe, RECIPES, type Recipe } from "../../core/craft";
-import { getEquipment } from "../../core/equipment";
+import { activeIndices, matchRecipe } from "../../core/craft";
+import { BASE_MATERIALS, getEquipment, RECIPES, type Recipe } from "../../core/itemRegistry";
 import { ICONS } from "../../core/emojiIcon";
 import { getLocale } from "../../core/i18n";
 import { equipmentBonusCopy, itemDisplayName } from "../../core/itemPresentation";

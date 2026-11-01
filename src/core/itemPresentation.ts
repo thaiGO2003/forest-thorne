@@ -1,18 +1,14 @@
 // Canonical loot/inventory presentation hooks. Keep item identity in core data; UI resolves only authored copy/icons here.
-import { BASE_MATERIALS } from "./craft";
 import { ICONS, resolveEmojiChar } from "./emojiIcon";
-import { getEquipment, type EquipmentBonuses } from "./equipment";
 import { t, type MsgKey } from "./i18n";
+import { BASE_MATERIALS, getItem, type EquipmentBonuses } from "./itemRegistry";
 
-const ITEM_NAME_KEYS: Partial<Record<string, MsgKey>> = {
-  bark: "item.bark",
-  feather: "item.feather",
-  belt: "item.belt",
-  claw: "item.claw",
-  tear: "item.tear",
-  crystal: "item.crystal",
-  eq_warmog_armor: "item.eq_warmog_armor",
-  eq_blue_buff: "item.eq_blue_buff",
+export const itemDisplayName = (id: string): string => {
+  const item = getItem(id);
+  if (!item) return id;
+  if (item.kind === "equipment" && item.nameVi) return item.nameVi;
+  const translated = t(item.displayNameKey as MsgKey);
+  return translated === item.displayNameKey ? id : translated;
 };
 
 const ITEM_ICON_HOOKS: Readonly<Record<string, string>> = {
@@ -26,20 +22,14 @@ const ITEM_ICON_HOOKS: Readonly<Record<string, string>> = {
   eq_warmog_armor: "shield",
 };
 
+/** Semantic emoji hook; consumers resolve it through emojiIcon rather than drawing icon chrome. */
+export const itemSemanticIcon = (id: string): string =>
+  ITEM_ICON_HOOKS[id] ?? getItem(id)?.icon ?? "question";
+
 /** Only these ids have hand-authored SVG art; every classic item falls back to its emoji icon. */
 const ITEM_ART_IDS = new Set<string>([...BASE_MATERIALS, "eq_blue_buff", "eq_warmog_armor"]);
 
 export const hasItemArt = (id: string): boolean => ITEM_ART_IDS.has(id);
-
-export const itemDisplayName = (id: string): string => {
-  const key = ITEM_NAME_KEYS[id];
-  if (key) return t(key);
-  return getEquipment(id)?.nameVi ?? id;
-};
-
-/** Semantic emoji hook; consumers resolve it through emojiIcon rather than drawing icon chrome. */
-export const itemSemanticIcon = (id: string): string =>
-  ITEM_ICON_HOOKS[id] ?? getEquipment(id)?.icon ?? "question";
 
 /** Concrete emoji glyph for the item, used when no SVG exists. */
 export const itemIconChar = (id: string): string => {

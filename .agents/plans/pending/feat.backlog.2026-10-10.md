@@ -1,7 +1,7 @@
 # Forest Throne — 2026-10-10 backlog execution plan
 
 ## Goal
-Implement the requested Forest Throne fixes/features using current production code as authority and `old_src/` only as a reference. Preserve asset-first UI rules, pnpm-only commands, targeted verification, and the existing generated `.omp/plans/custom/html/agent-index.html`.
+Implement the requested Forest Throne fixes/features using current production code as authority and `old_src/` only as a reference. Preserve asset-first UI rules, pnpm-only commands, and targeted verification. The 2026-10-10 instruction to preserve generated `.omp/plans/custom/html/agent-index.html` is superseded by Issue #17: canonical plans are flat Markdown under `.agents/plans/pending/` and `.agents/plans/done/`; generated HTML indices must not be retained.
 
 ## Leader closure status (2026-10-14)
 - **Completed locally/integrated:** Waves 1–3 and 7–9. Wave 6 implementation/content-fit code is landed on `dev`; its targeted regression and production Vite bundle evidence are recorded below.

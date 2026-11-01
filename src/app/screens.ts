@@ -1,7 +1,7 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary, type RunState } from "../core/run";
-import { getEquipment } from "../core/equipment";
+import { getEquipment } from "../core/itemRegistry";
 import { itemDisplayName } from "../core/itemPresentation";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { augmentCopy, augmentGroupLabel, augmentGroupRank } from "../content/augmentText";
@@ -76,6 +76,7 @@ function openReturnToMenuConfirm(app: App) {
   m.body.append(body);
 }
 
+const itemName = itemDisplayName;
 const MOD_PACKAGE_TYPE_COPY: Record<ModPackageType, MsgKey> = {
   ".ftunit": "mods.packageType.ftunit",
   ".ftlogic": "mods.packageType.ftlogic",

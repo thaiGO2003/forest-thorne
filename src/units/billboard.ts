@@ -18,6 +18,8 @@ export interface BillboardState {
   rageMax: number;
   side: "L" | "R";
   statuses: BillboardStatus[];
+  /** Optional skill counter badge (e.g. Cóc Độc poison points); hidden when absent or 0. */
+  counter?: { icon: string; value: number; max: number };
 }
 
 /** A92 logical surface. */
@@ -56,7 +58,11 @@ export function normalizeBillboard(s: BillboardState): Normalized {
     const list = st.positive ? pos : neg;
     if (list.length < MAX_PER_SIDE) list.push(key);
   }
-  return { ...s, star: Math.min(3, Math.max(1, Math.round(fin(s.star, 1)))), hp, maxHp, rage, rageMax, segments, filled, pos, neg };
+  const counterValue = Math.max(0, Math.round(fin(s.counter?.value ?? 0)));
+  const counter = s.counter && counterValue > 0
+    ? { icon: s.counter.icon, value: counterValue, max: Math.max(1, Math.round(fin(s.counter.max, 1))) }
+    : undefined;
+  return { ...s, star: Math.min(3, Math.max(1, Math.round(fin(s.star, 1)))), hp, maxHp, rage, rageMax, segments, filled, pos, neg, counter };
 }
 
 export interface Billboard {
@@ -105,6 +111,13 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
       label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 30, stroke: null });
     });
+
+    // Skill counter badge (centre of the status row): icon + value/max on the same status tile art.
+    if (s.counter) {
+      const cw = 112, cx = (BILLBOARD_W - cw) / 2;
+      nineSlice(g, "tile_status", SLICE.tile_status, cx, ty, cw, tile, 2);
+      label(g, `${s.counter.icon} ${s.counter.value}/${s.counter.max}`, cx + cw / 2, ty + tile / 2 + 1, { size: 26, weight: 800, fill: LABEL });
+    }
 
     // Shell.
     const sy = 48, sh = BILLBOARD_H - sy - 2;

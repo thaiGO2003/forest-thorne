@@ -1,46 +1,8 @@
 // Canonical equipment identity + planning/combat helpers (spec A6, A69, A80).
-// T1..T3 gear comes from the classic item DB (scripts/port-old-items.mjs); each recipe crafts one item.
+// The rebuild source currently authors only two concrete equipment ids. Their bonus payloads
+// are intentionally empty until the missing recipe/item table is supplied; rules must not invent stats.
 import type { UnitDef } from "../content/catalog";
-import { ITEM_EQUIPMENT } from "../content/items";
-
-export interface EquipmentBonuses {
-  hpPct?: number;
-  atkPct?: number;
-  matkPct?: number;
-  def?: number;
-  mdef?: number;
-  healPct?: number;
-  lifestealPct?: number;
-  evadePct?: number;
-  critPct?: number;
-  burnOnHit?: number;
-  poisonOnHit?: number;
-  startingShield?: number;
-  startingRage?: number;
-}
-
-export interface EquipmentDef {
-  id: string;
-  /** Stable duplicate key. Display/localized name is resolved elsewhere. */
-  nameKey: string;
-  tier: number;
-  unequipCost?: number;
-  bonuses: EquipmentBonuses;
-  /** Authored classic display name (Vietnamese). */
-  nameVi?: string;
-  /** Authored classic emoji icon; used when no SVG art exists. */
-  icon?: string;
-  descriptionVi?: string;
-  /** Authored old-src trigger payload; retained for a later runtime port, not executed today. */
-  logic?: Record<string, unknown>;
-}
-
-export const EQUIPMENT: readonly EquipmentDef[] = ITEM_EQUIPMENT;
-
-export const EQUIPMENT_BY_ID: ReadonlyMap<string, EquipmentDef> = new Map(EQUIPMENT.map((item) => [item.id, item]));
-
-export const getEquipment = (id: string): EquipmentDef | null => EQUIPMENT_BY_ID.get(id) ?? null;
-export const isEquipment = (id: string): boolean => EQUIPMENT_BY_ID.has(id);
+import { getEquipment, type EquipmentBonuses, type EquipmentDef } from "./itemRegistry";
 
 export function equipmentSaleValue(tier: number): number {
   if (tier <= 1) return 1;
@@ -57,9 +19,11 @@ export function defaultUnequipCost(tier: number): number {
 export const itemUnequipCost = (item: EquipmentDef, discount = 0): number =>
   Math.max(1, Math.round(item.unequipCost ?? defaultUnequipCost(item.tier)) - Math.max(0, Math.round(discount)));
 
-/** Equipment slots follow the unit's star: 1★ one slot, 2★ two, 3★ three (old-src rule). */
-export function slotCapForUnit(_unit: UnitDef, star: number): number {
-  return Math.max(1, Math.min(3, Math.round(Number.isFinite(star) ? star : 1)));
+/** Star-aware slot capacity: resolved skill cost -> rageMax -> compatibility default 3. */
+export function slotCapForUnit(unit: UnitDef, star: number): number {
+  const index = Math.max(0, Math.min(2, Math.round(star) - 1));
+  const cap = unit.skill.rageCost[index] ?? unit.stats.rageMax ?? 3;
+  return Math.max(0, Math.round(cap));
 }
 
 export interface NormalizedEquipment {

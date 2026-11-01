@@ -1,8 +1,8 @@
 # Bootstrap sau khi cài lại OS — Forest Throne
 
-Tài liệu này để dùng **một lần** sau khi máy được cài lại hệ điều hành: cài agent
-AI, dán prompt ở §2, để agent dựng lại môi trường, khôi phục phần code chưa từng
-commit, tạo lại worktree và merge các nhánh còn treo.
+> **Lưu trữ (2026-10-20):** Tài liệu mô tả một lần khôi phục máy trong quá khứ, không phải nguồn trạng thái branch hiện tại. Trước khi thực thi bất kỳ bước Git nào, đối chiếu `origin/dev`, `.agents/` và quy tắc PR hiện hành. Không `--amend` commit lịch sử, không push trực tiếp `main`/`dev` từ prompt này.
+
+Tài liệu là bản ghi quy trình **một lần** dành cho máy Windows sau khi reset. Prompt bên dưới chỉ dùng tham khảo; đối chiếu từng bước với repo và quy trình PR hiện tại, không dán nguyên khối để thực thi trên branch đang bảo vệ.
 
 Trạng thái repo tại thời điểm backup: xem `docs/worktree-status-2026-10-20.md`.
 
@@ -14,7 +14,7 @@ Trạng thái repo tại thời điểm backup: xem `docs/worktree-status-2026-1
    tại thư mục sẽ chứa code (ví dụ `C:\Users\<user>\workspace`).
 2. Đăng nhập GitHub trên máy: `gh auth login` (hoặc chuẩn bị PAT). Agent không có
    credential trong repo.
-3. Dán nguyên khối prompt ở §2.
+3. Đọc và điều chỉnh từng bước của prompt ở §2 theo trạng thái repo hiện tại; không thực thi nguyên khối như một script khôi phục.
 
 ---
 
@@ -68,18 +68,11 @@ cần quyết định, và báo rõ bằng chứng sau mỗi bước.
   → phải thấy đúng nhóm `.omp` bị xoá, `.agents` được thêm, 2 file AGENTS.md/README.md
   sửa, `.1devtool/tasks.config.json`, `docs/*`. Nếu thấy file lạ (secret, .env,
   node_modules, dist, package-lock.json) thì DỪNG, báo tôi.
-- Đưa snapshot lên `main` thành commit chính thức (giữ đúng 1 commit sạch trên nền
-  `main`, vì backup commit đã có parent là `main`):
-  1. `git switch -c chore/agents-migration origin/temp/backup-pre-reset-2026-10-20`
-  2. `git diff --name-status main...HEAD` để rà danh sách file; phải thấy `.omp` bị
-     xoá, `.agents/**` được thêm, `AGENTS.md`/`README.md` sửa, `.1devtool/tasks.config.json`,
-     `docs/*`. Không được có secret, `.env`, `node_modules`, `dist`, `package-lock.json`.
-  3. `git commit --amend -F <file-message>` với tiêu đề `chore(agents): migrate .omp to .agents`,
-     body nêu lý do, nhóm file thay đổi và bằng chứng kiểm thử (theo `.agents/rules/commits.md`).
-  4. `git switch main && git merge --ff-only chore/agents-migration && git push origin main`
-- Sau khi `main` đã có commit migration và `git status` sạch: hỏi tôi có xoá nhánh
-  backup trên remote không (`git push origin --delete temp/backup-pre-reset-2026-10-20`).
-  Không tự xoá khi chưa được đồng ý.
+- **Không đưa snapshot trực tiếp lên `main`** và không sửa lịch sử commit bằng `git commit --amend`. Nhánh `temp/backup-pre-reset-2026-10-20` là bằng chứng khôi phục lịch sử, không mặc định là nguồn code hiện hành.
+- Đối chiếu snapshot với `origin/dev` và kiểm tra trạng thái migration đã có trong branch hiện tại. Chỉ mang những thay đổi còn thiếu, hợp lệ vào **feature branch mới tách từ `origin/dev`**; tránh nhập lại thay đổi đã merge, cấu hình máy cá nhân hoặc nội dung không liên quan.
+- Rà file thay đổi: không có secret, `.env`, `node_modules`, `dist`, `package-lock.json`; chỉ stage những file cần thiết. Commit theo `.agents/rules/commits.md` bằng commit mới có body mô tả lý do và bằng chứng kiểm chứng.
+- Push **feature branch**, mở **PR tới `dev`**, qua review và CI trước khi merge theo quy tắc repo; tuyệt đối không push thẳng `main` hay force-push nhánh bảo vệ.
+- Chỉ cân nhắc xoá remote branch backup sau khi owner xác nhận snapshot không còn cần dùng. Không tự xoá.
 
 ## 4. Cài dependency + gate chất lượng
 - `pnpm install` (tuyệt đối không dùng npm/yarn; nếu thấy `package-lock.json` xuất
@@ -95,16 +88,10 @@ cần quyết định, và báo rõ bằng chứng sau mỗi bước.
   làm unit Quạ Phi Tiêu.
 - `git worktree list` để xác nhận.
 
-## 6. Merge các nhánh còn treo (theo thứ tự, verify sau mỗi bước)
-1. `feat/world/3d-voxel-arena-terrain-meshes-instancedmesh` (WBS-034, hơn dev 2
-   commit, 3 file +78/−10) → merge vào `dev`, chạy `pnpm typecheck`,`pnpm test`,
-   push `dev`.
-2. `feat/content/audio-director-procedural-sfx-manager` (WBS-080, hơn dev 1 commit,
-   9 file +973/−32) → merge vào `dev`, chạy lại gate, cập nhật plan
-   `.agents/plans/pending/feat.content.audio-director-procedural-sfx-manager.md`
-   (đánh dấu hoàn thành, ghi bằng chứng test) rồi `/plan-done` hoặc chuyển file
-   sang `.agents/plans/done/` theo `.agents/rules/plans-workflow.md`.
-3. Không merge gì vào `main` nếu tôi chưa yêu cầu.
+## 6. Kiểm tra các nhánh từng bị treo (thông tin tại thời điểm backup)
+1. WBS-034 (`feat/world/3d-voxel-arena-terrain-meshes-instancedmesh`): kiểm tra đã merge trên `origin/dev` hay chưa trước khi quyết định có cần PR; không tích hợp lại thay đổi đã có.
+2. WBS-080 (`feat/content/audio-director-procedural-sfx-manager`): kiểm tra trạng thái thực tế, chạy targeted gate khi triển khai; chỉ đánh dấu hoàn thành plan khi đủ bằng chứng acceptance và dùng `/plan-done`, **không** di chuyển file thủ công.
+3. Mọi thay đổi còn thiếu phải lên feature branch từ `origin/dev`, mở PR qua review/CI. Không tự merge/push thẳng `dev` hoặc `main`, không force-push nhánh đã chia sẻ.
 
 ## 7. Việc cần kiểm tra lại (đừng tự “sửa cho xong”)
 - WBS-049: plan `.agents/plans/pending/feat.ui.medieval-forest-fantasy-asset-first-ui-chrome-engine.md`
@@ -141,5 +128,4 @@ Báo cáo lại cho tôi: `git log --oneline -3 main`, `git branch -vv`,
 
 - `docs/worktree-status-2026-10-20.md` mô tả trạng thái trước reset; nếu agent đã
   merge WBS-034/WBS-080 thì nên tạo báo cáo mới thay vì sửa bản cũ.
-- Nhánh `temp/backup-pre-reset-2026-10-20` chỉ nên xoá sau khi `main` đã có commit
-  migration và đã `pnpm build` pass.
+- Nhánh `temp/backup-pre-reset-2026-10-20` là tư liệu phục hồi; chỉ xoá sau khi owner xác nhận không còn cần lưu. Mọi thay đổi migration mới phải qua feature branch và PR review tới `dev`, không tự amend hoặc push thẳng `main`.

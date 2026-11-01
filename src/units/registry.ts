@@ -6,13 +6,18 @@ import { createUnitVisual, defineUnit, type Star, type UnitRigDef, type UnitVisu
 import jaguarHunt from "./roster/jaguarHunt";
 import toadPoison from "./roster/toadPoison";
 import frogAlchemy from "./roster/frogAlchemy";
-import roosterRapper from "./roster/roosterRapper";
+import batLove from "./roster/batLove";
+import antGuard from "./roster/antGuard";
+import rabbitBlood from "./roster/rabbitBlood";
 
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
   frog_alchemy: frogAlchemy,
-  crane_blessing: roosterRapper,
+  // Dơi Tình Yêu keeps the legacy catalog id so existing saves still resolve.
+  bat_blood: batLove,
+  ant_guard: antGuard,
+  rabbit_blood: rabbitBlood,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

@@ -2,8 +2,8 @@
 // "Thư viện công thức" layout. Works as a full modal, a nested crafting overlay, or embedded
 // inside the main Library modal.
 import type { App } from "../../app/app";
-import { RECIPES } from "../../core/craft";
-import { equipmentCategory, getEquipment, type EquipmentCategory } from "../../core/equipment";
+import { RECIPES, getEquipment } from "../../core/itemRegistry";
+import { equipmentCategory, type EquipmentCategory } from "../../core/equipment";
 import { ICONS } from "../../core/emojiIcon";
 import { itemDisplayName } from "../../core/itemPresentation";
 import {
