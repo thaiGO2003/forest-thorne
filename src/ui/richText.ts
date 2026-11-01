@@ -20,6 +20,7 @@ const PATTERNS: { re: RegExp; emoji: string; tone: RichTone | "auto" }[] = [
   { re: /(?:[Tt]hanh tẩy|[Xx]óa)\s+(?:tối đa\s+)?\d+\s+hiệu ứng[^.]*/g, emoji: "✨", tone: "buff" },
   { re: /(?:chảy máu|nhiễm độc|thiêu đốt)\s+\d+(?:[.,]\d+)?(?:\s*\/\s*lượt)?/gi, emoji: "🩸", tone: "element" },
   { re: /(?:choáng|đóng băng|ngủ|khiêu khích)(?:\s+\d+\s+lượt)?/gi, emoji: "💫", tone: "control" },
+  { re: /\b\d+\s+lượt\b/g, emoji: "⏳", tone: "buff" },
 ];
 
 export function inferRichTone(text: string): RichTone {

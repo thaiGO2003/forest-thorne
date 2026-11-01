@@ -439,6 +439,7 @@ const vi = {
   "inventory.basicAttack": "Đánh thường",
   "inventory.skillBlock": "Chiêu thức",
   "inventory.skillFormula": "Công thức",
+  "inventory.starMultiplier": "Hệ số sao ({mult})",
   "inventory.formula": "{base} + {scale}% {stat}",
   "inventory.starMilestones": "Mốc sao",
   "inventory.starLine": "{star} sao",

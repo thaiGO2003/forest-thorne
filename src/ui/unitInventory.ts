@@ -5,7 +5,7 @@ import type { CombatUnitSnapshot } from "../core/combat";
 import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { getEquipment, slotCapForUnit } from "../core/equipment";
 import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
-import { sellValue } from "../core/economy";
+import { STAR_SKILL, sellValue } from "../core/economy";
 import { t, type MsgKey } from "../core/i18n";
 import { MODE_CONFIG } from "../core/modes";
 import { unequipQuote, type RunState } from "../core/run";
@@ -101,11 +101,6 @@ const variantBonusCopy = (bonuses: VariantBonuses): string => Object.entries(bon
   .filter(Boolean)
   .join(" · ");
 
-const richLine = (...parts: Array<string | Node>): HTMLElement => {
-  const line = h("p", "ui-inventory-formula-line");
-  for (const part of parts) line.append(part);
-  return line;
-};
 
 /** The owned inventory and read-only enemy inspection share the same DOM, kit and stat painters. */
 function createInventoryView(modal: ModalHandle, portraits: Portraits, getDisplay: () => InventoryDisplay, readonly = false) {
@@ -143,10 +138,8 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   const skillRage = h("span", "ui-inventory-note");
   skillHead.append(h("h3", "", `${SKILL_ICONS[unit.role]} ${t("inventory.skillBlock")}`), skillRage);
   const skillMeta = h("p", "ui-inventory-note");
-  const skillFormula = h("div", "ui-inventory-formula");
-  const skillDescription = h("p");
   const milestones = h("div", "ui-inventory-milestones");
-  skill.append(skillHead, skillName, skillMeta, skillFormula, skillDescription, milestones);
+  skill.append(skillHead, skillName, skillMeta, milestones);
 
   const passive = panel("ui-inventory-passive");
   passive.append(h("h3", "", t("inventory.passive")), h("p", "", t(`passive.${unit.role}` as MsgKey)));
@@ -155,7 +148,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   const basicCopy = h("p");
   basic.append(h("h3", "", `${ICONS.fist} ${t("inventory.basicAttack")}`), basicCopy);
 
-  profile.append(portraitPanel, name, stars, identity, location, skill, passive, basic);
+  profile.append(portraitPanel, name, stars, identity, location);
 
   const renderSkill = (star: number) => {
     const rageCost = unit.skill.rageCost[star - 1] ?? unit.skill.rageCost[0];
@@ -163,50 +156,40 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     skillMeta.textContent = [unit.skill.targetVi, unit.skill.shapeVi, unit.skill.selectionVi, unit.skill.countVi, unit.skill.durationVi]
       .filter(Boolean).join(" · ");
     const spec = skillSpec(unit.id, star);
-    const extra = spec as typeof spec & {
-      selfHealPctMaxHp?: number; damageReductionPct?: number; damageReductionTurns?: number; cleanseCount?: number;
-    };
-    const statKey = (key: string) => t(`inventory.${key}` as MsgKey);
-    const formula = (f: { base: number; scale: number; stat: string }) =>
-      f.scale > 0
-        ? t("inventory.formula", { base: fmt(f.base), scale: fmt(Math.round(f.scale * 100)), stat: statKey(f.stat) })
-        : fmt(f.base);
-    const rows: HTMLElement[] = [];
-    if (spec.damage) {
-      rows.push(richLine(`${spec.damage.type === "magic" ? ICONS.matk : spec.damage.type === "true" ? "✨" : ICONS.atk} `,
-        richSpan(formula(spec.damage), spec.damage.type), ` · ${t(`inventory.${spec.damage.type}` as MsgKey)}`));
-    }
-    if (extra.selfHealPctMaxHp && extra.selfHealPctMaxHp > 0) {
-      rows.push(richLine(`💚 ${t("inventory.selfHeal")}: `, richSpan(`${fmt(extra.selfHealPctMaxHp * 100)}% HP`, "heal")));
-    }
-    if (spec.heal?.formula) rows.push(richLine(`💚 ${t("inventory.healPct")}: `, richSpan(formula(spec.heal.formula), "heal")));
-    if (spec.shield) rows.push(richLine(`🛡️ ${t("inventory.shield")}: `, richSpan(formula(spec.shield), "shield")));
-    if (extra.damageReductionPct && extra.damageReductionPct > 0) {
-      rows.push(richLine(`🛡️ ${t("inventory.damageReduction")}: `, richSpan(`${fmt(extra.damageReductionPct * 100)}%`, "shield"),
-        ` · ${t("inventory.turns", { turns: extra.damageReductionTurns ?? 1 })}`));
-    }
-    if (extra.cleanseCount && extra.cleanseCount > 0) {
-      rows.push(richLine(`✨ ${t("inventory.cleanse")}: `, richSpan(String(extra.cleanseCount), "buff")));
-    }
-    for (const dot of spec.dots) {
-      const icon = dot.kind === "burn" ? "🔥" : dot.kind === "poison" ? "☠️" : dot.kind === "disease" ? "🦠" : "🩸";
-      rows.push(richLine(`${icon} ${t(`inventory.${dot.kind}` as MsgKey)}: `, richSpan(`${fmt(dot.value)}/lượt`, "element"), ` · ${t("inventory.turns", { turns: dot.turns })}`));
-    }
-    for (const control of spec.controls) rows.push(richLine(`💫 ${t(`inventory.${control.kind}` as MsgKey)} · ${t("inventory.turns", { turns: control.turns })}`));
-    for (const mod of spec.buffs) rows.push(richLine(`💪 +${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`));
-    for (const mod of spec.debuffs) rows.push(richLine(`🥀 ${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`));
-    skillFormula.replaceChildren(...rows);
-    const tone = spec.damage?.type ?? (spec.heal || extra.selfHealPctMaxHp ? "heal" : "magic");
-    const prose = unit.skill.starDetailVi[star - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
-    skillDescription.replaceChildren(decorateDescription(prose, tone as RichTone));
+    const tone = spec.damage?.type ?? (spec.heal ? "heal" : "magic");
     milestones.replaceChildren(h("h4", "", `${ICONS.star} ${t("inventory.starMilestones")}`));
+    const statRows = starStatMilestones(unit);
+    const statLabelOf = (key: string) => t(`inventory.${key}` as MsgKey);
+    const statValueOf = (row: (typeof statRows)[number], key: string) =>
+      key === "hp" ? row.hp : key === "atk" ? row.atk : key === "matk" ? row.matk
+        : key === "def" ? row.def : key === "mdef" ? row.mdef : 0;
     for (let s = 1; s <= 3; s++) {
-      const entry = h("p", s === star ? "is-current" : "");
-      entry.append(`${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}: `,
-        decorateDescription(unit.skill.starDetailVi[s - 1] ?? "", tone as RichTone));
+      const specS = skillSpec(unit.id, s);
+      const statsS = statRows[s - 1]!;
+      const mult = STAR_SKILL[s] ?? 1;
+      const entry = h("div", s === star ? "ui-inventory-milestone is-current" : "ui-inventory-milestone");
+      entry.append(h("strong", "", `${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}:`));
+      const prose = h("p");
+      prose.append(decorateDescription(unit.skill.starDetailVi[s - 1] ?? "", (specS.damage?.type ?? tone) as RichTone));
+      entry.append(prose);
+      const parts: { label: string; formula: { base: number; scale: number; stat: string }; tone: RichTone }[] = [];
+      if (specS.damage) parts.push({ label: "", formula: specS.damage, tone: specS.damage.type });
+      if (specS.heal?.formula) parts.push({ label: `${t("inventory.healPct")} `, formula: specS.heal.formula, tone: "heal" });
+      if (specS.shield) parts.push({ label: `${t("inventory.shield")} `, formula: specS.shield, tone: "shield" });
+      for (const part of parts) {
+        const statValue = statValueOf(statsS, part.formula.stat);
+        const total = Math.round((part.formula.base + part.formula.scale * statValue) * mult);
+        const precise = (value: number) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }).format(value);
+        const text = `${part.label}(${precise(part.formula.base)} + ${precise(part.formula.scale)} × ${statLabelOf(part.formula.stat)}) `
+          + `× ${t("inventory.starMultiplier", { mult: precise(mult) })} = (${precise(part.formula.base)} + ${precise(part.formula.scale)} × ${precise(statValue)}) `
+          + `× ${precise(mult)} = ${fmt(total)}`;
+        const line = h("p", "ui-inventory-star-formula");
+        line.append(`📜 ${t("inventory.skillFormula")}: `, richSpan(text, part.tone));
+        entry.append(line);
+      }
       milestones.append(entry);
     }
-    const milestone = starStatMilestones(unit)[star - 1];
+    const milestone = statRows[star - 1];
     basicCopy.replaceChildren(
       `${ICONS.fist} ${basicAttackCopy(unit).replace(/\.\s*$/, "")} · ${t("inventory.basicDamage")}: `,
       richSpan(fmt(milestone?.basicDamage ?? 0), unit.basic.damageType),
@@ -303,7 +286,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
         t("inventory.variantLine", { index: index + 1, name: def.nameVi, bonus: variantBonusCopy(def.bonuses) })))
       : [h("p", "ui-inventory-note", t("inventory.noVariant"))]));
   };
-  lower.append(equipment, effectPanel, variantPanel); right.append(statGrid, lower); content.append(profile, right);
+  lower.append(equipment, effectPanel, variantPanel); right.append(statGrid, skill, passive, basic, lower); content.append(profile, right);
   root.append(content);
 
   const makeItem = (itemId: string, worn: boolean, count = 0) => {
