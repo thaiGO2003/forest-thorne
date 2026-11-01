@@ -99,16 +99,38 @@ const richLine = (...parts: Array<string | Node>): HTMLElement => {
   return line;
 };
 /** Wrap authored damage formulas so the numbers carry the effect colour the panel headings use. */
-const colorizeFormulas = (text: string, tone: string): DocumentFragment => {
-  const frag = document.createDocumentFragment();
-  const pattern = /\((\d[\d.,]*)\s*\+\s*([\d.,]+)%\s*(ATK|MATK|DEF|MDEF|HP(?: tối đa)?)\)/g;
+const colorizeNumbers = (text: string, tone: string): Array<string | Node> => {
+  const parts: Array<string | Node> = [];
+  const pattern = /(\d+(?:[.,]\d+)?%?)/g;
   let last = 0;
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    if (match.index > last) frag.append(text.slice(last, match.index));
-    frag.append(richSpan(match[0], tone));
-    last = match.index + match[0].length;
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push(richSpan(match[1], tone));
+    last = match.index + match[1].length;
   }
-  if (last < text.length) frag.append(text.slice(last));
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+};
+
+const PROSE_RULES: { test: RegExp; emoji: string; tone: string }[] = [
+  { test: /hồi .*HP tối đa|tự hồi/i, emoji: "💚", tone: "heal" },
+  { test: /khiên/i, emoji: "🛡️", tone: "shield" },
+  { test: /giảm .*sát thương nhận|giảm sát thương/i, emoji: "🛡️", tone: "shield" },
+  { test: /thanh tẩy|xóa hiệu ứng/i, emoji: "✨", tone: "buff" },
+  { test: /chảy máu|nhiễm độc|thiêu đốt|độc/i, emoji: "🩸", tone: "element" },
+  { test: /choáng|đóng băng|ngủ|khiêu khích/i, emoji: "💫", tone: "control" },
+];
+
+/** Decorate authored prose sentence by sentence: effect emoji plus tone-coloured numbers. */
+const decorateProse = (text: string, tone: string): DocumentFragment => {
+  const frag = document.createDocumentFragment();
+  for (const sentence of text.split(/(?<=\.)\s+/)) {
+    if (!sentence) continue;
+    const rule = PROSE_RULES.find((entry) => entry.test.test(sentence));
+    if (rule) frag.append(`${rule.emoji} `);
+    for (const part of colorizeNumbers(sentence, rule?.tone ?? tone)) frag.append(part);
+    frag.append(" ");
+  }
   return frag;
 };
 
@@ -168,16 +190,31 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     skillMeta.textContent = [unit.skill.targetVi, unit.skill.shapeVi, unit.skill.selectionVi, unit.skill.countVi, unit.skill.durationVi]
       .filter(Boolean).join(" · ");
     const spec = skillSpec(unit.id, star);
+    const extra = spec as typeof spec & {
+      selfHealPctMaxHp?: number; damageReductionPct?: number; damageReductionTurns?: number; cleanseCount?: number;
+    };
     const statKey = (key: string) => t(`inventory.${key}` as MsgKey);
     const formula = (f: { base: number; scale: number; stat: string }) =>
-      t("inventory.formula", { base: fmt(f.base), scale: fmt(Math.round(f.scale * 100)), stat: statKey(f.stat) });
+      f.scale > 0
+        ? t("inventory.formula", { base: fmt(f.base), scale: fmt(Math.round(f.scale * 100)), stat: statKey(f.stat) })
+        : fmt(f.base);
     const rows: HTMLElement[] = [];
     if (spec.damage) {
       rows.push(richLine(`${spec.damage.type === "magic" ? ICONS.matk : spec.damage.type === "true" ? "✨" : ICONS.atk} `,
         richSpan(formula(spec.damage), spec.damage.type), ` · ${t(`inventory.${spec.damage.type}` as MsgKey)}`));
     }
+    if (extra.selfHealPctMaxHp && extra.selfHealPctMaxHp > 0) {
+      rows.push(richLine(`💚 ${t("inventory.selfHeal")}: `, richSpan(`${fmt(extra.selfHealPctMaxHp * 100)}% HP`, "heal")));
+    }
     if (spec.heal?.formula) rows.push(richLine(`💚 ${t("inventory.healPct")}: `, richSpan(formula(spec.heal.formula), "heal")));
     if (spec.shield) rows.push(richLine(`🛡️ ${t("inventory.shield")}: `, richSpan(formula(spec.shield), "shield")));
+    if (extra.damageReductionPct && extra.damageReductionPct > 0) {
+      rows.push(richLine(`🛡️ ${t("inventory.damageReduction")}: `, richSpan(`${fmt(extra.damageReductionPct * 100)}%`, "shield"),
+        ` · ${t("inventory.turns", { turns: extra.damageReductionTurns ?? 1 })}`));
+    }
+    if (extra.cleanseCount && extra.cleanseCount > 0) {
+      rows.push(richLine(`✨ ${t("inventory.cleanse")}: `, richSpan(String(extra.cleanseCount), "buff")));
+    }
     for (const dot of spec.dots) {
       const icon = dot.kind === "burn" ? "🔥" : dot.kind === "poison" ? "☠️" : dot.kind === "disease" ? "🦠" : "🩸";
       rows.push(richLine(`${icon} ${t(`inventory.${dot.kind}` as MsgKey)}: `, richSpan(`${fmt(dot.value)}/lượt`, "element"), ` · ${t("inventory.turns", { turns: dot.turns })}`));
@@ -186,14 +223,14 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     for (const mod of spec.buffs) rows.push(richLine(`💪 +${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`));
     for (const mod of spec.debuffs) rows.push(richLine(`🥀 ${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`));
     skillFormula.replaceChildren(...rows);
-    const tone = spec.damage?.type ?? (spec.heal ? "heal" : "magic");
+    const tone = spec.damage?.type ?? (spec.heal || extra.selfHealPctMaxHp ? "heal" : "magic");
     const prose = unit.skill.starDetailVi[star - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
-    skillDescription.replaceChildren(colorizeFormulas(prose, tone));
+    skillDescription.replaceChildren(decorateProse(prose, tone));
     milestones.replaceChildren(h("h4", "", `${ICONS.star} ${t("inventory.starMilestones")}`));
     for (let s = 1; s <= 3; s++) {
       const entry = h("p", s === star ? "is-current" : "");
       entry.append(`${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}: `,
-        colorizeFormulas(unit.skill.starDetailVi[s - 1] ?? "", tone));
+        decorateProse(unit.skill.starDetailVi[s - 1] ?? "", tone));
       milestones.append(entry);
     }
     const milestone = starStatMilestones(unit)[star - 1];
@@ -269,7 +306,8 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   equippedHead.append(h("h3", "", t("inventory.equipped")), slotsCount);
   const equipped = h("div", "ui-inventory-items");
   const bag = h("div", "ui-inventory-items");
-  equipment.append(equippedHead, equipped);
+  const equippedActions = h("div", "ui-inventory-equipped-actions");
+  equipment.append(equippedHead, equipped, equippedActions);
   if (!readonly) equipment.append(h("h3", "", t("inventory.bag")), bag);
   const effectPanel = panel("ui-inventory-effects");
   const effects = h("div", "ui-inventory-effect-list");
@@ -320,7 +358,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     return empty;
   };
   return {
-    root, content, equipped, bag, slotsCount, effects, sources, itemButtons, panel, makeItem, emptySlot,
+    root, content, equipped, equippedHead, equippedActions, bag, slotsCount, effects, sources, itemButtons, panel, makeItem, emptySlot,
     updateStats() {
       const display = getDisplay();
       if (display.star !== shownStar) {
@@ -438,6 +476,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     update();
   };
   const removeAll = kitButton({ skin: "wood", cls: "ui-inventory-action", onClick: () => execute(intents.unequipAll, "inventory.unequippedOk") });
+  view.equippedActions.append(removeAll.el);
   const sell = kitButton({ skin: "red", cls: "ui-inventory-action", onClick: () => { confirmingSale = true; update(); confirm.el.focus(); } });
   const library = intents.openLibrary
     ? kitButton({
@@ -445,7 +484,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
       onClick: () => { modal.close(); intents.openLibrary?.(); },
     })
     : null;
-  footer.append(gold, removeAll.el, sell.el, ...(library ? [library.el] : []));
+  footer.append(gold, sell.el, ...(library ? [library.el] : []));
   const saleHint = h("p", "ui-inventory-sale-hint", t("inventory.sellHint"));
   const confirmation = panel("ui-inventory-confirm");
   const confirmationText = h("p");
