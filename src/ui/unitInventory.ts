@@ -18,6 +18,7 @@ import type { Portraits } from "../units/portraits";
 import { h, INK, kitButton, label, nineSlice, NORMAL_FONT, SLICE, surface, threeSlice, type KitButton, type Surface } from "./kit";
 import { uiFont } from "./fontScale";
 import { mountPortraitControls } from "./portraitControls";
+import { decorateDescription, richSpan, type RichTone } from "./richText";
 import type { ModalHandle } from "./modal";
 
 export interface UnitInventoryModel {
@@ -92,53 +93,10 @@ const variantBonusCopy = (bonuses: VariantBonuses): string => Object.entries(bon
   .filter(Boolean)
   .join(" · ");
 
-const richSpan = (text: string, tone: string): HTMLElement => h("span", `rich rich-${tone}`, text);
 const richLine = (...parts: Array<string | Node>): HTMLElement => {
   const line = h("p", "ui-inventory-formula-line");
   for (const part of parts) line.append(part);
   return line;
-};
-const PROSE_PATTERNS: { re: RegExp; emoji: string; tone: string }[] = [
-  { re: /((?:Tự\s+)?[Hh]ồi\s+\d+(?:[.,]\d+)?%\s*HP(?:\s+tối đa)?)/g, emoji: "💚", tone: "heal" },
-  { re: /((?:[Nn]hận)\s+\d+(?:[.,]\d+)?\s+khiên)/g, emoji: "🛡️", tone: "shield" },
-  { re: /((?:[Gg]iảm)\s+\d+(?:[.,]\d+)?%\s+sát thương nhận(?:\s+vào)?(?:\s+trong\s+\d+\s+lượt)?)/g, emoji: "🛡️", tone: "shield" },
-  { re: /((?:[Tt]hanh tẩy|[Xx]óa)\s+(?:tối đa\s+)?\d+\s+hiệu ứng[^.]*)/g, emoji: "✨", tone: "buff" },
-  { re: /((?:chảy máu|nhiễm độc|thiêu đốt)\s+\d+(?:[.,]\d+)?(?:\s*\/\s*lượt)?)/gi, emoji: "🩸", tone: "element" },
-  { re: /(choáng|đóng băng|ngủ|khiêu khích)(?:\s+\d+\s+lượt)?/gi, emoji: "💫", tone: "control" },
-  { re: /\(\s*\d+(?:[.,]\d+)?\s*\+\s*\d+(?:[.,]\d+)?%\s*(?:ATK|MATK|DEF|MDEF|HP(?:\s+tối đa)?)\s*\)/gi, emoji: "", tone: "auto" },
-];
-
-/** Decorate authored prose inline: emoji right before the effect keyword and the whole
- *  keyword phrase (keyword + value) tinted by its effect tone. Nothing is prepended to the
- *  sentence, so the text still reads naturally. */
-const decorateProse = (text: string, fallbackTone: string): DocumentFragment => {
-  const frag = document.createDocumentFragment();
-  let index = 0;
-  while (index < text.length) {
-    let best: { rule: (typeof PROSE_PATTERNS)[number]; match: RegExpExecArray } | null = null;
-    for (const rule of PROSE_PATTERNS) {
-      rule.re.lastIndex = index;
-      const match = rule.re.exec(text);
-      if (match && (!best || match.index < best.match.index)) best = { rule, match };
-    }
-    if (!best) { frag.append(text.slice(index)); break; }
-    if (best.match.index > index) frag.append(text.slice(index, best.match.index));
-    const phrase = best.match[0];
-    const tone = best.rule.tone === "auto" ? fallbackTone : best.rule.tone;
-    const firstDigit = phrase.search(/\d/);
-    if (best.rule.emoji && firstDigit > 0) {
-      // Keep the keyword first and drop the emoji right before its value, so a sentence never
-      // opens with an icon: "Tự hồi 💚 10% HP" instead of "💚 Tự hồi 10% HP".
-      frag.append(richSpan(`${phrase.slice(0, firstDigit).trimEnd()} `, tone));
-      frag.append(`${best.rule.emoji} `);
-      frag.append(richSpan(phrase.slice(firstDigit), tone));
-    } else {
-      if (best.rule.emoji) frag.append(`${best.rule.emoji} `);
-      frag.append(richSpan(phrase, tone));
-    }
-    index = best.match.index + phrase.length;
-  }
-  return frag;
 };
 
 /** The owned inventory and read-only enemy inspection share the same DOM, kit and stat painters. */
@@ -232,12 +190,12 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     skillFormula.replaceChildren(...rows);
     const tone = spec.damage?.type ?? (spec.heal || extra.selfHealPctMaxHp ? "heal" : "magic");
     const prose = unit.skill.starDetailVi[star - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
-    skillDescription.replaceChildren(decorateProse(prose, tone));
+    skillDescription.replaceChildren(decorateDescription(prose, tone as RichTone));
     milestones.replaceChildren(h("h4", "", `${ICONS.star} ${t("inventory.starMilestones")}`));
     for (let s = 1; s <= 3; s++) {
       const entry = h("p", s === star ? "is-current" : "");
       entry.append(`${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}: `,
-        decorateProse(unit.skill.starDetailVi[s - 1] ?? "", tone));
+        decorateDescription(unit.skill.starDetailVi[s - 1] ?? "", tone as RichTone));
       milestones.append(entry);
     }
     const milestone = starStatMilestones(unit)[star - 1];
@@ -600,7 +558,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     if (!next) { modal.close(); return; }
     model = next;
     view.updateStats();
-    gold.textContent = `${ICONS.gold} ${t("inventory.gold", { gold: model.run.gold })}`;
+    gold.textContent = t("inventory.gold", { gold: model.run.gold });
     const costs = unequipQuote(model.run, model.inspection.where, model.inspection.index);
     const totalCost = costs?.reduce((sum, cost) => sum + cost, 0) ?? 0;
     removeAll.setLabel(t("inventory.unequipAll", { cost: `${totalCost} ${ICONS.gold}` }));

@@ -3,6 +3,7 @@
 // Rich content mirrors old_src's TooltipController: avatar + header meta + badge/status chips +
 // HP/rage meters, then a mode-specific body (compact lines, summary blocks, expanded columns).
 import { h, disposeSurfaceTree, nineSlice, SLICE, surface, threeSlice } from "./kit";
+import { decorateDescription, inferRichTone } from "./richText";
 
 export type TooltipTone = "gold" | "star" | "tier" | "class" | "tribe" | "rage" | "status" | "stat" | "default";
 
@@ -168,7 +169,11 @@ export function createTooltip(layer: HTMLElement): Tooltip {
   const sectionBlock = (s: TooltipSection) => {
     const block = h("section", "tt-sec");
     if (s.title) block.append(h("h4", "tt-sec-title", `🔹 ${s.title}`));
-    for (const line of s.lines) if (line.trim()) block.append(h("p", "tt-sec-line", line));
+    for (const line of s.lines) if (line.trim()) {
+      const row = h("p", "tt-sec-line");
+      row.append(decorateDescription(line, inferRichTone(line)));
+      block.append(row);
+    }
     return block;
   };
 
@@ -215,7 +220,9 @@ export function createTooltip(layer: HTMLElement): Tooltip {
     for (const l of lines) {
       const row = h("div", `tt-line ${l.tone ? `tt-${l.tone}` : ""}`.trim());
       if (l.icon) { const i = h("span", "tt-icon", l.icon); i.setAttribute("aria-hidden", "true"); row.append(i); }
-      row.append(h("span", "", l.text));
+      const text = h("span");
+      text.append(decorateDescription(l.text, inferRichTone(l.text)));
+      row.append(text);
       box.append(row);
     }
     inner.append(box);
@@ -258,7 +265,11 @@ export function createTooltip(layer: HTMLElement): Tooltip {
     el.dataset.mode = mode;
     el.dataset.rich = String(rich);
     renderHeader(c);
-    if (c.description && mode !== "compact") inner.append(h("p", "tt-desc", c.description));
+    if (c.description && mode !== "compact") {
+      const desc = h("p", "tt-desc");
+      desc.append(decorateDescription(c.description, inferRichTone(c.description)));
+      inner.append(desc);
+    }
     if (mode === "expanded") {
       // The four-column surface needs the wide breakpoint; narrower windows use the summary blocks
       // instead of stacking a 1,500px-tall column grid over the board.
@@ -266,7 +277,11 @@ export function createTooltip(layer: HTMLElement): Tooltip {
       else if (c.sections?.length) renderSections(c.sections);
       else if (c.columns?.length) renderColumns(c.columns);
       else if (c.lines?.length) renderLines(c.lines);
-      if (c.body) inner.append(h("div", "tt-body", c.body));
+      if (c.body) {
+        const body = h("div", "tt-body");
+        body.append(decorateDescription(c.body, inferRichTone(c.body)));
+        inner.append(body);
+      }
       return;
     }
     if (mode === "compact") {
@@ -276,7 +291,11 @@ export function createTooltip(layer: HTMLElement): Tooltip {
     }
     if (c.sections?.length) renderSections(c.sections);
     else if (c.lines?.length) renderLines(c.lines);
-    if (c.body && !c.sections?.length && !c.lines?.length) inner.append(h("div", "tt-body", c.body));
+    if (c.body && !c.sections?.length && !c.lines?.length) {
+      const body = h("div", "tt-body");
+      body.append(decorateDescription(c.body, inferRichTone(c.body)));
+      inner.append(body);
+    }
   };
 
   const place = (r: DOMRect) => {

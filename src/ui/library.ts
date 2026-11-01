@@ -17,9 +17,16 @@ import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
 import { mountPortraitControls } from "./portraitControls";
+import { decorateDescription, inferRichTone } from "./richText";
 import { hasRig } from "../units/registry";
 import { ACTION_STATES, type ActionState, type Star } from "../units/rig";
 import type { CollectionProfile } from "../core/achievements";
+
+const richParagraph = (cls: string, text: string): HTMLElement => {
+  const p = h("p", cls);
+  p.append(decorateDescription(text, inferRichTone(text)));
+  return p;
+};
 
 const ROLES: Role[] = ["TANKER", "FIGHTER", "ASSASSIN", "ARCHER", "MAGE", "SUPPORT"];
 const FACTIONS: Faction[] = ["BEAST", "AVIAN", "INSECT", "REPTILE", "AQUATIC", "MYTHICAL"];
@@ -126,7 +133,7 @@ export function mountLibrary(
     const entry = (title: string, ...detail: string[]) => {
       const panel = panelEl("panel_tooltip", "lib-sec");
       panel.append(h("h3", "lib-h", title));
-      for (const line of detail) panel.append(h("p", "lib-p", line));
+      for (const line of detail) panel.append(richParagraph("lib-p", line));
       list.append(panel);
       return panel;
     };
@@ -380,13 +387,13 @@ export function mountLibrary(
       const sec = (title: string, ...rows: (string | undefined)[]) => {
         const p = panelEl("panel_tooltip", "lib-sec");
         p.append(h("h3", "lib-h", title));
-        for (const r of rows) if (r) p.append(h("p", "lib-p", r));
+        for (const r of rows) if (r) p.append(richParagraph("lib-p", r));
         info.append(p);
       };
       const identity = panelEl("panel_tooltip", "lib-sec");
       identity.append(
         h("h3", "lib-h", `${ICONS[u.role]} ${t(`role.${u.role}` as MsgKey)} · ${ICONS[u.faction]} ${t(`faction.${u.faction}` as MsgKey)} · ${ICONS[u.element as Element]} ${t(`element.${u.element}` as MsgKey)} · ${t("library.tier", { tier: u.tier })}`),
-        h("p", "lib-p lib-story", u.pitchVi),
+        richParagraph("lib-p lib-story", u.pitchVi),
       );
       info.append(identity);
       const ms = starStatMilestones(u);
