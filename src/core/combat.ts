@@ -190,6 +190,15 @@ export interface CombatInspectionFrame {
   units: CombatUnitSnapshot[];
 }
 
+export type CombatPreviewEffect = "damage" | "heal" | "shield" | "buff" | "debuff" | "control";
+export interface CombatPreviewTag {
+  uid: string;
+  effect: CombatPreviewEffect;
+  kind: "basic" | "skill";
+  /** Primary target of the current action; secondary tags are area/secondary targets. */
+  primary: boolean;
+}
+
 export interface CombatTargetPreview {
   /** Candidate cells inspected by basic/skill targeting; target colors render above these scan cells. */
   scanCells: Array<{ col: number; row: number }>;
@@ -199,6 +208,10 @@ export interface CombatTargetPreview {
   splashUids: string[];
   /** Present only when the fighter would currently cast its authored skill. */
   skillCasterUid: string | null;
+  /** Per-target semantic effect for hover preview colours/icons. */
+  tags?: CombatPreviewTag[];
+  /** Acting unit's role, used to pick sword/bow/wand badges without owning presentation data. */
+  actorRole?: Role;
 }
 
 export interface CombatOptions {
@@ -948,11 +961,20 @@ function previewSeed(all: readonly Fighter[], sourceUid: string): number {
   return hash | 0;
 }
 
+export interface CombatTargetPreviewOptions {
+  /** Planning hover shows the unit's full kit (basic + authored skill) regardless of current rage. */
+  kitPreview?: boolean;
+}
+
 /**
  * Read-only Planning/Library target projection. It deliberately uses the live basicTarget/skillTargets
  * rules, but owns a deterministic RNG so random selectors never advance the simulator RNG.
  */
-export function combatTargetPreview(all: readonly Fighter[], sourceUid: string): CombatTargetPreview | null {
+export function combatTargetPreview(
+  all: readonly Fighter[],
+  sourceUid: string,
+  options: CombatTargetPreviewOptions = {},
+): CombatTargetPreview | null {
   const source = all.find((fighter) => fighter.uid === sourceUid && fighter.alive);
   if (!source) return null;
   const fighters = [...all];
@@ -971,7 +993,7 @@ export function combatTargetPreview(all: readonly Fighter[], sourceUid: string):
     autoCastInFlight: new Set(),
   };
   const basic = basicTarget(c, source);
-  if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null };
+  if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
 
   const skillPool = source.skill.side === "self"
     ? [source]
@@ -991,17 +1013,26 @@ export function combatTargetPreview(all: readonly Fighter[], sourceUid: string):
   const hardControlled = CONTROL_PRIORITY.some((kind) => (source.status[kind]?.turns ?? 0) > 0);
   const silenced = (source.status.silence?.turns ?? 0) > 0;
   const disarmed = (source.status.disarm?.turns ?? 0) > 0;
-  const willCastSkill = !hardControlled
-    && source.rage >= source.rageMax
-    && !silenced
-    && Boolean(source.skillFamily);
+  const willCastSkill = options.kitPreview
+    ? Boolean(source.skillFamily)
+    : !hardControlled
+      && source.rage >= source.rageMax
+      && !silenced
+      && Boolean(source.skillFamily);
 
-  if (hardControlled || (!willCastSkill && disarmed)) {
-    return { scanCells, directUids: [], splashUids: [], skillCasterUid: null };
+  if (!options.kitPreview && (hardControlled || (!willCastSkill && disarmed))) {
+    return { scanCells, directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
   }
 
   if (!willCastSkill) {
-    return { scanCells, directUids: [basic.uid], splashUids: [], skillCasterUid: null };
+    return {
+      scanCells,
+      directUids: [basic.uid],
+      splashUids: [],
+      skillCasterUid: null,
+      tags: [{ uid: basic.uid, effect: "damage", kind: "basic", primary: true }],
+      actorRole: source.role,
+    };
   }
 
   const skillTargetsResolved = skillTargets(c, source, source.skill, basic);
@@ -1010,12 +1041,35 @@ export function combatTargetPreview(all: readonly Fighter[], sourceUid: string):
   const splashUids = skillTargetsResolved.slice(1)
     .map((fighter) => fighter.uid)
     .filter((uid, index, allUids) => uid !== skillPrimary?.uid && allUids.indexOf(uid) === index);
+  const effect = skillPreviewEffect(source.skill);
+  const skillTags: CombatPreviewTag[] = skillTargetsResolved.map((fighter, index) => ({
+    uid: fighter.uid,
+    effect,
+    kind: "skill",
+    primary: index === 0,
+  }));
+  const tags = options.kitPreview && !skillTags.some((tag) => tag.uid === basic.uid)
+    ? [...skillTags, { uid: basic.uid, effect: "damage" as const, kind: "basic" as const, primary: false }]
+    : skillTags;
   return {
     scanCells,
     directUids,
     splashUids,
     skillCasterUid: source.uid,
+    tags,
+    actorRole: source.role,
   };
+}
+
+/** Semantic preview family for hover colours/icons (heal > shield > control > damage > buff > debuff). */
+export function skillPreviewEffect(sp: SkillSpec): CombatPreviewEffect {
+  if (sp.heal || sp.hot || sp.revivePct > 0 || sp.selfHealPctMaxHp > 0) return "heal";
+  if (sp.shield) return "shield";
+  if (sp.controls.length) return "control";
+  if (sp.damage || sp.dots.length) return "damage";
+  if (sp.buffs.length) return "buff";
+  if (sp.debuffs.length) return "debuff";
+  return "buff";
 }
 
 function standardHealTargets(c: Ctx, f: Fighter, sp: SkillSpec): Fighter[] {

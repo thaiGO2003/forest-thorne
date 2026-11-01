@@ -8,9 +8,11 @@
 ## 2026-09-22 17:00 +07:00
 
 - No plan moved into `done/` in this tranche. Git history remains the archive for fully superseded plans; active plans with runtime gates remain under `pending/`.
+
 ## 2026-10-10T02:56:47.166Z
 
 - remaining-menu-utilities-plan.md moved into done via /plan-done.
+
 ## 2026-10-18T08:52:37.971Z
 
 - feat/planning-screen/zztest.md moved into done via /plan-done.
@@ -30,4 +32,8 @@
 ## 2026-10-18T23:23:07.437Z
 
 - chore.agents.migration.md moved into done via /plan-done.
+
+## 2026-11-01 — Issue #17 plan-state correction
+
+- WBS-019 (`feat.combat.combat-queue-deterministic-interleaving-engine.md`) had been copied to `done/` manually during migration without `/plan-done` or complete acceptance evidence. Corrected its status and returned it to `pending/`; Issue #10 remains open. This entry records the correction, **not** a `/plan-done` event.
 

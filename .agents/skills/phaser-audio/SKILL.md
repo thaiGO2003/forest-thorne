@@ -6,7 +6,7 @@ version: 0.7.0
 
 # Phaser 4 Audio
 
-> Companion reference (do not duplicate here): See P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/audio-and-sound/SKILL.md for the API reference already installed alongside this skill.
+> Companion reference (do not duplicate here): See `.agents/skills/audio-and-sound/SKILL.md` for the API reference already installed alongside this skill.
 
 This skill holds the audio workflow patterns and gotchas that go beyond the API reference: rapid-SFX pooling, mute-button UI wiring, tap-to-start overlays, AudioContext suspension recovery, scene music crossfading, and shutdown cleanup decisions.
 

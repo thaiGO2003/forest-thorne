@@ -9,7 +9,8 @@ import type { RunState } from "../core/run";
 import type { SynergyLine } from "../core/synergy";
 import type { TutorialStep } from "../core/tutorial";
 import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
-import { h, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { h, kitButton, label, LABEL, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { uiFont } from "./fontScale";
 import type { Tooltip } from "./tooltip";
 
 export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
@@ -166,7 +167,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   const dockHead = h("div", "pl-shop-head");
   const headS = surface(dockHead, (g, w, hh) => {
     if (!m) return;
-    label(g, `${t("planning.shop")} · ${t("planning.bench", { current: m.run.bench.length, max: m.benchCap })}`, 10, hh / 2, { size: 13, align: "left", fill: "#17120e", stroke: null });
+    label(g, `${t("planning.shop")} · ${t("planning.bench", { current: m.run.bench.length, max: m.benchCap })}`, 10, hh / 2, { size: uiFont(13), align: "left", fill: LABEL, stroke: null });
   });
   const prev = kitButton({ skin: "wood", label: "‹", cls: "pl-page", onClick: () => { page = Math.max(0, page - 1); renderShop(); } });
   const next = kitButton({ skin: "wood", label: "›", cls: "pl-page", onClick: () => { page++; renderShop(); } });

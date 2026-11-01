@@ -53,9 +53,8 @@ export interface Billboard {
   sprite: THREE.Sprite;
   set(s: BillboardState): void;
   setVisible(v: boolean): void;
-  /** Show additional status icons and expanded readouts on hovered/selected units. */
-  setDetailed(v: boolean): void;
   setPriority(v: boolean): void;
+  setDetailed(v: boolean): void;
   dispose(): void;
 }
 
@@ -203,8 +202,8 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       draw();
     },
     setVisible(v) { sprite.visible = v; },
-    setDetailed(v) { if (detailed === v) return; detailed = v; draw(); },
     setPriority(v) { sprite.renderOrder = v ? HOVER_RENDER_ORDER : BASE_RENDER_ORDER; },
+    setDetailed(v) { if (detailed === v) return; detailed = v; draw(); },
     dispose() { offKit(); sprite.removeFromParent(); tex.dispose(); mat.dispose(); state = null; },
   };
 }

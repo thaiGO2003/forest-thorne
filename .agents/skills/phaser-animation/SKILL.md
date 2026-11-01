@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "create animation",
 version: 0.7.0
 ---
 
-> Companion reference (do not duplicate here): See P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/animations/SKILL.md and P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/tweens/SKILL.md for the API reference already installed alongside this skill.
+> Companion reference (do not duplicate here): See `.agents/skills/animations/SKILL.md` and `.agents/skills/tweens/SKILL.md` for the API references already installed alongside this skill.
 
 # Phaser 4 Animations and Tweens
 

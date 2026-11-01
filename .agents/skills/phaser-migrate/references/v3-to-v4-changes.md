@@ -4,7 +4,7 @@ The full v3 → v4 breaking-change reference (removed APIs, method mappings, beh
 differences, renderer internals, TypeScript config changes) is documented in the
 companion skill already installed alongside this one:
 
-`P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/v3-to-v4-migration/SKILL.md`
+`.agents/skills/v3-to-v4-migration/SKILL.md`
 
 This file keeps only what the companion does not cover: the list of v3 APIs that are
 **preserved** in v4.

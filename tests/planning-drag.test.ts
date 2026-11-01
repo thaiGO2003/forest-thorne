@@ -216,7 +216,7 @@ describe("Planning drag controller", () => {
 
     const moves: Array<{ from: { kind: "bench" | "board"; index: number }; to: { kind: "bench" | "board"; index: number } }> = [];
     const selections: Array<{ kind: "bench" | "board"; index: number }> = [];
-    const enemySelections: string[] = [];
+    const inspected: string[] = [];
     const targetStates: Array<PlanningDragTargetState | null> = [];
     let inspectOnly = false;
     const controller = createPlanningDragController({
@@ -228,7 +228,7 @@ describe("Planning drag controller", () => {
         return bridge.move(from, to);
       },
       select: (source) => { selections.push(source); },
-      selectEnemy: (uid) => { enemySelections.push(uid); },
+      inspectEnemy: (uid) => { inspected.push(uid); },
       onTargetState: (state) => { targetStates.push(state); },
       enabled: () => true,
       inspectOnly: () => inspectOnly,
@@ -295,6 +295,12 @@ describe("Planning drag controller", () => {
     scene.updateMatrixWorld(true);
     click(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 6);
     expect(selections).toEqual([{ kind: "board", index: boardAIndex }]);
+    // The tile under a unit is a click target too, even when the ray misses the model silhouette.
+    playerRoot.visible = false;
+    click(new THREE.Vector3(boardAWorld.x + 0.42, TILE_HEIGHT, boardAWorld.z), 14);
+    playerRoot.visible = true;
+    expect(selections).toHaveLength(2);
+    expect(selections.at(-1)).toEqual({ kind: "board", index: boardAIndex });
     hiddenOverlay.removeFromParent(); hiddenMesh.geometry.dispose(); hiddenMesh.material.dispose();
 
     const sameCell = clientPointForWorld(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), camera, rect);
@@ -325,7 +331,7 @@ describe("Planning drag controller", () => {
     const boardBIndex = boardB.row * 5 + boardB.col;
     expect(run.board[boardAIndex]).toBeNull();
     expect(run.board[boardBIndex]?.uid).toBe(playerUid);
-    expect(selections).toHaveLength(1);
+    expect(selections).toHaveLength(2);
 
     placeRoot(playerRoot, boardBWorld.x, boardBWorld.z, scene);
     drag(
@@ -341,6 +347,7 @@ describe("Planning drag controller", () => {
     click(new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z), 7);
     expect(selections).toEqual([
       { kind: "board", index: boardAIndex },
+      { kind: "board", index: boardAIndex },
       { kind: "bench", index: 1 },
     ]);
     drag(
@@ -355,10 +362,11 @@ describe("Planning drag controller", () => {
     const enemyPoint = new THREE.Vector3(enemyWorld.x, TILE_HEIGHT, enemyWorld.z);
     drag(enemyPoint, new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 5);
     expect(moves).toHaveLength(moveCount);
-    expect(enemySelections).toEqual([]);
+    expect(inspected).toEqual([]);
     click(enemyPoint, 8);
-    expect(selections).toHaveLength(2);
-    expect(enemySelections).toEqual(["enemy-preview"]);
+    expect(selections).toHaveLength(3);
+    // A tap on an enemy opens its read-only detail, exactly like an ally tap.
+    expect(inspected).toEqual(["enemy-preview"]);
 
     // Combat clicks still inspect owned units, while drags never mutate the formation.
     inspectOnly = true;
@@ -369,9 +377,7 @@ describe("Planning drag controller", () => {
     expect(selections.at(-1)).toEqual({ kind: "bench", index: 0 });
     drag(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 11);
     expect(moves).toHaveLength(moveCount);
-    expect(selections).toHaveLength(3);
-    click(enemyPoint, 12);
-    expect(enemySelections).toEqual(["enemy-preview", "enemy-preview"]);
+    expect(selections).toHaveLength(4);
     expect(JSON.stringify(run)).toBe(combatBefore);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",
@@ -379,6 +385,14 @@ describe("Planning drag controller", () => {
       "board->bench",
       "bench->bench",
     ]);
+    // Enemy inspection also works during combat, but a pan gesture is not a tap.
+    click(enemyPoint, 12);
+    expect(inspected).toEqual(["enemy-preview", "enemy-preview"]);
+    const enemyClient = clientPointForWorld(enemyPoint, camera, rect);
+    canvas.dispatchPointer("pointerdown", enemyClient.clientX, enemyClient.clientY, 13);
+    canvas.dispatchPointer("pointermove", enemyClient.clientX + 8, enemyClient.clientY, 13);
+    canvas.dispatchPointer("pointerup", enemyClient.clientX + 8, enemyClient.clientY, 13);
+    expect(inspected).toHaveLength(2);
 
     controller.dispose();
     expect(clearHighlights).toHaveBeenCalled();
@@ -652,10 +666,10 @@ describe("Planning drag controller", () => {
     expect(preview.mock.lastCall?.[0]).toEqual({ kind: "board", index: 7 });
     hover(6, 2, 0.35);
     expect(boardView.setHovered).toHaveBeenLastCalledWith("rendered-enemy");
-    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 6, row: 2, role: "enemy" }]);
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 6, row: 2, role: "hover" }]);
     hover(6, 2, TILE_HEIGHT, 0.32);
     expect(boardView.setHovered).toHaveBeenLastCalledWith("rendered-enemy");
-    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 6, row: 2, role: "enemy" }]);
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 6, row: 2, role: "hover" }]);
     // The model ray wins even when the model projects over a different occupied tile.
     placeRoot(allyRoot!, nextWorld.x, nextWorld.z, scene);
     placeRoot(nextRoot!, allyWorld.x - 1, allyWorld.z, scene);

@@ -9,11 +9,14 @@ import { AUGMENTS, type AugGroup } from "../core/augments";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
+import { basicAttackCopy } from "../core/unitText";
+import { unitEvolutionName } from "../content/unitNames";
 import { createCard, unitCardTooltip, type CardView } from "./card";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
+import { mountPortraitControls } from "./portraitControls";
 import { hasRig } from "../units/registry";
 import { ACTION_STATES, type ActionState, type Star } from "../units/rig";
 import type { CollectionProfile } from "../core/achievements";
@@ -77,7 +80,7 @@ export function mountLibrary(
   const f: Filter = { q: "", role: null, faction: null, tier: null };
   let collection = account.collectionProfile();
   const refreshCollection = () => { collection = account.collectionProfile(); };
-  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
+  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, controlsOff: (() => void) | null = null, idleTimer: number | null = null, relaxedIdle = true;
   let tab: LibraryTab = "units";
   const cardTips: (() => void)[] = [];
   const clearCardTips = () => {
@@ -212,6 +215,7 @@ export function mountLibrary(
     clearViewTips();
     clearIdleTimer();
     viewer?.dispose(); viewer = null;
+    controlsOff?.(); controlsOff = null;
     for (const c of cards) c.dispose();
     cards = [];
     gridRo?.disconnect(); gridRo = null;
@@ -308,7 +312,7 @@ export function mountLibrary(
     gridRo?.disconnect(); gridRo = null;
     disposeSurfaceTree(root);
     root.replaceChildren();
-    modal.setTitle(u.nameVi);
+    modal.setTitle(unitEvolutionName(u, 1));
     const equippedSkinId = collection.equippedSkinByUnitId[u.id];
     let star: Star = 1;
     let skinId: string | null = u.skin?.id === equippedSkinId && collection.unlockedSkinIds.includes(equippedSkinId) ? equippedSkinId : null;
@@ -318,8 +322,11 @@ export function mountLibrary(
     stagePanel.append(view);
     clearIdleTimer();
     viewer?.dispose();
+    controlsOff?.();
+    controlsOff = null;
     viewer = portraits.createViewer(view);
     viewer.setUnit(u.id, star, skinId);
+    controlsOff = mountPortraitControls(stagePanel, viewer);
     scheduleIdle();
     if (!hasRig(u.id)) stagePanel.append(h("div", "lib-pending", t("library.artPending")));
 
@@ -348,8 +355,14 @@ export function mountLibrary(
       }
     }
     const stars = h("div", "lib-stars");
+    const nameHeading = h("h2", "lib-name", unitEvolutionName(u, star));
+    const syncEvolutionName = () => {
+      const name = unitEvolutionName(u, star);
+      modal.setTitle(name);
+      nameHeading.textContent = name;
+    };
     const starBtns = ([1, 2, 3] as const).map((n) => {
-      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
+      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); syncEvolutionName(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
       stars.append(b.el);
       return b;
     });
@@ -358,7 +371,7 @@ export function mountLibrary(
     const info = h("div", "lib-info");
     const back = kitButton({ skin: "wood", label: t("library.back"), cls: "lib-back", onClick: () => renderBrowse() });
     const left = h("div", "lib-left");
-    left.append(stagePanel, actions, stars);
+    left.append(nameHeading, stagePanel, actions, stars);
     wrap.append(left, info);
     root.append(back.el, wrap);
 
@@ -389,13 +402,13 @@ export function mountLibrary(
       const statSec = panelEl("panel_tooltip", "lib-sec");
       statSec.append(h("h3", "lib-h", t("library.stars")), table);
       info.append(statSec);
-      sec(`${ICONS.atk} ${t("library.basic")}`, u.basic.textVi);
+      sec(`${u.basic.damageType === "magic" ? ICONS.matk : ICONS.atk} ${t("library.basic")}`, basicAttackCopy(u));
       const s = u.skill;
       sec(`${ICONS.rage} ${t("library.skill")}: ${s.nameVi} (${t("unit.rage", { cost: s.rageCost[star - 1] ?? s.rageCost[0] })})`,
         s.starDetailVi[star - 1] ?? s.detailVi,
         s.targetVi && `${ICONS.range} ${t("library.target")}: ${s.targetVi}`,
-        s.shapeVi && `▦ ${t("library.shape")}: ${s.shapeVi}`,
-        s.countVi && `# ${t("library.targets")}: ${s.countVi}`,
+        s.shapeVi && `${ICONS.synergy} ${t("library.shape")}: ${s.shapeVi}`,
+        s.countVi && `${ICONS.range} ${t("library.targets")}: ${s.countVi}`,
         star === 1 && s.durationVi ? `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}` : undefined);
       const next = ms[star];
       if (next) {
@@ -417,6 +430,7 @@ export function mountLibrary(
           skinId = null;
           viewer?.setUnit(u.id, star, skinId);
           scheduleIdle();
+          syncEvolutionName();
           renderInfo();
         } });
         base.setSelected(skinId === null);
@@ -431,6 +445,7 @@ export function mountLibrary(
             skinId = skin.id;
             viewer?.setUnit(u.id, star, skinId);
             scheduleIdle();
+            syncEvolutionName();
             for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === star);
             renderInfo();
           } });
@@ -446,5 +461,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
+  return { showDetail, dispose() { controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }
