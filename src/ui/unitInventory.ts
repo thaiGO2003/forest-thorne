@@ -98,38 +98,45 @@ const richLine = (...parts: Array<string | Node>): HTMLElement => {
   for (const part of parts) line.append(part);
   return line;
 };
-/** Wrap authored damage formulas so the numbers carry the effect colour the panel headings use. */
-const colorizeNumbers = (text: string, tone: string): Array<string | Node> => {
-  const parts: Array<string | Node> = [];
-  const pattern = /(\d+(?:[.,]\d+)?%?)/g;
-  let last = 0;
-  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
-    parts.push(richSpan(match[1], tone));
-    last = match.index + match[1].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
-};
-
-const PROSE_RULES: { test: RegExp; emoji: string; tone: string }[] = [
-  { test: /hồi .*HP tối đa|tự hồi/i, emoji: "💚", tone: "heal" },
-  { test: /khiên/i, emoji: "🛡️", tone: "shield" },
-  { test: /giảm .*sát thương nhận|giảm sát thương/i, emoji: "🛡️", tone: "shield" },
-  { test: /thanh tẩy|xóa hiệu ứng/i, emoji: "✨", tone: "buff" },
-  { test: /chảy máu|nhiễm độc|thiêu đốt|độc/i, emoji: "🩸", tone: "element" },
-  { test: /choáng|đóng băng|ngủ|khiêu khích/i, emoji: "💫", tone: "control" },
+const PROSE_PATTERNS: { re: RegExp; emoji: string; tone: string }[] = [
+  { re: /((?:Tự\s+)?[Hh]ồi\s+\d+(?:[.,]\d+)?%\s*HP(?:\s+tối đa)?)/g, emoji: "💚", tone: "heal" },
+  { re: /((?:[Nn]hận)\s+\d+(?:[.,]\d+)?\s+khiên)/g, emoji: "🛡️", tone: "shield" },
+  { re: /((?:[Gg]iảm)\s+\d+(?:[.,]\d+)?%\s+sát thương nhận(?:\s+vào)?(?:\s+trong\s+\d+\s+lượt)?)/g, emoji: "🛡️", tone: "shield" },
+  { re: /((?:[Tt]hanh tẩy|[Xx]óa)\s+(?:tối đa\s+)?\d+\s+hiệu ứng[^.]*)/g, emoji: "✨", tone: "buff" },
+  { re: /((?:chảy máu|nhiễm độc|thiêu đốt)\s+\d+(?:[.,]\d+)?(?:\s*\/\s*lượt)?)/gi, emoji: "🩸", tone: "element" },
+  { re: /(choáng|đóng băng|ngủ|khiêu khích)(?:\s+\d+\s+lượt)?/gi, emoji: "💫", tone: "control" },
+  { re: /\(\s*\d+(?:[.,]\d+)?\s*\+\s*\d+(?:[.,]\d+)?%\s*(?:ATK|MATK|DEF|MDEF|HP(?:\s+tối đa)?)\s*\)/gi, emoji: "", tone: "auto" },
 ];
 
-/** Decorate authored prose sentence by sentence: effect emoji plus tone-coloured numbers. */
-const decorateProse = (text: string, tone: string): DocumentFragment => {
+/** Decorate authored prose inline: emoji right before the effect keyword and the whole
+ *  keyword phrase (keyword + value) tinted by its effect tone. Nothing is prepended to the
+ *  sentence, so the text still reads naturally. */
+const decorateProse = (text: string, fallbackTone: string): DocumentFragment => {
   const frag = document.createDocumentFragment();
-  for (const sentence of text.split(/(?<=\.)\s+/)) {
-    if (!sentence) continue;
-    const rule = PROSE_RULES.find((entry) => entry.test.test(sentence));
-    if (rule) frag.append(`${rule.emoji} `);
-    for (const part of colorizeNumbers(sentence, rule?.tone ?? tone)) frag.append(part);
-    frag.append(" ");
+  let index = 0;
+  while (index < text.length) {
+    let best: { rule: (typeof PROSE_PATTERNS)[number]; match: RegExpExecArray } | null = null;
+    for (const rule of PROSE_PATTERNS) {
+      rule.re.lastIndex = index;
+      const match = rule.re.exec(text);
+      if (match && (!best || match.index < best.match.index)) best = { rule, match };
+    }
+    if (!best) { frag.append(text.slice(index)); break; }
+    if (best.match.index > index) frag.append(text.slice(index, best.match.index));
+    const phrase = best.match[0];
+    const tone = best.rule.tone === "auto" ? fallbackTone : best.rule.tone;
+    const firstDigit = phrase.search(/\d/);
+    if (best.rule.emoji && firstDigit > 0) {
+      // Keep the keyword first and drop the emoji right before its value, so a sentence never
+      // opens with an icon: "Tự hồi 💚 10% HP" instead of "💚 Tự hồi 10% HP".
+      frag.append(richSpan(`${phrase.slice(0, firstDigit).trimEnd()} `, tone));
+      frag.append(`${best.rule.emoji} `);
+      frag.append(richSpan(phrase.slice(firstDigit), tone));
+    } else {
+      if (best.rule.emoji) frag.append(`${best.rule.emoji} `);
+      frag.append(richSpan(phrase, tone));
+    }
+    index = best.match.index + phrase.length;
   }
   return frag;
 };
