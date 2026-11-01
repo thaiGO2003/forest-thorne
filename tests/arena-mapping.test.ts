@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
-import { toVisual } from "../src/board/geometry";
+import { benchPerimeter, brownRing, riverCells, toVisual } from "../src/board/geometry";
 vi.mock("../src/world/scenery", () => ({
   createScenery: () => ({ setEnvironment() {}, setDayNight() {}, update() {} }),
 }));
 vi.mock("../src/world/sky", () => ({
   createSky: () => ({ setEnvironment() {}, setDayNight() {}, update() {} }),
 }));
-import { cellToWorld, createArena, worldToLogical } from "../src/world/arena";
+import { BLOCK, FLOW_SPEED, cellToWorld, createArena, worldToLogical } from "../src/world/arena";
 
 describe("arena world mapping (A91.2)", () => {
   it("round-trips every logical cell through world space", () => {
@@ -224,33 +224,113 @@ describe("arena world mapping (A91.2)", () => {
     }
     arena.dispose();
   });
-  it("builds the river, ring and bench as owned geometry with animated water cues", () => {
+  it("preserves all three tuft world offsets across repeated occupancy transitions", () => {
+    const arena = createArena(new THREE.Scene(), "solo");
+    const tufts = arena.root.children.find(
+      (child): child is THREE.InstancedMesh =>
+        child instanceof THREE.InstancedMesh && child.geometry instanceof THREE.ConeGeometry,
+    );
+    expect(tufts).toBeDefined();
+    const world = cellToWorld(toVisual(2, 1), "solo");
+    const matrix = new THREE.Matrix4();
+    let tileIndex = -1;
+    for (let i = 0; i < arena.tiles.count; i++) {
+      arena.tiles.getMatrixAt(i, matrix);
+      if (matrix.elements[12] === world.x && matrix.elements[14] === world.z) {
+        tileIndex = i;
+        break;
+      }
+    }
+    expect(tileIndex).toBeGreaterThanOrEqual(0);
+    const offsets = [[-0.28, -0.22], [0.25, 0.1], [-0.05, 0.3]];
+    for (const occupied of [false, true, false, true, false]) {
+      arena.setOccupied(2, 1, occupied);
+      offsets.forEach(([x, z], k) => {
+        tufts!.getMatrixAt(tileIndex * 3 + k, matrix);
+        expect(matrix.elements[12]).toBeCloseTo(world.x + x!);
+        expect(matrix.elements[13]).toBeCloseTo(occupied ? -10 : 0.22);
+        expect(matrix.elements[14]).toBeCloseTo(world.z + z!);
+      });
+    }
+    arena.dispose();
+  });
+
+  it("scales owned river, ring, bench and tactical meshes for every profile", () => {
+    for (const profile of ["solo", "coop2", "coop4"] as const) {
+      const arena = createArena(new THREE.Scene(), profile);
+      const rows = { solo: 5, coop2: 10, coop4: 20 }[profile];
+      const water = arena.root.getObjectByName("river-water") as THREE.Mesh<THREE.BoxGeometry>;
+      const ring = arena.root.getObjectByName("brown-ring") as THREE.InstancedMesh;
+      const bench = arena.root.getObjectByName("bench-perimeter") as THREE.InstancedMesh;
+      expect(water.geometry.parameters.depth).toBe(rows * BLOCK);
+      expect(water.geometry.parameters.depth).toBe(riverCells(profile).length * BLOCK);
+      expect(water.position.x).toBe(0);
+      expect(arena.tiles.count).toBe(10 * rows);
+      expect(ring.count).toBe(brownRing(profile).length);
+      expect(bench.count).toBe(benchPerimeter(profile).length);
+      expect(arena.root.children.filter((child) => child.name === "river-flow-marker")).toHaveLength(7);
+      arena.dispose();
+    }
+  });
+
+  it("keeps all flow markers evenly spaced and bounded across many wraps and negative deltas", () => {
     const scene = new THREE.Scene();
     const arena = createArena(scene, "solo");
     const ring = arena.root.getObjectByName("brown-ring") as THREE.InstancedMesh;
-    const bench = arena.root.getObjectByName("bench-perimeter") as THREE.InstancedMesh;
-    const water = arena.root.getObjectByName("river-water") as THREE.Mesh;
+    const water = arena.root.getObjectByName("river-water") as THREE.Mesh<THREE.BoxGeometry>;
     const markers = arena.root.children.filter((child) => child.name === "river-flow-marker");
+    const riverLen = water.geometry.parameters.depth;
+    const initialZ = markers.map((marker) => marker.position.z);
     const ringDispose = vi.spyOn(ring, "dispose");
+    let distance = 0;
 
-    expect(arena.tiles).toBeInstanceOf(THREE.InstancedMesh);
-    expect(arena.tiles.count).toBe(50);
-    expect(ring).toBeInstanceOf(THREE.InstancedMesh);
-    expect(ring.count).toBe(36);
-    expect(bench).toBeInstanceOf(THREE.InstancedMesh);
-    expect(bench.count).toBe(44);
-    expect(water.position.x).toBe(0);
-    expect(markers).toHaveLength(7);
-    const markerPosition = markers[0]!.position.z;
-    arena.update(0);
-    expect(markers[0]!.position.z).toBeCloseTo(markerPosition);
-    arena.update(0.5);
-    expect(markers[0]!.position.z).toBeCloseTo(markerPosition + 0.5 * 0.62);
-    const riverLen = (water.geometry as THREE.BoxGeometry).parameters.depth;
-    arena.update(riverLen / 7 / 0.62 - 0.5);
-    expect(markers[6]!.position.z).toBeCloseTo(markerPosition);
-
+    for (const dt of [0, 0.5, riverLen * 2 / FLOW_SPEED, riverLen * 3.25 / FLOW_SPEED, -1, riverLen / FLOW_SPEED]) {
+      const previous = markers.map((marker) => marker.position.z);
+      arena.update(dt);
+      if (dt === 0.5) expect(markers[3]!.position.z - previous[3]!).toBeCloseTo(0.31, 5);
+      distance += Math.max(0, dt) * FLOW_SPEED;
+      markers.forEach((marker, index) => {
+        const phase = initialZ[index]! + distance + riverLen / 2;
+        const expected = ((phase % riverLen) + riverLen) % riverLen - riverLen / 2;
+        expect(marker.position.z).toBeCloseTo(expected, 5);
+        expect(marker.position.z).toBeGreaterThanOrEqual(-riverLen / 2);
+        expect(marker.position.z).toBeLessThanOrEqual(riverLen / 2);
+        if (dt < 0) expect(marker.position.z).toBe(previous[index]);
+      });
+      const sorted = markers.map((marker) => marker.position.z).sort((a, b) => a - b);
+      for (let i = 0; i < sorted.length; i++) {
+        const next = i === sorted.length - 1 ? sorted[0]! + riverLen : sorted[i + 1]!;
+        expect(next - sorted[i]!).toBeCloseTo(riverLen / 7, 5);
+      }
+    }
     arena.dispose();
+    expect(ringDispose).toHaveBeenCalledOnce();
+    expect(scene.children).not.toContain(arena.root);
+  });
+
+  it("leaves foreign scene environments untouched when disposing the arena", () => {
+    const scene = new THREE.Scene();
+    const arena = createArena(scene, "solo");
+    const foreignFog = new THREE.Fog(0x123456, 1, 30);
+    const foreignBackground = new THREE.Color(0xabcdef);
+    scene.fog = foreignFog;
+    scene.background = foreignBackground;
+    arena.dispose();
+    expect(scene.fog).toBe(foreignFog);
+    expect(scene.background).toBe(foreignBackground);
+  });
+
+  it("disposes owned mesh and GPU resources at most once", () => {
+    const scene = new THREE.Scene();
+    const arena = createArena(scene, "solo");
+    const ring = arena.root.getObjectByName("brown-ring") as THREE.InstancedMesh;
+    const geometryDispose = vi.spyOn(arena.tiles.geometry, "dispose");
+    const materialDispose = vi.spyOn(arena.tiles.material as THREE.Material, "dispose");
+    const ringDispose = vi.spyOn(ring, "dispose");
+    arena.dispose();
+    expect(() => arena.dispose()).not.toThrow();
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
     expect(ringDispose).toHaveBeenCalledOnce();
     expect(scene.children).not.toContain(arena.root);
   });
