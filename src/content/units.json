@@ -6377,9 +6377,9 @@
  {
   "id": "weasel_quick",
   "species": "chon",
-  "nameVi": "Chồn Nhanh",
+  "nameVi": "Phong Liêm Dứu",
   "tier": 2,
-  "role": "ASSASSIN",
+  "role": "TANKER",
   "faction": "BEAST",
   "element": "WIND",
   "boss": false,

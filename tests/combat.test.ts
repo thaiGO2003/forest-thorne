@@ -570,7 +570,7 @@ describe("combat", () => {
       { uid: "near-mage", baseId: "salamander_flame", star: 1, row: 2, col: 4 },
       { uid: "far-tank", baseId: "titan_earth", star: 1, row: 4, col: 0 },
     ],
-    [{ uid: "right", baseId: "weasel_quick", star: 1, row: 2, col: 5 }],
+    [{ uid: "right", baseId: "mink_silent", star: 1, row: 2, col: 5 }],
     { seed: 5 },);
     expect(firstTargetBy(result.events, "right")).toMatchObject({ dst: "far-tank" });
   });
@@ -615,7 +615,7 @@ describe("combat", () => {
   });
 
   it("RIGHT Assassin breaks equal back-column ties by same row, then top-first row sweep", () => {
-    const assassin = { uid: "right", baseId: "weasel_quick", star: 1, row: 2, col: 5 };
+    const assassin = { uid: "right", baseId: "mink_silent", star: 1, row: 2, col: 5 };
     const sameRow = battle([
       { uid: "top", baseId: "salamander_flame", star: 1, row: 0, col: 0 },
       { uid: "same", baseId: "titan_earth", star: 1, row: 2, col: 0 },
@@ -700,7 +700,7 @@ describe("combat", () => {
 
   it("reflects finalized HP damage, applies the authored ATK debuff, and never recursively reflects", () => {
     const reflected = battle([{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
-    [{ uid: "weasel", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "weasel", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 4, startShield: 20, hpPct: 1_000 }, R: { hpPct: 10_000 } } },);
     const incoming = reflected.events.find((e) => e.t === "basic" && e.src === "weasel" && e.dst === "badger");
     const bounce = reflected.events.find((e) => e.t === "reflect" && e.src === "badger" && e.dst === "weasel");
@@ -738,7 +738,7 @@ describe("combat", () => {
 
   it("does not let lifesteal rescue an attacker made lethal by reflect", () => {
     const result = battle([{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
-    [{ uid: "attacker", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "attacker", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     {
       seed: 2,
       bonus: {
@@ -754,7 +754,7 @@ describe("combat", () => {
 
   it("counters only a surviving melee attacker and owns lethal counter death immediately", () => {
     const lethalCounter = battle([{ uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 }],
-    [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "enemy", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 4, atkPct: 100 } } },);
     const triggerAt = lethalCounter.events.findIndex((e) => e.t === "basic" && e.src === "enemy" && e.dst === "rhino");
     const counterAt = lethalCounter.events.findIndex((e, i) => i > triggerAt && e.t === "basic" && e.src === "rhino" && e.dst === "enemy");
@@ -765,7 +765,7 @@ describe("combat", () => {
     expect(lethalCounter.survivors.some((f) => f.uid === "enemy")).toBe(false);
 
     const deadDefender = battle([{ uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 }],
-    [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "enemy", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 2 }, R: { atkPct: 2_000 } } },);
     expect(deadDefender.events.some((e) => e.t === "death" && e.dst === "rhino")).toBe(true);
     expect(deadDefender.events.some((e) => e.t === "basic" && e.src === "rhino" && e.dst === "enemy")).toBe(false);
@@ -795,7 +795,7 @@ describe("combat", () => {
     expect(survivor).toMatchObject({ shield: 0, phoenix: { armed: false, used: true, revivePct: 0.3 } });
 
     const killedLater = battle([placement],
-    [{ uid: "weasel", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "weasel", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 3, startShield: 100 }, R: { atkPct: 1_000_000, hpPct: 1_000 } } },);
     const laterRevives = killedLater.events.filter((e) => e.t === "revive" && e.dst === "phoenix");
     expect(laterRevives).toHaveLength(1);
@@ -832,7 +832,7 @@ describe("combat", () => {
       { uid: "front", baseId: "titan_earth", star: 1, row: 0, col: 4 },
       { uid: "deer", baseId: "deer_song", star: 1, row: 0, col: 3 },
     ],
-    [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "enemy", baseId: "viper_strike", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 1 }, R: { hpPct: 1_000 } } },);
     const castAt = result.events.findIndex((e) => e.t === "cast" && e.src === "deer");
     const hotAt = result.events.findIndex((e, i) => i > castAt && e.t === "status" && e.kind === "hot" && e.dst === "deer");
