@@ -260,7 +260,9 @@ export function createTooltip(layer: HTMLElement): Tooltip {
     renderHeader(c);
     if (c.description && mode !== "compact") inner.append(h("p", "tt-desc", c.description));
     if (mode === "expanded") {
-      if (c.columns?.length && innerWidth > 760) renderColumns(c.columns);
+      // The four-column surface needs the wide breakpoint; narrower windows use the summary blocks
+      // instead of stacking a 1,500px-tall column grid over the board.
+      if (c.columns?.length && innerWidth >= 1100) renderColumns(c.columns);
       else if (c.sections?.length) renderSections(c.sections);
       else if (c.columns?.length) renderColumns(c.columns);
       else if (c.lines?.length) renderLines(c.lines);
