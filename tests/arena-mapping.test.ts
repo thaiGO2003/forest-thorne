@@ -264,6 +264,7 @@ describe("arena world mapping (A91.2)", () => {
       const bench = arena.root.getObjectByName("bench-perimeter") as THREE.InstancedMesh;
       expect(water.geometry.parameters.depth).toBe(rows * BLOCK);
       expect(water.geometry.parameters.depth).toBe(riverCells(profile).length * BLOCK);
+      expect(water.position.x).toBe(0);
       expect(arena.tiles.count).toBe(10 * rows);
       expect(ring.count).toBe(brownRing(profile).length);
       expect(bench.count).toBe(benchPerimeter(profile).length);
@@ -286,6 +287,7 @@ describe("arena world mapping (A91.2)", () => {
     for (const dt of [0, 0.5, riverLen * 2 / FLOW_SPEED, riverLen * 3.25 / FLOW_SPEED, -1, riverLen / FLOW_SPEED]) {
       const previous = markers.map((marker) => marker.position.z);
       arena.update(dt);
+      if (dt === 0.5) expect(markers[3]!.position.z - previous[3]!).toBeCloseTo(0.31, 5);
       distance += Math.max(0, dt) * FLOW_SPEED;
       markers.forEach((marker, index) => {
         const phase = initialZ[index]! + distance + riverLen / 2;
