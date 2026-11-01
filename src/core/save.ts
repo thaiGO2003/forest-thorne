@@ -1,7 +1,7 @@
 // Persistence (A37, A57): versioned envelope, ordered migration, Continue inspection,
 // import/export, three distinct clear scopes, Co-op slot store.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
-import { getEquipment, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { normalizeEquipment, slotCapForUnit } from "./equipment";
 import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
 import { isGameMode, modeConfig } from "./modes";
 import { normalizeFortressState } from "./fortress";
@@ -9,7 +9,6 @@ import { normalizeCreativeSandboxUnits } from "./creative";
 import { normalizeAiMode } from "./encounter";
 import { normalizeTutorialState, TUTORIAL_END_ROUND } from "./tutorial";
 import { normalizeEnemyPreview } from "./preview";
-import { BASE_MATERIALS } from "./craft";
 import { AUGMENT_BY_ID } from "./augments";
 import { TECH_BY_ID, maxLevel } from "./tech";
 import { normalizeWeatherBlessingQueue } from "./blessings";
@@ -25,7 +24,7 @@ export const PROGRESS_KEY = "forest_throne_progress_v1";
 export const COOP_KEY = "forest_throne_coop_save_slots_v1";
 export const ACHIEVEMENTS_KEY = "forest_throne_endless_achievements_v1";
 export const COLLECTION_KEY = "forest_throne_collection_profile_v1";
-export const ENVELOPE_VERSION = 4;
+export const ENVELOPE_VERSION = 5;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
 
 /** Host-owned co-op round state mirrored into every player payload on save/migrate. */
@@ -183,9 +182,9 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.winStreak = clampInt(p.winStreak, 0, Number.MAX_SAFE_INTEGER, 0);
   p.loseStreak = clampInt(p.loseStreak, 0, Number.MAX_SAFE_INTEGER, 0);
   p.rngSeed = Number.isFinite(Number(p.rngSeed)) ? Number(p.rngSeed) | 0 : 1;
-  const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
+  // Preserve unrecognized legacy IDs verbatim. Only malformed non-string values are discarded.
   p.itemBag = Array.isArray(p.itemBag)
-    ? p.itemBag.filter((id): id is string => typeof id === "string" && validBagItem(id)) : [];
+    ? p.itemBag.filter((id): id is string => typeof id === "string") : [];
   p.board = Array.isArray(p.board) ? p.board.map((u) => (u ? sanitizeUnit(u, log) : null)) : [];
   p.board = p.board.slice(0, 25);
   while (p.board.length < 25) p.board.push(null);
@@ -268,6 +267,7 @@ export function migrate(raw: unknown): MigrateResult | null {
     const log: string[] = [];
     // v1→v2: level into 1..25 (old >9 allowed, clamped to 25). v2→v3: legacy archived-roster cleanup is NOT applied.
     // v3→v4: archived ids kept when present in the live catalog — handled by sanitizeUnit below.
+    // v4→v5: retain legacy bag entries in place, even if their catalog definitions are unavailable.
     if (from < 2) for (const p of playersOf(payload)) p.level = clampInt(p.level, 1, 25, 1);
     const before = JSON.stringify(payload);
     for (const p of playersOf(payload)) sanitizePlayer(p, log);

@@ -13,6 +13,11 @@ export const BASE_MATERIALS = ["bark", "feather", "belt", "claw", "tear", "cryst
 // Load the full table here when recipe data is supplied.
 export const RECIPES: Recipe[] = [{ id: "blue_buff", size: 1, pattern: ["tear"] }];
 
+/** A recipe ingredient is usable only when an authored recipe references it. */
+export function isCraftIngredient(id: string): boolean {
+  return RECIPES.some((recipe) => recipe.pattern.includes(id));
+}
+
 /** Active square per craftTableLevel: [rowOffset, colOffset, side]. */
 const ACTIVE: Record<number, [number, number, number]> = { 1: [1, 1, 1], 2: [0, 0, 2], 3: [0, 0, 3] };
 
