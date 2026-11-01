@@ -1286,8 +1286,25 @@ function act(c: Ctx, f: Fighter) {
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
 }
 
+/** Reject malformed placements and ambiguous event identities once per public combat call. */
+function validateCombatRoster(all: readonly Fighter[]): void {
+  const seen = new Set<string>();
+  for (const fighter of all) {
+    const validSide = fighter.side === "L" || fighter.side === "R";
+    const minCol = fighter.side === "L" ? 0 : COLS / 2;
+    const maxCol = fighter.side === "L" ? COLS / 2 : COLS;
+    if (!validSide || !Number.isInteger(fighter.row) || fighter.row < 0 || fighter.row >= ROWS
+      || !Number.isInteger(fighter.col) || fighter.col < minCol || fighter.col >= maxCol) {
+      throw new RangeError(`Invalid combat position: ${fighter.uid} (${fighter.side}, ${fighter.col}, ${fighter.row})`);
+    }
+    if (seen.has(fighter.uid)) throw new Error(`Duplicate combat UID: ${fighter.uid}`);
+    seen.add(fighter.uid);
+  }
+}
+
 /** A11 queue: per side scan order, then interleave L0,R0,L1,R1… (empty cells only affect presentation timing). */
 export function turnOrder(all: Fighter[]): Fighter[] {
+  validateCombatRoster(all);
   const order: Fighter[] = [];
   for (const entry of turnTimeline(all)) {
     if (entry.kind === "unit") order.push(entry.fighter);
@@ -1361,6 +1378,7 @@ function mulberry(seed: number) {
  * Deterministic for identical freshly-materialized input + seed.
  */
 export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
+  validateCombatRoster(all);
   const inspectionFrames: CombatInspectionFrame[] | undefined = o.captureInspection
     ? [{ eventIndex: 0, cycle: 1, units: all.map(snapshotFighter) }] : undefined;
   const total = {

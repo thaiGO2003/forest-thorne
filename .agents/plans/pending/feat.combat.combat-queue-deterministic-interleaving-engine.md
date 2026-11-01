@@ -28,3 +28,10 @@ Lệnh direct smoke tái lập từ root repository (không cần thay đổi so
 bun -e 'import { materializeCombat, simulate, turnOrder } from "./src/core/combat.ts"; const f = materializeCombat([{uid:"z",baseId:"titan_earth",star:1,row:0,col:4},{uid:"a",baseId:"titan_earth",star:1,row:0,col:4}], [{uid:"r",baseId:"titan_earth",star:1,row:0,col:5}]); for(const x of f){x.maxHp=x.hp=1000000;x.atk=x.matk=1;x.rageMax=1000;x.crit=x.evade=0}; const order=turnOrder(f).map(x=>x.uid); const result=simulate(f,{seed:29,rageGain:{L:0,R:0}}); const firstEnd=result.events.findIndex(e=>e.t==="cycle"&&e.cycle===2); const first=result.events.slice(1,firstEnd).filter(e=>e.t==="basic"||e.t==="miss"||e.t==="skip").map(e=>e.src); const cycles=result.events.filter(e=>e.t==="cycle").length; console.log(JSON.stringify({order,first,cycles,actions:result.actions,alive:result.alive})); if(JSON.stringify(order)!==JSON.stringify(["a","r","z"])||JSON.stringify(first)!==JSON.stringify(order)||cycles!==20||result.actions!==60) process.exit(1);'
 ```
 - **Integration gate:** Chưa merge, chưa có human approval, Issue #10 chưa đóng. Không dùng `/plan-done` trước nghiệm thu tích hợp.
+
+## PR #56 reviewer follow-up (2026-11-01)
+
+- Independent reviewer identified two P2 defects: numeric-key collision when a fighter has invalid coordinates (for example LEFT `(3, 5)` versus `(4, 0)`), and duplicate UIDs creating ambiguous combat presentation identities.
+- `validateCombatRoster()` now rejects invalid integer/range/side placements and globally duplicated UIDs before `turnOrder()` or `simulate()` produces an event. Validation runs once per public call, not every cycle.
+- Both regression tests failed before the production fix, then passed; targeted `tests/combat.test.ts` **43/43 PASS**, `pnpm typecheck` **PASS**, `pnpm build` **PASS**. Direct Bun smoke verified canonical duplicate-cell scheduling, malformed-coordinate rejection, duplicate-UID rejection, and 20 cycles.
+- Keep Issue #10 and WBS-019 pending until updated independent review, human approval, and integration into `dev`.

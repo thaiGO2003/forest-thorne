@@ -76,6 +76,32 @@ describe("combat", () => {
     expect(result.actions).toBe(60);
   });
 
+  it("rejects malformed coordinates instead of aliasing a valid scan cell", () => {
+    const base = materializeOne({ uid: "left", baseId: ids[0]!, star: 1, row: 0, col: 4 }, "L");
+    const right = materializeOne({ uid: "right", baseId: ids[0]!, star: 1, row: 0, col: 5 }, "R");
+    for (const [col, row] of [[3, 5], [4, -1], [5, 0], [4.5, 0], [4, NaN]]) {
+      const left = { ...base, col, row };
+      expect(() => turnOrder([left, right])).toThrow(/Invalid combat position/);
+      expect(() => runCombat([left, right], { seed: 19 })).toThrow(/Invalid combat position/);
+    }
+  });
+
+  it("rejects duplicate fighter identities before queuing any attacks", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "duplicate", baseId: ids[0]!, star: 1, row: 0, col: 4 },
+        { uid: "duplicate", baseId: ids[0]!, star: 1, row: 0, col: 4 },
+      ],
+      [{ uid: "right", baseId: ids[0]!, star: 1, row: 0, col: 5 }],
+    );
+    expect(() => turnOrder(fighters)).toThrow(/Duplicate combat UID: duplicate/);
+    expect(() => runCombat(fighters, { seed: 19 })).toThrow(/Duplicate combat UID: duplicate/);
+    fighters[1]!.uid = "unique";
+    fighters[2]!.uid = "duplicate";
+    expect(() => turnOrder(fighters)).toThrow(/Duplicate combat UID: duplicate/);
+    expect(() => runCombat(fighters, { seed: 19 })).toThrow(/Duplicate combat UID: duplicate/);
+  });
+
   it("keeps empty-cell timing entries presentation-only for sparse scan positions", () => {
     const frontLeft: Placement[] = [{ uid: "left", baseId: "salamander_flame", star: 1, row: 0, col: 4 }];
     const frontRight: Placement[] = [{ uid: "right", baseId: "salamander_flame", star: 1, row: 0, col: 5 }];
