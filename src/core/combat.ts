@@ -5,7 +5,8 @@ import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
 import { skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
-import { slotCapForUnit, sumEquipmentBonuses, type EquipmentBonuses } from "./equipment";
+import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
+import type { EquipmentBonuses } from "./itemRegistry";
 import { sumVariantBonuses, type VariantBonuses, type VariantTraitRef } from "./variants";
 import type { WeatherBlessingId } from "./blessings";
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { activeIndices, craft, matchRecipe, type Recipe } from "../src/core/craft";
+import { activeIndices, craft, matchRecipe } from "../src/core/craft";
+import type { Recipe } from "../src/core/itemRegistry";
 import { createRun, research } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
 import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "../src/core/tech";
@@ -55,7 +56,7 @@ describe("tech A8", () => {
 });
 
 describe("craft A7", () => {
-  const two: Recipe = { id: "x", size: 2, pattern: ["claw", null, null, "claw"] };
+  const two: Recipe = { id: "x", outputId: "eq_blue_buff", size: 2, pattern: ["claw", null, null, "claw"] };
   it("active grid by level", () => {
     expect(activeIndices(0)).toEqual([]);
     expect(activeIndices(1)).toEqual([4]);

@@ -6,12 +6,13 @@ import {
 } from "./economy";
 import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "./tech";
 import {
-  equipmentSaleValue, getEquipment, itemUnequipCost, normalizeEquipment, slotCapForUnit,
+  equipmentSaleValue, itemUnequipCost, normalizeEquipment, slotCapForUnit,
 } from "./equipment";
+import { getEquipment, isKnownItem } from "./itemRegistry";
 import { normalizeVariantTraits, rollVariantTrait, type VariantTraitRef } from "./variants";
 import { applyAugment, AUGMENTS, AUGMENT_ROUNDS, restoreRunHearts } from "./augments";
-import { BASE_MATERIALS, craft as commitCraft, stage as stageCraft } from "./craft";
-import { lossDamage, type Drop } from "./loot";
+import { craft as commitCraft, stage as stageCraft } from "./craft";
+import { isRegisteredDrop, lossDamage, type Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
 import {
   beastDenOffers, blacksmithForgeTier, completeFortressNode as completeFortressStateNode,
@@ -407,6 +408,7 @@ export function unequipAll(s: RunState, where: "bench" | "board", index: number)
 export function sellItem(s: RunState, bagIndex: number): boolean {
   if (!planning(s) || !tutorialActionAllowed(s, "sell_item") || bagIndex < 0 || bagIndex >= s.itemBag.length) return false;
   const id = s.itemBag[bagIndex]!;
+  if (!isKnownItem(id)) return false;
   const equipment = getEquipment(id);
   const value = equipment ? equipmentSaleValue(equipment.tier) : 1;
   s.itemBag.splice(bagIndex, 1);
@@ -442,8 +444,9 @@ export function autoMerge(s: RunState): number {
       .reduce((a, b) => (getUnit(b).tier > getUnit(a).tier ? b : a));
     const cap = slotCap(baseId, star);
     const equipment = normalizeEquipment(picked.flatMap((r) => r.unit.equips), star, cap);
-    // A81 explicitly returns duplicate/cap overflow equipment. Invalid/non-equipment ids are ignored.
-    s.itemBag.push(...equipment.rejected.filter((id) => getEquipment(id) !== null));
+    // Duplicate, over-tier, and unknown IDs return to the bag without granting equipment effects.
+    // Preserving unknown IDs prevents loss of future-version items during a merge.
+    s.itemBag.push(...equipment.rejected);
     const traits = picked.flatMap((r) => normalizeVariantTraits(getUnit(r.unit.baseId).role, r.unit.traits ?? []))
       .slice(0, 9);
     const result: OwnedUnit = { uid: allocateUid(s), baseId, star, equips: equipment.kept, traits };
@@ -600,7 +603,6 @@ export interface RoundResultSummary {
   rejectedDrops: Drop[];
 }
 
-const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
 
 function offerAugmentsIfDue(s: RunState): void {
   const cfg = modeConfig(s.mode);
@@ -795,10 +797,16 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   }
 
   const room = Math.max(0, inventoryCapacity(s) - s.itemBag.length);
-  const legalDrops = input.drops.filter((drop) => typeof drop.item === "string" && validBagItem(drop.item));
-  const acceptedDrops = legalDrops.slice(0, room);
-  const rejectedDrops = [...legalDrops.slice(room), ...input.drops.filter((drop) => !legalDrops.includes(drop))];
-  s.itemBag.push(...acceptedDrops.map((drop) => drop.item));
+  const acceptedDrops: Drop[] = [];
+  const rejectedDrops: Drop[] = [];
+  for (const drop of input.drops) {
+    if (!isRegisteredDrop(drop) || acceptedDrops.length >= room) {
+      rejectedDrops.push(drop);
+    } else {
+      acceptedDrops.push(drop);
+      s.itemBag.push(drop.item);
+    }
+  }
 
   let incomeEarned = 0;
   if (gameOver) {

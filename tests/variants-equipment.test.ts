@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
-import { equipmentCategory, getEquipment, normalizeEquipment } from "../src/core/equipment";
+import { equipmentCategory, normalizeEquipment } from "../src/core/equipment";
+import { getEquipment } from "../src/core/itemRegistry";
 import { materializeCombat } from "../src/core/combat";
 import { normalizeVariantTraits, rollVariantTrait, sumVariantBonuses, VARIANTS_BY_ROLE } from "../src/core/variants";
 

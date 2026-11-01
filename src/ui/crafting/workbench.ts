@@ -1,14 +1,14 @@
 import type { App } from "../../app/app";
-import { activeIndices, BASE_MATERIALS, matchRecipe, RECIPES, type Recipe } from "../../core/craft";
+import { activeIndices, matchRecipe } from "../../core/craft";
+import { BASE_MATERIALS, RECIPES, isKnownItem, type Recipe } from "../../core/itemRegistry";
 import { getLocale } from "../../core/i18n";
 import { itemDisplayName } from "../../core/itemPresentation";
 import { ICONS } from "../../core/emojiIcon";
 import { disposeSurfaceTree, h, kitButton, nineSlice, panelEl, SLICE, surface, type KitButton } from "../kit";
 
-const ITEM_ASSETS = new Set<string>([...BASE_MATERIALS, "eq_blue_buff", "eq_warmog_armor"]);
 
 function itemArt(id: string, cls: string): HTMLElement {
-  if (!ITEM_ASSETS.has(id)) return h("span", cls, ICONS.question);
+  if (!isKnownItem(id)) return h("span", cls, ICONS.question);
   const image = h("img", cls);
   image.src = `${import.meta.env.BASE_URL}assets/items/${id}.svg`;
   image.alt = "";
@@ -251,7 +251,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
     const recipes = panelEl("panel_parchment", "crafting-recipes");
     recipes.append(h("span", "crafting-eyebrow", copy("SỔ TAY CHẾ TẠO", "RECIPE JOURNAL")), h("h3", "", copy("Công thức đã biết", "Known recipes")));
     for (const recipe of RECIPES) {
-      const outcome = `eq_${recipe.id}`;
+      const outcome = recipe.outputId;
       const target = recipeStaging(recipe, level);
       const requirement = countItems(recipe.pattern);
       const hasEnough = [...requirement].every(([id, n]) => (bagCounts.get(id) ?? 0) >= n);
@@ -268,11 +268,11 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
 
     const bottom = panelEl("panel_wood", "crafting-result");
     const resultPreview = panelEl("slot_well", "crafting-result-icon");
-    if (matched) resultPreview.append(itemArt(`eq_${matched.id}`, "crafting-result-image"));
+    if (matched) resultPreview.append(itemArt(matched.outputId, "crafting-result-image"));
     else resultPreview.append(h("span", "crafting-result-placeholder", ICONS.question));
     const resultInfo = h("div", "crafting-result-info");
     resultInfo.append(h("span", "crafting-eyebrow", copy("VẬT PHẨM SẼ NHẬN", "CRAFTED OUTPUT")));
-    resultInfo.append(h("h3", "", matched ? itemDisplayName(`eq_${matched.id}`) : copy("Chưa tìm thấy công thức", "No matching recipe")));
+    resultInfo.append(h("h3", "", matched ? itemDisplayName(matched.outputId) : copy("Chưa tìm thấy công thức", "No matching recipe")));
     resultInfo.append(h("p", "", matched
       ? copy("Công thức hợp lệ. Sẵn sàng chế tạo!", "Recipe matched. Ready to craft!")
       : copy("Xếp nguyên liệu đúng công thức để xem thành phẩm.", "Arrange ingredients into a valid recipe to preview the result.")));
