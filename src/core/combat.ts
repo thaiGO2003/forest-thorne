@@ -1446,18 +1446,30 @@ function act(c: Ctx, f: Fighter) {
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
 }
 
+/** Reject malformed placements and ambiguous event identities once per public combat call. */
+function validateCombatRoster(all: readonly Fighter[]): void {
+  const seen = new Set<string>();
+  for (const fighter of all) {
+    const validSide = fighter.side === "L" || fighter.side === "R";
+    const minCol = fighter.side === "L" ? 0 : COLS / 2;
+    const maxCol = fighter.side === "L" ? COLS / 2 : COLS;
+    if (!validSide || !Number.isInteger(fighter.row) || fighter.row < 0 || fighter.row >= ROWS
+      || !Number.isInteger(fighter.col) || fighter.col < minCol || fighter.col >= maxCol) {
+      throw new RangeError(`Invalid combat position: ${fighter.uid} (${fighter.side}, ${fighter.col}, ${fighter.row})`);
+    }
+    if (seen.has(fighter.uid)) throw new Error(`Duplicate combat UID: ${fighter.uid}`);
+    seen.add(fighter.uid);
+  }
+}
+
 /** A11 queue: per side scan order, then interleave L0,R0,L1,R1… (empty cells only affect presentation timing). */
 export function turnOrder(all: Fighter[]): Fighter[] {
-  const scan = (side: Side) => all.filter((f) => f.side === side && f.alive)
-    .sort((a, b) => (side === "L" ? b.col - a.col : a.col - b.col) || a.row - b.row);
-  const l = scan("L");
-  const r = scan("R");
-  const out: Fighter[] = [];
-  for (let i = 0; i < Math.max(l.length, r.length); i++) {
-    if (l[i]) out.push(l[i]!);
-    if (r[i]) out.push(r[i]!);
+  validateCombatRoster(all);
+  const order: Fighter[] = [];
+  for (const entry of turnTimeline(all)) {
+    if (entry.kind === "unit") order.push(entry.fighter);
   }
-  return out;
+  return order;
 }
 
 type TurnTimelineEntry =
@@ -1465,6 +1477,18 @@ type TurnTimelineEntry =
   | { kind: "unit"; fighter: Fighter };
 
 function turnChunks(all: Fighter[], side: Side): TurnTimelineEntry[][] {
+  const occupants = new Map<number, Fighter[]>();
+  for (const fighter of all) {
+    if (!fighter.alive || fighter.side !== side) continue;
+    const key = fighter.col * ROWS + fighter.row;
+    const cell = occupants.get(key);
+    if (cell) cell.push(fighter);
+    else occupants.set(key, [fighter]);
+  }
+  for (const cell of occupants.values()) {
+    cell.sort((a, b) => a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0);
+  }
+
   const chunks: TurnTimelineEntry[][] = [];
   let chunk: TurnTimelineEntry[] = [];
   const firstCol = side === "L" ? 4 : 5;
@@ -1472,14 +1496,16 @@ function turnChunks(all: Fighter[], side: Side): TurnTimelineEntry[][] {
   const step = side === "L" ? -1 : 1;
   for (let col = firstCol; col !== endCol; col += step) {
     for (let row = 0; row < ROWS; row++) {
-      const fighter = all.find((candidate) => candidate.side === side && candidate.col === col && candidate.row === row && candidate.alive);
-      if (!fighter) {
+      const cell = occupants.get(col * ROWS + row);
+      if (!cell) {
         chunk.push({ kind: "empty", side, row, col });
         continue;
       }
-      chunk.push({ kind: "unit", fighter });
-      chunks.push(chunk);
-      chunk = [];
+      for (const fighter of cell) {
+        chunk.push({ kind: "unit", fighter });
+        chunks.push(chunk);
+        chunk = [];
+      }
     }
   }
   if (chunk.length) chunks.push(chunk);
@@ -1512,6 +1538,7 @@ function mulberry(seed: number) {
  * Deterministic for identical freshly-materialized input + seed.
  */
 export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
+  validateCombatRoster(all);
   const inspectionFrames: CombatInspectionFrame[] | undefined = o.captureInspection
     ? [{ eventIndex: 0, cycle: 1, units: all.map(snapshotFighter) }] : undefined;
   const total = {

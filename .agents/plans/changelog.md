@@ -91,6 +91,12 @@
 - Spec §11.4's 40-cell solo brown ring contradicts the coordinate rectangle (13×7 − 11×5 = 36 unique cells); the test documents the existing coordinate-authoritative choice.
 - Verified in the isolated geometry worktree: `pnpm exec vitest --run tests/geometry.test.ts` (**8/8 PASS**) and `pnpm typecheck` (**PASS**); no plan was moved.
 
+## 2026-11-01 — PR #56 independent review follow-up
+
+- Independent review found that an invalid LEFT coordinate `(3, 5)` aliased valid cell `(4, 0)` in the numeric occupancy map, and duplicated fighter UIDs led to indistinguishable presentation events.
+- `src/core/combat.ts`: validate the entire roster once at each public queue/simulation entry point, rejecting invalid side/board positions and duplicate UIDs before creating events. Preserve valid duplicate-cell fighters with distinct identities.
+- `tests/combat.test.ts`: reproduce both findings RED before the fix, then verify invalid, fractional, out-of-side and non-finite placements plus duplicate IDs on the same and opposing sides.
+- Verified 43/43 targeted combat tests PASS, `pnpm typecheck` PASS, `pnpm build` PASS and direct Bun simulator smoke PASS, including valid queue ordering and rejection of both malformed inputs. PR #56 remains pending updated review and human merge approval.
 ## 2026-11-01 — Issue #11 arena lifecycle regressions
 
 - Added behavioral tests for three tuft offsets during repeated occupancy transitions, all seven river-flow markers across multiple wraps and negative delta, foreign scene fog/background ownership, idempotent resource disposal, and solo/coop2/coop4 geometry sizing.
