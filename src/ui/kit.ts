@@ -17,9 +17,9 @@ export const SLICE = {
 export const ART_SCALE = 2;
 /** The supplied OTF faces are shared by DOM and canvas text. */
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
-export const NORMAL_FONT = `"Forest Normal", "Noto Sans", sans-serif`;
+export const NORMAL_FONT = `"Times New Roman", Times, serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
-export const BUTTON_FONT = `"Forest Button", "Noto Sans", sans-serif`;
+export const BUTTON_FONT = `"Times New Roman", Times, serif`;
 export const INK = "#111";
 export const LABEL = "#fff8ec";
 const BUTTON_LABEL = "#fff8ec";
@@ -55,9 +55,7 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
     if (typeof document !== "undefined" && document.fonts) {
       await Promise.allSettled([
         document.fonts.load(`16px ${HEADING_FONT}`),
-        document.fonts.load(`16px ${NORMAL_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
-        document.fonts.load(`16px ${BUTTON_FONT}`),
       ]);
     }
     for (const fn of repaint) fn();
@@ -224,7 +222,8 @@ export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `kit-panel ${cls}`.trim();
   el.dataset.skin = skin;
-  el.style.color = INK;
+  // Text on oak/billboard chrome is light; parchment and slot wells keep the dark ink.
+  el.style.color = skin === "panel_wood" || skin === "shell_billboard" ? LABEL : INK;
   surface(el, (g, w, hh) => nineSlice(g, skin, SLICE[skin], 0, 0, w, hh));
   return el;
 }

@@ -21,23 +21,53 @@ function light(scene: THREE.Scene) {
 }
 
 /** Fit the entire 3D rig, including depth, at every aspect ratio and orbital angle. */
-function frame(camera: THREE.PerspectiveCamera, bounds: THREE.Sphere, zoom = 1) {
+function frame(camera: THREE.PerspectiveCamera, bounds: THREE.Sphere, zoom = 1, lift = 0, panX = 0) {
   const halfVertical = THREE.MathUtils.degToRad(camera.fov) / 2;
   const halfHorizontal = Math.atan(Math.tan(halfVertical) * camera.aspect);
   const limitingHalfAngle = Math.min(halfVertical, halfHorizontal);
-  const dist = Math.max(0.5, bounds.radius * 1.2 / Math.sin(limitingHalfAngle)) * zoom;
+  const dist = Math.max(0.5, bounds.radius * 1.08 / Math.sin(limitingHalfAngle)) * zoom;
   const center = bounds.center;
-  camera.position.set(center.x + Math.sin(VIEW_YAW) * dist, center.y + dist * 0.28, center.z + Math.cos(VIEW_YAW) * dist);
-  camera.lookAt(center);
+  const focusX = center.x + panX;
+  camera.position.set(
+    focusX + Math.sin(VIEW_YAW) * dist,
+    center.y + dist * (0.28 + lift * 0.55),
+    center.z + Math.cos(VIEW_YAW) * dist,
+  );
+  camera.lookAt(focusX, center.y, center.z);
   camera.near = Math.max(0.01, dist / 100);
   camera.far = dist + bounds.radius * 4 + 2;
   camera.updateProjectionMatrix();
+}
+
+/**
+ * Bounds of the actual creature meshes only. Sprites (speech bubble, future billboards) are not
+ * geometry and used to be included by Box3.setFromObject, which pushed the visual centre up and
+ * made every portrait sit low in its canvas.
+ */
+function visualBounds(root: THREE.Object3D, target = new THREE.Sphere()): THREE.Sphere {
+  const box = new THREE.Box3();
+  root.updateMatrixWorld(true);
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const local = mesh.geometry.boundingBox;
+    if (!local) return;
+    box.union(local.clone().applyMatrix4(mesh.matrixWorld));
+  });
+  if (box.isEmpty()) return target.set(new THREE.Vector3(0, 0.5, 0), 0.75);
+  box.getBoundingSphere(target);
+  return target;
 }
 
 export interface PortraitViewer {
   setUnit(baseId: string, star: Star, skin?: string | null): void;
   setCombat(v: boolean): void;
   play(state: ActionState): void;
+  /** Orbit/raise the inspection camera; used by the on-screen arrow pad and keyboard. */
+  moveCamera(dx: number, dy: number): void;
+  zoomBy(factor: number): void;
+  resetView(): void;
   dispose(): void;
 }
 
@@ -69,7 +99,7 @@ export function createPortraits(): Portraits {
       const u = createUnit(job.id, job.star);
       u.update(0.016);
       scene.add(u.root);
-      frame(camera, new THREE.Box3().setFromObject(u.root, true).getBoundingSphere(new THREE.Sphere()));
+      frame(camera, visualBounds(u.root));
       renderer.render(scene, camera);
       const c = document.createElement("canvas");
       c.width = c.height = SNAP;
@@ -112,7 +142,7 @@ export function createPortraits(): Portraits {
       const turn = new THREE.Group();
       vs.add(turn);
       let unit: UnitVisual | null = null, currentId: string | null = null, combat = false, zoom = 1;
-      let yaw = 0, pitch = 0, idleWindow = 2, previewAction = false;
+      let yaw = 0, pitch = 0, lift = 0, panX = 0, idleWindow = 2, previewAction = false;
       const bounds = new THREE.Sphere();
       const pointers = new Map<number, { x: number; y: number }>();
       let pinch = 0;
@@ -121,13 +151,14 @@ export function createPortraits(): Portraits {
         const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
         r.setSize(w, h, false);
         cam.aspect = w / h;
-        if (unit) frame(cam, bounds, zoom);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
         else cam.updateProjectionMatrix();
       };
       const ro = new ResizeObserver(resize);
       ro.observe(host);
 
       const down = (e: PointerEvent) => {
+        r.domElement.focus({ preventScroll: true });
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         r.domElement.setPointerCapture(e.pointerId);
         pinch = 0;
@@ -151,13 +182,48 @@ export function createPortraits(): Portraits {
         if (r.domElement.hasPointerCapture(e.pointerId)) r.domElement.releasePointerCapture(e.pointerId);
         pinch = 0;
       };
-      const wheel = (e: WheelEvent) => { e.preventDefault(); setZoom(zoom * (1 + Math.sign(e.deltaY) * 0.1)); };
-      const setZoom = (z: number) => { zoom = Math.min(1.8, Math.max(0.65, z)); if (unit) frame(cam, bounds, zoom); };
+      const wheel = (e: WheelEvent) => { e.preventDefault(); setZoom(zoom * (1 + Math.sign(e.deltaY) * 0.15)); };
+      const setZoom = (z: number) => {
+        zoom = Math.min(6, Math.max(0.3, z));
+        if (unit) frame(cam, bounds, zoom, lift, panX);
+      };
+      const moveLift = (delta: number) => {
+        lift = THREE.MathUtils.clamp(lift + delta, -0.9, 1.4);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
+      };
+      const movePan = (delta: number) => {
+        const limit = Math.max(0.35, bounds.radius * 0.9);
+        panX = THREE.MathUtils.clamp(panX + delta, -limit, limit);
+        if (unit) frame(cam, bounds, zoom, lift, panX);
+      };
+      const moveCamera = (dx: number, dy: number) => {
+        if (dx) movePan(dx);
+        if (dy) moveLift(dy);
+      };
+      const keyDown = (e: KeyboardEvent) => {
+        let handled = true;
+        switch (e.key) {
+          case "ArrowLeft": moveCamera(-0.16, 0); break;
+          case "ArrowRight": moveCamera(0.16, 0); break;
+          case "ArrowUp": moveCamera(0, 0.14); break;
+          case "ArrowDown": moveCamera(0, -0.14); break;
+          case "+": case "=": setZoom(zoom * 0.85); break;
+          case "-": case "_": setZoom(zoom * 1.18); break;
+          default: handled = false;
+        }
+        if (handled) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+      r.domElement.tabIndex = 0;
+      r.domElement.setAttribute("aria-label", "Xem 3D: kéo để xoay, lăn để zoom, phím mũi tên để di chuyển camera.");
       r.domElement.addEventListener("pointerdown", down);
       r.domElement.addEventListener("pointermove", move);
       r.domElement.addEventListener("pointerup", up);
       r.domElement.addEventListener("pointercancel", up);
       r.domElement.addEventListener("wheel", wheel, { passive: false });
+      r.domElement.addEventListener("keydown", keyDown);
 
       const timer = new THREE.Timer();
       r.setAnimationLoop((now) => {
@@ -194,9 +260,11 @@ export function createPortraits(): Portraits {
           unit.setCombat(combat);
           unit.update(0.016);
           turn.add(unit.root);
-          new THREE.Box3().setFromObject(unit.root, true).getBoundingSphere(bounds);
+          visualBounds(unit.root, bounds);
           yaw = 0;
           pitch = 0;
+          lift = 0;
+          panX = 0;
           zoom = 1;
           previewAction = false;
           idleWindow = 1.5 + Math.random();
@@ -217,12 +285,31 @@ export function createPortraits(): Portraits {
             unit.play(state, { onDone: () => { previewAction = false; idleWindow = -(2 + Math.random() * 3); } });
           }
         },
+        moveCamera,
+        zoomBy(factor) {
+          setZoom(zoom * factor);
+        },
+        resetView() {
+          yaw = 0;
+          pitch = 0;
+          lift = 0;
+          panX = 0;
+          zoom = 1;
+          turn.rotation.set(0, 0, 0);
+          if (unit) frame(cam, bounds, zoom, lift, panX);
+        },
         dispose() {
           combat = false;
           unit?.setCombat(false);
           r.setAnimationLoop(null);
           timer.dispose();
           ro.disconnect();
+          r.domElement.removeEventListener("pointerdown", down);
+          r.domElement.removeEventListener("pointermove", move);
+          r.domElement.removeEventListener("pointerup", up);
+          r.domElement.removeEventListener("pointercancel", up);
+          r.domElement.removeEventListener("wheel", wheel);
+          r.domElement.removeEventListener("keydown", keyDown);
           unit?.dispose();
           r.dispose();
           r.domElement.remove();

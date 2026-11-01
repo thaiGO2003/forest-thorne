@@ -109,4 +109,29 @@ describe("combatTargetPreview", () => {
     expect(new Set([...preview.directUids, ...preview.splashUids]))
       .toEqual(new Set(["left-a", "left-b", "left-other"]));
   });
+
+  it("kit preview always exposes the authored heal skill and its rainbow caster at zero rage", () => {
+    const fighters = materializeCombat(
+      [left("healer", "angel_guardian", 0), left("ally", "titan_earth", 1)],
+      [right("enemy", "titan_earth", 1)],
+    );
+    const ally = fighters.find((fighter) => fighter.uid === "ally")!;
+    ally.hp = Math.round(ally.maxHp / 2);
+
+    const preview = combatTargetPreview(fighters, "healer", { kitPreview: true })!;
+    expect(preview.skillCasterUid).toBe("healer");
+    expect(preview.tags?.some((tag) => tag.kind === "skill" && tag.effect === "heal" && tag.uid === "ally")).toBe(true);
+    expect(preview.tags?.some((tag) => tag.kind === "basic" && tag.effect === "damage" && tag.uid === "enemy")).toBe(true);
+  });
+
+  it("classifies shield kits with the blue shield family and keeps the immediate action rage-gated", () => {
+    const fighters = materializeCombat(
+      [left("guard", "butterfly_mirror", 0), left("ally", "titan_earth", 1)],
+      [right("enemy", "titan_earth", 1)],
+    );
+    const kit = combatTargetPreview(fighters, "guard", { kitPreview: true })!;
+    expect(kit.skillCasterUid).toBe("guard");
+    expect(kit.tags?.some((tag) => tag.effect === "shield")).toBe(true);
+    expect(combatTargetPreview(fighters, "guard")?.skillCasterUid).toBeNull();
+  });
 });
