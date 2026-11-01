@@ -1,0 +1,45 @@
+name: Agents migration integrity
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  agents-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject generated HTML in agent plans
+        shell: bash
+        run: |
+          if [ ! -d .agents/plans ]; then
+            echo 'ERROR: canonical .agents/plans directory is missing.'
+            exit 1
+          fi
+          if find .agents/plans -type f \( -iname '*.html' -o -iname '*.htm' \) -print -quit | grep -q .; then
+            echo 'ERROR: .agents/plans must contain Markdown plans only, no HTML/index.'
+            find .agents/plans -type f \( -iname '*.html' -o -iname '*.htm' \) -print
+            exit 1
+          fi
+      - name: Reject live repository-local .omp paths
+        shell: bash
+        run: |
+          # Scan current agent instructions, commands, hooks, rules and skills only.
+          # Plans/changelogs and dated recovery snapshots contain legitimate history.
+          # ~/.omp/agent/config.yml is OMP's real user-level configuration, not a repo-local path.
+          if git grep -n -E '[.]omp[/\\](skills|hooks|plans|agents|rules|commands)([/\\]|$)' -- \
+            AGENTS.md README.md .agents/AGENTS.md \
+            .agents/agents .agents/commands .agents/hooks .agents/rules .agents/skills; then
+            echo 'ERROR: live agent instructions still reference obsolete project-local .omp paths.'
+            exit 1
+          else
+            status=$?
+            if [ "$status" -ne 1 ]; then
+              echo "ERROR: git grep failed while checking live agent paths (exit $status)."
+              exit "$status"
+            fi
+          fi

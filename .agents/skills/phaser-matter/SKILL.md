@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "Matter physics", "
 version: 0.7.0
 ---
 
-> Companion reference (do not duplicate here): See P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/physics-matter/SKILL.md for the full Matter API reference (world config, bodies, body config, forces, constraints, sensors, collision categories, events, queries, debug) already installed alongside this skill.
+> Companion reference (do not duplicate here): See `.agents/skills/physics-matter/SKILL.md` for the full Matter API reference (world config, bodies, body config, forces, constraints, sensors, collision categories, events, queries, debug) already installed alongside this skill.
 
 # Phaser 4 Matter Physics — Workflow & Patterns
 

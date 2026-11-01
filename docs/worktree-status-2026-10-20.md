@@ -1,5 +1,7 @@
 # Báo cáo tình hình worktree — 2026-10-20
 
+> **Bản ghi lịch sử, không phải trạng thái hiện tại.** Các worktree, commit, đường dẫn máy và đề xuất merge/push sau đây được chụp ngày 2026-10-20, đã có thể lỗi thời. Không dùng nội dung này để thao tác trực tiếp trên `main`/`dev`; kiểm tra HEAD và theo feature branch → PR → review hiện hành. Giữ lại như bằng chứng backup, không coi đường dẫn `.omp` trong bản ghi này là cấu hình live.
+
 > Mục đích: chốt hiện trạng toàn bộ worktree/branch trước khi reset máy, xác định
 > phần nào đã đẩy lên GitHub, phần nào còn nằm local, và điểm cần xử lý tiếp.
 
@@ -171,10 +173,9 @@ git worktree add ../forest-thorne-plan-034 feat/world/3d-voxel-arena-terrain-mes
 git worktree add ../forest-thorne-plan-080 feat/content/audio-director-procedural-sfx-manager
 ```
 
-Sau khi lấy lại, nên commit dứt điểm migration trên `main` (tách commit riêng, bỏ
-`package-lock.json`), rồi merge `plan-034` và `plan-080` vào `dev` theo thứ tự.
+Các gợi ý thao tác sau đây chỉ phản ánh dự định tại thời điểm backup, **không phải hướng dẫn triển khai hiện tại**. Mọi nội dung migration còn thiếu phải được đưa vào feature branch mới, mở PR tới `dev` và qua review/CI; không commit hoặc push thẳng `main`.
 
-## 7. Việc tiếp theo (đề xuất)
+## 7. Đề xuất lịch sử ngày 2026-10-20 (đã lỗi thời — không thực hiện nguyên trạng)
 
 1. Commit migration `.agents` trên `main` thành commit chính thức (không kèm
    `package-lock.json`), sau đó xoá branch tạm khi đã an tâm.

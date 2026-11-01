@@ -826,3 +826,7 @@
 
 - chore.agents.migration.md moved out of pending via /plan-done.
 
+## 2026-11-01 — Issue #17 WBS-019 migration correction
+
+- `feat.combat.combat-queue-deterministic-interleaving-engine.md` returned from `done/` after discovering the manual migration incorrectly treated WBS-019 as accepted. Work already implemented/tested remains acknowledged, but Issue #10's ordering, overlapping-cell, death-cycle, golden, and reproducibility acceptance gates are open. Use `/plan-done` only when these gates are satisfied.
+

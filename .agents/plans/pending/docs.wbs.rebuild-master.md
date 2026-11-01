@@ -35,7 +35,7 @@
 
 ### Phase: COMBAT
 
-- [x] [WBS-019: Combat Queue & Deterministic Interleaving Engine](./feat.combat.combat-queue-deterministic-interleaving-engine.md)
+- [ ] [WBS-019: Combat Queue & Deterministic Interleaving Engine](./feat.combat.combat-queue-deterministic-interleaving-engine.md)
 - [x] [WBS-020: Damage Calculation Pipeline, Mitigations & Critical Strikes](./feat.combat.damage-calculation-pipeline-mitigations-critical-strikes.md)
 - [x] [WBS-021: Status Effects, Crowd Control Hierarchy & Shield Mechanics](./feat.combat.status-effects-crowd-control-hierarchy-shield-mechanics.md)
 - [x] [WBS-022: Data-Driven Skill Parser & Execution Pipeline](./feat.combat.data-driven-skill-parser-execution-pipeline.md)
