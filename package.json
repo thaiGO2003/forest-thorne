@@ -13,6 +13,7 @@
     "test:changed": "vitest --run --changed",
     "qa:planning": "node scripts/qa/planning-interaction.mjs",
     "qa:crafting": "node scripts/qa/crafting-workbench.mjs",
+    "qa:library": "node scripts/qa/library-filters.mjs",
     "port:items": "node scripts/port-old-items.mjs",
     "shot": "node scripts/shot.mjs"
   },
