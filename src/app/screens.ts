@@ -29,6 +29,8 @@ import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
 import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
 import { basicAttackCopy } from "../core/unitText";
+import { skillSpec } from "../core/skills";
+import { VARIANT_BY_ID } from "../core/variants";
 import { environmentFor } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
@@ -971,13 +973,20 @@ function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent
     { icon: ICONS.matk, text: `MATK ${num(live.matk)} · MDEF ${num(live.mdef)}` },
     { icon: ICONS.range, text: `Tầm ${num(live.range)} · Nộ ${num(live.rage)}/${num(live.rageMax)}` },
   ];
+  lines.push({ icon: ICONS.evade, text: `${t("inventory.evade")} ${Math.round(live.evade * 100)}% · ${t("inventory.crit")} ${Math.round(live.crit * 100)}% · ${t("inventory.accuracy")} ${Math.round(live.accuracy * 100)}%` });
+  const variantNames = diagnostics.traits.map((ref) => VARIANT_BY_ID.get(ref.id)?.nameVi).filter(Boolean);
+  if (variantNames.length) lines.push({ icon: ICONS.variant, text: `${t("inventory.variant")}: ${variantNames.join(" · ")}` });
   for (const effect of effects.slice(0, 3)) {
     const value = effect.pct ? `${effect.value}%` : String(effect.value);
     lines.push({ text: `${effect.key} · ${value} · ${effect.turns}T` });
   }
+  const damageFormula = skillSpec(diagnostics.baseId, star).damage;
+  const formulaText = damageFormula
+    ? ` · ${damageFormula.base} + ${Math.round(damageFormula.scale * 100)}% ${damageFormula.stat.toUpperCase()}`
+    : "";
   lines.push({
     icon: ICONS.star,
-    text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: derived.rageMax })})`,
+    text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: derived.rageMax })})${formulaText}`,
   });
   return {
     title: `${unitDef.nameVi} ★${star}`,

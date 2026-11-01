@@ -55,6 +55,11 @@
 .ui-inventory-identity { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; font-size: 12px; font-weight: 700; }
 .ui-inventory-profile > .ui-inventory-note { text-align: center; }
 .ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
+.ui-inventory-formula p { margin: 0; }
+.ui-inventory-milestones { display: flex; flex-direction: column; gap: 4px; }
+.ui-inventory-milestones h4 { margin: 2px 0 0; font-size: 11px; }
+.ui-inventory-milestones .is-current { outline: 2px solid rgba(255, 211, 107, .65); outline-offset: 2px; border-radius: 4px; }
+.ui-inventory-passive, .ui-inventory-basic { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ui-inventory-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
@@ -63,8 +68,10 @@
 .ui-inventory-column-hint { min-height: 36px; font-size: 10px; text-align: center; padding: 4px 0; line-height: 1.35; }
 .ui-inventory-stat { position: relative; height: 41px; }
 .ui-inventory-secondary { padding-top: 6px; font-size: 10px; line-height: 1.5; }
-.ui-inventory-lower { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 8px; align-items: start; }
-.ui-inventory-equipment, .ui-inventory-effects { padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ui-inventory-lower { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: start; }
+.ui-inventory-equipment, .ui-inventory-effects, .ui-inventory-variants { padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ui-inventory-variant-list { display: flex; flex-direction: column; gap: 4px; font-size: 11px; line-height: 1.45; }
+.ui-inventory-variant { margin: 0; }
 .ui-inventory-section-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
 .ui-inventory-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
 .ui-inventory-item { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }

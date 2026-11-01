@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import { equipmentCategory, getEquipment, normalizeEquipment } from "../src/core/equipment";
 import { materializeCombat } from "../src/core/combat";
-import { normalizeVariantTraits, rollVariantTrait, sumVariantBonuses, VARIANTS_BY_ROLE } from "../src/core/variants";
+import { normalizeVariantTraits, rollVariantTrait, sumVariantBonuses, VARIANT_TRAITS, VARIANTS_BY_ROLE } from "../src/core/variants";
 
 describe("variant traits and equipment contracts", () => {
   it("rolls one deterministic trait from the requested role and normalizes ancestry", () => {
@@ -27,6 +27,16 @@ describe("variant traits and equipment contracts", () => {
     expect(boosted.maxHp).toBeGreaterThan(plain.maxHp);
     expect(boosted.def).toBe(plain.def + 6);
     expect(boosted.shield).toBe(18);
+  });
+
+  it("keeps every ported trait named and id-stable for old-src save ancestry", () => {
+    expect(VARIANT_TRAITS).toHaveLength(30);
+    expect(new Set(VARIANT_TRAITS.map((trait) => trait.id)).size).toBe(30);
+    for (const trait of VARIANT_TRAITS) {
+      expect(trait.nameVi.trim().length, trait.id).toBeGreaterThan(1);
+    }
+    expect(VARIANT_TRAITS.find((trait) => trait.id === "fighter_endurance")?.nameVi).toBe("Bền Bỉ");
+    expect(VARIANT_TRAITS.find((trait) => trait.id === "fighter_crushing_guard")?.nameVi).toBe("Phá Thế");
   });
 
   it("equipment normalization rejects invalid, duplicate and over-tier ids without guessing bonuses", () => {

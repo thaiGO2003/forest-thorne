@@ -4,6 +4,7 @@ import { combatStat, makeFighter, type Fighter, type Placement, type Side, type 
 import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
 import type { DamageType } from "./skills";
+import type { VariantTraitRef } from "./variants";
 
 export const ROLE_EVASION_BASE: Readonly<Record<Role, number>> = {
   TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.10, MAGE: 0.05, SUPPORT: 0.07,
@@ -124,6 +125,7 @@ export interface UnitDiagnostics {
   readonly: boolean;
   environment?: EnvironmentId;
   equips: string[];
+  traits: VariantTraitRef[];
   base: UnitStatSnapshot;
   derived: UnitStatSnapshot;
   live: UnitStatSnapshot;
@@ -221,6 +223,7 @@ export function unitDiagnostics(
     readonly,
     environment,
     equips: [...(placement.equips ?? [])],
+    traits: [...(placement.traits ?? [])],
     base: catalogSnapshot(getUnit(placement.baseId)),
     derived: fighterSnapshot(derivedFighter, false),
     live: fighterSnapshot(live, true),

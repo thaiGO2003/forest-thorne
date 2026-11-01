@@ -88,7 +88,7 @@ try {
     await seed(page);
     await clickCreature(page, "inventory-demo");
     const modal = page.locator('[data-modal="unit-inventory"]');
-    assert.equal(await modal.locator('[role="meter"]').count(), 21);
+    assert.equal(await modal.locator('[role="meter"]').count(), 36);
     assert.equal(await modal.getByRole("button", { name: /Bán thú/ }).count(), 1);
     assert.equal(await modal.getByRole("button", { name: /Bán trang bị/ }).count(), 0);
     const bounds = await modal.boundingBox();

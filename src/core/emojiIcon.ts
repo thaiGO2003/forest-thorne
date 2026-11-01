@@ -330,7 +330,7 @@ export const ICONS = {
   shop: "🛒", event: "✨", vet: "🩺", explore: "🧭",
   synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
   social: "💬", donate: "💝", cortisol: "🧘",
-  rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨",
+  rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨", accuracy: "🎯", critDmg: "💢", variant: "🧬",
   // Roles
   TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",
   // Factions
