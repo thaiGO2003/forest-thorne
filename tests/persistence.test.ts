@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createRun, type RunState } from "../src/core/run";
 import {
   ACHIEVEMENTS_KEY, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope,
-  importProgress, inspectSave, loadAchievementProfile, loadCollectionProfile, migrate, PROGRESS_KEY, remapCoopHost,
+  ENVELOPE_VERSION, exportProgress, importProgress, inspectSave, loadAchievementProfile, loadCollectionProfile, migrate, PROGRESS_KEY, remapCoopHost,
   saveCollectionProfile, saveCoopSlot, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
@@ -29,7 +29,7 @@ describe("persistence A57", () => {
     expect(inspectSave(s).status).toBe("valid");
   });
 
-  it("v1 run migrates to v4: level clamped to 25, bench_up 0..4 preserved, unknown units dropped, persisted once", () => {
+  it("v1 run migrates to v5: level clamped to 25, bench_up 0..4 preserved, unknown units dropped, persisted once", () => {
     const s = mem();
     const p = createRun(2);
     Object.assign(p, { level: 40, benchUpgradeLevel: 4 });
@@ -38,7 +38,7 @@ describe("persistence A57", () => {
     const r = inspectSave(s);
     if (r.status !== "valid") throw new Error(r.status);
     const out = r.envelope.payload.player!;
-    expect([r.envelope.version, out.level, out.benchUpgradeLevel, out.bench.map((u) => u.uid)]).toEqual([4, 25, 4, ["b"]]);
+    expect([r.envelope.version, out.level, out.benchUpgradeLevel, out.bench.map((u) => u.uid)]).toEqual([5, 25, 4, ["b"]]);
     const writes = s.setItem.mock.calls.length;
     inspectSave(s);
     expect(s.setItem.mock.calls.length).toBe(writes);
@@ -189,12 +189,70 @@ describe("persistence A57", () => {
     expect(migrated.envelope.payload.player).toMatchObject({
       phase: "PLANNING",
       shopLocked: false,
-      itemBag: ["tear", "eq_blue_buff"],
+      itemBag: ["tear", "eq_blue_buff", "missing_item"],
       techLevels: { vet: 1, survive: 123456 },
       augments: ["gold_cache_1"],
       activeAugmentChoices: ["team_atk_1"],
       unequipDiscount: 0,
     });
+  });
+
+  it("preserves unknown, duplicate and multi-tier item IDs across old/current/future migrations without mutation", () => {
+    const ids = ["legacy_eq_alpha", "tear", "eq_blue_buff", "legacy_eq_alpha", "eq_warmog_armor"];
+    for (const version of [1, 4, ENVELOPE_VERSION, ENVELOPE_VERSION + 1]) {
+      const player = createRun(version);
+      player.itemBag = [...ids, 17 as unknown as string];
+      const source = createEnvelope({ player }, { version });
+      const original = structuredClone(source);
+      const migrated = migrate(source)!;
+      expect(source).toEqual(original);
+      expect(migrated.envelope.version).toBe(Math.max(version, ENVELOPE_VERSION));
+      expect(migrated.envelope.payload.player?.itemBag).toEqual(ids);
+      const repeated = migrate(migrated.envelope)!;
+      expect(repeated.changed).toBe(false);
+      expect(repeated.envelope.payload.player?.itemBag).toEqual(ids);
+    }
+  });
+
+  it("keeps unknown-item identity, ordering and multiplicity through solo save, export and import", () => {
+    const ids = ["legacy_ghost", "feather", "legacy_ghost", "eq_warmog_armor", "legacy_potion"];
+    const original = createRun(31);
+    original.itemBag = ids.slice();
+    const store = mem();
+    const envelope = saveRun(store, { player: original });
+    const loaded = inspectSave(store);
+    if (loaded.status !== "valid") throw new Error(loaded.status);
+    expect(loaded.envelope.payload.player?.itemBag).toEqual(ids);
+    expect(original.itemBag).toEqual(ids);
+    const exported = exportProgress(envelope);
+    const importedStore = mem();
+    expect(importProgress(importedStore, exported, false)?.player?.itemBag).toEqual(ids);
+    expect(importedStore.setItem).not.toHaveBeenCalled();
+    expect(importProgress(importedStore, exported, true)?.player?.itemBag).toEqual(ids);
+    expect(inspectSave(importedStore)).toMatchObject({
+      status: "valid", envelope: { payload: { player: { itemBag: ids } } },
+    });
+  });
+
+  it("keeps independent unknown item ownership and duplicates in co-op slot recovery", () => {
+    const a = createRun(41);
+    const b = createRun(42);
+    a.itemBag = ["old_a", "old_a", "claw"];
+    b.itemBag = ["eq_warmog_armor", "old_b", "old_a"];
+    const store = mem();
+    saveCoopSlot(store, "SAVE_1", {
+      players: { P1: a, P2: b }, localSlot: "P1", aiMode: "COOP_MEDIUM",
+    });
+    const slot = selectCoopSlot(store, "SAVE_1");
+    expect(slot.mode).toBe("resume");
+    if (slot.mode !== "resume") throw new Error("missing co-op slot");
+    expect(slot.payload.players?.P1?.itemBag).toEqual(a.itemBag);
+    expect(slot.payload.players?.P2?.itemBag).toEqual(b.itemBag);
+    expect(slot.payload.players?.P1?.itemBag).not.toBe(slot.payload.players?.P2?.itemBag);
+    expect(selectCoopSlot(store, "SAVE_1")).toMatchObject({ mode: "resume" });
+    const moved = remapCoopHost(slot.payload, "P2");
+    expect(moved.players?.P2?.itemBag).toEqual(a.itemBag);
+    expect(moved.players?.P1?.itemBag).toEqual(b.itemBag);
   });
 
   it("Clear Run keeps profiles + settings; full clear removes profiles", () => {

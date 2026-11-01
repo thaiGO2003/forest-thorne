@@ -1,5 +1,5 @@
 import type { App } from "../../app/app";
-import { activeIndices, BASE_MATERIALS, matchRecipe, RECIPES, type Recipe } from "../../core/craft";
+import { activeIndices, BASE_MATERIALS, isCraftIngredient, matchRecipe, RECIPES, type Recipe } from "../../core/craft";
 import { getLocale } from "../../core/i18n";
 import { itemDisplayName } from "../../core/itemPresentation";
 import { ICONS } from "../../core/emojiIcon";
@@ -214,7 +214,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
     invHead.append(invTitle, h("span", "crafting-counter", `${run.itemBag.length} ${copy("vật phẩm", "items")}`));
     inventory.append(invHead);
     const items = h("div", "crafting-items");
-    const distinctIds = [...bagCounts.keys()].sort((a, b) => {
+    const distinctIds = [...bagCounts.keys()].filter(isCraftIngredient).sort((a, b) => {
       const ai = BASE_MATERIALS.indexOf(a as typeof BASE_MATERIALS[number]);
       const bi = BASE_MATERIALS.indexOf(b as typeof BASE_MATERIALS[number]);
       return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || a.localeCompare(b);
@@ -238,7 +238,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
       });
       items.append(item);
     }
-    if (!distinctIds.length) items.append(h("p", "crafting-muted", copy("Túi đang trống. Thu thập nguyên liệu trong trận.", "Your bag is empty. Collect ingredients during the run.")));
+    if (!distinctIds.length) items.append(h("p", "crafting-muted", copy("Không có nguyên liệu cho công thức hiện có.", "No ingredients for known recipes.")));
     inventory.append(items);
     const selectedLine = h("p", "crafting-selection", selected
       ? copy(`Đang cầm: ${itemDisplayName(selected)}`, `Holding: ${itemDisplayName(selected)}`)

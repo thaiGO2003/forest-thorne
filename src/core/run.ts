@@ -10,7 +10,7 @@ import {
 } from "./equipment";
 import { normalizeVariantTraits, rollVariantTrait, type VariantTraitRef } from "./variants";
 import { applyAugment, AUGMENTS, AUGMENT_ROUNDS, restoreRunHearts } from "./augments";
-import { BASE_MATERIALS, craft as commitCraft, stage as stageCraft } from "./craft";
+import { BASE_MATERIALS, craft as commitCraft, isCraftIngredient, stage as stageCraft } from "./craft";
 import { lossDamage, type Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
 import {
@@ -400,6 +400,8 @@ export function sellItem(s: RunState, bagIndex: number): boolean {
   if (!planning(s) || !tutorialActionAllowed(s, "sell_item") || bagIndex < 0 || bagIndex >= s.itemBag.length) return false;
   const id = s.itemBag[bagIndex]!;
   const equipment = getEquipment(id);
+  // Unresolved legacy IDs are held for recovery, not converted into sale currency.
+  if (!equipment && !(BASE_MATERIALS as readonly string[]).includes(id)) return false;
   const value = equipment ? equipmentSaleValue(equipment.tier) : 1;
   s.itemBag.splice(bagIndex, 1);
   gainGold(s, value);
@@ -641,6 +643,7 @@ export function stageRunCraftItem(s: RunState, staged: (string | null)[], index:
     source: itemId ? { where: "inventory", index: s.itemBag.indexOf(itemId), itemId } : undefined,
     destination: { where: "craft", index }, itemId: itemId ?? undefined,
   })) return null;
+  if (itemId !== null && (!isCraftIngredient(itemId) || !s.itemBag.includes(itemId))) return null;
   const next = stageCraft(staged, index, itemId, s.craftTableLevel);
   if (next) recordTutorialEvent(s, "add_craft_item");
   return next;
