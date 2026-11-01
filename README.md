@@ -50,6 +50,19 @@ Gameplay rules live only in `src/game`; rendering and UI read and stage that sta
 
 *Luật chơi chỉ nằm ở `src/game`; render/UI chỉ đọc và dàn dựng state đó.*
 
+## Item Registry / Danh mục vật phẩm
+
+`src/core/itemRegistry.ts` is the single source of authored materials, equipment, and recipes. Crafting, equipment, loot, UI, and persistence consumers resolve canonical identities through `getItem(id)`, `getEquipment(id)`, and `getRecipe(id)` instead of maintaining parallel catalogs.
+
+- `loadItemRegistry(source)` rejects invalid catalogs before publishing definitions: duplicate identifiers, unknown ingredients or outputs, invalid tiers and grid footprints, translation-equivalent recipe patterns, and dependency cycles.
+- The authored catalog currently has six materials, two equipment definitions, and one recipe (`tear` → `eq_blue_buff`). New content requires authored definitions and matching valid/invalid registry and transaction fixtures.
+- Save envelopes use schema **v5** and preserve unknown string item IDs, duplicates, ordering, and co-op ownership. Unknown items count toward inventory capacity but cannot be equipped, crafted, or sold until defined.
+- Migration returns rejected equipment to its original player's bag and recovers equipped IDs from unknown/malformed units or board entries beyond the canonical 25 tiles. Existing bag items come first, followed by recovered board and bench equipment in traversal order. Valid equipped items remain on their units, and repeated migration does not duplicate recovered items.
+- Legacy recovered items remain owned and visible even when the item bag exceeds current inventory capacity; this does not grant capacity for new loot.
+- Crafting offers only ingredients referenced by authored recipe patterns (including equipment when a recipe explicitly uses it). Unknown/non-ingredient owned IDs remain in the bag but cannot be staged through the ingredient picker.
+- Crafting only commits the item bag and craft history after validating a canonical recipe and owned ingredients; invalid recipes leave both unchanged.
+
+
 ## Spec
 
 The product contract is `.agents/plans/pending/docs.spec.forest-throne-rebuild.md`.
