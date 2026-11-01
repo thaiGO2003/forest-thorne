@@ -218,6 +218,71 @@ describe("persistence A57", () => {
     }
   });
 
+  it("recovers rejected equipped items without losing duplicate ownership during solo migration", () => {
+    const player = createRun(71);
+    player.itemBag = ["legacy_ghost", "tear", "legacy_ghost"];
+    player.board[0] = { uid: "board-a", baseId: "ant_guard", star: 1, equips: ["eq_blue_buff", "legacy_ghost", "legacy_ghost", "eq_warmog_armor"] };
+    player.bench = [{ uid: "bench-b", baseId: "ant_guard", star: 1, equips: ["legacy_bench", "eq_warmog_armor"] }];
+    const source = createEnvelope({ player }, { version: 4 });
+    const original = structuredClone(source);
+
+    const migrated = migrate(source)!;
+    const saved = migrated.envelope.payload.player!;
+    expect(source).toEqual(original);
+    expect(saved.board[0]?.equips).toEqual(["eq_blue_buff"]);
+    expect(saved.bench[0]?.equips).toEqual([]);
+    expect(saved.itemBag).toEqual([
+      "legacy_ghost", "tear", "legacy_ghost",
+      "legacy_ghost", "legacy_ghost", "eq_warmog_armor",
+      "legacy_bench", "eq_warmog_armor",
+    ]);
+    const repeated = migrate(migrated.envelope)!;
+    expect(repeated.changed).toBe(false);
+    expect(repeated.envelope.payload.player?.itemBag).toEqual(saved.itemBag);
+  });
+
+  it("keeps rejected equipment with its original co-op owner", () => {
+    const a = createRun(81);
+    const b = createRun(82);
+    a.itemBag = ["old_a"];
+    b.itemBag = ["old_b", "old_b"];
+    a.board[0] = { uid: "owned-a", baseId: "ant_guard", star: 1, equips: ["old_a_equipped"] };
+    b.bench = [{ uid: "owned-b", baseId: "ant_guard", star: 1, equips: ["old_b_equipped", "old_b_equipped"] }];
+    const source = createEnvelope({ players: { P1: a, P2: b }, localSlot: "P1", aiMode: "COOP_MEDIUM" }, { version: 4 });
+    const migrated = migrate(source)!;
+    expect(migrated.envelope.payload.players?.P1?.itemBag).toEqual(["old_a", "old_a_equipped"]);
+    expect(migrated.envelope.payload.players?.P2?.itemBag).toEqual(["old_b", "old_b", "old_b_equipped", "old_b_equipped"]);
+    expect(migrated.envelope.payload.players?.P1?.board[0]?.equips).toEqual([]);
+    expect(migrated.envelope.payload.players?.P2?.bench[0]?.equips).toEqual([]);
+    expect(migrate(migrated.envelope)!.changed).toBe(false);
+  });
+
+  it("salvages items from dropped unknown units without inventing their identity", () => {
+    const player = createRun(83);
+    player.itemBag = ["tear", "unknown_inventory"];
+    player.bench = [{ uid: "removed", baseId: "missing_unit", star: 1, equips: ["legacy_equipped", "legacy_equipped", "eq_blue_buff"] }];
+    const source = createEnvelope({ player }, { version: 4 });
+    const original = structuredClone(source);
+    const migrated = migrate(source)!;
+    const saved = migrated.envelope.payload.player!;
+    expect(source).toEqual(original);
+    expect(saved.bench).toEqual([]);
+    expect(saved.itemBag).toEqual(["tear", "unknown_inventory", "legacy_equipped", "legacy_equipped", "eq_blue_buff"]);
+    expect(migrate(migrated.envelope)!.envelope.payload.player?.itemBag).toEqual(saved.itemBag);
+  });
+
+  it("recovers equipped items on trimmed board tiles even with a full legacy bag", () => {
+    const player = createRun(84);
+    player.itemBag = Array(20).fill("legacy_full_slot");
+    player.board[25] = { uid: "off-board", baseId: "ant_guard", star: 1, equips: ["eq_blue_buff", "legacy_overflow"] };
+    const source = createEnvelope({ player }, { version: 4 });
+    const migrated = migrate(source)!;
+    const saved = migrated.envelope.payload.player!;
+    expect(saved.board).toHaveLength(25);
+    expect(saved.itemBag).toEqual([...player.itemBag, "eq_blue_buff", "legacy_overflow"]);
+    expect(migrate(migrated.envelope)!.changed).toBe(false);
+  });
+
   it("normalizes malformed non-array item bags without modifying the supplied envelope", () => {
     for (const malformed of [null, "tear", 42, { 0: "claw", length: 1 }]) {
       const player = createRun(13);
