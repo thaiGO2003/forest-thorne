@@ -16,6 +16,8 @@ export interface BillboardState {
   rageMax: number;
   side: "L" | "R";
   statuses: BillboardStatus[];
+  /** Cóc Độc only: accumulated poison-field points (0 hides the counter). */
+  poison?: number;
 }
 
 /** A92 logical surface. */
@@ -46,7 +48,7 @@ export function normalizeBillboard(s: BillboardState): Normalized {
     const list = st.positive ? pos : neg;
     if (list.length < MAX_PER_SIDE) list.push(key);
   }
-  return { ...s, star: Math.min(3, Math.max(1, Math.round(fin(s.star, 1)))), hp, maxHp, rage, rageMax, segments, filled, pos, neg };
+  return { ...s, star: Math.min(3, Math.max(1, Math.round(fin(s.star, 1)))), hp, maxHp, rage, rageMax, segments, filled, pos, neg, poison: Math.max(0, Math.round(fin(s.poison ?? 0))) };
 }
 
 export interface Billboard {
@@ -95,6 +97,13 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
       label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 30, stroke: null });
     });
+    // Cóc Độc poison points: centre badge so it never competes with the status rows.
+    const poison = s.poison ?? 0;
+    if (poison > 0) {
+      const pw = 64, ph = tile, px = BILLBOARD_W / 2 - pw / 2;
+      nineSlice(g, "tile_status", SLICE.tile_status, px, ty, pw, ph, 2);
+      label(g, `${ICONS.poison}${poison}`, px + pw / 2, ty + ph / 2 + 1, { size: 26, align: "center", fill: LABEL, stroke: null });
+    }
 
     // Shell.
     const sy = 48, sh = BILLBOARD_H - sy - 2;

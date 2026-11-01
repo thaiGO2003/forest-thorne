@@ -91,6 +91,10 @@ export interface Fighter {
   berserk: BerserkReactionState | null;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
+  /** Cóc Độc poison-field points collected from marked enemies (0 for other units). */
+  poisonPoints: number;
+  /** Per-enemy poison marks applied while standing on a poison field. */
+  poisonMarks: number;
 }
 export function cloneFighter(fighter: Fighter): Fighter {
   return {
@@ -146,6 +150,9 @@ export type CombatEvent =
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
   | { t: "status"; dst: string; kind: string; turns: number; source?: SkillStatusSource }
+  | { t: "poisonField"; src: string; col: number; row: number; turns: number }
+  | { t: "poisonMark"; src: string; dst: string; points: number }
+  | { t: "poisonBurst"; src: string; dsts: string[]; dmg: number; heal: number; points: number }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string };
@@ -175,6 +182,7 @@ export interface CombatUnitSnapshot {
   rage: number; rageMax: number; shield: number; range: number;
   evade: number; crit: number; accuracy: number; alive: boolean;
   lifesteal: number; healPct: number; rageGainPct: number; onHitBurn: number; onHitPoison: number;
+  poisonPoints: number; poisonMarks: number;
   status: Record<string, TimedStatus>;
   mods: StatMod[];
   reflect: ReflectReactionState | null;
@@ -290,6 +298,7 @@ function freshFighter(p: Placement, side: Side): Fighter {
     status: {}, mods: [], tauntBy: null, casting: false,
     reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null,
     env: environmentMods(undefined, u.element),
+    poisonPoints: 0, poisonMarks: 0,
   };
 }
 
@@ -461,6 +470,7 @@ export function snapshotFighter(f: Fighter): CombatUnitSnapshot {
     rage: f.rage, rageMax: f.rageMax, shield: f.shield, evade: combatStat(f, "evade"),
     crit: f.crit, accuracy: Math.max(0, f.accuracy + f.env.accuracy), alive: f.alive,
     lifesteal: f.lifesteal, healPct: f.healPct, rageGainPct: f.rageGainPct, onHitBurn: f.onHitBurn, onHitPoison: f.onHitPoison,
+    poisonPoints: f.poisonPoints, poisonMarks: f.poisonMarks,
     status: structuredClone(f.status), mods: f.mods.map((mod) => ({ ...mod })),
     reflect: f.reflect ? structuredClone(f.reflect) : null, counterTurns: f.counterTurns,
     phoenix: { ...f.phoenix }, berserk: f.berserk ? { ...f.berserk } : null,
@@ -498,6 +508,8 @@ interface Ctx {
   bountyKills: Record<Side, number>;
   deferredAutoCasts: DeferredAutoCast[];
   autoCastInFlight: Set<Fighter>;
+  /** Cóc Độc poison fields keyed "col,row" with remaining cycle marks and the caster uid. */
+  poisonFields: Map<string, { turns: number; ownerUid: string }>;
 }
 
 const foes = (c: Ctx, f: Fighter) => c.all.filter((x) => x.alive && x.side !== f.side);
@@ -991,6 +1003,7 @@ export function combatTargetPreview(
     bountyKills: { L: 0, R: 0 },
     deferredAutoCasts: [],
     autoCastInFlight: new Set(),
+    poisonFields: new Map(),
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1031,6 +1044,18 @@ export function combatTargetPreview(
       splashUids: [],
       skillCasterUid: null,
       tags: [{ uid: basic.uid, effect: "damage", kind: "basic", primary: true }],
+      actorRole: source.role,
+    };
+  }
+
+  if (source.skillFamily === "toad_poison_fields") {
+    // Cóc Độc covers the whole enemy half at random: preview the available cells, no target arrow.
+    return {
+      scanCells: poisonCellsFor(source),
+      directUids: [],
+      splashUids: [],
+      skillCasterUid: source.uid,
+      tags: [],
       actorRole: source.role,
     };
   }
@@ -1087,6 +1112,89 @@ interface CastSkillOptions {
   trigger?: AutoCastRole;
 }
 
+/** Cóc Độc: poison fields stay for two start-of-cycle marks. */
+const POISON_FIELD_TURNS = 2;
+const POISON_FIELD_COUNT = 3;
+const POISON_BURST_POINTS = 5;
+
+/** Enemy-half cells used by the random poison throw (all ten columns are logical). */
+function poisonCellsFor(f: Fighter): { col: number; row: number }[] {
+  const cols = f.side === "L" ? [5, 6, 7, 8, 9] : [0, 1, 2, 3, 4];
+  const cells: { col: number; row: number }[] = [];
+  for (const col of cols) for (let row = 0; row < ROWS; row++) cells.push({ col, row });
+  return cells;
+}
+
+/** Throw three poison fields; stars 2/3 bias each throw toward an occupied enemy cell. */
+function placePoisonFields(c: Ctx, f: Fighter) {
+  const chance = f.star >= 3 ? 0.4 : f.star === 2 ? 0.2 : 0;
+  const occupied = c.all
+    .filter((x) => x.alive && x.side !== f.side)
+    .map((x) => ({ col: x.col, row: x.row }));
+  const cells: { col: number; row: number }[] = [];
+  for (let i = 0; i < POISON_FIELD_COUNT; i++) {
+    const free = poisonCellsFor(f).filter((cell) => !cells.some((picked) => picked.col === cell.col && picked.row === cell.row));
+    if (!free.length) break;
+    const availableOccupied = occupied.filter((cell) => free.some((p) => p.col === cell.col && p.row === cell.row));
+    const preferOccupied = availableOccupied.length > 0 && c.rng() < chance;
+    const pool = preferOccupied ? availableOccupied : free;
+    const pick = pool[Math.min(pool.length - 1, Math.floor(c.rng() * pool.length))]!;
+    cells.push(pick);
+    c.poisonFields.set(`${pick.col},${pick.row}`, { turns: POISON_FIELD_TURNS, ownerUid: f.uid });
+    c.events.push({ t: "poisonField", src: f.uid, col: pick.col, row: pick.row, turns: POISON_FIELD_TURNS });
+  }
+}
+
+/** Start-of-cycle: mark enemies standing on a field, then burst at five points. */
+function resolvePoisonFields(c: Ctx) {
+  if (!c.poisonFields.size) return;
+  for (const [key, field] of c.poisonFields) {
+    const owner = c.all.find((x) => x.uid === field.ownerUid);
+    if (!owner?.alive) {
+      // Dead casters no longer sustain their fields; clear the pool immediately.
+      c.poisonFields.delete(key);
+      const [col, row] = key.split(",").map(Number);
+      c.events.push({ t: "poisonField", src: field.ownerUid, col, row, turns: 0 });
+      continue;
+    }
+    const [col, row] = key.split(",").map(Number);
+    for (const enemy of c.all) {
+      if (!enemy.alive || enemy.side === owner.side || enemy.col !== col || enemy.row !== row) continue;
+      enemy.poisonMarks += 1;
+      owner.poisonPoints += 1;
+      c.events.push({ t: "poisonMark", src: owner.uid, dst: enemy.uid, points: owner.poisonPoints });
+    }
+  }
+  for (const owner of c.all) {
+    if (!owner.alive || owner.poisonPoints < POISON_BURST_POINTS) continue;
+    const marked = c.all.filter((x) => x.alive && x.side !== owner.side && x.poisonMarks > 0);
+    const points = owner.poisonPoints;
+    owner.poisonPoints = 0;
+    if (!marked.length) continue;
+    const perMark = Math.max(1, Math.round(10 + owner.matk * 0.25));
+    let dealt = 0;
+    const dsts: string[] = [];
+    for (const enemy of marked) {
+      const dmg = perMark * enemy.poisonMarks;
+      enemy.poisonMarks = 0;
+      const hit = applyDamage(c, enemy, dmg, owner,
+        (absorbed) => ({ t: "dot", dst: enemy.uid, kind: "poison", dmg: dmg - absorbed }));
+      dealt += hit.hp;
+      dsts.push(enemy.uid);
+    }
+    const healed = Math.round(dealt * 0.5);
+    if (healed > 0) heal(c, owner, owner, healed);
+    c.events.push({ t: "poisonBurst", src: owner.uid, dsts, dmg: dealt, heal: healed, points });
+  }
+  for (const [key, field] of [...c.poisonFields]) {
+    field.turns -= 1;
+    if (field.turns > 0) continue;
+    c.poisonFields.delete(key);
+    const [col, row] = key.split(",").map(Number);
+    c.events.push({ t: "poisonField", src: field.ownerUid, col, row, turns: 0 });
+  }
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1101,11 +1209,18 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   if (options.consumeRage ?? true) f.rage = 0;
   try {
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
-    const targets = skillTargets(c, f, sp, preferred, supportSelfFallback);
+    const poisonFieldsCast = family === "toad_poison_fields";
+    // Poison-field casts pick random tiles, so they never expose a direct target.
+    const targets = poisonFieldsCast ? [] : skillTargets(c, f, sp, preferred, supportSelfFallback);
     const fallbackSelfTarget = supportSelfFallback && targets.length === 1 && targets[0] === f;
     const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
     if (options.trigger) castEvent.trigger = options.trigger;
     c.events.push(castEvent);
+    if (poisonFieldsCast) {
+      // Poison fields replace normal targeting: three random enemy-half tiles, no direct hit.
+      placePoisonFields(c, f);
+      return;
+    }
     if (sp.reaction.reflect) f.reflect = {
       ...sp.reaction.reflect,
       pctByDamageType: { ...sp.reaction.reflect.pctByDamageType },
@@ -1204,6 +1319,8 @@ interface TurnGate {
 /** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
  * New statuses applied during that cycle cannot tick until the next boundary. */
 function startCycle(c: Ctx) {
+  // Cóc Độc fields mark, then burst before regular DoT ticks.
+  resolvePoisonFields(c);
   // Snapshot active effects before any disease spread applies new ones to other fighters.
   const activeDots = c.all.map((f) => DOTS.map((kind) => f.status[kind] ?? null));
   for (let i = 0; i < c.all.length; i++) {
@@ -1368,6 +1485,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     bountyKills: { L: 0, R: 0 },
     deferredAutoCasts: [],
     autoCastInFlight: new Set<Fighter>(),
+    poisonFields: new Map(),
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;

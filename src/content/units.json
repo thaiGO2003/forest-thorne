@@ -5655,29 +5655,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Dồn độc cộng tầng lên một mục tiêu để càng lúc càng đau.",
+  "pitchVi": "Cóc Độc là pháp sư bậc 1 chuyên rải sương độc khắp chiến trường: ném độc vào cả ô trống lẫn ô có thú, gom điểm độc rồi bùng nổ hút máu kẻ địch để tự hồi phục.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Nhổ Độc",
-   "family": "toad_poison_spit",
+   "nameVi": "Sương Độc",
+   "family": "toad_poison_fields",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "1 kẻ địch bị nhắm",
-   "shapeVi": "1 ô khóa mục tiêu",
-   "selectionVi": "Khóa 1 kẻ địch trong tầm rồi dồn độc lặp lại lên đúng mục tiêu đó.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "độc cộng dồn 2 lượt, tối đa 5 lớp",
+   "targetVi": "3 ô độc ngẫu nhiên phía địch",
+   "shapeVi": "3 bãi độc, mỗi bãi 1 ô",
+   "selectionVi": "Ném ngẫu nhiên 3 bãi độc vào 3 ô bất kỳ phía địch, không phụ thuộc ô đó có thú hay không.",
+   "countVi": "tối đa 3 bãi độc",
+   "durationVi": "mỗi bãi tồn tại 2 vòng",
    "starDetailVi": [
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (15 + 0.60 x MATK) sát thương phép. Mỗi lần trúng cộng thêm 12 độc mỗi lượt trong 2 lượt lên mục tiêu, tối đa 5 lớp.",
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (16 + 0.63 x MATK) sát thương phép. Nếu mục tiêu đã có từ 3 lớp độc, đòn này gây thêm 30% sát thương và kéo dài độc thêm 1 lượt. Mỗi lần trúng cộng thêm 15 độc mỗi lượt trong 2 lượt lên mục tiêu, tối đa 5 lớp.",
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (17 + 0.66 x MATK) sát thương phép. Nếu mục tiêu có 5 lớp độc, độc bùng nổ gây thêm 50% sát thương phép và lan 1 lớp độc sang kẻ địch gần nhất. Mỗi lần trúng cộng thêm 18 độc mỗi lượt trong 3 lượt lên mục tiêu, tối đa 5 lớp."
+    "Ném 3 bãi độc ngẫu nhiên vào 3 ô bất kỳ phía địch, mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, kẻ địch đứng trên bãi độc nhận 1 điểm độc và số điểm hiện trên đầu Cóc Độc. Đủ 5 điểm sẽ bùng nổ ngay: mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch bị đánh dấu, Cóc Độc hồi 50% tổng sát thương thực tế gây ra.",
+    "Ném 3 bãi độc ngẫu nhiên vào 3 ô bất kỳ phía địch, mỗi bãi tồn tại 2 vòng và có 20% cơ hội rơi đúng ô đang có thú địch. Đầu mỗi vòng, kẻ địch đứng trên bãi độc nhận 1 điểm độc và số điểm hiện trên đầu Cóc Độc. Đủ 5 điểm sẽ bùng nổ ngay: mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch bị đánh dấu, Cóc Độc hồi 50% tổng sát thương thực tế gây ra.",
+    "Ném 3 bãi độc ngẫu nhiên vào 3 ô bất kỳ phía địch, mỗi bãi tồn tại 2 vòng và có 40% cơ hội rơi đúng ô đang có thú địch. Đầu mỗi vòng, kẻ địch đứng trên bãi độc nhận 1 điểm độc và số điểm hiện trên đầu Cóc Độc. Đủ 5 điểm sẽ bùng nổ ngay: mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch bị đánh dấu, Cóc Độc hồi 50% tổng sát thương thực tế gây ra."
    ]
   },
   "skin": {

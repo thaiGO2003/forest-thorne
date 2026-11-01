@@ -26,7 +26,7 @@ import type { CombatFx } from "./fx";
 import { RIGS } from "./registry";
 import { BLOCK } from "../world/arena";
 import { RIG_DEFAULT_DURATIONS, RIG_DEFAULT_IMPACT } from "./rig";
-export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; inspection?: CombatUnitSnapshot }
+export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; poison?: number; inspection?: CombatUnitSnapshot }
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
@@ -39,7 +39,7 @@ export function playCombat(o: {
   inspectionFrames?: CombatInspectionFrame[];
 }): CombatPlayer {
   const { board, fx } = o;
-  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[] }]));
+  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, poison: unit.poison ?? unit.inspection?.poisonPoints ?? 0, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[] }]));
   const log: string[] = [];
   const timers: { remaining: number; run: () => void }[] = [];
   const moves: { root: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number }[] = [];
@@ -70,7 +70,7 @@ export function playCombat(o: {
   };
   const push = (uid: string) => {
     const unit = units.get(uid);
-    if (unit) board.setLive(uid, { hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax, statuses: unit.statuses });
+    if (unit) board.setLive(uid, { hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax, statuses: unit.statuses, poison: unit.poison });
   };
   const name = (uid: string) => { const unit = units.get(uid); return unit ? getUnit(unit.baseId).nameVi : uid; };
   const tick = () => {
@@ -93,6 +93,7 @@ export function playCombat(o: {
         unit.rage = snapshot.rage;
         unit.rageMax = snapshot.rageMax;
         unit.shield = snapshot.shield;
+        unit.poison = snapshot.poisonPoints;
         unit.statuses = Object.entries(snapshot.status)
           .filter(([, status]) => status.turns > 0)
           .map(([key]) => ({ key, positive: key === "hot" || POSITIVE.has(key) }));
@@ -335,6 +336,31 @@ export function playCombat(o: {
           push(event.dst);
         }
         board.visual(event.dst)?.die();
+        break;
+      }
+      case "poisonField": {
+        board.setPoisonField?.(event.col, event.row, event.turns > 0);
+        if (event.turns > 0) {
+          board.flashCell?.(event.col, event.row, "splash");
+          const center = board.cellCenter(event.col, event.row);
+          fx.burst(new THREE.Vector3(center.x, 0.34, center.z), 0x9bff3a);
+        }
+        break;
+      }
+      case "poisonMark": {
+        const owner = units.get(event.src);
+        if (owner) { owner.poison = event.points; push(event.src); }
+        fx.float(position(event.dst), `+1`, "dot");
+        log.push(`${name(event.dst)} nhiễm độc (${event.points}/5)`);
+        if (log.length > 12) log.shift();
+        break;
+      }
+      case "poisonBurst": {
+        const owner = units.get(event.src);
+        if (owner) { owner.poison = 0; push(event.src); }
+        fx.burst(position(event.src), 0xc8ff3c);
+        log.push(`${name(event.src)} bùng độc -${event.dmg}, hồi ${event.heal}`);
+        if (log.length > 12) log.shift();
         break;
       }
       case "skip":

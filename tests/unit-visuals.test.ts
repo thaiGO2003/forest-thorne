@@ -33,6 +33,11 @@ describe("A92 billboard normalization", () => {
     });
     expect([r.hp, r.maxHp, r.star, r.pos, r.neg]).toEqual([0, 1, 3, ["atkUp", "regen", "shield"], ["burn"]]);
   });
+  it("clamps the Cóc Độc poison counter to a non-negative integer", () => {
+    expect(normalizeBillboard({ ...base, poison: 3.6 }).poison).toBe(4);
+    expect(normalizeBillboard({ ...base, poison: -2 }).poison).toBe(0);
+    expect(normalizeBillboard({ ...base }).poison).toBe(0);
+  });
 });
 
 describe("A90.3 star multiplicity", () => {
@@ -128,8 +133,8 @@ describe("Library combat-idle authored poses", () => {
   it("Cóc Độc keeps relaxed idle normally and crouches in combat idle", () => {
     const relaxed = idlePose("toad_poison", false);
     const combat = idlePose("toad_poison", true);
-    expect(relaxed.part("body").position.y).toBeCloseTo(0);
-    expect(combat.part("body").position.y).toBeCloseTo(-0.35);
+    expect(relaxed.part("body").position.y).toBeCloseTo(2.6);
+    expect(combat.part("body").position.y).toBeCloseTo(2.25);
     expect(combat.part("head").rotation.x).toBeCloseTo(0.08);
   });
 

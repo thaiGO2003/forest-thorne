@@ -61,7 +61,7 @@ export interface BoardView {
   cellCenter(col: number, row: number): { x: number; z: number };
   forEach(fn: (uid: string, v: UnitVisual, kind: Slot["kind"]) => void): void;
   /** Combat pushes live HP/rage/statuses; also drives star multiplicity (A90.3). */
-  setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses">>): void;
+  setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses" | "poison">>): void;
   setCombat(v: boolean): void;
   startLowCortisol(): void;
   stopLowCortisol(): void;
@@ -70,6 +70,8 @@ export interface BoardView {
   /** Combat and preview use the same tile colors: purple scan, red direct, yellow splash. */
   flashCell?(col: number, row: number, kind: "scan" | "direct" | "splash"): void;
   flashTile?(uid: string, kind: "scan" | "direct" | "splash"): void;
+  /** Persistent Cóc Độc poison pool on one board cell (cleared when the field expires). */
+  setPoisonField?(col: number, row: number, active: boolean): void;
   flashSkill?(uid: string): void;
   /** Old_src showTurnIndicatorAt: purple fill + outline on the acting unit's tile. */
   setTurnIndicator?(uid: string | null): void;
@@ -240,6 +242,15 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   const tilePriority = { scan: 1, splash: 2, direct: 3 };
   type TileKind = keyof typeof tileMaterials;
   const tileEffects = new Map<number, { mesh: THREE.Mesh; time: number; kind: TileKind | null }>();
+  // Cóc Độc pools persist for two cycles, so they need their own marker separate from flashes.
+  interface PoisonMarker { group: THREE.Group; bubbles: THREE.Mesh[]; phase: number }
+  const poisonMarkers = new Map<number, PoisonMarker>();
+  const poisonPoolMaterial = new THREE.MeshBasicMaterial({ color: 0x6fe62a, transparent: true, opacity: .42, side: THREE.DoubleSide, depthWrite: false });
+  const poisonRimMaterial = new THREE.MeshBasicMaterial({ color: 0xc8ff3c, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false });
+  const poisonBubbleMaterial = new THREE.MeshBasicMaterial({ color: 0xd8ff6a, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
+  const poisonPoolGeometry = new THREE.CircleGeometry(BLOCK * .38, 24);
+  const poisonRimGeometry = new THREE.RingGeometry(BLOCK * .38, BLOCK * .45, 24);
+  const poisonBubbleGeometry = new THREE.CircleGeometry(BLOCK * .055, 10);
   interface PreviewCell { material: THREE.MeshBasicMaterial; priority: number }
   const previewCells = new Map<number, PreviewCell>();
   const previewMaterials = new Map<string, THREE.MeshBasicMaterial>();
@@ -554,6 +565,44 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     if (!slot || slot.row < 0) return;
     flashCell(slot.col, slot.row, kind);
   };
+  const setPoisonField = (col: number, row: number, active: boolean) => {
+    if (col < 0 || col >= BOARD * 2 || row < 0 || row >= BOARD) return;
+    const key = row * BOARD * 2 + col;
+    if (!active) {
+      const existing = poisonMarkers.get(key);
+      if (existing) {
+        existing.group.removeFromParent();
+        poisonMarkers.delete(key);
+      }
+      return;
+    }
+    if (poisonMarkers.has(key)) return;
+    const group = new THREE.Group();
+    const center = cellToWorld(toVisual(col, row, profile), profile);
+    group.position.set(center.x, TILE_TOP + .05, center.z);
+    const add = (geometry: THREE.BufferGeometry, material: THREE.MeshBasicMaterial, y: number) => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = y;
+      mesh.raycast = () => {};
+      group.add(mesh);
+      return mesh;
+    };
+    add(poisonPoolGeometry, poisonPoolMaterial, 0);
+    add(poisonRimGeometry, poisonRimMaterial, .002);
+    const bubbles = [0, 1, 2, 3].map((i) => {
+      const bubble = add(poisonBubbleGeometry, poisonBubbleMaterial, .01);
+      bubble.position.x = Math.cos((i / 4) * Math.PI * 2) * BLOCK * .22;
+      bubble.position.z = Math.sin((i / 4) * Math.PI * 2) * BLOCK * .22;
+      return bubble;
+    });
+    stage.scene.add(group);
+    poisonMarkers.set(key, { group, bubbles, phase: key * .7 });
+  };
+  const clearPoisonFields = () => {
+    for (const marker of poisonMarkers.values()) marker.group.removeFromParent();
+    poisonMarkers.clear();
+  };
   const setTargetPreview = (preview: CombatTargetPreview | null) => {
     activePreview = preview;
     applyTargetPreview();
@@ -615,6 +664,17 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         if (effect.time === 0) effect.kind = null;
       }
       renderTileEffect(key, effect);
+    }
+    // Poison pools breathe and release rising bubbles while they remain on the board.
+    for (const marker of poisonMarkers.values()) {
+      const pulse = 1 + Math.sin(uiTime * 3.2 + marker.phase) * .04;
+      marker.group.scale.set(pulse, 1, pulse);
+      marker.bubbles.forEach((bubble, i) => {
+        const t = (uiTime * .5 + i * .27 + marker.phase) % 1;
+        bubble.position.y = .01 + t * .2;
+        const scale = 1 - t * .55;
+        bubble.scale.set(scale, scale, 1);
+      });
     }
     skillTime = Math.max(0, skillTime - dt);
     // Old_src current-tile markers: purple turn fill/outline, gold actor outline.
@@ -776,6 +836,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     forEach(fn) { for (const [uid, s] of slots) fn(uid, s.v, s.kind); },
     flashCell,
     flashTile,
+    setPoisonField,
     flashSkill(uid) {
       if (!slots.has(uid)) return;
       skillUid = uid; skillTime = .8;
@@ -841,6 +902,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         hovered = null;
         for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
         tileEffects.clear();
+        clearPoisonFields();
         skillUid = null; skillTime = 0; previewSkillUid = null; previewCells.clear(); rainbow.visible = false; rainbowFill.visible = false;
         turnUid = null; actorUid = null; borderUid = null; borderKind = null; rainbowUid = null;
         return;
@@ -880,6 +942,13 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       previewCells.clear();
       for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
       tileEffects.clear();
+      clearPoisonFields();
+      poisonPoolGeometry.dispose();
+      poisonRimGeometry.dispose();
+      poisonBubbleGeometry.dispose();
+      poisonPoolMaterial.dispose();
+      poisonRimMaterial.dispose();
+      poisonBubbleMaterial.dispose();
       tileGeometry.dispose();
       for (const material of Object.values(tileMaterials)) material.dispose();
       ring.removeFromParent(); ring.geometry.dispose(); ring.material.dispose();
