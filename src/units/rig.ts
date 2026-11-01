@@ -35,24 +35,6 @@ export interface PoseCtx {
 
 export interface BuildOpts { star: Star; skin: string | null }
 
-/** Authored death context: `p` is 0..1 over `death.seconds`; no action state, no fx. */
-export interface DeathCtx {
-  t: number;
-  p: number;
-  time: number;
-  sig: number;
-  star: Star;
-  instance: number;
-}
-
-export interface UnitDeathDef<P> {
-  /** Total death performance length in seconds (root hides and onDone fires at the end). */
-  seconds: number;
-  /** Normalized time at which the generic shrink-out (vanish) begins. */
-  vanishAt: number;
-  pose(r: P, c: DeathCtx): void;
-}
-
 export interface UnitRigDef<P> {
   id: string;
   motion: Motion;
@@ -61,13 +43,6 @@ export interface UnitRigDef<P> {
   durations?: Partial<Record<ActionState, number>>;
   /** Normalized time of the semantic impact for attack/skill (A16: damage commits here). */
   impact?: Partial<Record<"attack" | "skill", number>>;
-  /**
-   * Opt-in cross-fade (seconds) from the last rendered pose whenever the state changes (play, auto
-   * return to idle, death). Absent/0 keeps the legacy hard cut so other rigs are unaffected.
-   */
-  blend?: number;
-  /** Opt-in authored death performance; absent keeps the generic topple + shrink. */
-  death?: UnitDeathDef<P>;
   build(k: Kit, o: BuildOpts): P;
   pose(r: P, c: PoseCtx): void;
 }
@@ -112,8 +87,6 @@ interface Body {
   group: THREE.Group;
   parts: P0;
   rest: { o: THREE.Object3D; p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[];
-  /** Last rendered pose captured at a state change (same order as `rest`); empty when blend is off. */
-  from: { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }[];
 }
 type P0 = unknown;
 
@@ -146,7 +119,6 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
   root.add(anchor);
   const geos: THREE.BufferGeometry[] = [];
   const sig = signature(def.id);
-  const blendS = Math.max(0, def.blend ?? 0);
 
   const bodies: Body[] = FORMATION[star].map(([x, z, s], i) => {
     const group = new THREE.Group();
@@ -161,10 +133,8 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     for (const p of k.parts) p.bake(MATS, geos);
     const rest: Body["rest"] = [];
     inner.traverse((o) => { if (o !== inner) rest.push({ o, p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }); });
-    // Blend buffers are allocated once here so state changes never allocate.
-    const from = blendS > 0 ? rest.map((r) => ({ p: r.p.clone(), q: r.q.clone(), s: r.s.clone() })) : [];
     root.add(group);
-    return { group, parts, rest, from };
+    return { group, parts, rest };
   });
 
   // Speech bubble: one reusable sprite + canvas, redrawn only when text changes.
@@ -200,32 +170,10 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
 
   const durationOf = (s: ActionState) => def.durations?.[s] ?? RIG_DEFAULT_DURATIONS[s];
 
-  // Cross-fade: capture the pose currently on screen, then ease from it into the new state's pose.
-  let blendT = -1;
-  const captureBlend = () => {
-    if (blendS <= 0) return;
-    for (const b of bodies) for (let j = 0; j < b.rest.length; j++) {
-      const o = b.rest[j]!.o, f = b.from[j]!;
-      f.p.copy(o.position); f.q.copy(o.quaternion); f.s.copy(o.scale);
-    }
-    blendT = 0;
-  };
-  const applyBlend = (b: Body) => {
-    if (blendT < 0) return;
-    const k = ramp(blendT, 0, blendS), back = 1 - k;
-    if (back <= 0) return;
-    for (let j = 0; j < b.rest.length; j++) {
-      const o = b.rest[j]!.o, f = b.from[j]!;
-      o.position.lerp(f.p, back); o.quaternion.slerp(f.q, back); o.scale.lerp(f.s, back);
-    }
-  };
-  const endBlend = () => { if (blendT >= blendS) blendT = -1; };
-
   return {
     id: def.id, star, root, anchor,
     play(s, o = {}) {
       if (!alive) return;
-      captureBlend();
       state = s; t = 0; impactFired = false; opts = o; idlePlayback = s === "idle";
       dur = o.duration ?? durationOf(s);
     },
@@ -236,7 +184,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
       visible = visibleBodies(star, r);
       bodies.forEach((b, i) => { b.group.visible = i < visible; });
       if (r > 0 && !alive) {
-        alive = true; dying = -1; onDeath = undefined; blendT = -1;
+        alive = true; dying = -1; onDeath = undefined;
         state = "idle"; t = 0; impactFired = false; opts = {}; dur = durationOf("idle");
         root.visible = true; root.scale.setScalar(1); anchor.visible = true;
         for (const b of bodies) { b.group.rotation.z = 0; b.group.position.y = REST_Y[def.motion]; }
@@ -244,7 +192,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
     },
     revive() {
       if (alive) return;
-      alive = true; dying = -1; onDeath = undefined; blendT = -1;
+      alive = true; dying = -1; onDeath = undefined;
       state = "idle"; dur = durationOf("idle"); t = dur; idlePlayback = false; impactFired = false; opts = {};
       root.visible = true; root.scale.setScalar(1); anchor.visible = true;
       bubble.visible = false; bubbleLeft = 0;
@@ -254,37 +202,16 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
         b.group.visible = i < visible;
       });
     },
-    die(cb) {
-      if (!alive) return;
-      alive = false; dying = 0; onDeath = cb;
-      if (def.death) captureBlend();
-    },
+    die(cb) { if (!alive) return; alive = false; dying = 0; onDeath = cb; },
     update(rawDt) {
       const dt = Math.max(0, Math.min(rawDt, 0.1));
       time += dt;
       if (bubble.visible && (bubbleLeft -= dt) <= 0) bubble.visible = false;
-      if (blendT >= 0) blendT += dt;
       if (dying >= 0) {
         dying += dt;
-        const d = def.death;
-        let k: number;
-        if (d) {
-          // Authored death: the unit poses its own collapse; the rig only owns the final shrink-out.
-          k = Math.min(1, dying / d.seconds);
-          for (let i = 0; i < visible; i++) {
-            const b = bodies[i]!;
-            for (const r of b.rest) { r.o.position.copy(r.p); r.o.quaternion.copy(r.q); r.o.scale.copy(r.s); }
-            const off = i * 0.13;
-            d.pose(b.parts, { t: dying, p: Math.max(0, Math.min(1, k - off * 0.15)), time: time + off * 3, sig, star, instance: i });
-            applyBlend(b);
-          }
-          endBlend();
-          root.scale.setScalar(1 - ramp(k, d.vanishAt, 1) * 0.6);
-        } else {
-          k = Math.min(1, dying / DEATH_S);
-          for (const b of bodies) { b.group.rotation.z = k * 1.2; b.group.position.y = REST_Y[def.motion] - k * 0.35; }
-          root.scale.setScalar(1 - k * 0.6);
-        }
+        const k = Math.min(1, dying / DEATH_S);
+        for (const b of bodies) { b.group.rotation.z = k * 1.2; b.group.position.y = REST_Y[def.motion] - k * 0.35; }
+        root.scale.setScalar(1 - k * 0.6);
         if (k >= 1 && root.visible) { root.visible = false; anchor.visible = false; onDeath?.(); onDeath = undefined; }
         return;
       }
@@ -296,7 +223,6 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
         if (!impactFired && p >= at) { impactFired = true; opts.onImpact?.(); }
         if (p >= 1 && (state !== "idle" || idlePlayback)) {
           const done = opts.onDone;
-          if (state !== "idle") captureBlend(); // finished idle settles onto its own p=1 pose
           state = "idle"; dur = durationOf("idle"); t = dur; idlePlayback = false; opts = {};
           done?.();
         }
@@ -308,9 +234,7 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
         const off = i * 0.13;
         const pp = looping ? p + off : Math.max(0, Math.min(1, p - off * 0.5));
         def.pose(b.parts, { state, t, p: pp, time: time + off * 3, sig, star, instance: i, combat, fx: i === 0 ? fx : { say() {} } });
-        applyBlend(b);
       }
-      endBlend();
     },
     dispose() {
       for (const g of geos) g.dispose();

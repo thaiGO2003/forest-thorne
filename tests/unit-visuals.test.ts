@@ -90,7 +90,7 @@ describe("Library combat-idle authored poses", () => {
       unit = createUnit("jaguar_hunt", 1);
       const root = unit.root;
       unit.die();
-      for (let frame = 0; frame < 14; frame++) unit.update(.1); // authored jaguar death lasts 1.3 s
+      for (let frame = 0; frame < 7; frame++) unit.update(.1);
       expect(root.visible).toBe(false);
       unit.setHpRatio(.5); unit.update(.016);
       expect(root.visible).toBe(true);
@@ -136,13 +136,9 @@ describe("Library combat-idle authored poses", () => {
   it("Báo Đốm Săn keeps inspection idle normally and uses its alert combat stance", () => {
     const relaxed = idlePose("jaguar_hunt", false);
     const combat = idlePose("jaguar_hunt", true);
-    expect(relaxed.part("torso").position.y).toBeCloseTo(5.95);
-    // Combat stance crouches ~0.7 voxel (breathing bob ±0.1, snarl beat −0.2) with both ears pinned.
-    const drop = relaxed.part("torso").position.y - combat.part("torso").position.y;
-    expect(drop).toBeGreaterThan(0.55);
-    expect(drop).toBeLessThan(1.05);
-    expect(combat.part("earL").rotation.x).toBeLessThan(-0.15);
-    expect(combat.part("earR").rotation.x).toBeLessThan(-0.15);
+    expect(relaxed.part("torso").position.y).toBeCloseTo(5.6);
+    expect(combat.part("torso").position.y).toBeCloseTo(4.9);
+    expect(combat.part("ears").rotation.x).toBeCloseTo(-0.35);
   });
 
   it("Ếch Giả Kim breathes upright out of combat and lowers with the flask raised in combat", () => {
