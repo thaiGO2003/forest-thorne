@@ -39,12 +39,12 @@ describe("A96 rich unit tooltip model", () => {
     diagnostics.live.shield = 12;
 
     const content = unitTooltipContent(unit, { diagnostics });
-    expect(content.meters?.[0]).toMatchObject({ value: 523, max: 523, shield: 12 });
+    expect(content.meters?.[0]).toMatchObject({ value: 601, max: 601, shield: 12 });
     expect(content.meters?.[1]).toMatchObject({ value: 2, max: 3 });
     expect(content.badges?.some((b) => b.text === "Địch")).toBe(true);
     expect(content.badges?.some((b) => b.text.includes("Giá bán"))).toBe(true);
     expect(content.columns?.flat().some((section) => section.lines.some((line) => line.includes("Xuyên Tâm")))).toBe(true);
-    expect(content.columns?.flat().some((section) => section.lines.some((line) => line.includes("Giáp Warmog")))).toBe(true);
+    expect(content.columns?.flat().some((section) => section.lines.some((line) => line.includes("Giáp Máu")))).toBe(true);
   });
 
   it("renders active statuses as chips and summary lines", () => {

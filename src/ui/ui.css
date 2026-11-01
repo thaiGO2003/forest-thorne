@@ -485,6 +485,9 @@
 .crafting-recipe-copy strong { font-size: 15px; line-height: 1.1; }
 .crafting-recipe-copy small { font-family: "Noto Sans", sans-serif; font-size: 12px; }
 .crafting-autofill { flex: none; min-width: 98px; height: 42px; }
+.crafting-recipe-filter { width: 100%; height: 36px; min-height: 36px; }
+.crafting-recipe-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.crafting-recipe-pager .crafting-page { width: 42px; min-width: 42px; height: 36px; min-height: 36px; }
 .crafting-result { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(220px, 340px); align-items: center; gap: 14px; min-width: 0; padding: 12px 18px; }
 .crafting-result-icon { display: grid; place-items: center; width: 80px; height: 80px; padding: 8px; }
 .crafting-result-image { display: block; width: 100%; height: 100%; object-fit: contain; }
@@ -649,6 +652,10 @@
 .lib-p { margin: 2px 0; font-size: 13px; line-height: 1.45; }
 .lib-story { font-family: "Forest Story", "Noto Sans", sans-serif; }
 .lib-item-icon { display: inline-block; width: 32px; height: 32px; margin-right: 8px; object-fit: contain; vertical-align: middle; flex: none; }
+.lib-item-emoji { display: inline-grid; place-items: center; font-size: 24px; line-height: 1; }
+.lib-catalog-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.lib-catalog-filter { width: auto; min-width: 84px; height: 38px; padding: 0 10px; }
+.lib-catalog-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .lib-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; }
 .lib-table th, .lib-table td { padding: 3px 4px; }
 .lib-row-on { font-weight: 800; }

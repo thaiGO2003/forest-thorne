@@ -4,6 +4,7 @@ import { unitEvolutionName } from "../content/unitNames";
 import type { CombatUnitSnapshot } from "../core/combat";
 import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { getEquipment, slotCapForUnit } from "../core/equipment";
+import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
 import { sellValue } from "../core/economy";
 import { t, type MsgKey } from "../core/i18n";
 import { MODE_CONFIG } from "../core/modes";
@@ -57,7 +58,14 @@ const PERCENT_STATS = new Set(["evade", "crit", "accuracy", "critDmg", "lifestea
 const fmt = (value: number) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(value);
 const statValue = (key: string, value: number) => PERCENT_STATS.has(key) ? `${fmt(value * 100)}%` : fmt(value);
 const statName = (key: string) => t(`inventory.${key}` as MsgKey);
-const itemName = (id: string) => id === "eq_warmog_armor" ? t("item.eq_warmog_armor") : id === "eq_blue_buff" ? t("item.eq_blue_buff") : id;
+const itemIcon = (itemId: string, alt: string) => {
+  if (!hasItemArt(itemId)) return h("span", "ui-inventory-item-emoji", itemIconChar(itemId));
+  const image = h("img");
+  image.src = `/assets/items/${encodeURIComponent(itemId)}.svg`;
+  image.alt = alt;
+  image.loading = "lazy";
+  return image;
+};
 
 type InventoryStats = Pick<UnitStatSnapshot, StatKey | "maxHp" | "rageMax"> & { critDmg?: number };
 interface InventoryDisplay {
@@ -303,15 +311,11 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     if (!item) return null;
     const card = h("div", "ui-inventory-item");
     const icon = panel("ui-inventory-item-icon", true);
-    const image = h("img");
-    image.src = `/assets/items/${encodeURIComponent(itemId)}.svg`;
-    image.alt = itemName(itemId);
-    image.loading = "lazy";
-    icon.append(image);
-    const caption = h("strong", "ui-inventory-item-name", itemName(itemId));
+    icon.append(itemIcon(itemId, itemDisplayName(itemId)));
+    const caption = h("strong", "ui-inventory-item-name", itemDisplayName(itemId));
     const meta = h("small", "ui-inventory-note", `${t("library.tier", { tier: item.tier })}${worn ? "" : ` · ×${count}`}`);
-    card.title = !Object.keys(item.bonuses).length ? t("inventory.itemNoBonus") :
-      Object.entries(item.bonuses).map(([key, value]) => `${key}: ${value}`).join(" · ");
+    const bonusCopy = equipmentBonusCopy(item.bonuses);
+    card.title = bonusCopy || t("inventory.itemNoBonus");
     const detail = h("details", "ui-inventory-item-details");
     detail.append(h("summary", "", t("inventory.itemDetail")), h("p", "", card.title));
     card.append(icon, caption, meta);
@@ -540,7 +544,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
         onClick: () => execute(() => worn ? intents.unequip(index) : intents.equip(itemId), worn ? "inventory.unequippedOk" : "inventory.equippedOk"),
       });
       button.setDisabled(Boolean(reason));
-      button.el.title = reason || itemName(itemId);
+      button.el.title = reason || itemDisplayName(itemId);
       itemButtons.push(button);
       card.append(button.el, detail);
       if (reason && editable()) card.append(h("small", "ui-inventory-item-reason", reason));

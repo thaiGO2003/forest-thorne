@@ -49,9 +49,9 @@ describe("variant traits and equipment contracts", () => {
   });
 
   it("equipment normalization rejects invalid, duplicate and over-tier ids without guessing bonuses", () => {
-    const n = normalizeEquipment(["eq_blue_buff", "ghost", "eq_blue_buff", "eq_warmog_armor"], 1, 3);
+    const n = normalizeEquipment(["eq_blue_buff", "ghost", "eq_blue_buff", "eq_aegis_oath"], 1, 3);
     expect(n.kept).toEqual(["eq_blue_buff"]);
-    expect(n.rejected).toEqual(["ghost", "eq_blue_buff", "eq_warmog_armor"]);
-    expect(equipmentCategory(getEquipment("eq_blue_buff")!)).toBe("offense");
+    expect(n.rejected).toEqual(["ghost", "eq_blue_buff", "eq_aegis_oath"]);
+    expect(equipmentCategory(getEquipment("eq_blue_buff")!)).toBe("magic");
   });
 });

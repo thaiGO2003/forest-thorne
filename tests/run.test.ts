@@ -205,12 +205,12 @@ describe("run state", () => {
   it("equipment mutations are atomic and use canonical tier/cost rules", () => {
     const s = normalRun(1);
     s.bench = [unit("a")];
-    s.itemBag = ["eq_blue_buff", "eq_warmog_armor"];
+    s.itemBag = ["eq_blue_buff", "eq_aegis_oath"];
     const before = snap(s);
-    expect(equipItem(s, "eq_warmog_armor", "bench", 0)).toBe(false); // T2 cannot equip on 1★
+    expect(equipItem(s, "eq_aegis_oath", "bench", 0)).toBe(false); // T2 cannot equip on 1★
     expect(snap(s)).toBe(before);
     expect(equipItem(s, "eq_blue_buff", "bench", 0)).toBe(true);
-    expect(s.itemBag).toEqual(["eq_warmog_armor"]);
+    expect(s.itemBag).toEqual(["eq_aegis_oath"]);
     const gold = s.gold;
     expect(unequipItem(s, "bench", 0, 0)).toBe(true);
     expect(s.gold).toBe(gold - 2);
@@ -219,7 +219,7 @@ describe("run state", () => {
     expect(unequipAll(s, "bench", 0)).toBe(true);
     expect(s.gold).toBe(gold - 4);
     const bagGold = s.gold;
-    expect(sellItem(s, s.itemBag.indexOf("eq_warmog_armor"))).toBe(true);
+    expect(sellItem(s, s.itemBag.indexOf("eq_aegis_oath"))).toBe(true);
     expect(s.gold).toBe(bagGold + 4);
   });
 });

@@ -1,14 +1,16 @@
 import type { App } from "../../app/app";
 import { activeIndices, BASE_MATERIALS, matchRecipe, RECIPES, type Recipe } from "../../core/craft";
 import { getLocale } from "../../core/i18n";
-import { itemDisplayName } from "../../core/itemPresentation";
+import { hasItemArt, itemDisplayName, itemIconChar } from "../../core/itemPresentation";
 import { ICONS } from "../../core/emojiIcon";
 import { disposeSurfaceTree, h, kitButton, nineSlice, panelEl, SLICE, surface, type KitButton } from "../kit";
 
-const ITEM_ASSETS = new Set<string>([...BASE_MATERIALS, "eq_blue_buff", "eq_warmog_armor"]);
-
 function itemArt(id: string, cls: string): HTMLElement {
-  if (!ITEM_ASSETS.has(id)) return h("span", cls, ICONS.question);
+  if (!hasItemArt(id)) {
+    const icon = h("span", cls, itemIconChar(id));
+    icon.setAttribute("aria-hidden", "true");
+    return icon;
+  }
   const image = h("img", cls);
   image.src = `${import.meta.env.BASE_URL}assets/items/${id}.svg`;
   image.alt = "";
@@ -44,6 +46,8 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
   let feedback = "";
   let controls: KitButton[] = [];
   let disposed = false;
+  let recipePage = 0;
+  let recipeTier = 0;
   const copy = (vi: string, en: string) => getLocale() === "vi" ? vi : en;
 
   const button = (skin: "green" | "red" | "blue" | "wood" | "plum", label: string, action: () => void, cls: string, disabled = false, size?: number) => {
@@ -250,7 +254,36 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
 
     const recipes = panelEl("panel_parchment", "crafting-recipes");
     recipes.append(h("span", "crafting-eyebrow", copy("SỔ TAY CHẾ TẠO", "RECIPE JOURNAL")), h("h3", "", copy("Công thức đã biết", "Known recipes")));
-    for (const recipe of RECIPES) {
+    const unlockedRecipes = RECIPES.filter((recipe) => recipe.size <= level);
+    const recipeTiers = [...new Set(unlockedRecipes.map((recipe) => recipe.size))].sort((a, b) => a - b);
+    if (recipeTier && !recipeTiers.includes(recipeTier as Recipe["size"])) recipeTier = 0;
+    const tierPicker = h("select", "lib-input crafting-recipe-filter");
+    tierPicker.setAttribute("aria-label", copy("Lọc công thức theo bậc", "Filter recipes by tier"));
+    for (const option of [{ value: 0, label: copy("Tất cả bậc", "All tiers") },
+      ...recipeTiers.map((tier) => ({ value: tier, label: copy(`Bậc ${tier}`, `Tier ${tier}`) }))]) {
+      const node = document.createElement("option");
+      node.value = String(option.value);
+      node.textContent = option.label;
+      tierPicker.append(node);
+    }
+    tierPicker.value = String(recipeTier);
+    tierPicker.addEventListener("change", () => { recipeTier = Number(tierPicker.value) || 0; recipePage = 0; render(); });
+    recipes.append(tierPicker);
+    const filteredRecipes = recipeTier ? unlockedRecipes.filter((recipe) => recipe.size === recipeTier) : unlockedRecipes;
+    const perPage = 6;
+    const pages = Math.max(1, Math.ceil(filteredRecipes.length / perPage));
+    recipePage = Math.min(recipePage, pages - 1);
+    if (pages > 1) {
+      const pager = h("div", "crafting-recipe-pager");
+      pager.append(
+        button("wood", "‹", () => { recipePage = Math.max(0, recipePage - 1); render(); }, "crafting-page", recipePage === 0),
+        h("span", "crafting-counter", copy(`Trang ${recipePage + 1}/${pages}`, `Page ${recipePage + 1}/${pages}`)),
+        button("wood", "›", () => { recipePage = Math.min(pages - 1, recipePage + 1); render(); }, "crafting-page", recipePage >= pages - 1),
+      );
+      recipes.append(pager);
+    }
+    const visibleRecipes = filteredRecipes.slice(recipePage * perPage, recipePage * perPage + perPage);
+    for (const recipe of visibleRecipes) {
       const outcome = `eq_${recipe.id}`;
       const target = recipeStaging(recipe, level);
       const requirement = countItems(recipe.pattern);
@@ -264,7 +297,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
       recipeRow.append(recipeInfo, button("blue", copy("Xếp nhanh", "Auto-fill"), () => placeRecipe(recipe), "crafting-autofill", !planning || !target || !hasEnough));
       recipes.append(recipeRow);
     }
-    if (!RECIPES.length) recipes.append(h("p", "", copy("Chưa có công thức được mở.", "No recipes unlocked yet.")));
+    if (!filteredRecipes.length) recipes.append(h("p", "", copy("Chưa có công thức được mở.", "No recipes unlocked yet.")));
 
     const bottom = panelEl("panel_wood", "crafting-result");
     const resultPreview = panelEl("slot_well", "crafting-result-icon");

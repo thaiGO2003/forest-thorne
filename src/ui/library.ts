@@ -13,6 +13,7 @@ import { basicAttackCopy } from "../core/unitText";
 import { unitEvolutionName } from "../content/unitNames";
 import { createCard, unitCardTooltip, type CardView } from "./card";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
+import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
 import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
@@ -89,6 +90,8 @@ export function mountLibrary(
   const refreshCollection = () => { collection = account.collectionProfile(); };
   let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, controlsOff: (() => void) | null = null, idleTimer: number | null = null, relaxedIdle = true;
   let tab: LibraryTab = "units";
+  let catalogTier = 0;
+  let catalogPage = 0;
   const cardTips: (() => void)[] = [];
   const clearCardTips = () => {
     for (const unbind of cardTips.splice(0)) unbind();
@@ -137,35 +140,101 @@ export function mountLibrary(
       list.append(panel);
       return panel;
     };
-    const iconEntry = (id: string, title: string, ...detail: string[]) => {
-      const heading = entry(title, ...detail).querySelector(".lib-h");
-      const icon = h("img", "lib-item-icon");
-      icon.src = `/assets/items/${encodeURIComponent(id)}.svg`;
-      icon.alt = "";
-      icon.loading = "lazy";
+    const hostEntry = (host: HTMLElement, title: string, ...detail: string[]) => {
+      const panel = panelEl("panel_tooltip", "lib-sec");
+      panel.append(h("h3", "lib-h", title));
+      for (const line of detail) panel.append(richParagraph("lib-p", line));
+      host.append(panel);
+      return panel;
+    };
+    const itemBadge = (heading: globalThis.Element | null, id: string) => {
+      const icon = hasItemArt(id) ? h("img", "lib-item-icon") : h("span", "lib-item-icon lib-item-emoji", itemIconChar(id));
+      if (icon instanceof HTMLImageElement) {
+        icon.src = `/assets/items/${encodeURIComponent(id)}.svg`;
+        icon.alt = "";
+        icon.loading = "lazy";
+      } else icon.setAttribute("aria-hidden", "true");
       heading?.prepend(icon);
     };
-    const nameOfEquipment = (id: string) => id === "eq_blue_buff"
-      ? t("item.eq_blue_buff")
-      : id === "eq_warmog_armor" ? t("item.eq_warmog_armor") : id;
+    const iconEntry = (id: string, title: string, ...detail: string[]) => {
+      itemBadge(entry(title, ...detail).querySelector(".lib-h"), id);
+    };
+    const hostIconEntry = (host: HTMLElement, id: string, title: string, ...detail: string[]) => {
+      itemBadge(hostEntry(host, title, ...detail).querySelector(".lib-h"), id);
+    };
     if (tab === "materials") {
       entry("Danh mục nguyên liệu", "Các nguyên liệu có thể sử dụng trên bàn chế tạo.");
-      for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? id);
-    } else if (tab === "equipment") {
-      for (const item of EQUIPMENT) {
-        const bonuses = Object.entries(item.bonuses).map(([key, value]) => `${key}: ${value}`);
-        iconEntry(item.id, nameOfEquipment(item.id), `Bậc ${item.tier}`, ...bonuses);
-      }
-    } else if (tab === "recipes") {
-      entry("Công thức đã có", "Chỉ hiển thị các công thức được định nghĩa trong trò chơi; không suy đoán công thức còn thiếu.");
-      for (const recipe of RECIPES) {
-        const lines = [];
-        for (let row = 0; row < recipe.size; row++) {
-          lines.push(recipe.pattern.slice(row * recipe.size, (row + 1) * recipe.size)
-            .map((id) => id ? MATERIAL_NAMES[id] ?? id : "Ô trống").join(" · "));
+      for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? itemDisplayName(id));
+    } else if (tab === "equipment" || tab === "recipes") {
+      const isEquipment = tab === "equipment";
+      const tiers = isEquipment
+        ? [...new Set(EQUIPMENT.map((item) => item.tier))].sort((a, b) => a - b)
+        : [...new Set(RECIPES.map((recipe) => recipe.size))].sort((a, b) => a - b);
+      entry(
+        isEquipment ? "Trang bị cổ" : "Công thức cổ",
+        isEquipment
+          ? `${EQUIPMENT.length} trang bị từ bản classic. Chỉ số cộng đã áp dụng; hiệu ứng kích hoạt đặc biệt của old_src chưa được mô phỏng.`
+          : `${RECIPES.length} công thức 1×1–3×3 từ bản classic. Bàn chế tạo cấp 1/2/3 tương ứng bậc 1/2/3.`,
+        "Chọn bậc để lọc; dùng nút chuyển trang ở cuối danh sách.",
+      );
+      const filters = h("div", "lib-catalog-filters");
+      const filterButtons: { value: number; button: KitButton }[] = [];
+      const addFilter = (label: string, value: number) => {
+        const b = kitButton({ skin: "wood", label, cls: "lib-catalog-filter", onClick: () => {
+          catalogTier = value;
+          catalogPage = 0;
+          for (const entryItem of filterButtons) entryItem.button.setSelected(entryItem.value === value);
+          paint();
+        } });
+        filterButtons.push({ value, button: b });
+        b.setSelected(catalogTier === value);
+        viewTips.push(tip.bind(b.el, () => ({ title: label })));
+        filters.append(b.el);
+      };
+      addFilter(t("library.all"), 0);
+      for (const tier of tiers) addFilter(t("library.tier", { tier }), tier);
+      const body = h("div", "lib-catalog-list");
+      const foot = h("div", "lib-foot");
+      list.append(filters, body, foot);
+      const paint = () => {
+        const per = 6;
+        const equipment = isEquipment
+          ? (catalogTier ? EQUIPMENT.filter((item) => item.tier === catalogTier) : EQUIPMENT)
+          : [];
+        const recipes = isEquipment
+          ? []
+          : (catalogTier ? RECIPES.filter((recipe) => recipe.size === catalogTier) : RECIPES);
+        const total = isEquipment ? equipment.length : recipes.length;
+        const pages = Math.max(1, Math.ceil(total / per));
+        catalogPage = Math.min(catalogPage, pages - 1);
+        disposeSurfaceTree(body);
+        body.replaceChildren();
+        if (isEquipment) {
+          for (const item of equipment.slice(catalogPage * per, catalogPage * per + per)) {
+            hostIconEntry(body, item.id, itemDisplayName(item.id), t("library.tier", { tier: item.tier }),
+              equipmentBonusCopy(item.bonuses) || t("inventory.itemNoBonus"));
+          }
+        } else {
+          for (const recipe of recipes.slice(catalogPage * per, catalogPage * per + per)) {
+            const lines: string[] = [];
+            for (let row = 0; row < recipe.size; row++) {
+              lines.push(recipe.pattern.slice(row * recipe.size, (row + 1) * recipe.size)
+                .map((id) => id ? itemDisplayName(id) : "Ô trống").join(" · "));
+            }
+            hostIconEntry(body, `eq_${recipe.id}`, itemDisplayName(`eq_${recipe.id}`), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
+          }
         }
-        iconEntry(`eq_${recipe.id}`, nameOfEquipment(`eq_${recipe.id}`), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
-      }
+        disposeSurfaceTree(foot);
+        foot.replaceChildren();
+        if (pages > 1) {
+          const prev = kitButton({ skin: "wood", label: "‹", cls: "lib-page", onClick: () => { catalogPage = Math.max(0, catalogPage - 1); paint(); } });
+          const next = kitButton({ skin: "wood", label: "›", cls: "lib-page", onClick: () => { catalogPage = Math.min(pages - 1, catalogPage + 1); paint(); } });
+          prev.setDisabled(catalogPage === 0);
+          next.setDisabled(catalogPage >= pages - 1);
+          foot.append(prev.el, h("span", "lib-count", `${t("library.page", { page: catalogPage + 1, pages })} · ${total}`), next.el);
+        }
+      };
+      paint();
     } else if (tab === "augments") {
       const picker = h("select", "lib-input");
       picker.setAttribute("aria-label", "Nhóm chúc phúc");
@@ -233,7 +302,7 @@ export function mountLibrary(
     const tabs = h("div", "lib-tabs");
     tabs.setAttribute("role", "tablist");
     for (const item of TABS) {
-      const btn = kitButton({ skin: "wood", label: item.name, onClick: () => { tab = item.id; renderBrowse(); } });
+      const btn = kitButton({ skin: "wood", label: item.name, onClick: () => { tab = item.id; catalogTier = 0; catalogPage = 0; renderBrowse(); } });
       btn.setSelected(tab === item.id);
       btn.el.setAttribute("role", "tab");
       btn.el.setAttribute("aria-selected", String(tab === item.id));

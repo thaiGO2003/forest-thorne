@@ -1,4 +1,6 @@
 // Crafting (spec A7). Staging is non-destructive: `staged` only references bag items; craft() is atomic.
+import { ITEM_RECIPES } from "../content/items";
+
 export interface Recipe {
   id: string;
   /** Footprint side: 1, 2 or 3. */
@@ -9,9 +11,8 @@ export interface Recipe {
 
 export const BASE_MATERIALS = ["bark", "feather", "belt", "claw", "tear", "crystal"] as const;
 
-// ponytail: spec cites 506 authored recipes but ships no recipe table; only the tutorial recipe is authored (A21 round 6).
-// Load the full table here when recipe data is supplied.
-export const RECIPES: Recipe[] = [{ id: "blue_buff", size: 1, pattern: ["tear"] }];
+/** T1..T3 authored recipes ported from the classic homeserver item DB (scripts/port-old-items.mjs). */
+export const RECIPES: Recipe[] = ITEM_RECIPES;
 
 /** Active square per craftTableLevel: [rowOffset, colOffset, side]. */
 const ACTIVE: Record<number, [number, number, number]> = { 1: [1, 1, 1], 2: [0, 0, 2], 3: [0, 0, 3] };

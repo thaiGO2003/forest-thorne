@@ -3,11 +3,12 @@ import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n
 import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary, type RunState } from "../core/run";
 import { RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
+import { equipmentBonusCopy, itemDisplayName } from "../core/itemPresentation";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { augmentCopy, augmentGroupLabel, augmentGroupRank } from "../content/augmentText";
 import { environmentCopy } from "../content/environmentText";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
-import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
+import { h, kitButton, nineSlice, panelEl, surface, threeSlice, disposeSurfaceTree } from "../ui/kit";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
@@ -75,12 +76,6 @@ function openReturnToMenuConfirm(app: App) {
   m.body.append(body);
 }
 
-const ITEM_COPY: Partial<Record<string, MsgKey>> = {
-  eq_warmog_armor: "item.eq_warmog_armor",
-  eq_blue_buff: "item.eq_blue_buff",
-  tear: "item.tear",
-};
-const itemName = (id: string) => ITEM_COPY[id] ? t(ITEM_COPY[id]!) : id;
 const MOD_PACKAGE_TYPE_COPY: Record<ModPackageType, MsgKey> = {
   ".ftunit": "mods.packageType.ftunit",
   ".ftlogic": "mods.packageType.ftlogic",
@@ -581,7 +576,7 @@ function openInformation(app: App) {
       title,
       h("div", "info-unit-meta", `${ICONS[unit.element]} ${t(`element.${unit.element}` as MsgKey)} · ${ICONS[unit.faction]} ${t(`faction.${unit.faction}` as MsgKey)} · ${t(`role.${unit.role}` as MsgKey)}`),
     );
-    if (entry.equips?.length) copy.append(h("small", "info-unit-equips", entry.equips.map(itemName).join(" · ")));
+    if (entry.equips?.length) copy.append(h("small", "info-unit-equips", entry.equips.map(itemDisplayName).join(" · ")));
     const details = kitButton({ skin: "wood", label: t("planning.details"), onClick: () => app.openPanel("unit-detail", detailId(entry)) });
     row.append(unitMedal(ICONS[unit.role]), copy, details.el);
     host.append(row);
@@ -1004,7 +999,7 @@ function mountInventory(app: App, host: HTMLElement) {
     const root = h("div", "stack");
     root.append(h("strong", "", t("planning.items")));
     const bag = h("div", "row");
-    for (const id of run.itemBag) bag.append(h("div", "slot", itemName(id)));
+    for (const id of run.itemBag) bag.append(h("div", "slot", itemDisplayName(id)));
     if (!run.itemBag.length) bag.append(h("div", "slot", t("planning.empty")));
     root.append(bag);
 
@@ -1035,8 +1030,8 @@ function mountInventory(app: App, host: HTMLElement) {
           const unequip = kitButton({
             skin: "plum",
             label: cost == null
-              ? `${t("planning.unequip")} ${itemName(itemId)}`
-              : `${t("inventory.unequip", { cost: `${cost} ${ICONS.gold}` })} ${itemName(itemId)}`,
+              ? `${t("planning.unequip")} ${itemDisplayName(itemId)}`
+              : `${t("inventory.unequip", { cost: `${cost} ${ICONS.gold}` })} ${itemDisplayName(itemId)}`,
             onClick: () => { app.bridge.unequip(group.where, index, equippedIndex); },
           });
           unequip.setDisabled(cost == null || run.gold < cost);
@@ -1048,7 +1043,7 @@ function mountInventory(app: App, host: HTMLElement) {
           if (!item) continue;
           const equip = kitButton({
             skin: "green",
-            label: `${t("planning.equip")} ${itemName(itemId)}`,
+            label: `${t("planning.equip")} ${itemDisplayName(itemId)}`,
             onClick: () => { app.bridge.equip(itemId, group.where, index); },
           });
           equip.setDisabled(item.tier > unit.star || unit.equips.length >= capacity);
@@ -1072,13 +1067,52 @@ function mountInventory(app: App, host: HTMLElement) {
 }
 
 function mountRecipes(host: HTMLElement) {
-  const root = h("div", "choice-list");
-  for (const recipe of RECIPES) {
-    const row = h("div", "slot");
-    row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(`eq_${recipe.id}`)}`;
-    root.append(row);
-  }
+  let tier = 0, page = 0;
+  const root = h("div", "lib-info");
+  const filters = h("div", "lib-catalog-filters");
+  const body = h("div", "lib-catalog-list");
+  const foot = h("div", "lib-foot");
+  const paint = () => {
+    disposeSurfaceTree(body);
+    disposeSurfaceTree(foot);
+    body.replaceChildren();
+    foot.replaceChildren();
+    const list = tier ? RECIPES.filter((recipe) => recipe.size === tier) : RECIPES;
+    const per = 20;
+    const pages = Math.max(1, Math.ceil(list.length / per));
+    page = Math.min(page, pages - 1);
+    for (const recipe of list.slice(page * per, page * per + per)) {
+      const output = `eq_${recipe.id}`;
+      const pattern = recipe.pattern.map((id) => id ? itemDisplayName(id) : t("planning.empty")).join(" + ");
+      const bonuses = getEquipment(output)?.bonuses;
+      body.append(h("div", "slot", `${pattern} → ${itemDisplayName(output)}${bonuses ? ` · ${equipmentBonusCopy(bonuses)}` : ""}`));
+    }
+    if (!list.length) body.append(h("p", "lib-p", t("library.empty")));
+    if (pages > 1) {
+      const prev = kitButton({ skin: "wood", label: "‹", cls: "lib-page", onClick: () => { page = Math.max(0, page - 1); paint(); } });
+      const next = kitButton({ skin: "wood", label: "›", cls: "lib-page", onClick: () => { page = Math.min(pages - 1, page + 1); paint(); } });
+      prev.setDisabled(page === 0);
+      next.setDisabled(page >= pages - 1);
+      foot.append(prev.el, h("span", "lib-count", `${t("library.page", { page: page + 1, pages })} · ${list.length}`), next.el);
+    }
+  };
+  const filter = (value: number, label: string) => {
+    const b = kitButton({ skin: "wood", label, cls: "lib-catalog-filter", onClick: () => {
+      tier = value; page = 0;
+      for (const other of buttons) other.setSelected(other === b);
+      paint();
+    } });
+    buttons.push(b);
+    b.setSelected(tier === value);
+    filters.append(b.el);
+  };
+  const buttons: ReturnType<typeof kitButton>[] = [];
+  filter(0, t("library.all"));
+  for (const size of [1, 2, 3] as const) filter(size, t("library.tier", { tier: size }));
+  root.append(filters, body, foot);
+  paint();
   host.append(root);
+  return { dispose() { disposeSurfaceTree(root); root.remove(); } };
 }
 
 function augmentChoiceCopy(id: string): string {

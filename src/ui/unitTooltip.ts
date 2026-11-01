@@ -8,6 +8,7 @@ import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { equipmentSaleValue, getEquipment } from "../core/equipment";
 import { sellValue } from "../core/economy";
 import { hasMessage, t, type MsgKey } from "../core/i18n";
+import { equipmentBonusCopy, itemDisplayName } from "../core/itemPresentation";
 import { starStatMilestones, type UnitDiagnosticEffect, type UnitDiagnostics } from "../core/inspection";
 import { skillSpec } from "../core/skills";
 import { basicAttackCopy } from "../core/unitText";
@@ -83,8 +84,8 @@ function statusChip(e: UnitDiagnosticEffect): TooltipChip {
 function equipmentCopy(ids: string[]): string {
   if (!ids.length) return t("tooltip.noEquipment");
   return ids.map((id) => {
-    const name = hasMessage(`item.${id}`) ? t(`item.${id}` as MsgKey) : (getEquipment(id)?.nameKey ?? id);
-    return `${ICONS.craft} ${name}`;
+    const bonus = equipmentBonusCopy(getEquipment(id)?.bonuses ?? {});
+    return `${ICONS.craft} ${itemDisplayName(id)}${bonus ? ` · ${bonus}` : ""}`;
   }).join("\n");
 }
 
@@ -172,7 +173,7 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
     traitLines.push(`${ICONS.variant} ${t("inventory.variant")}: ${names.join(" · ")}`);
   }
   if (equips.length) {
-    const names = equips.map((id) => (hasMessage(`item.${id}`) ? t(`item.${id}` as MsgKey) : (getEquipment(id)?.nameKey ?? id)));
+    const names = equips.map((id) => itemDisplayName(id));
     traitLines.push(`${ICONS.craft} ${t("inventory.equipment")}: ${t("tooltip.equipmentSlots", { used: equips.length, max: star })} · ${names.join(", ")}`);
   }
 

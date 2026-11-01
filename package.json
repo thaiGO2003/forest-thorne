@@ -12,6 +12,7 @@
     "test": "vitest --run",
     "test:changed": "vitest --run --changed",
     "qa:planning": "node scripts/qa/planning-interaction.mjs",
+    "port:items": "node scripts/port-old-items.mjs",
     "shot": "node scripts/shot.mjs"
   },
   "dependencies": {

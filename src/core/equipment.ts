@@ -1,7 +1,7 @@
 // Canonical equipment identity + planning/combat helpers (spec A6, A69, A80).
-// The rebuild source currently authors only two concrete equipment ids. Their bonus payloads
-// are intentionally empty until the missing recipe/item table is supplied; rules must not invent stats.
+// T1..T3 gear comes from the classic item DB (scripts/port-old-items.mjs); each recipe crafts one item.
 import type { UnitDef } from "../content/catalog";
+import { ITEM_EQUIPMENT } from "../content/items";
 
 export interface EquipmentBonuses {
   hpPct?: number;
@@ -26,12 +26,16 @@ export interface EquipmentDef {
   tier: number;
   unequipCost?: number;
   bonuses: EquipmentBonuses;
+  /** Authored classic display name (Vietnamese). */
+  nameVi?: string;
+  /** Authored classic emoji icon; used when no SVG art exists. */
+  icon?: string;
+  descriptionVi?: string;
+  /** Authored old-src trigger payload; retained for a later runtime port, not executed today. */
+  logic?: Record<string, unknown>;
 }
 
-export const EQUIPMENT: readonly EquipmentDef[] = [
-  { id: "eq_blue_buff", nameKey: "blue_buff", tier: 1, bonuses: {} },
-  { id: "eq_warmog_armor", nameKey: "warmog_armor", tier: 2, bonuses: {} },
-];
+export const EQUIPMENT: readonly EquipmentDef[] = ITEM_EQUIPMENT;
 
 export const EQUIPMENT_BY_ID: ReadonlyMap<string, EquipmentDef> = new Map(EQUIPMENT.map((item) => [item.id, item]));
 
