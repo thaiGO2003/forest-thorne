@@ -2,7 +2,8 @@
 // Lean tan feline with dark rosette spots, white muzzle, boxy brown ears, brown paws with white claws,
 // long segmented tail with dark tip. Body → neck → head is one connected chain (A24, A90.2).
 // Idle: watch/sniff/head dip/tail flick · Move: four-leg gallop · Attack: low lunge + bite/swipe ·
-// Skill (Săn Mồi): crouch → leap → slash → land. 2★ dark dorsal mane; 3★ shoulder guards + fang charm.
+// Skill (Săn Mồi): crouch → leap → slash → land · Hit: recoil → recover · Death: legs buckle →
+// slump onto the flank → limp, then the rig shrinks away. 2★ dark dorsal mane; 3★ shoulder guards + fang charm.
 import type { Part } from "../kit";
 import { bell, defineUnit, ramp, strike } from "../rig";
 
@@ -24,6 +25,7 @@ export default defineUnit<JaguarParts>({
   height: 10,
   durations: { idle: 5, attack: 0.85, skill: 1.6, hit: 0.5, move: 0.6 },
   impact: { attack: 0.5, skill: 0.62 },
+  deathDuration: 1.25,
 
   build(k, { star }) {
     // Torso pivot at mid-back; chest is a child so the front can lift independently during leaps.
@@ -103,6 +105,38 @@ export default defineUnit<JaguarParts>({
     }
 
     return { torso, chest, neck, head, jaw, ears, legs, tail };
+  },
+
+  death(r, c) {
+    // Gục xuống (0–.25): legs give out · Nằm yên (.18–.55): body slumps onto the flank, head drops
+    // · Biến mất (.82–1, rig-owned shrink) · tail and jaw go limp with a single last breath.
+    const drop = ramp(c.p, 0, 0.25);
+    const fall = ramp(c.p, 0.18, 0.5);
+    const limp = ramp(c.p, 0.4, 0.72);
+    const lastBreath = Math.max(0, Math.sin(Math.min(1, c.p / 0.72) * Math.PI * 2)) * (1 - limp) * 0.03;
+    const { torso, chest, neck, head, jaw, ears, legs, tail } = r;
+    torso.group.position.y -= drop * 1.1 + fall * 2.4;
+    torso.group.position.x += fall * 0.5; // slides onto the flank instead of sinking straight down
+    torso.group.rotation.z = fall * 1.05;
+    torso.group.rotation.x = fall * 0.12;
+    torso.group.scale.y = 1 + lastBreath;
+    chest.group.rotation.x = drop * 0.2 + fall * 0.25;
+    neck.group.rotation.x = drop * 0.3 + fall * 0.65;
+    neck.group.rotation.z = -fall * 0.4;
+    head.group.rotation.x = fall * 0.3;
+    head.group.rotation.y = fall * 0.2;
+    ears.group.rotation.x = -0.7 * fall;
+    jaw.group.rotation.x = bell(c.p, 0.05, 0.4) * 0.55 + limp * 0.25;
+    legs.forEach((l) => {
+      const fold = l.front ? drop * 0.9 : drop * 0.5;
+      l.hip.group.rotation.x = -fold + (l.front ? fall * 0.4 : fall * 0.9);
+      l.hip.group.rotation.z = l.side * fall * 0.5;
+      l.paw.group.rotation.x = limp * 0.5;
+    });
+    tail.forEach((s, i) => {
+      s.group.rotation.x = limp * (0.25 + i * 0.05);
+      s.group.rotation.y = Math.sin(c.time * 0.8 - i * 0.6) * 0.05 * (1 - limp);
+    });
   },
 
   pose(r, c) {

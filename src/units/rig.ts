@@ -35,6 +35,15 @@ export interface PoseCtx {
 
 export interface BuildOpts { star: Star; skin: string | null }
 
+/** Authored death pose: `p` runs 0→1 over `deathDuration`; the rig shrinks and hides at the end. */
+export interface DeathPoseCtx {
+  p: number;
+  time: number;
+  star: Star;
+  instance: number;
+  fx: RigFx;
+}
+
 export interface UnitRigDef<P> {
   id: string;
   motion: Motion;
@@ -43,6 +52,9 @@ export interface UnitRigDef<P> {
   durations?: Partial<Record<ActionState, number>>;
   /** Normalized time of the semantic impact for attack/skill (A16: damage commits here). */
   impact?: Partial<Record<"attack" | "skill", number>>;
+  /** Optional bespoke collapse; units without it keep the generic tip-over death. */
+  deathDuration?: number;
+  death?(r: P, c: DeathPoseCtx): void;
   build(k: Kit, o: BuildOpts): P;
   pose(r: P, c: PoseCtx): void;
 }
@@ -209,9 +221,26 @@ export function createUnitVisual(def: UnitRigDef<unknown>, star: Star, skin: str
       if (bubble.visible && (bubbleLeft -= dt) <= 0) bubble.visible = false;
       if (dying >= 0) {
         dying += dt;
-        const k = Math.min(1, dying / DEATH_S);
-        for (const b of bodies) { b.group.rotation.z = k * 1.2; b.group.position.y = REST_Y[def.motion] - k * 0.35; }
-        root.scale.setScalar(1 - k * 0.6);
+        const custom = def.death;
+        const k = Math.min(1, dying / (custom ? def.deathDuration ?? 1 : DEATH_S));
+        if (custom) {
+          // Authored collapse: reset the rest pose every frame, then let the unit fold per-instance.
+          for (const b of bodies) { b.group.rotation.z = 0; b.group.position.y = REST_Y[def.motion]; }
+          for (let i = 0; i < visible; i++) {
+            const b = bodies[i]!;
+            for (const r of b.rest) { r.o.position.copy(r.p); r.o.quaternion.copy(r.q); r.o.scale.copy(r.s); }
+            custom(b.parts, {
+              p: Math.max(0, Math.min(1, k - i * 0.08)), time, star, instance: i,
+              fx: i === 0 ? fx : { say() {} },
+            });
+          }
+          // "Biến mất": held corpse shrinks away only after the collapse settles.
+          const vanish = Math.max(0, (k - 0.82) / 0.18);
+          root.scale.setScalar(1 - vanish * 0.7);
+        } else {
+          for (const b of bodies) { b.group.rotation.z = k * 1.2; b.group.position.y = REST_Y[def.motion] - k * 0.35; }
+          root.scale.setScalar(1 - k * 0.6);
+        }
         if (k >= 1 && root.visible) { root.visible = false; anchor.visible = false; onDeath?.(); onDeath = undefined; }
         return;
       }
