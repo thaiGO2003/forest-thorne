@@ -77,6 +77,7 @@
 - Corrected flow-marker wrap arithmetic after reproducing a `update(0)` position jump in `tests/arena-mapping.test.ts`; the regression now asserts zero-delta continuity and forward motion.
 - Verified `corepack pnpm exec vitest --run tests/arena-mapping.test.ts` (8 passed) and `corepack pnpm typecheck` (passed).
 - The standalone Bun arena smoke command could not run without a browser DOM (`document is not defined` from `src/world/sky.ts`); headless scene tests passed, but live WebGL pixels remain unverified.
+
 ## 2026-10-19 — WBS-019 deterministic combat verification
 
 - Added sparse multi-unit interleaving and hard 20-cycle regression coverage to `tests/combat.test.ts`; the existing `src/core/combat.ts` implementation already satisfies the WBS-019 ordering contract.
@@ -89,3 +90,9 @@
 - Expanded `tests/geometry.test.ts` with invalid/non-finite coordinate rejection, explicit river boundary mapping, exhaustive visual→logical coverage (50/100/200 cells), one river cell per row (5/10/20), and ring/perimeter uniqueness for solo/coop2/coop4.
 - Spec §11.4's 40-cell solo brown ring contradicts the coordinate rectangle (13×7 − 11×5 = 36 unique cells); the test documents the existing coordinate-authoritative choice.
 - Verified in the isolated geometry worktree: `pnpm exec vitest --run tests/geometry.test.ts` (**8/8 PASS**) and `pnpm typecheck` (**PASS**); no plan was moved.
+
+## 2026-11-01 — Issue #11 arena lifecycle regressions
+
+- Added behavioral tests for three tuft offsets during repeated occupancy transitions, all seven river-flow markers across multiple wraps and negative delta, foreign scene fog/background ownership, idempotent resource disposal, and solo/coop2/coop4 geometry sizing.
+- Exported canonical `FLOW_SPEED`, guarded repeated `arena.dispose()` calls, and documented stable mesh names for structural consumers without changing visual runtime behavior.
+- Reproduced a failing double GPU resource disposal before the fix. Verified `pnpm exec vitest --run tests/arena-mapping.test.ts` (13/13 passed), `pnpm typecheck` (passed), `pnpm build` (passed), and direct Bun runtime smoke with actual Three.js scene, occupancy, flow, foreign ownership, and repeated teardown (passed).
