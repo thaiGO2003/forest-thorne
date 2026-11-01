@@ -16,6 +16,7 @@ import {
   type RunPayload,
 } from "../core/save";
 import { MODE_CONFIG, normalizeAvailableMode, type GameMode } from "../core/modes";
+import { applyBlessingChoice, consumeBlessingCombatRage, type BlessingChoiceId } from "../core/blessingChoice";
 import { AI_PROFILE, normalizeAiMode } from "../core/encounter";
 import { environmentFor, type EnvironmentId } from "../core/environment";
 import { cloneFighter, materializeCombat, simulate, snapshotFighter, sumSideBonuses, type CombatEvent, type CombatInspectionFrame, type Fighter, type Placement, type SideBonus } from "../core/combat";
@@ -95,6 +96,8 @@ export interface Bridge {
   stageCraft(index: number, itemId: string | null): boolean;
   craft(): string | null;
   chooseAugment(id: string): boolean;
+  /** Round-3 blessing pick; atomic and idempotent once chosen. */
+  chooseBlessing(id: BlessingChoiceId): boolean;
   reorderWeatherBlessing(from: number, to: number): boolean;
   /** Ensure the canonical Planning encounter preview exists and is persisted before presentation syncs. */
   prepareEnemyPreview(): EnemyPreviewResult | null;
@@ -223,7 +226,7 @@ export function createBridge(store: KV = localStorage): Bridge {
     equips: [...unit.equips],
     traits: [...(unit.traits ?? [])],
   }] : []);
-  const materializePreparedCombat = (s: RunState, preview: EnemyPreviewResult, left: Placement[]) => {
+  const materializePreparedCombat = (s: RunState, preview: EnemyPreviewResult, left: Placement[], extraStartingRage = 0) => {
     const right = preview.units.map((unit) => ({
       ...unit,
       equips: unit.equips ? [...unit.equips] : undefined,
@@ -238,7 +241,9 @@ export function createBridge(store: KV = localStorage): Bridge {
       rightAi: { hp: ai.hp, atk: ai.atk, matk: ai.matk },
       rightModeScale: scale,
       tutorialRightHpHalving: s.aiMode === "TUTORIAL" && round >= 1 && round <= 8,
-      leftPersistent: playerCombatBonus(s),
+      leftPersistent: extraStartingRage > 0
+        ? { ...playerCombatBonus(s), startRage: (playerCombatBonus(s).startRage ?? 0) + extraStartingRage }
+        : playerCombatBonus(s),
       environment,
       synergy: { L: synergyCombatBonus(s) },
     });
@@ -415,6 +420,11 @@ export function createBridge(store: KV = localStorage): Bridge {
       commit("EVENT", `Chọn nâng cấp ${id}`, undefined, [{ type: "augment_chosen" }]);
       return true;
     },
+    chooseBlessing(id) {
+      if (!state || !applyBlessingChoice(state, id)) return false;
+      commit("EVENT", `Chọn chúc phúc ${id}`);
+      return true;
+    },
     reorderWeatherBlessing(from, to) {
       if (!state || !reorderRunWeatherBlessing(state, from, to)) return false;
       commit("EVENT", `Đổi thứ tự chúc phúc thời tiết #${from + 1} → #${to + 1}`);
@@ -430,7 +440,7 @@ export function createBridge(store: KV = localStorage): Bridge {
       if (!state || state.phase !== "PLANNING" || preview.round !== state.round || !preview.units.length) return null;
       const left = boardPlacements(state);
       if (!left.length) return null;
-      return materializePreparedCombat(state, preview, left).fighters;
+      return materializePreparedCombat(state, preview, left, state.pendingCombatRage).fighters;
     },
     combatSnapshot() {
       if (!combatDiagnostics) return null;
@@ -453,9 +463,11 @@ export function createBridge(store: KV = localStorage): Bridge {
       const combatSeed = (baseSeed ^ Math.imul(round, 0x45d9f3b)) | 0;
       const combatId = `solo:${round}:${combatSeed >>> 0}`;
       if (beginCombat(s) !== null) return null;
-      // Persist the charged heart before presentation; reload replays the deterministic encounter.
+      // The round-3 combat blessing is one-shot: consume it only after the battle is accepted.
+      const blessingRage = consumeBlessingCombatRage(s);
+      // Persist the charged heart and consumed blessing before presentation; reload replays deterministically.
       persist();
-      const { fighters, environment, ai, right } = materializePreparedCombat(s, preview, left);
+      const { fighters, environment, ai, right } = materializePreparedCombat(s, preview, left, blessingRage);
       const roster: RosterEntry[] = fighters.map((fighter) => ({
         uid: fighter.uid,
         baseId: fighter.baseId,

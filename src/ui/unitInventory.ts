@@ -1,5 +1,6 @@
 // Owned creature modal. Stat values and quoted prices are supplied by canonical core owners.
 import { getUnit } from "../content/catalog";
+import { unitEvolutionName } from "../content/unitNames";
 import type { CombatUnitSnapshot } from "../core/combat";
 import { ICONS } from "../core/emojiIcon";
 import { getEquipment, slotCapForUnit } from "../core/equipment";
@@ -11,7 +12,9 @@ import { tutorialActionAllowed } from "../core/tutorial";
 import type { OwnedUnitInspection } from "../core/unitInventory";
 import type { UnitDiagnostics, UnitDiagnosticEffect, UnitStatSnapshot } from "../core/inspection";
 import type { Portraits } from "../units/portraits";
-import { h, INK, kitButton, label, nineSlice, SLICE, surface, threeSlice, type KitButton, type Surface } from "./kit";
+import { h, INK, kitButton, label, nineSlice, NORMAL_FONT, SLICE, surface, threeSlice, type KitButton, type Surface } from "./kit";
+import { uiFont } from "./fontScale";
+import { mountPortraitControls } from "./portraitControls";
 import type { ModalHandle } from "./modal";
 
 export interface UnitInventoryModel {
@@ -27,6 +30,8 @@ export interface UnitInventoryIntents {
   equip(itemId: string): boolean;
   unequip(index: number): boolean;
   unequipAll(): boolean;
+  /** Owned units can jump to their Library entry; enemy inspection omits it. */
+  openLibrary?(): void;
 }
 
 type StatKey = "hp" | "atk" | "matk" | "def" | "mdef" | "rage" | "shield" | "evade" | "crit" | "accuracy";
@@ -75,9 +80,10 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   const portraitHost = h("div", "ui-inventory-view");
   portraitPanel.append(portraitHost);
   const viewer = portraits.createViewer(portraitHost);
+  const controlsOff = mountPortraitControls(portraitHost, viewer);
   let shownStar = initial.star;
   viewer.setUnit(unit.id, shownStar as Parameters<typeof viewer.setUnit>[1]);
-  const name = h("h2", "ui-inventory-name", unit.nameVi);
+  const name = h("h2", "ui-inventory-name", unitEvolutionName(unit, initial.star));
   const stars = h("div", "ui-inventory-stars", ICONS.star.repeat(initial.star));
   const identity = h("div", "ui-inventory-identity");
   identity.append(h("span", "", `${ICONS[unit.role]} ${t(`role.${unit.role}` as MsgKey)}`),
@@ -112,9 +118,17 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
         const max = row.key === "hp" ? current.maxHp : row.key === "rage" ? current.rageMax : Math.max(1, ...stats.map((s) => s[row.key]));
         const delta = col === 2 ? value - stats[1][row.key] : 0;
         const text = row.key === "hp" ? `${fmt(value)} / ${fmt(current.maxHp)}` : row.key === "rage" ? `${fmt(value)} / ${fmt(current.rageMax)}` : fmt(value);
-        const font = Math.max(10, Math.min(13, w / 13));
-        label(g, `${row.icon} ${statName(row.key)}`, 3, 12, { size: font, align: "left", fill: INK, stroke: null });
-        label(g, text, w - 3, 12, { size: font, align: "right", fill: INK, stroke: null });
+        // Two stat columns make each cell narrow: keep the value on the label line only when it
+        // fits, otherwise stack it above the bar so long labels never collide with their number.
+        const font = uiFont(Math.max(8, Math.min(13, w / 14)));
+        g.font = `700 ${font}px ${NORMAL_FONT}`;
+        const labelW = g.measureText(`${row.icon} ${statName(row.key)}`).width;
+        const valueW = g.measureText(text).width;
+        const stacked = labelW + valueW + 14 > w;
+        const textY = Math.max(13, font * (stacked ? 0.62 : 0.58));
+        label(g, `${row.icon} ${statName(row.key)}`, 3, textY, { size: font, align: "left", fill: INK, stroke: null, maxW: w - 6 });
+        if (stacked) label(g, text, w - 3, textY + font * 1.05, { size: font, align: "right", fill: INK, stroke: null, maxW: w - 6 });
+        else label(g, text, w - 3, textY, { size: font, align: "right", fill: INK, stroke: null });
         const y = hh - 16, barW = w - 6;
         nineSlice(g, "bar_trough", 1, 3, y + 2, barW, 9);
         const ratio = Math.max(0, Math.min(1, value / Math.max(1, max)));
@@ -124,7 +138,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
           for (let i = 0; i < count; i++) if ((i + 1) / count <= ratio + .001) g.fillRect(3 + i * (seg + gap), y + 2, seg, 9);
         } else g.fillRect(3, y + 2, barW * ratio, 9);
         threeSlice(g, "frame_bar", 3, 1, y, w - 2, 14);
-        if (delta) label(g, `${delta > 0 ? "+" : ""}${fmt(delta)}`, w - 5, y + 7, { size: 9, align: "right" });
+        if (delta) label(g, `${delta > 0 ? "+" : ""}${fmt(delta)}`, w - 5, y - 10, { size: uiFont(9), align: "right" });
         el.setAttribute("aria-valuenow", String(value)); el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", String(max));
         el.setAttribute("aria-valuetext", `${text}${delta ? ` (${delta > 0 ? "+" : ""}${fmt(delta)})` : ""}`);
       });
@@ -182,6 +196,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
       const display = getDisplay();
       if (display.star !== shownStar) {
         shownStar = display.star;
+        name.textContent = unitEvolutionName(unit, shownStar);
         viewer.setUnit(unit.id, shownStar as Parameters<typeof viewer.setUnit>[1]);
         stars.textContent = ICONS.star.repeat(shownStar);
         skillDescription.textContent = unit.skill.starDetailVi[shownStar - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
@@ -204,6 +219,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
       equipped.replaceChildren(); bag.replaceChildren();
     },
     dispose() {
+      controlsOff();
       viewer.dispose();
       for (const s of [...surfaces, ...itemSurfaces]) s.dispose();
       for (const b of itemButtons) b.dispose();
@@ -298,7 +314,13 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
   const removeAll = kitButton({ skin: "wood", cls: "ui-inventory-action", onClick: () => execute(intents.unequipAll, "inventory.unequippedOk") });
   const select = kitButton({ skin: "green", label: t("inventory.select"), cls: "ui-inventory-action", onClick: () => { intents.select(); modal.close(); } });
   const sell = kitButton({ skin: "red", cls: "ui-inventory-action", onClick: () => { confirmingSale = true; update(); confirm.el.focus(); } });
-  footer.append(gold, removeAll.el, select.el, sell.el);
+  const library = intents.openLibrary
+    ? kitButton({
+      skin: "blue", icon: ICONS.library, label: t("menu.library"), cls: "ui-inventory-action",
+      onClick: () => { modal.close(); intents.openLibrary?.(); },
+    })
+    : null;
+  footer.append(gold, removeAll.el, select.el, sell.el, ...(library ? [library.el] : []));
   const saleHint = h("p", "ui-inventory-sale-hint", t("inventory.sellHint"));
   const confirmation = panel("ui-inventory-confirm");
   const confirmationText = h("p");
@@ -431,6 +453,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     if (disposed) return;
     disposed = true;
     view.dispose();
+    library?.dispose();
     for (const b of [removeAll, select, sell, confirm, cancel]) b.dispose();
   } };
 }

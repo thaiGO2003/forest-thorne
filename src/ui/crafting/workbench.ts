@@ -46,8 +46,8 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
   let disposed = false;
   const copy = (vi: string, en: string) => getLocale() === "vi" ? vi : en;
 
-  const button = (skin: "green" | "red" | "blue" | "wood" | "plum", label: string, action: () => void, cls: string, disabled = false) => {
-    const b = kitButton({ skin, label, cls, onClick: action });
+  const button = (skin: "green" | "red" | "blue" | "wood" | "plum", label: string, action: () => void, cls: string, disabled = false, size?: number) => {
+    const b = kitButton({ skin, label, cls, onClick: action, size });
     b.setDisabled(disabled);
     controls.push(b);
     return b.el;
@@ -153,7 +153,11 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
 
     const hero = panelEl("panel_wood", "crafting-hero");
     const heading = h("div", "crafting-hero-heading");
-    heading.append(h("span", "crafting-eyebrow", copy("XƯỞNG RÈN · CÔNG THỨC CỔ", "FORGE · ANCIENT RECIPES")), h("h2", "", copy("Bàn chế tạo", "Crafting workbench")));
+    heading.append(
+      h("span", "crafting-eyebrow", copy("XƯỞNG RÈN · CÔNG THỨC CỔ", "FORGE · ANCIENT RECIPES")),
+      h("h2", "", copy("Chế tạo", "Crafting")),
+      h("p", "crafting-subtitle", copy("Xưởng rèn cổ", "Ancient forge")),
+    );
     const rank = panelEl("shell_billboard", "crafting-rank");
     rank.append(h("span", "", copy("CẤP BÀN", "TABLE LEVEL")), h("strong", "", level ? `${level} / 3` : copy("CHƯA MỞ", "LOCKED")));
     hero.append(heading, rank);
@@ -206,7 +210,6 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
     benchActions.append(button("wood", copy("Dọn bàn", "Clear grid"), clear, "crafting-clear", !planning || !staged.some(Boolean)));
     left.append(benchActions);
 
-    const right = h("div", "crafting-side");
     const inventory = panelEl("panel_parchment", "crafting-inventory");
     const invHead = h("div", "crafting-section-heading");
     const invTitle = h("div", "");
@@ -244,7 +247,6 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
       ? copy(`Đang cầm: ${itemDisplayName(selected)}`, `Holding: ${itemDisplayName(selected)}`)
       : copy("Chọn một vật phẩm để bắt đầu ghép.", "Choose an item to start crafting."));
     inventory.append(selectedLine);
-    right.append(inventory);
 
     const recipes = panelEl("panel_parchment", "crafting-recipes");
     recipes.append(h("span", "crafting-eyebrow", copy("SỔ TAY CHẾ TẠO", "RECIPE JOURNAL")), h("h3", "", copy("Công thức đã biết", "Known recipes")));
@@ -263,7 +265,6 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
       recipes.append(recipeRow);
     }
     if (!RECIPES.length) recipes.append(h("p", "", copy("Chưa có công thức được mở.", "No recipes unlocked yet.")));
-    right.append(recipes);
 
     const bottom = panelEl("panel_wood", "crafting-result");
     const resultPreview = panelEl("slot_well", "crafting-result-icon");
@@ -275,22 +276,21 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
     resultInfo.append(h("p", "", matched
       ? copy("Công thức hợp lệ. Sẵn sàng chế tạo!", "Recipe matched. Ready to craft!")
       : copy("Xếp nguyên liệu đúng công thức để xem thành phẩm.", "Arrange ingredients into a valid recipe to preview the result.")));
-    const resultAction = button("green", copy("Chế tạo", "Craft"), () => {
+    const resultAction = button("green", copy("CHẾ TẠO", "CRAFT"), () => {
       const crafted = app.bridge.craft();
       if (crafted) {
         selected = null;
         report(copy(`Đã chế tạo ${itemDisplayName(crafted)}!`, `Crafted ${itemDisplayName(crafted)}!`));
       } else report(copy("Chưa thể chế tạo. Hãy kiểm tra công thức và bước hướng dẫn.", "Crafting unavailable. Check the recipe and tutorial step."));
-    }, "crafting-submit", !ready);
+    }, "crafting-submit", !ready, 28);
     bottom.append(resultPreview, resultInfo, resultAction);
     const announcement = h("p", "crafting-feedback", feedback || (planning
       ? copy("Nguyên liệu chỉ tiêu hao khi chế tạo thành công.", "Ingredients are consumed only after a successful craft.")
       : copy("Chỉ có thể chế tạo trong giai đoạn chuẩn bị.", "Crafting is available during planning only.")));
     announcement.setAttribute("role", "status");
     announcement.setAttribute("aria-live", "polite");
-    right.append(bottom, announcement);
-    columns.append(left, right);
-    root.append(columns);
+    columns.append(left, inventory, recipes);
+    root.append(columns, bottom, announcement);
   };
 
   const off = app.bridge.onChange(render);

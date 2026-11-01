@@ -46,6 +46,10 @@ export function createStage(host: HTMLElement, profile: Profile = "solo"): Stage
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // Khronos PBR Neutral compresses highlights without the hue shift ACES adds, so the
+  // voxel palette stays saturated while emissive/FX peaks stop clipping to flat white.
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1.12;
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();

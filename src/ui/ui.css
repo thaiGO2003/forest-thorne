@@ -1,16 +1,9 @@
-/* Layout-only stylesheet (AGENTS UI asset-first): geometry, flex/grid, z-order, visibility, hit areas.
-   No colours, gradients, shadows or decorative pseudo-elements — chrome comes from kit PNGs on canvas. */
+﻿/* Layout-only stylesheet (AGENTS UI asset-first): geometry, flex/grid, z-order, visibility, hit areas.
+   No colours, gradients, shadows or decorative pseudo-elements â€” chrome comes from kit PNGs on canvas. */
 
 @font-face {
   font-family: "Forest Heading";
   src: url("/fonts/Heading%20-%20MTD%20Amstrong.otf") format("opentype");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Forest Normal";
-  src: url("/fonts/Normal%20-%20MTD%20Ampihan.otf") format("opentype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -22,15 +15,8 @@
   font-weight: 400;
   font-display: swap;
 }
-@font-face {
-  font-family: "Forest Button";
-  src: url("/fonts/Normal%20-%20Bonestay.otf") format("opentype");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
 
-.ui-root { position: absolute; inset: 0; pointer-events: none; color: #111; font-family: "Forest Normal", "Noto Sans", sans-serif; }
+.ui-root { position: absolute; inset: 0; pointer-events: none; color: #111; font-family: "Times New Roman", Times, serif; --ft-font-scale: 2; --ft-font-min: 14px; }
 .ui-root :is(h1, h2, h3, h4, h5, h6), .tt-title { font-family: "Forest Heading", "Noto Sans", sans-serif; }
 .ui-root * { box-sizing: border-box; }
 .layer { position: absolute; inset: 0; pointer-events: none; }
@@ -45,7 +31,7 @@
 .kit-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; z-index: 0; }
 .kit-panel, .kit-btn { position: relative; }
 .kit-panel > :not(.kit-canvas), .kit-btn > :not(.kit-canvas) { position: relative; z-index: 1; }
-.kit-btn { border: 0; padding: 0; margin: 0; background: none; font-family: "Forest Button", "Noto Sans", sans-serif; cursor: pointer; width: fit-content; min-width: 44px; min-height: 44px; touch-action: manipulation; }
+.kit-btn { border: 0; padding: 0; margin: 0; background: none; font-family: "Times New Roman", Times, serif; cursor: pointer; width: fit-content; min-width: 44px; min-height: 44px; touch-action: manipulation; }
 .kit-btn:disabled { cursor: not-allowed; }
 .kit-measure { display: block; width: max-content; max-width: 100%; padding: 0 12px; font-size: 16px; line-height: 1.25; white-space: nowrap; visibility: hidden; pointer-events: none; }
 .kit-measure.with-icon { padding-left: 40px; }
@@ -54,7 +40,7 @@
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Owned creature inspection: timber/parchment chrome is painted by the existing kit. */
-.modal-frame:has(.ui-inventory) { width: min(1140px, 100%); height: min(850px, 100%); }
+.modal-frame:has(.ui-inventory) { width: 100%; height: 100%; }
 .modal-body:has(.ui-inventory) { overflow: hidden; }
 .ui-inventory { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 6px; }
 .ui-inventory h2, .ui-inventory h3, .ui-inventory p { margin: 0; }
@@ -71,8 +57,9 @@
 .ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ui-inventory-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; }
+.ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
 .ui-inventory-stat-column > h3 { text-align: center; }
+.ui-inventory-stat-column > h3, .ui-inventory-column-hint, .ui-inventory-secondary { grid-column: 1 / -1; }
 .ui-inventory-column-hint { min-height: 36px; font-size: 10px; text-align: center; padding: 4px 0; line-height: 1.35; }
 .ui-inventory-stat { position: relative; height: 41px; }
 .ui-inventory-secondary { padding-top: 6px; font-size: 10px; line-height: 1.5; }
@@ -95,7 +82,7 @@
 .ui-inventory-effect { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-effect strong { font-size: 12px; }
 .ui-inventory-effect small { font-size: 10px; }
-.ui-inventory-footer { display: grid; grid-template-columns: auto 1.2fr .8fr 1.1fr; align-items: center; gap: 8px; flex: none; }
+.ui-inventory-footer { display: grid; grid-template-columns: auto 1.2fr .8fr 1.1fr auto; align-items: center; gap: 8px; flex: none; }
 .ui-inventory-gold { font-size: 14px; padding: 0 6px; white-space: nowrap; }
 .ui-inventory-action { width: 100%; height: 46px; }
 .ui-inventory-sale-hint { font-size: 11px; text-align: right; padding-right: 4px; }
@@ -111,8 +98,6 @@
   .ui-inventory-view { height: 170px; }
   .ui-inventory-profile { gap: 6px; }
   .ui-inventory-stats { grid-template-columns: minmax(0, 1fr); }
-  .ui-inventory-stat-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
-  .ui-inventory-stat-column > h3, .ui-inventory-column-hint, .ui-inventory-secondary { grid-column: 1 / -1; }
   .ui-inventory-column-hint { min-height: 0; font-size: 11px; }
   .ui-inventory-lower { grid-template-columns: minmax(0, 1fr); }
   .ui-inventory-footer { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
@@ -127,7 +112,7 @@
 .modal-frame { position: relative; display: flex; flex-direction: column; max-height: 100%; width: min(560px, 100%); min-width: 0; max-width: 100%; padding: 12px 20px 22px; outline: none; }
 .modal-sm { width: min(400px, 100%); }
 .modal-lg { width: min(900px, 100%); height: min(640px, 100%); }
-.modal-full { width: min(1200px, 100%); height: 100%; }
+.modal-full { width: 100%; height: 100%; }
 .modal-head { position: relative; flex: none; height: 52px; min-width: 0; margin: 0 0 10px; }
 .modal-body { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 10px 18px 16px 10px; line-height: 1.45; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .modal-close { position: absolute; z-index: 2; top: 16px; right: 14px; }
@@ -137,7 +122,7 @@
 /* ---------- tooltip ---------- */
 .tooltip { position: fixed; left: 0; top: 0; max-width: min(320px, calc(100vw - 16px)); padding: 10px 12px; }
 .tooltip[data-open="false"] { visibility: hidden; }
-.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; color: #111; font-size: 13px; line-height: 1.35; font-family: "Forest Normal", "Noto Sans", sans-serif; }
+.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; color: #111; font-size: 13px; line-height: 1.35; font-family: "Times New Roman", Times, serif; }
 .tt-title { font-weight: 800; font-size: 15px; }
 .tt-sub { font-size: 12px; font-style: italic; }
 .tt-line { display: flex; gap: 6px; align-items: baseline; }
@@ -209,6 +194,51 @@
 .info-compare-bars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .info-meter { position: relative; min-height: 22px; }
 .info-weather-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; padding: 10px 12px; }
+.info-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; }
+.info-hero-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.info-hero-title { margin: 0; font-size: 26px; line-height: 1.1; }
+.info-hero-sub { margin: 0; font-size: 13px; }
+.info-hero-stats { display: grid; grid-template-columns: repeat(4, minmax(72px, auto)); gap: 6px; }
+.info-stat { display: grid; place-items: center; gap: 1px; padding: 6px 8px; min-width: 72px; }
+.info-stat-icon { font-size: 18px; line-height: 1; }
+.info-stat-value { font-size: 18px; line-height: 1.1; }
+.info-stat-label { font-size: 11px; text-align: center; }
+.info-dashboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.info-sec { padding: 10px 12px 12px; min-width: 0; }
+.info-sec-head { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; }
+.info-sec-title { margin: 0; font-size: 16px; }
+.info-sec-icon { font-size: 18px; flex: none; }
+.info-sec-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.info-medal { width: 30px; height: 30px; flex: none; display: grid; place-items: center; font-size: 18px; }
+.info-unit-meta { font-size: 12px; line-height: 1.35; }
+.info-compare-label { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.info-compare-values { font-size: 12px; text-align: right; }
+.info-empty { padding: 10px; text-align: center; font-size: 13px; }
+.blessing-modal { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+.blessing-head { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; flex: none; }
+.blessing-subtitle { margin: 0; font-size: 14px; letter-spacing: .08em; }
+.blessing-meta { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.blessing-chip { padding: 4px 12px; min-width: 110px; text-align: center; }
+.blessing-cards { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; overflow: auto; overscroll-behavior: contain; }
+.blessing-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 8px; padding: 14px; min-width: 0; align-content: start; }
+.blessing-art { display: grid; place-items: center; min-height: 72px; }
+.blessing-icon { font-size: 56px; line-height: 1; }
+.blessing-copy { display: flex; flex-direction: column; gap: 4px; text-align: center; min-width: 0; }
+.blessing-group { font-size: 12px; letter-spacing: .12em; font-weight: 800; }
+.blessing-title { margin: 0; font-size: 20px; line-height: 1.1; }
+.blessing-effect { margin: 0; font-size: 14px; line-height: 1.4; }
+.blessing-choose { width: 100%; min-width: 0; height: 46px; }
+.blessing-footer { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; padding: 8px 12px; flex: none; }
+.blessing-footer strong { font-size: 13px; letter-spacing: .06em; }
+.blessing-footer small { font-size: 12px; }
+@media (max-width: 760px) {
+  .blessing-cards { grid-template-columns: minmax(0, 1fr); }
+  .blessing-card { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); align-items: center; padding: 10px; }
+  .blessing-art { min-height: 0; }
+  .blessing-icon { font-size: 40px; }
+  .blessing-copy { text-align: left; }
+  .blessing-choose { width: auto; min-width: 96px; padding: 0 8px; }
+}
 .mods { min-height: 0; height: 100%; display: flex; flex-direction: column; }
 .mods-header { flex: none; }
 .mods-nav { margin-bottom: 0; }
@@ -269,7 +299,7 @@
 .crafting-rank { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; flex: none; min-width: 126px; min-height: 66px; padding: 10px 18px; text-align: center; }
 .crafting-rank span { font-size: 10px; font-weight: 800; letter-spacing: 1px; }
 .crafting-rank strong { font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: 23px; line-height: 1; }
-.crafting-columns { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 12px; align-items: stretch; }
+.crafting-columns { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.1fr) minmax(0, .95fr); gap: 12px; align-items: stretch; }
 .crafting-bench { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 18px; min-width: 0; }
 .crafting-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-width: 0; }
 .crafting-section-heading > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -282,7 +312,7 @@
 .crafting-cell-icon { display: block; width: 74%; height: 74%; object-fit: contain; pointer-events: none; }
 .crafting-lock { font-size: clamp(16px, 2vw, 26px); pointer-events: none; }
 .crafting-cell-plus { font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: clamp(24px, 3vw, 36px); line-height: 1; pointer-events: none; }
-.crafting-slot-number { position: absolute !important; left: 10px; top: 6px; font-family: "Forest Normal", "Noto Sans", sans-serif; font-size: 10px; font-weight: 700; pointer-events: none; }
+.crafting-slot-number { position: absolute !important; left: 10px; top: 6px; font-family: "Times New Roman", Times, serif; font-size: 10px; font-weight: 700; pointer-events: none; }
 .crafting-hint { max-width: 430px; font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.5; text-align: center; }
 .crafting-bench-actions { display: flex; justify-content: center; width: 100%; }
 .crafting-clear { width: min(100%, 220px); height: 44px; }
@@ -290,7 +320,7 @@
 .crafting-inventory, .crafting-recipes { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; }
 .crafting-inventory { flex: none; }
 .crafting-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; align-content: start; min-width: 0; max-height: 310px; overflow-y: auto; overscroll-behavior: contain; padding: 3px; }
-.crafting-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; height: 94px; padding: 9px 5px; border: 0; background: none; appearance: none; font-family: "Forest Normal", "Noto Sans", sans-serif; cursor: pointer; touch-action: manipulation; }
+.crafting-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; height: 94px; padding: 9px 5px; border: 0; background: none; appearance: none; font-family: "Times New Roman", Times, serif; cursor: pointer; touch-action: manipulation; }
 .crafting-item:disabled { cursor: not-allowed; }
 .crafting-item > :not(.kit-canvas) { position: relative; z-index: 1; }
 .crafting-item-icon { display: block; width: 42px; height: 42px; max-width: 70%; object-fit: contain; pointer-events: none; }
@@ -305,13 +335,13 @@
 .crafting-recipe-copy strong { font-size: 15px; line-height: 1.1; }
 .crafting-recipe-copy small { font-family: "Noto Sans", sans-serif; font-size: 12px; }
 .crafting-autofill { flex: none; min-width: 98px; height: 42px; }
-.crafting-result { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 10px 14px; }
-.crafting-result-icon { display: grid; place-items: center; width: 64px; height: 64px; padding: 8px; }
+.crafting-result { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(220px, 340px); align-items: center; gap: 14px; min-width: 0; padding: 12px 18px; }
+.crafting-result-icon { display: grid; place-items: center; width: 80px; height: 80px; padding: 8px; }
 .crafting-result-image { display: block; width: 100%; height: 100%; object-fit: contain; }
 .crafting-result-placeholder { font-size: 32px; }
 .crafting-result-info { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
 .crafting-result-info p { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.35; }
-.crafting-submit { grid-column: 1 / -1; width: 100%; height: 48px; }
+.crafting-submit { grid-column: auto; width: 100%; height: 64px; }
 .crafting-feedback { font-family: "Noto Sans", sans-serif; text-align: center; font-size: 12px; font-weight: 700; min-height: 18px; padding: 0 6px 5px; }
 .crafting-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 18px; text-align: center; }
 @media (max-width: 760px) {
@@ -332,6 +362,7 @@
   .crafting-items { max-height: 230px; }
   .crafting-inventory, .crafting-recipes { padding: 14px; }
   .crafting-result { grid-template-columns: 62px minmax(0, 1fr); gap: 10px; padding: 12px; }
+  .crafting-submit { grid-column: 1 / -1; }
   .crafting-result-icon { width: 62px; height: 62px; }
   .crafting-submit { grid-column: 1 / -1; height: 48px; }
 }
@@ -360,7 +391,7 @@
 .pl-action-item { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .pl-action-label { display: none; max-width: 112px; text-align: right; font-size: 12px; line-height: 1.15; overflow-wrap: anywhere; }
 .pl-actions .kit-btn { width: 48px; height: 48px; }
-.pl-shop { left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(820px, calc(100% - 16px)); display: flex; flex-direction: column; padding: 8px 12px 12px; }
+.pl-shop { left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(980px, calc(100% - 16px)); display: flex; flex-direction: column; padding: 8px 12px 12px; }
 .pl-shop[hidden] { display: none; }
 .pl-shop-toggle { display: none; }
 .pl-shop-head { position: relative; display: flex; justify-content: flex-end; gap: 6px; min-height: 44px; height: 44px; margin-bottom: 4px; }
@@ -368,7 +399,7 @@
 .pl-shop-head .pl-reroll { width: 140px; min-width: 56px; height: 44px; min-height: 44px; }
 .pl-shop-head .pl-lock { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .pl-shop-head .pl-cortisol { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-.pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
 .pl-offer { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pl-offer[hidden] { display: none; }
 .pl-offer-card { aspect-ratio: 5 / 6; cursor: pointer; }
@@ -377,7 +408,7 @@
 .pl-offer-actions .kit-btn { flex: 1 1 auto; height: 44px; min-height: 44px; min-width: 0; }
 @media (min-width: 1100px) {
   /* Eight readable cards fit between the side rails without covering board controls. */
-  .pl-shop { width: min(1000px, calc(100% - 180px)); }
+  .pl-shop { width: min(1400px, calc(100% - 180px)); }
 }
 @media (max-width: 760px) {
   /* Compact landscape/tablet keeps the summary directly left of Start. */
@@ -451,6 +482,7 @@
 .lib-back { height: 40px; min-width: 140px; padding: 0 12px; align-self: flex-start; flex: none; }
 .lib-detail { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(260px, 42%) 1fr; gap: 12px; }
 .lib-left { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.lib-name { margin: 0; text-align: center; font-size: 22px; line-height: 1.15; }
 .lib-stage { position: relative; flex: 1 1 auto; min-height: 260px; }
 .lib-stage > .lib-view { position: absolute; inset: 8px; }
 .portrait-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
@@ -514,6 +546,9 @@
 .cb-next { height: 52px; }
 @media (max-width: 760px) {
   .info-summary, .mods-summary { grid-template-columns: 1fr; }
+  .info-hero { grid-template-columns: 1fr; }
+  .info-hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .info-dashboard { grid-template-columns: 1fr; }
   .info-unit, .mod-row { align-items: stretch; flex-direction: column; }
   .mod-meta, .mod-relations { grid-template-columns: 1fr; }
   .mod-actions { width: 100%; justify-content: stretch; }
@@ -583,3 +618,127 @@
   .field > * { min-width: 0; }
   .stepper { grid-template-columns: 48px 1fr 48px; }
 }
+
+/* ---------- readable text policy ----------
+   Typography scale for modal bodies and the shared tooltip. It is intentionally limited to
+   those two surfaces: the 3D billboards and fixed-art HUD cards have their own layout budgets.
+   --ft-font-scale: 2 doubles authored sizes; --ft-font-min stops any readable label from
+   collapsing below 14px on small viewports. */
+.ui-root {
+  --ft-10: max(var(--ft-font-min), calc(10px * var(--ft-font-scale)));
+  --ft-11: max(var(--ft-font-min), calc(11px * var(--ft-font-scale)));
+  --ft-12: max(var(--ft-font-min), calc(12px * var(--ft-font-scale)));
+  --ft-13: max(var(--ft-font-min), calc(13px * var(--ft-font-scale)));
+  --ft-14: max(var(--ft-font-min), calc(14px * var(--ft-font-scale)));
+  --ft-15: max(var(--ft-font-min), calc(15px * var(--ft-font-scale)));
+  --ft-16: max(var(--ft-font-min), calc(16px * var(--ft-font-scale)));
+  --ft-18: max(var(--ft-font-min), calc(18px * var(--ft-font-scale)));
+  --ft-22: max(var(--ft-font-min), calc(22px * var(--ft-font-scale)));
+  --ft-23: max(var(--ft-font-min), calc(23px * var(--ft-font-scale)));
+  --ft-24: max(var(--ft-font-min), calc(24px * var(--ft-font-scale)));
+}
+.tooltip { max-width: min(480px, calc(100vw - 16px)); }
+.tooltip-inner { font-size: var(--ft-13); }
+.tt-title { font-size: var(--ft-15); }
+.tt-sub, .tt-body { font-size: var(--ft-12); }
+
+.modal-body { font-size: var(--ft-16); }
+.modal-body small { font-size: max(var(--ft-font-min), .68em); }
+
+/* Owned-unit inspection */
+.modal-body .ui-inventory h3 { font-size: var(--ft-15); }
+.modal-body .ui-inventory-name { font-size: var(--ft-24); }
+.modal-body .ui-inventory-stars { font-size: var(--ft-22); }
+.modal-body :is(.ui-inventory-identity, .ui-inventory-skill, .ui-inventory-item-name,
+  .ui-inventory-effect, .ui-inventory-effect strong, .ui-inventory-confirm) { font-size: var(--ft-12); }
+.modal-body :is(.ui-inventory-column-hint, .ui-inventory-secondary, .ui-inventory-item-reason,
+  .ui-inventory-item-details, .ui-inventory-effect small) { font-size: var(--ft-10); }
+.modal-body :is(.ui-inventory-item-empty small, .ui-inventory-note, .ui-inventory-sale-hint,
+  .ui-inventory-notice) { font-size: var(--ft-11); }
+.modal-body .ui-inventory-gold { font-size: var(--ft-14); }
+
+/* Crafting workbench */
+.modal-body :is(.crafting-eyebrow, .crafting-rank span, .crafting-slot-number) { font-size: var(--ft-10); }
+.modal-body .crafting-rank strong { font-size: var(--ft-23); }
+.modal-body :is(.crafting-counter, .crafting-hint, .crafting-item-count, .crafting-selection,
+  .crafting-recipe-copy small, .crafting-result-info p, .crafting-feedback) { font-size: var(--ft-12); }
+.modal-body .crafting-item-name { font-size: var(--ft-13); }
+.modal-body .crafting-recipe-copy strong { font-size: var(--ft-15); }
+
+/* Library, settings, history, mods */
+.modal-body .lib-input { font-size: var(--ft-15); }
+.modal-body :is(.lib-pending, .lib-p, .lib-table, .lib-count) { font-size: var(--ft-13); }
+.modal-body .lib-h { font-size: var(--ft-15); }
+.modal-body .lib-name { font-size: var(--ft-22); }
+.modal-body .cb-row { font-size: var(--ft-15); }
+.modal-body :is(.info-hero-sub, .info-unit-meta, .info-compare-values, .info-empty) { font-size: var(--ft-12); }
+.modal-body :is(.info-stat-label) { font-size: var(--ft-10); }
+.modal-body :is(.info-hero-title) { font-size: var(--ft-24); }
+.modal-body :is(.info-sec-title) { font-size: var(--ft-16); }
+.modal-body .settings-note { font-size: var(--ft-14); }
+.modal-body :is(.history-round, .history-time) { font-size: var(--ft-12); }
+.modal-body .ui-inventory-stat { height: 64px; }
+/* Dark oak/ribbon surfaces carry light copy; the parchment/well surfaces keep dark ink. */
+.pl-action-label, .menu-utility-label { color: #fff8ec; }
+/* Crafting's hero/bench/result are dark oak; the parchment inventory/recipe panels keep ink. */
+.crafting-hero, .crafting-bench, .crafting-result { color: #fff8ec; }
+
+/* ---------- game-styled scrollbars ----------
+   Native white/blue scrollbars break the timber UI. Every scroll container inside the game uses
+   the same thin oak track with a gold thumb; modal bodies never scroll horizontally. */
+.ui-root * {
+  scrollbar-width: thin;
+  scrollbar-color: #c9a25f #2a1a10;
+}
+.ui-root *::-webkit-scrollbar { width: 10px; height: 10px; }
+.ui-root *::-webkit-scrollbar-track { background: #2a1a10; border-radius: 6px; }
+.ui-root *::-webkit-scrollbar-thumb {
+  background: #c9a25f;
+  border: 2px solid #2a1a10;
+  border-radius: 6px;
+}
+.ui-root *::-webkit-scrollbar-thumb:hover { background: #e6c987; }
+.ui-root *::-webkit-scrollbar-corner { background: #2a1a10; }
+.modal-body { overflow-x: hidden; }
+.modal-body :is(.ui-inventory-content, .crafting-items, .craft-bag, .tech-side, .history-list, .library-list) {
+  overflow-x: hidden;
+}
+/* Mobile tab strips scroll but keep the authored chrome clean (no visible track). */
+.tabs { scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.crafting-hero h2 { font-size: clamp(30px, 3vw, 46px); letter-spacing: .04em; text-transform: uppercase; }
+.crafting-subtitle { margin: 0; font-size: var(--ft-12); opacity: .92; }
+.modal-body .lib-sec .lib-p { font-size: var(--ft-14); line-height: 1.5; }
+
+/* ---------- 3D preview camera pad ---------- */
+:is(.lib-stage, .ui-inventory-view) > .portrait-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(3, 42px);
+  grid-template-rows: repeat(2, 42px);
+  gap: 4px;
+  pointer-events: none;
+}
+.portrait-control { width: 42px; height: 42px; min-width: 42px; min-height: 42px; pointer-events: auto; }
+.portrait-up { grid-column: 2; grid-row: 1; }
+.portrait-left { grid-column: 1; grid-row: 2; }
+.portrait-down { grid-column: 2; grid-row: 2; }
+.portrait-right { grid-column: 3; grid-row: 2; }
+/* Pending-art copy is a deliberate bottom-centre status over the canvas, never a stray top-left line. */
+.lib-stage > .lib-pending {
+  position: absolute;
+  inset: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: grid;
+  place-items: end center;
+  padding: 0 18px 16px;
+  text-align: center;
+  pointer-events: none;
+}
+.modal-frame:has(.blessing-modal) { width: min(1400px, 100%); }
