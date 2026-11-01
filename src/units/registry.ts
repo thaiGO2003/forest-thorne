@@ -12,7 +12,7 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
   frog_alchemy: frogAlchemy,
-  rooster_rapper: roosterRapper,
+  crane_blessing: roosterRapper,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

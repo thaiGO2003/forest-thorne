@@ -23,7 +23,7 @@ interface RoosterParts {
 }
 
 export default defineUnit<RoosterParts>({
-  id: "rooster_rapper",
+  id: "crane_blessing",
   motion: "ground",
   height: 10,
   durations: { idle: 4, attack: 0.85, skill: 1.7, hit: 0.5, move: 0.8 },
