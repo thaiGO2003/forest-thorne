@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses, type EquipmentBonuses } from "./equipment";
@@ -148,7 +148,17 @@ export type CombatEvent =
   | { t: "status"; dst: string; kind: string; turns: number; source?: SkillStatusSource }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
-  | { t: "death"; dst: string };
+  | { t: "death"; dst: string }
+  /** Sương Độc cast: pools land on these enemy-half cells (presented at the skill impact). */
+  | { t: "sporeThrow"; src: string; cells: SporeCell[]; cycles: number }
+  /** Cycle start: an enemy standing on `owner`'s pool gave it a point; `points` is the new total. */
+  | { t: "sporePoint"; owner: string; dst: string; row: number; col: number; points: number }
+  /** Cycle end: `owner` detonated `points`; its pools on `cells` are consumed. Damage follows as skill events. */
+  | { t: "sporeBurst"; owner: string; cells: SporeCell[]; points: number }
+  /** Pools that reached the end of their lifetime without detonating. */
+  | { t: "sporeExpire"; owner: string; cells: SporeCell[] };
+
+export interface SporeCell { row: number; col: number }
 
 export interface CombatResult {
   winner: Side | null;
@@ -212,6 +222,8 @@ export interface CombatTargetPreview {
   tags?: CombatPreviewTag[];
   /** Acting unit's role, used to pick sword/bow/wand badges without owning presentation data. */
   actorRole?: Role;
+  /** Cell-based skill area (may include empty cells), e.g. Sương Độc covering the whole enemy half. */
+  areaCells?: Array<{ col: number; row: number; effect: CombatPreviewEffect }>;
 }
 
 export interface CombatOptions {
@@ -498,6 +510,129 @@ interface Ctx {
   bountyKills: Record<Side, number>;
   deferredAutoCasts: DeferredAutoCast[];
   autoCastInFlight: Set<Fighter>;
+  /** 1-based cycle currently resolving (0 before the first cycle, e.g. in previews). */
+  cycle: number;
+  spores: SporeState;
+}
+
+// ---------- Sương Độc spore pools (toad_spore_mist) ----------
+
+/** Pools thrown per cast. */
+export const SPORE_THROWS = 3;
+/** Cycle-start ticks a pool lives for after the cycle it was thrown in. */
+export const SPORE_CYCLES = 2;
+/** Points needed for the end-of-cycle detonation. */
+export const SPORE_BURST_POINTS = 5;
+/** Damage per point: 10 + 0.25 × MATK (magic), before mitigation. */
+export const SPORE_POINT_BASE = 10, SPORE_POINT_MATK = 0.25;
+/** Self-heal as a fraction of the actual HP damage the detonation dealt. */
+export const SPORE_HEAL_PCT = 0.5;
+/** Per-throw chance (by star) to aim at an occupied cell instead of a uniformly random one. */
+export const SPORE_OCCUPIED_BIAS: readonly number[] = [0, 0, 0.2, 0.4];
+
+interface SporePool { owner: string; row: number; col: number; lastCycle: number }
+interface SporePoint { victim: string; row: number; col: number }
+interface SporeState { pools: SporePool[]; points: Map<string, SporePoint[]> }
+const newSporeState = (): SporeState => ({ pools: [], points: new Map() });
+
+const cellKey = (row: number, col: number) => row * COLS + col;
+
+/** Every cell of the half opposite `side`. Sized from COLS/ROWS so a larger combat grid widens it. */
+export function enemyHalfCells(side: Side): SporeCell[] {
+  const half = Math.floor(COLS / 2);
+  const from = side === "L" ? half : 0, to = side === "L" ? COLS : half;
+  const cells: SporeCell[] = [];
+  for (let col = from; col < to; col++) for (let row = 0; row < ROWS; row++) cells.push({ row, col });
+  return cells;
+}
+
+const sporeOccupant = (c: Ctx, owner: Fighter, row: number, col: number) =>
+  c.all.find((x) => x.alive && x.side !== owner.side && x.row === row && x.col === col);
+
+/** Pick up to SPORE_THROWS distinct cells on the enemy half that hold none of the owner's active pools. */
+function pickSporeCells(c: Ctx, f: Fighter): SporeCell[] {
+  const taken = new Set(c.spores.pools.filter((p) => p.owner === f.uid).map((p) => cellKey(p.row, p.col)));
+  const free = enemyHalfCells(f.side).filter((cell) => !taken.has(cellKey(cell.row, cell.col)));
+  const bias = SPORE_OCCUPIED_BIAS[f.star] ?? 0;
+  const chosen: SporeCell[] = [];
+  for (let i = 0; i < SPORE_THROWS && free.length; i++) {
+    const occupied = bias > 0 ? free.filter((cell) => sporeOccupant(c, f, cell.row, cell.col)) : [];
+    const pool = occupied.length && c.rng() < bias ? occupied : free;
+    const cell = pool[Math.floor(c.rng() * pool.length)]!;
+    free.splice(free.indexOf(cell), 1);
+    chosen.push(cell);
+  }
+  return chosen;
+}
+
+function castSporePools(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const cells = pickSporeCells(c, f);
+  const targets = cells.flatMap((cell) => sporeOccupant(c, f, cell.row, cell.col)?.uid ?? []);
+  const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets };
+  if (trigger) castEvent.trigger = trigger;
+  c.events.push(castEvent);
+  for (const cell of cells) c.spores.pools.push({ owner: f.uid, row: cell.row, col: cell.col, lastCycle: c.cycle + SPORE_CYCLES });
+  c.events.push({ t: "sporeThrow", src: f.uid, cells, cycles: SPORE_CYCLES });
+}
+
+/** Cycle start: each enemy standing on a live owner's pool adds one point; then spent pools expire. */
+function tickSporePools(c: Ctx) {
+  const { pools, points } = c.spores;
+  if (!pools.length) return;
+  for (const pool of pools) {
+    const owner = c.all.find((x) => x.uid === pool.owner);
+    if (!owner?.alive) continue;
+    const victim = sporeOccupant(c, owner, pool.row, pool.col);
+    if (!victim) continue;
+    const list = points.get(owner.uid) ?? [];
+    points.set(owner.uid, list);
+    list.push({ victim: victim.uid, row: pool.row, col: pool.col });
+    c.events.push({ t: "sporePoint", owner: owner.uid, dst: victim.uid, row: pool.row, col: pool.col, points: list.length });
+  }
+  const expired = new Map<string, SporeCell[]>();
+  c.spores.pools = pools.filter((pool) => {
+    if (pool.lastCycle > c.cycle) return true;
+    const cells = expired.get(pool.owner) ?? [];
+    expired.set(pool.owner, cells);
+    cells.push({ row: pool.row, col: pool.col });
+    return false;
+  });
+  for (const [owner, cells] of expired) c.events.push({ t: "sporeExpire", owner, cells });
+}
+
+/**
+ * Cycle end: every living owner with ≥ SPORE_BURST_POINTS detonates all its points. Each point deals
+ * (10 + 0.25 × MATK) magic damage to the enemy that earned it (points of one victim resolve as one
+ * hit); the owner heals 50% of the actual HP damage. Pools that produced a point are consumed, so those
+ * cells stay clean until a later cast lands there again. Returns whether anything detonated.
+ */
+function burstSporePools(c: Ctx): boolean {
+  let any = false;
+  for (const f of c.all) {
+    const list = c.spores.points.get(f.uid);
+    if (!f.alive || !list || list.length < SPORE_BURST_POINTS) continue;
+    any = true;
+    c.spores.points.delete(f.uid);
+    const consumed = new Set(list.map((pt) => cellKey(pt.row, pt.col)));
+    const cells: SporeCell[] = [];
+    c.spores.pools = c.spores.pools.filter((pool) => {
+      if (pool.owner !== f.uid || !consumed.has(cellKey(pool.row, pool.col))) return true;
+      cells.push({ row: pool.row, col: pool.col });
+      return false;
+    });
+    c.events.push({ t: "sporeBurst", owner: f.uid, cells, points: list.length });
+    const perVictim = new Map<string, number>();
+    for (const pt of list) perVictim.set(pt.victim, (perVictim.get(pt.victim) ?? 0) + 1);
+    const perPoint = (SPORE_POINT_BASE + combatStat(f, "matk") * SPORE_POINT_MATK) * goldMultiplier(c.gold[f.side]);
+    let drained = 0;
+    for (const [uid, n] of perVictim) {
+      const victim = c.all.find((x) => x.uid === uid);
+      if (!f.alive || !victim?.alive) continue;
+      drained += strike(c, f, victim, Math.round(perPoint * n), "magic", true).hp;
+    }
+    if (drained > 0) heal(c, f, f, drained * SPORE_HEAL_PCT);
+  }
+  return any;
 }
 
 const foes = (c: Ctx, f: Fighter) => c.all.filter((x) => x.alive && x.side !== f.side);
@@ -991,6 +1126,8 @@ export function combatTargetPreview(
     bountyKills: { L: 0, R: 0 },
     deferredAutoCasts: [],
     autoCastInFlight: new Set(),
+    cycle: 0,
+    spores: newSporeState(),
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1032,6 +1169,23 @@ export function combatTargetPreview(
       skillCasterUid: null,
       tags: [{ uid: basic.uid, effect: "damage", kind: "basic", primary: true }],
       actorRole: source.role,
+    };
+  }
+
+  if (source.skillFamily === SPORE_FAMILY) {
+    // Sương Độc lands on random cells anywhere on the enemy half, so the whole half is the area and
+    // every enemy there is a possible (secondary) target. No single primary target exists.
+    const cells = enemyHalfCells(source.side);
+    const exposed = stableTargets(source, foes(c, source));
+    const sporeTags: CombatPreviewTag[] = exposed.map((fighter) => ({ uid: fighter.uid, effect: "damage", kind: "skill", primary: false }));
+    return {
+      scanCells: cells.map(({ col, row }) => ({ col, row })),
+      directUids: [],
+      splashUids: exposed.map((fighter) => fighter.uid),
+      skillCasterUid: source.uid,
+      tags: options.kitPreview ? [...sporeTags, { uid: basic.uid, effect: "damage", kind: "basic", primary: true }] : sporeTags,
+      actorRole: source.role,
+      areaCells: cells.map(({ col, row }) => ({ col, row, effect: "damage" })),
     };
   }
 
@@ -1100,6 +1254,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === SPORE_FAMILY) {
+      castSporePools(c, f, options.trigger);
+      return;
+    }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
     const targets = skillTargets(c, f, sp, preferred, supportSelfFallback);
     const fallbackSelfTarget = supportSelfFallback && targets.length === 1 && targets[0] === f;
@@ -1231,6 +1389,8 @@ function startCycle(c: Ctx) {
     const dmg = f.env.poisonAura;
     applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
   }
+  // Spore pools score after DoTs, so an enemy killed by a DoT this boundary gives no point.
+  tickSporePools(c);
 }
 
 /** A79: capture control state first, then resolve timed triggers and one canonical duration tick. */
@@ -1368,6 +1528,8 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     bountyKills: { L: 0, R: 0 },
     deferredAutoCasts: [],
     autoCastInFlight: new Set<Fighter>(),
+    cycle: 0,
+    spores: newSporeState(),
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
@@ -1377,6 +1539,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     const blessing = o.orderedBlessings?.[consumedBlessings.length];
     if (blessing) consumedBlessings.push(blessing);
     c.events.push({ t: "cycle", cycle: cycle + 1 });
+    c.cycle = cycle + 1;
     // DOTs resolve at one shared boundary before either side acts.
     startCycle(c);
     inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
@@ -1395,6 +1558,11 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
       actions++;
       // A17 anti-stall: after action 100, every 5th action +0.2 global damage.
       if (actions > 100 && actions % 5 === 0) c.globalMult += 0.2;
+    }
+    // Cycle end: Sương Độc detonations resolve once both sides have acted.
+    if (burstSporePools(c)) {
+      flushDeferredAutoCasts(c);
+      inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
     }
   }
   const alive = { L: count("L"), R: count("R") };
