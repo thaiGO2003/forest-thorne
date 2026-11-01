@@ -11,7 +11,7 @@ import type { TutorialStep } from "../core/tutorial";
 import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
 import { h, kitButton, label, LABEL, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import { uiFont } from "./fontScale";
-import type { Tooltip } from "./tooltip";
+import type { Tooltip, TooltipContent } from "./tooltip";
 
 export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
 const ACTIONS: { id: PlanningAction; icon: string; key: MsgKey }[] = [
@@ -100,6 +100,45 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
   });
 
+  // ---- chip tooltips: every summary chip explains itself on hover ----
+  const chipContent = (index: number): TooltipContent | null => {
+    if (!m) return null;
+    const r = m.run;
+    switch (index) {
+      case 0: return { title: t("hud.round", { round: r.round }), body: t("hud.roundHint") };
+      case 1: return { title: t("hud.hearts", { hearts: r.hp }), body: t("hud.heartsHint") };
+      case 2: return { title: t("hud.gold", { gold: r.gold }), body: t("hud.goldHint") };
+      case 3: return { title: t("hud.level", { level: r.level }), body: t("hud.levelHint") };
+      case 4: return { title: t("hud.deploy", { current: m.deployed, max: m.deployLimit }), body: t("hud.deployHint") };
+      default: return null;
+    }
+  };
+  const chipIndexAt = (event: PointerEvent): number => {
+    const rect = stats.getBoundingClientRect();
+    const x = event.clientX - rect.left, y = event.clientY - rect.top, gap = 4;
+    const rows: [number, number, number, number][] = portraitPlanning.matches
+      ? [[0, 3, 7, 26], [3, 5, 38, 26]]
+      : [[0, 5, 6, 28]];
+    for (const [start, end, top, height] of rows) {
+      if (y < top || y > top + height) continue;
+      const count = end - start;
+      const width = (rect.width - 16 - gap * (count - 1)) / count;
+      const index = Math.floor((x - 8) / (width + gap));
+      if (index >= 0 && index < count) return start + index;
+    }
+    return -1;
+  };
+  let hoveredChip = -1;
+  stats.addEventListener("pointermove", (event) => {
+    const index = chipIndexAt(event);
+    if (index === hoveredChip) return;
+    hoveredChip = index;
+    const content = index >= 0 ? chipContent(index) : null;
+    if (content) tip.show(new DOMRect(event.clientX - 1, event.clientY - 1, 2, 2), content);
+    else tip.hide();
+  });
+  stats.addEventListener("pointerleave", () => { hoveredChip = -1; tip.hide(); });
+
   // ---- top battle controls: summary on the left, Start/actions on the right ----
   const battle = panelEl("panel_wood", "pl-battle");
   const battleActions = h("div", "pl-battle-actions");
@@ -135,6 +174,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   reroll.el.addEventListener("focus", showRerollFocusTip);
   reroll.el.addEventListener("blur", hideRerollFocusTip);
   tip.bind(cortisol.el, () => ({ title: t("planning.cortisol") }));
+  tip.bind(xp.el, () => ({ title: t("hud.xp"), body: t("hud.xpHint") }));
+  tip.bind(start.el, () => ({ title: t("planning.start"), body: t("hud.startHint") }));
 
   // ---- right action stack ----
   const rail = panelEl("panel_wood", "pl-actions");
