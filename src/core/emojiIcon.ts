@@ -179,8 +179,16 @@ export function splitEmojiText(text: string): EmojiTextPart[] {
 
 export function getEmojiImageUrl(nameOrInput: string): string {
   const char = resolveEmojiChar(nameOrInput);
-  return `${EMOJI_IMAGE_SOURCE.baseUrl}/${toCodepointKey(char).replaceAll("_", "-")}.png`;
+  const key = toCodepointKey(char).replaceAll("_", "-");
+  // Twemoji drops FE0F for nearly every sequence; the heart-on-fire ZWJ is the authored exception.
+  const preserved = EMOJI_FE0F_OVERRIDES[key] ?? key;
+  return `${EMOJI_IMAGE_SOURCE.baseUrl}/${preserved}.png`;
 }
+
+/** Twemoji filenames that keep FE0F inside a ZWJ sequence (stripped form 404s). */
+const EMOJI_FE0F_OVERRIDES: Readonly<Record<string, string>> = {
+  "2764-200d-1f525": "2764-fe0f-200d-1f525",
+};
 
 const FALLBACK_IMAGE_URL = `${EMOJI_IMAGE_SOURCE.baseUrl}/${toCodepointKey(SEMANTIC_EMOJIS.question.char).replaceAll("_", "-")}.png`;
 

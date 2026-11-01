@@ -23,6 +23,8 @@ export default defineConfig(({ command }) => ({
     // Keep file watching for fresh transforms on F5, without updating open games.
     hmr: false,
     headers: { "Cache-Control": "no-store" },
+    // Local probes and other agents' scratch files live here; watching them can crash Vite with EBUSY.
+    watch: { ignored: ["**/_tmp/**"] },
   },
   base: command === "serve" ? "/" : "./",
   build: { target: "es2022", chunkSizeWarningLimit: 1200 },

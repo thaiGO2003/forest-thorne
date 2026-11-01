@@ -1,14 +1,14 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary, type RunState } from "../core/run";
-import { RECIPES } from "../core/craft";
 import { getEquipment } from "../core/equipment";
-import { equipmentBonusCopy, itemDisplayName } from "../core/itemPresentation";
+import { itemDisplayName } from "../core/itemPresentation";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { augmentCopy, augmentGroupLabel, augmentGroupRank } from "../content/augmentText";
 import { environmentCopy } from "../content/environmentText";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
-import { h, kitButton, nineSlice, panelEl, surface, threeSlice, disposeSurfaceTree } from "../ui/kit";
+import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
+import { openCraftLibraryModal } from "../ui/crafting/library";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
@@ -1066,55 +1066,6 @@ function mountInventory(app: App, host: HTMLElement) {
   };
 }
 
-function mountRecipes(host: HTMLElement) {
-  let tier = 0, page = 0;
-  const root = h("div", "lib-info");
-  const filters = h("div", "lib-catalog-filters");
-  const body = h("div", "lib-catalog-list");
-  const foot = h("div", "lib-foot");
-  const paint = () => {
-    disposeSurfaceTree(body);
-    disposeSurfaceTree(foot);
-    body.replaceChildren();
-    foot.replaceChildren();
-    const list = tier ? RECIPES.filter((recipe) => recipe.size === tier) : RECIPES;
-    const per = 20;
-    const pages = Math.max(1, Math.ceil(list.length / per));
-    page = Math.min(page, pages - 1);
-    for (const recipe of list.slice(page * per, page * per + per)) {
-      const output = `eq_${recipe.id}`;
-      const pattern = recipe.pattern.map((id) => id ? itemDisplayName(id) : t("planning.empty")).join(" + ");
-      const bonuses = getEquipment(output)?.bonuses;
-      body.append(h("div", "slot", `${pattern} → ${itemDisplayName(output)}${bonuses ? ` · ${equipmentBonusCopy(bonuses)}` : ""}`));
-    }
-    if (!list.length) body.append(h("p", "lib-p", t("library.empty")));
-    if (pages > 1) {
-      const prev = kitButton({ skin: "wood", label: "‹", cls: "lib-page", onClick: () => { page = Math.max(0, page - 1); paint(); } });
-      const next = kitButton({ skin: "wood", label: "›", cls: "lib-page", onClick: () => { page = Math.min(pages - 1, page + 1); paint(); } });
-      prev.setDisabled(page === 0);
-      next.setDisabled(page >= pages - 1);
-      foot.append(prev.el, h("span", "lib-count", `${t("library.page", { page: page + 1, pages })} · ${list.length}`), next.el);
-    }
-  };
-  const filter = (value: number, label: string) => {
-    const b = kitButton({ skin: "wood", label, cls: "lib-catalog-filter", onClick: () => {
-      tier = value; page = 0;
-      for (const other of buttons) other.setSelected(other === b);
-      paint();
-    } });
-    buttons.push(b);
-    b.setSelected(tier === value);
-    filters.append(b.el);
-  };
-  const buttons: ReturnType<typeof kitButton>[] = [];
-  filter(0, t("library.all"));
-  for (const size of [1, 2, 3] as const) filter(size, t("library.tier", { tier: size }));
-  root.append(filters, body, foot);
-  paint();
-  host.append(root);
-  return { dispose() { disposeSurfaceTree(root); root.remove(); } };
-}
-
 function augmentChoiceCopy(id: string): string {
   const def = AUGMENT_BY_ID.get(id);
   if (!def) return id;
@@ -1367,8 +1318,7 @@ registerPanel("tech", (app) => {
 });
 registerPanel("inventory", (app) =>
   openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "full" }, (m) => mountInventory(app, m.body)));
-registerPanel("recipes", (app) =>
-  openPanelModal(app, { id: "recipes", title: t("planning.recipes"), size: "full" }, (m) => mountRecipes(m.body)));
+registerPanel("recipes", (app) => openCraftLibraryModal(app));
 registerPanel("craft", (app) =>
   openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "full" }, (m) => mountCraftWorkbench(app, m.body)));
 registerPanel("augment", (app) =>
