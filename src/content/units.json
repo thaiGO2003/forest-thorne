@@ -7086,5 +7086,53 @@
     "Boss sự kiện."
    ]
   }
- }
+ },
+  {
+    "id": "rooster_rapper",
+    "species": "ga-trong-rapper",
+    "nameVi": "Gà Trống Rapper",
+    "tier": 3,
+    "role": "SUPPORT",
+    "faction": "AVIAN",
+    "element": "SPIRIT",
+    "boss": false,
+    "stats": {
+      "hp": 330,
+      "atk": 36,
+      "def": 24,
+      "matk": 64,
+      "mdef": 30,
+      "range": 3,
+      "rageMax": 3,
+      "crit": 0.1,
+      "critDmg": 1.5,
+      "evade": 0.07,
+      "accuracy": 0.95
+    },
+    "pitchVi": "Gà Trống Rapper là loài chim hỗ trợ, dùng âm nhạc sôi động để khơi dậy tinh thần đồng đội. Những giai điệu do cậu cất lên giúp đồng minh phục hồi nộ khí, tăng hung phấn và chiến đấu hăng hái hơn.",
+    "basic": {
+      "delivery": "projectile",
+      "damageType": "magic",
+      "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
+    },
+    "skill": {
+      "nameVi": "Nhịp Kích Nộ",
+      "family": "team_rage_atk_heal",
+      "rageCost": [
+        2,
+        3,
+        4
+      ],
+      "targetVi": "3 đồng minh có % máu thấp nhất",
+      "shapeVi": "3 đồng minh",
+      "selectionVi": "Chọn 3 đồng minh có % máu thấp nhất.",
+      "countVi": "3 mục tiêu",
+      "durationVi": "2 lượt",
+      "starDetailVi": [
+        "Bơm 1 nộ cho 3 đồng minh có % máu thấp nhất, hồi 8% HP tối đa cho mỗi đồng minh và tăng 10% ATK trong 2 lượt.",
+        "Bơm 1 nộ cho 3 đồng minh có % máu thấp nhất, hồi 10% HP tối đa cho mỗi đồng minh và tăng 14% ATK trong 2 lượt.",
+        "Bơm 2 nộ cho 3 đồng minh có % máu thấp nhất, hồi 12% HP tối đa cho mỗi đồng minh, tăng 18% ATK trong 2 lượt và giảm 10% sát thương nhận vào trong 2 lượt."
+      ]
+    }
+  }
 ]
