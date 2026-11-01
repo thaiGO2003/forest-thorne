@@ -112,6 +112,28 @@ describe("skill parser", () => {
     });
   });
 
+  it("ant_guard parses the self-sustain kit: heal, shield, damage reduction and cleanse", () => {
+    expect(skillSpec("ant_guard", 1)).toMatchObject({
+      side: "self", selector: "self",
+      selfHealPctMaxHp: 0.08,
+      shield: { base: 10, scale: 0, stat: "def" },
+      damageReductionPct: 0.10, damageReductionTurns: 1,
+      cleanseCount: 0,
+    });
+    expect(skillSpec("ant_guard", 2)).toMatchObject({
+      selfHealPctMaxHp: 0.10,
+      shield: { base: 16, scale: 0, stat: "def" },
+      damageReductionPct: 0.12, damageReductionTurns: 1,
+      cleanseCount: 1,
+    });
+    expect(skillSpec("ant_guard", 3)).toMatchObject({
+      selfHealPctMaxHp: 0.12,
+      shield: { base: 22, scale: 0, stat: "def" },
+      damageReductionPct: 0.15, damageReductionTurns: 2,
+      cleanseCount: 2,
+    });
+  });
+
   it("authored rage costs grow with every star", () => {
     for (const unit of UNITS) {
       const [star1, star2, star3] = unit.skill.rageCost;

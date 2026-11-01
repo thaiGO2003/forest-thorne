@@ -25,6 +25,9 @@ export function reflectOffenseStat(role: Role): BuffStat {
 const STAR_DOT = [0, 1, 1.3, 1.6];
 const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
+const CLEANSEABLE_STATUSES = new Set<string>([
+  ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
+]);
 
 interface Mod extends StatMod { stackKey?: string }
 
@@ -581,6 +584,28 @@ function applyStatus(
   c.events.push(event);
 }
 
+function cleanseRandomDebuffs(c: Ctx, fighter: Fighter, count: number) {
+  for (let removed = 0; removed < count; removed++) {
+    const candidates: Array<{ kind: "status"; key: string } | { kind: "mod"; index: number; icon: string }> = [];
+    for (const [key, status] of Object.entries(fighter.status)) {
+      if (status.turns > 0 && CLEANSEABLE_STATUSES.has(key)) candidates.push({ kind: "status", key });
+    }
+    fighter.mods.forEach((mod, index) => {
+      if (mod.turns > 0 && mod.value < 0) candidates.push({ kind: "mod", index, icon: `${mod.stat}Down` });
+    });
+    if (candidates.length === 0) break;
+    const chosen = candidates[Math.floor(c.rng() * candidates.length)]!;
+    if (chosen.kind === "status") {
+      delete fighter.status[chosen.key];
+      if (chosen.key === "taunt") fighter.tauntBy = null;
+      c.events.push({ t: "status", dst: fighter.uid, kind: chosen.key, turns: 0 });
+      continue;
+    }
+    fighter.mods.splice(chosen.index, 1);
+    c.events.push({ t: "status", dst: fighter.uid, kind: chosen.icon, turns: 0 });
+  }
+}
+
 function applyMod(dst: Fighter, mod: StatMod, stackKey?: string) {
   if (!stackKey) {
     dst.mods.push({ ...mod });
@@ -614,20 +639,24 @@ function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
   }
 }
 
-/** Shield first, then HP. Attack callers may defer lethal resolution until A120 aftermath completes. */
+/** Mitigate before shield/HP; attack callers may defer lethal resolution until A120 aftermath completes. */
 function applyDamage(
   c: Ctx,
   dst: Fighter,
   dmg: number,
   killer: Fighter | null,
-  event: (absorbed: number) => CombatEvent,
+  event: (absorbed: number, appliedDamage: number) => CombatEvent,
   deferDeath = false,
 ) {
-  const absorbed = Math.min(dst.shield, dmg);
+  const reduction = dst.status.damageReduction?.turns > 0
+    ? Math.min(0.9, Math.max(0, dst.status.damageReduction.value))
+    : 0;
+  const appliedDamage = Math.max(1, Math.round(dmg * (1 - reduction)));
+  const absorbed = Math.min(dst.shield, appliedDamage);
   dst.shield -= absorbed;
-  const toHp = Math.min(dst.hp, dmg - absorbed);
+  const toHp = Math.min(dst.hp, appliedDamage - absorbed);
   dst.hp -= toHp;
-  c.events.push(event(absorbed));
+  c.events.push(event(absorbed, appliedDamage));
   const lethal = dst.hp <= 0 && dst.alive;
   let killed = false;
   if (lethal && !deferDeath) {
@@ -663,7 +692,7 @@ function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType
   if (!(pct > 0)) return false;
   const dmg = Math.max(1, Math.round(actualHpDamage * pct));
   applyDamage(c, attacker, dmg, defender,
-    (absorbed) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg, absorbed }), true);
+    (absorbed, appliedDamage) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg: appliedDamage, absorbed }), true);
   return true;
 }
 
@@ -748,7 +777,7 @@ function strike(
   else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
   dmg = Math.max(1, Math.round(dmg * c.globalMult));
   const resolved = applyDamage(c, dst, dmg, src,
-    (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }), true);
+    (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit }), true);
 
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
@@ -1191,6 +1220,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       }
     }
     if (sp.selfHealPctMaxHp) heal(c, f, f, f.maxHp * sp.selfHealPctMaxHp);
+    if (sp.damageReductionPct > 0 && sp.damageReductionTurns > 0) {
+      applyStatus(c, f, "damageReduction", sp.damageReductionTurns, sp.damageReductionPct, statusSource);
+    }
+    if (sp.cleanseCount > 0) cleanseRandomDebuffs(c, f, sp.cleanseCount);
     if (f.role === "MAGE") addRage(f, enemyHit.size);
   } finally {
     f.casting = false;
@@ -1219,7 +1252,7 @@ function startCycle(c: Ctx) {
         ? f.env.fireVuln * ((f.status.fireVulnerability?.turns ?? 0) > 0 ? Math.max(1, f.status.fireVulnerability!.value) : 1)
         : 1;
       const dmg = Math.max(1, Math.round(s.value * fireVulnerability * c.globalMult));
-      applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: k, dmg }));
+      applyDamage(c, f, dmg, null, (_absorbed, appliedDamage) => ({ t: "dot", dst: f.uid, kind: k, dmg: appliedDamage }));
       if (k === "disease" && dmg > 0) {
         for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
           const neighbor = c.all.find((x) => x.alive && x.side === f.side && x.row === f.row + dr && x.col === f.col + dc);
@@ -1231,7 +1264,7 @@ function startCycle(c: Ctx) {
     }
     if (!f.alive || f.env.poisonAura <= 0) continue;
     const dmg = f.env.poisonAura;
-    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
+    applyDamage(c, f, dmg, null, (_absorbed, appliedDamage) => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg: appliedDamage }));
   }
 }
 

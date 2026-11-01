@@ -797,6 +797,25 @@ describe("A77 combat materialization", () => {
     expect(fighter.shield).toBe(28);
   });
 
+  it("ant_guard casts self-sustain: applies damage reduction and cleanses a debuff", () => {
+    const fighters = materializeCombat(
+      [{ uid: "ant", baseId: "ant_guard", star: 2, row: 2, col: 4 }],
+      [{ uid: "brute", baseId: "gorilla_smash", star: 1, row: 2, col: 5 }],
+    );
+    const ant = fighters.find((fighter) => fighter.uid === "ant")!;
+    ant.rage = ant.rageMax;
+    ant.status.bleed = { turns: 3, value: 4 };
+
+    const result = runCombat(fighters, { seed: 7, rageGain: { L: 0, R: 0 } });
+    const statusEvents = result.events.filter(
+      (event): event is Extract<CombatEvent, { t: "status" }> => event.t === "status" && event.dst === "ant",
+    );
+
+    expect(result.events.some((event) => event.t === "cast" && event.src === "ant")).toBe(true);
+    expect(statusEvents.some((event) => event.kind === "damageReduction" && event.turns > 0)).toBe(true);
+    expect(statusEvents.some((event) => event.kind === "bleed" && event.turns === 0)).toBe(true);
+  });
+
   it("simulates the exact authoritative Fighter records without rematerializing", () => {
     const fighters = materializeCombat(
       [{ uid: "left", baseId: ids[0]!, star: 1, row: 0, col: 4 }],

@@ -60,6 +60,11 @@ export interface SkillSpec {
   /** Gradual max-HP healing spread across the authored duration. */
   hot: TimedHotSpec | null;
   selfHealPctMaxHp: number;
+  /** Fraction of incoming damage prevented while the authored self-only guard is active. */
+  damageReductionPct: number;
+  damageReductionTurns: number;
+  /** Random negative statuses/stat modifiers removed from the caster. */
+  cleanseCount: number;
   lifestealPct: number;
   shield: Formula | null;
   buffs: StatMod[];
@@ -183,9 +188,13 @@ export function parseSkill(text: string): SkillSpec {
   if (allyHeal) heal = { formula: null, pctMaxHp: Number(allyHeal[1]) / 100 };
   else if (flatHeal) heal = { formula: flatHeal[4] ? formulaAt(flatHeal) : { base: Number(flatHeal[1]), scale: 0, stat: "matk" }, pctMaxHp: 0 };
   const selfHeal = /(?:Tự hồi|hồi) (\d+)% HP tối đa(?: cho bản thân)?(?!\s*(?:trong \d+ lượt )?cho (?!bản))/.exec(t);
+  const damageReduction = /giảm\s+(\d+(?:\.\d+)?)%\s+sát thương nhận vào trong\s+(\d+)\s+lượt/i.exec(t);
+  const cleanse = /(?:thanh tẩy|xóa)\s+(?:tối đa\s+)?(\d+)\s+(?:hiệu ứng bất lợi|debuff)(?:\s+ngẫu nhiên)?\s+(?:trên|cho) bản thân/i.exec(t);
   const steal = /hút (\d+)% sát thương|hồi máu bằng (\d+)% sát thương/.exec(t);
 
-  const shieldM = t.match(new RegExp(String.raw`khiên(?: bằng)? ${FORMULA.source}`)) ?? t.match(/khiên (\d+)/);
+  const shieldM = t.match(new RegExp(String.raw`khiên(?: bằng)? ${FORMULA.source}`))
+    ?? t.match(/(?:nhận|được) (\d+) khiên/i)
+    ?? t.match(/khiên (\d+)/);
   const shield = shieldM ? (shieldM[4] ? formulaAt(shieldM) : { base: Number(shieldM[1]), scale: 0, stat: "def" as Stat }) : null;
 
   const rage = /(?:Bơm|tăng|hồi) (\d+) nộ/.exec(t);
@@ -210,6 +219,9 @@ export function parseSkill(text: string): SkillSpec {
     pickLowestHp: /% máu thấp nhất|thấp máu nhất/.test(t),
     damage, dots, controls, heal, hot,
     selfHealPctMaxHp: selfHeal && !allyHeal ? Number(selfHeal[1]) / 100 : 0,
+    damageReductionPct: damageReduction ? Number(damageReduction[1]) / 100 : 0,
+    damageReductionTurns: damageReduction ? Number(damageReduction[2]) : 0,
+    cleanseCount: cleanse ? Number(cleanse[1]) : 0,
     lifestealPct: steal ? Number(steal[1] ?? steal[2]) / 100 : 0,
     shield, buffs: statMods(t, "tăng"), debuffs: statMods(t, "giảm"),
     rageGrant: rage ? Number(rage[1]) : 0,

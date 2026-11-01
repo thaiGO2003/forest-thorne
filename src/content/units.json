@@ -135,29 +135,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Giữ cùng hàng bằng giáp, khiên và che đòn cho đồng minh yếu máu.",
+  "pitchVi": "Tự hồi máu, nhận khiên, giảm sát thương và thanh tẩy hiệu ứng bất lợi trên bản thân.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "melee, physical, 1×ATK, 1 kẻ địch gần nhất, single ×1."
   },
   "skill": {
-   "nameVi": "Kiến Trận Đồ",
-   "family": "ally_row_def_buff",
+   "nameVi": "Giáp Tái Sinh",
+   "family": "self_regen_tank",
    "rageCost": [
     2,
     3,
     4
    ],
-   "targetVi": "bản thân và 1 đồng minh cùng hàng có % máu thấp nhất",
-   "shapeVi": "bản thân + 1 đồng minh cùng hàng",
-   "selectionVi": "Tự nhận buff trước, rồi chọn 1 đồng minh cùng hàng có % máu thấp nhất.",
-   "countVi": "2 mục tiêu",
-   "durationVi": "2 lượt",
+   "targetVi": "bản thân",
+   "shapeVi": "bản thân",
+   "selectionVi": "Chỉ áp dụng hiệu ứng lên bản thân.",
+   "countVi": "1 mục tiêu: bản thân",
+   "durationVi": "hồi máu và khiên tức thì; giảm sát thương trong 1–2 lượt",
    "starDetailVi": [
-    "Bảo kê bản thân và 1 đồng minh cùng hàng có % máu thấp nhất, tăng 22 DEF và 14 MDEF trong 2 lượt. Hai mục tiêu nhận 10 khiên ngay khi tung kỹ năng.",
-    "Bảo kê bản thân và 1 đồng minh cùng hàng có % máu thấp nhất, tăng 30 DEF và 20 MDEF trong 2 lượt. Hai mục tiêu nhận 16 khiên ngay khi tung kỹ năng. Lần đầu đồng minh được bảo kê chịu sát thương trong thời gian hiệu lực, Kiến Hộ Vệ đỡ thay 35% đòn đó.",
-    "Bảo kê bản thân và 1 đồng minh cùng hàng có % máu thấp nhất, tăng 38 DEF và 26 MDEF trong 3 lượt. Hai mục tiêu nhận 22 khiên ngay khi tung kỹ năng. Lần đầu đồng minh được bảo kê chịu sát thương trong thời gian hiệu lực, Kiến Hộ Vệ đỡ thay 35% đòn đó. Kẻ địch gây đòn bị giảm 20 ATK hoặc MATK theo vai trò trong 2 lượt."
+    "Tự hồi 8% HP tối đa. Nhận 10 khiên. Giảm 10% sát thương nhận vào trong 1 lượt.",
+    "Tự hồi 10% HP tối đa. Nhận 16 khiên. Giảm 12% sát thương nhận vào trong 1 lượt. Thanh tẩy 1 hiệu ứng bất lợi ngẫu nhiên trên bản thân.",
+    "Tự hồi 12% HP tối đa. Nhận 22 khiên. Giảm 15% sát thương nhận vào trong 2 lượt. Thanh tẩy tối đa 2 hiệu ứng bất lợi ngẫu nhiên trên bản thân."
    ]
   },
   "skin": {
