@@ -206,7 +206,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     card.el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(); }
     });
-    slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id)) : null; });
+    slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id), { portrait: portraits.get(id, 1) }) : null; });
     row.append(slot.buy.el);
     wrap.append(card.el, row);
     grid.append(wrap);

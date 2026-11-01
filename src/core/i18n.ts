@@ -648,6 +648,27 @@ const vi = {
   "history.EVENT": "Sự kiện",
   "combat.draw": "Hoà",
   "combat.next": "Vòng tiếp",
+  "tooltip.section.traits": "Đặc tính",
+  "tooltip.section.statuses": "Hiệu ứng đang dính",
+  "tooltip.section.currentSkill": "Kỹ hiện tại",
+  "tooltip.section.basicInfo": "Thông tin cơ bản",
+  "tooltip.section.currentStats": "Chỉ số hiện tại",
+  "tooltip.section.equipment": "Trang bị",
+  "tooltip.section.passive": "Nội tại",
+  "tooltip.section.basicAttack": "Đánh thường",
+  "tooltip.section.skill": "Chiêu thức",
+  "tooltip.badge.buy": "Giá mua {cost}",
+  "tooltip.badge.sell": "Giá bán {price}",
+  "tooltip.badge.owned": "Sở hữu ×{count}",
+  "tooltip.badge.ally": "Phe ta",
+  "tooltip.badge.enemy": "Địch",
+  "tooltip.badge.dead": "Đã gục",
+  "tooltip.stat.role": "Vai trò",
+  "tooltip.stat.faction": "Bộ tộc",
+  "tooltip.stat.element": "Hệ",
+  "tooltip.equipmentSlots": "{used}/{max} ô",
+  "tooltip.noEquipment": "Chưa gắn trang bị",
+  "tooltip.formula": "Công thức: {value}",
 } as const;
 
 export type MsgKey = keyof typeof vi;
@@ -676,4 +697,9 @@ export function onLocaleChange(fn: (l: Locale) => void): () => void {
 /** Translate with `{param}` substitution; unknown params stay visible so missing data is noticed. */
 export function t(key: MsgKey, params: Record<string, string | number> = {}, locale: string = current): string {
   return ((DICTS[locale as Locale] ?? vi)[key] ?? vi[key]).replace(/\{(\w+)\}/g, (m, p: string) => (p in params ? String(params[p]) : m));
+}
+
+/** Safe lookup for data-driven key fragments (status/stat ids) that may not be authored. */
+export function hasMessage(key: string): key is MsgKey {
+  return Object.prototype.hasOwnProperty.call(vi, key);
 }

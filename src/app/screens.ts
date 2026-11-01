@@ -30,9 +30,6 @@ import { ICONS } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
 import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
-import { basicAttackCopy } from "../core/unitText";
-import { skillSpec } from "../core/skills";
-import { VARIANT_BY_ID } from "../core/variants";
 import { environmentFor, type EnvironmentId } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
@@ -41,6 +38,7 @@ import { getGameSpeedDisplayMultiplier } from "../core/gameSpeed";
 import { finishFastCost } from "../core/combatFast";
 import { createModManager, type ModManager, type ModPackageType, type ModSource, type ModValidationIssue } from "../mods/ModRegistry";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
+import { unitTooltipContent } from "../ui/unitTooltip";
 import { createCombatFx, type CombatFx } from "../units/fx";
 import { createCombatLowHpMusic } from "../audio/CombatLowHpMusic";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
@@ -1252,48 +1250,16 @@ function enemyDiagnostics(app: App, uid: string) {
 }
 
 
-/** Hover summary (A96 summary mode, cf. old-src `buildSummaryUnitSectionBlocks`): traits, headline
- *  combat numbers, active statuses and the star-resolved skill. The current/base/derived numeric
- *  breakdown stays on the diagnostics surface instead of being dumped onto the viewport. */
+/** Hover summary (A96): rich old_src-style unit card with header, chips, HP/rage meters and the
+ *  compact/summary/expanded bodies. Diagnostics supply the live stat, shield, rage and status data;
+ *  catalog-only surfaces reuse the same model through `unitCardTooltip`. */
 function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent {
   const unitDef = getUnit(diagnostics.baseId);
-  const { live, derived, effects, star } = diagnostics;
-  const num = (v: number) => Math.round(v);
-  const lines: NonNullable<TooltipContent["lines"]> = [
-    { icon: ICONS.hp, text: `HP ${num(live.hp)}/${num(live.maxHp)}` },
-    { icon: ICONS.atk, text: `ATK ${num(live.atk)} · DEF ${num(live.def)}` },
-    { icon: ICONS.matk, text: `MATK ${num(live.matk)} · MDEF ${num(live.mdef)}` },
-    { icon: ICONS.range, text: `Tầm ${num(live.range)} · Nộ ${num(live.rage)}/${num(live.rageMax)}` },
-  ];
-  lines.push({ icon: ICONS.evade, text: `${t("inventory.evade")} ${Math.round(live.evade * 100)}% · ${t("inventory.crit")} ${Math.round(live.crit * 100)}% · ${t("inventory.accuracy")} ${Math.round(live.accuracy * 100)}%` });
-  const variantNames = diagnostics.traits.map((ref) => VARIANT_BY_ID.get(ref.id)?.nameVi).filter(Boolean);
-  if (variantNames.length) lines.push({ icon: ICONS.variant, text: `${t("inventory.variant")}: ${variantNames.join(" · ")}` });
-  for (const effect of effects.slice(0, 3)) {
-    const value = effect.pct ? `${effect.value}%` : String(effect.value);
-    lines.push({ text: `${effect.key} · ${value} · ${effect.turns}T` });
-  }
-  const damageFormula = skillSpec(diagnostics.baseId, star).damage;
-  const formulaText = damageFormula
-    ? ` · ${damageFormula.base} + ${Math.round(damageFormula.scale * 100)}% ${damageFormula.stat.toUpperCase()}`
-    : "";
-  lines.push({
-    icon: ICONS.star,
-    text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: derived.rageMax })})${formulaText}`,
+  return unitTooltipContent(unitDef, {
+    star: diagnostics.star as 1 | 2 | 3,
+    diagnostics,
+    portrait: portraits.get(unitDef.id, diagnostics.star),
   });
-  return {
-    title: `${unitDef.nameVi} ★${star}`,
-    subtitle: [
-      t(`role.${unitDef.role}` as MsgKey),
-      t(`element.${unitDef.element}` as MsgKey),
-      t(`faction.${unitDef.faction}` as MsgKey),
-    ].join(" · "),
-    lines,
-    body: [
-      unitDef.pitchVi,
-      `${t("library.basic")}: ${basicAttackCopy(unitDef)}`,
-      unitDef.skill.starDetailVi[star - 1] ?? unitDef.skill.detailVi,
-    ].filter(Boolean).join("\n"),
-  };
 }
 
 

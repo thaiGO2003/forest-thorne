@@ -69,6 +69,7 @@
 .rich-buff { color: #2f7d32; }
 .rich-debuff { color: #a3402f; }
 .rich-control { color: #6a5acd; }
+.ui-inventory-section-head .ui-inventory-section-action { height: 30px; min-height: 30px; padding: 0 10px; font-size: var(--ft-12); flex: none; }
 .ui-inventory-formula p { margin: 0; }
 .ui-inventory-milestones { display: flex; flex-direction: column; gap: 4px; }
 .ui-inventory-milestones h4 { margin: 2px 0 0; font-size: 11px; }
@@ -91,6 +92,7 @@
 .ui-inventory-section-head { display: flex; align-items: center; justify-content: space-between; gap: 5px 8px; flex-wrap: wrap; }
 .ui-inventory-section-head > h3 { flex: 1 1 auto; white-space: nowrap; }
 .ui-inventory-section-head > .ui-inventory-note { flex: 0 0 auto; white-space: nowrap; }
+.ui-inventory-section-head .ui-inventory-section-action { flex: 0 0 auto; margin-left: auto; }
 .ui-inventory-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
 .ui-inventory-item { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
 .ui-inventory-item-icon { width: 68px; height: 68px; display: grid; place-items: center; font-size: 32px; }
@@ -145,14 +147,67 @@
 
 .emoji-inline { display: inline-block; width: 1em; height: 1em; max-width: 1em; vertical-align: -0.12em; object-fit: contain; flex: none; }
 /* ---------- tooltip ---------- */
-.tooltip { position: fixed; left: 0; top: 0; max-width: min(320px, calc(100vw - 16px)); padding: 10px 12px; }
+.tooltip { position: fixed; left: 0; top: 0; width: max-content; max-width: min(360px, calc(100vw - 16px)); padding: 12px 14px; }
 .tooltip[data-open="false"] { visibility: hidden; }
-.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; color: #111; font-size: 13px; line-height: 1.35; font-family: "Times New Roman", Times, serif; }
-.tt-title { font-weight: 800; font-size: 15px; }
-.tt-sub { font-size: 12px; font-style: italic; }
-.tt-line { display: flex; gap: 6px; align-items: baseline; }
+.tooltip[data-rich="true"] { max-width: min(560px, calc(100vw - 16px)); }
+.tooltip[data-mode="compact"][data-rich="true"] { max-width: min(460px, calc(100vw - 16px)); }
+.tooltip[data-mode="expanded"][data-rich="true"] { width: min(1320px, calc(100vw - 24px)); max-width: min(1320px, calc(100vw - 24px)); }
+.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #111; font-size: 13px; line-height: 1.35; font-family: "Times New Roman", Times, serif; }
+.tt-head { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.tt-avatar { flex: none; width: 96px; height: 96px; display: grid; place-items: center; }
+.tt-avatar-icon { display: grid; place-items: center; width: 100%; height: 100%; font-size: 48px; line-height: 1; }
+.tt-avatar[data-portrait="true"] .tt-avatar-icon { visibility: hidden; }
+.tt-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tt-title { font-weight: 800; font-size: 15px; line-height: 1.15; }
+.tt-sub { font-size: 12px; font-weight: 600; }
+.tt-badges, .tt-statuses { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.tt-chip { position: relative; display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 2px 10px; color: #fff8ec; font-size: 10px; line-height: 1.1; }
+.tt-chip-icon, .tt-meter-icon { display: inline-flex; align-items: center; flex: none; }
+.tt-chip-text { min-width: 0; overflow-wrap: anywhere; }
+.tt-meters { display: flex; flex-direction: column; gap: 5px; margin-top: 2px; min-width: 0; }
+.tt-meter { display: grid; grid-template-columns: max-content minmax(90px, 1fr) max-content; gap: 8px; align-items: center; min-width: 0; font-size: 10px; }
+.tt-meter-label { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; white-space: nowrap; }
+.tt-meter-track { position: relative; height: 22px; min-width: 90px; }
+.tt-meter-value { font-weight: 700; white-space: nowrap; }
+.tt-desc { margin: 2px 0 0; font-size: 12px; line-height: 1.35; font-style: italic; }
+.tt-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; white-space: pre-line; }
+.tt-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; min-width: 0; }
+.tt-columns[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1100px) {
+  .tt-columns[data-count="4"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr); }
+}
+.tt-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-left: 8px; }
+.tt-col[data-first="true"] { padding-left: 0; }
+.tt-sec { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tt-sec-title { margin: 0; font-size: 11px; font-weight: 800; line-height: 1.2; }
+.tt-sec-line { margin: 0; font-size: 11px; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere; }
+.tooltip[data-mode="expanded"] .tt-sec-line { font-size: 10px; }
+.tt-lines { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tt-line { display: flex; gap: 6px; align-items: baseline; font-size: 12px; }
 .tt-icon { flex: none; width: 1.3em; text-align: center; }
-.tt-body { margin-top: 4px; font-size: 12px; font-style: italic; white-space: pre-line; }
+@media (max-width: 760px) {
+  .tooltip[data-rich="true"] { max-width: calc(100vw - 16px); }
+  .tooltip[data-mode="expanded"][data-rich="true"] { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
+  .tt-head { gap: 10px; }
+  .tt-avatar { width: 64px; height: 64px; }
+  .tt-avatar-icon { font-size: 34px; }
+  .tt-columns { grid-template-columns: 1fr; gap: 10px; }
+  .tt-col { padding-left: 0; }
+}
+@media (max-height: 700px) {
+  .tooltip { --ft-10: 18px; --ft-11: 19px; --ft-12: 20px; --ft-13: 21px; --ft-15: 24px; }
+}
+@media (max-height: 520px) {
+  .tooltip { --ft-10: 15px; --ft-11: 16px; --ft-12: 17px; --ft-13: 18px; --ft-15: 21px; padding: 7px 9px; }
+  .tt-head { gap: 8px; }
+  .tt-avatar { width: 48px; height: 48px; }
+  .tt-avatar-icon { font-size: 26px; }
+  .tt-chip { min-height: 22px; padding: 1px 7px; }
+  .tt-meter-track { height: 16px; min-width: 60px; }
+  .tt-meters { gap: 3px; }
+  .tt-desc { display: none; }
+  .tt-body { gap: 5px; }
+}
 
 /* ---------- loading ---------- */
 .loading { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; padding: 24px 16px max(28px, env(safe-area-inset-bottom)); }
@@ -490,8 +545,10 @@
 .pl-shop[hidden] { display: none; }
 .pl-shop-toggle { display: none; }
 .pl-shop-head { position: relative; display: flex; justify-content: flex-end; gap: 6px; min-height: 44px; height: 44px; margin-bottom: 4px; }
+.pl-reroll-control { display: flex; align-items: center; gap: 4px; }
+.pl-reroll-cost { position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; flex: none; }
 .pl-shop-head .pl-page { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-.pl-shop-head .pl-reroll { width: 140px; min-width: 56px; height: 44px; min-height: 44px; }
+.pl-shop-head .pl-reroll { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
 .pl-shop-head .pl-lock { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .pl-shop-head .pl-cortisol { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
@@ -520,7 +577,6 @@
   .menu-utility-label { display: block; }
   .menu-utility-item { flex: 1 1 72px; max-width: 84px; }
   .pl-shop { padding: 6px 8px 8px; }
-  .pl-shop-head .pl-reroll { width: 56px; }
   .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
   .pl-offer-card { aspect-ratio: 5 / 6.4; }
   .mod-actions { width: 100%; justify-content: stretch; }
@@ -744,7 +800,14 @@
 .tooltip { max-width: min(480px, calc(100vw - 16px)); }
 .tooltip-inner { font-size: var(--ft-13); }
 .tt-title { font-size: var(--ft-15); }
-.tt-sub, .tt-body { font-size: var(--ft-12); }
+.tt-sub { font-size: var(--ft-11); }
+.tt-desc { font-size: var(--ft-11); }
+.tt-line { font-size: var(--ft-11); }
+.tt-body { font-size: var(--ft-12); }
+.tt-chip, .tt-meter { font-size: var(--ft-10); }
+.tt-sec-title { font-size: var(--ft-11); }
+.tt-sec-line { font-size: var(--ft-11); }
+.tooltip[data-mode="expanded"] .tt-sec-line { font-size: var(--ft-10); }
 
 .modal-body { font-size: var(--ft-16); }
 .modal-body small { font-size: max(var(--ft-font-min), .68em); }

@@ -290,7 +290,7 @@ export function mountLibrary(
       const open = () => { tip.hide(); showDetail(u.id); };
       c.el.addEventListener("click", open);
       c.el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
-      cardTips.push(tip.bind(c.el, () => unitCardTooltip(u)));
+      cardTips.push(tip.bind(c.el, () => unitCardTooltip(u, { portrait: portraits.get(u.id, 1) })));
       gridEl.append(c.el);
       cards.push(c);
     }

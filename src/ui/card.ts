@@ -2,9 +2,8 @@
 // identity, HP/attack values and tier-based gold price displayed in both contexts.
 import type { UnitDef } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
-import { t, type MsgKey } from "../core/i18n";
-import { basicAttackCopy } from "../core/unitText";
 import { h, INK, label, nineSlice, NORMAL_FONT, SLICE, surface, type Surface } from "./kit";
+import { unitTooltipContent, type UnitTooltipOptions } from "./unitTooltip";
 import type { TooltipContent } from "./tooltip";
 
 /** 3D portrait source; null until the unit render is ready (card repaints via `onReady`). */
@@ -27,20 +26,13 @@ export interface CardView { el: HTMLElement; set(d: CardData | null): void; pain
 const TEXT = "#3b2414";
 
 /** One catalog-backed summary for both card types and all tooltip display modes. */
-export function unitCardTooltip(unit: UnitDef): TooltipContent {
-  const magicBasic = unit.basic.damageType === "magic";
-  return {
-    title: unit.nameVi,
-    subtitle: `${t(`role.${unit.role}` as MsgKey)} · ${t(`faction.${unit.faction}` as MsgKey)} · ${t(`element.${unit.element}` as MsgKey)}`,
-    lines: [
-      { icon: ICONS.hp, text: `${unit.stats.hp} HP` },
-      { icon: magicBasic ? ICONS.matk : ICONS.atk, text: `${magicBasic ? unit.stats.matk : unit.stats.atk} · ${basicAttackCopy(unit)}` },
-      { icon: ICONS.range, text: `${t("library.target")}: ${unit.stats.range}` },
-      { icon: ICONS.rage, text: `${unit.skill.nameVi} (${t("unit.rage", { cost: unit.skill.rageCost[0] })})` },
-      ...(!unit.boss ? [{ icon: ICONS.gold, text: `${unit.tier}` }] : []),
-    ],
-    body: [unit.pitchVi, unit.skill.starDetailVi[0] ?? unit.skill.detailVi].filter(Boolean).join("\n"),
-  };
+export function unitCardTooltip(unit: UnitDef, options: UnitTooltipOptions = {}): TooltipContent {
+  return unitTooltipContent(unit, {
+    ...options,
+    star: options.star ?? 1,
+    cost: options.cost ?? (unit.boss ? undefined : unit.tier),
+    showSale: options.showSale ?? false,
+  });
 }
 
 export function createCard(portraits: PortraitProvider, cls = ""): CardView {
