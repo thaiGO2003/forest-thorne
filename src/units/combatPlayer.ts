@@ -31,6 +31,8 @@ export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; a
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
 const PROJECTILE_COLOR = 0xffd36a;
+/** Billboard badge while a delayed curse holds debuffs (ICONS.lock); negative group, it is a curse. */
+const CURSE_LOCK_STATUS: BillboardStatus = { key: "lock", positive: false };
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -39,7 +41,8 @@ export function playCombat(o: {
   inspectionFrames?: CombatInspectionFrame[];
 }): CombatPlayer {
   const { board, fx } = o;
-  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[] }]));
+  // `locks` = debuffs suspended by a delayed curse (Huyết Thố); shown as a lock badge, not a real status.
+  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], locks: 0 }]));
   const log: string[] = [];
   const timers: { remaining: number; run: () => void }[] = [];
   const moves: { root: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number }[] = [];
@@ -70,7 +73,10 @@ export function playCombat(o: {
   };
   const push = (uid: string) => {
     const unit = units.get(uid);
-    if (unit) board.setLive(uid, { hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax, statuses: unit.statuses });
+    if (unit) board.setLive(uid, {
+      hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax,
+      statuses: unit.locks > 0 ? [...unit.statuses, CURSE_LOCK_STATUS] : unit.statuses,
+    });
   };
   const name = (uid: string) => { const unit = units.get(uid); return unit ? getUnit(unit.baseId).nameVi : uid; };
   const tick = () => {
@@ -340,6 +346,17 @@ export function playCombat(o: {
       case "skip":
         fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? ICONS.sleep, "status");
         break;
+      case "curse": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.locks = event.locked; push(event.dst); }
+        if (!event.released.length) {
+          if (event.locked > 0) fx.float(position(event.dst), `${ICONS.lock}${event.locked}`, "status");
+        } else {
+          const icons = event.released.map((key) => ICONS[key as keyof typeof ICONS] ?? ICONS.question).join("");
+          fx.float(position(event.dst), `${ICONS.unlock}${icons}`, "status");
+        }
+        break;
+      }
     }
     return scaleCombatPresentationMs(100, speedLevel);
   };
