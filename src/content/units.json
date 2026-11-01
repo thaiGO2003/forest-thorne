@@ -287,57 +287,57 @@
  {
   "id": "bat_blood",
   "species": "doi",
-  "nameVi": "Dơi Huyết",
+  "nameVi": "Dơi Tình Yêu",
   "tier": 3,
-  "role": "ASSASSIN",
+  "role": "MAGE",
   "faction": "BEAST",
   "element": "NIGHT",
   "boss": false,
   "stats": {
-   "hp": 272,
-   "atk": 84,
-   "def": 16,
-   "matk": 20,
-   "mdef": 15,
-   "range": 1,
-   "rageMax": 4,
-   "crit": 0.25,
+   "hp": 300,
+   "atk": 22,
+   "def": 11,
+   "matk": 90,
+   "mdef": 24,
+   "range": 4,
+   "rageMax": 5,
+   "crit": 0.1,
    "critDmg": 1.5,
-   "evade": 0.15,
+   "evade": 0.1,
    "accuracy": 0.95
   },
-  "pitchVi": "Sát thủ tự hồi cắn mục tiêu tuyến sau máu thấp và snowball khi kết liễu.",
+  "pitchVi": "Pháp sư bóng đêm bắn tia tim vào mục tiêu yếu máu rồi nổ ma lực vùng 3x3 quanh nó.",
   "basic": {
-   "delivery": "melee",
-   "damageType": "physical",
-   "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
+   "delivery": "projectile",
+   "damageType": "magic",
+   "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, bắn trái tim vào mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Cắn Mạch Hút Máu",
-   "family": "single_burst_lifesteal",
+   "nameVi": "Ma Lực Tình Yêu",
+   "family": "heart_burst_square",
    "rageCost": [
-    2,
     3,
-    4
+    4,
+    5
    ],
-   "targetVi": "kẻ địch % máu thấp nhất",
-   "shapeVi": "1 ô điểm",
-   "selectionVi": "địch % máu thấp nhất",
-   "countVi": "1",
-   "durationVi": "tức thì",
+   "targetVi": "kẻ địch % máu thấp nhất và vùng 3x3 quanh nó",
+   "shapeVi": "vùng 3x3 quanh mục tiêu",
+   "selectionVi": "địch % máu thấp nhất làm tâm nổ",
+   "countVi": "mọi kẻ địch trong vùng 3x3",
+   "durationVi": "tức thì; giảm MDEF 2 lượt từ 2★",
    "starDetailVi": [
-    "Lao vào kẻ địch tuyến sau có % máu thấp nhất, gây (30 + 115% ATK) sát thương vật lý và hút 40% sát thương thành máu.",
-    "Lao vào kẻ địch tuyến sau có % máu thấp nhất, gây (30 + 115% ATK) sát thương vật lý và hút 40% sát thương thành máu. Nếu mục tiêu đang chịu hiệu ứng bất lợi, hút máu tăng lên 60%.",
-    "Lao vào kẻ địch tuyến sau có % máu thấp nhất, gây (30 + 115% ATK) sát thương vật lý và hút 40% sát thương thành máu. Nếu mục tiêu đang chịu hiệu ứng bất lợi, hút máu tăng lên 60%. Kết liễu mục tiêu hồi 1 nộ."
+    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng.",
+    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng. Kẻ địch trúng đòn bị giảm 15 MDEF trong 2 lượt.",
+    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng. Kẻ địch trúng đòn bị giảm 15 MDEF trong 2 lượt. Tự hồi 10% HP tối đa."
    ]
   },
   "skin": {
    "id": "nightPulse",
    "unlock": "bestRound_16",
    "stagesVi": [
-    "Mạch Đêm",
-    "Huyết Mạch",
-    "Huyết Tộc Vương"
+    "Nhịp Đêm",
+    "Tim Ma Lực",
+    "Nữ Vương Tình Yêu"
    ]
   }
  },
