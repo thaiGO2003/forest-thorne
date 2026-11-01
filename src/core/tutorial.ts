@@ -1,5 +1,6 @@
 // Tutorial state machine and semantic action gates (A94, A108). No rendering/UI ownership lives here.
 import { getUnit, type Role } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import type { OwnedUnit, RunState } from "./run";
 import { modeConfig } from "./modes";
 
@@ -309,14 +310,23 @@ export function syncTutorialRound(s: Pick<RunState, "round" | "tutorial">): void
   s.tutorial.roundEventCounts = {};
 }
 
+const TUTORIAL_VISUAL_POOL = ["ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing", "rabbit_blood", "frog_alchemy", "bat_blood"] as const;
+
 export function tutorialShop(round: number, variant: number, slots = 5): (string | null)[] | null {
   const variants = FIXED_SHOPS[round];
   if (!variants) return null;
   const authored = variants[variant] ?? variants[0];
   if (!authored) return null;
-  const out = authored.slice(0, Math.max(5, slots)) as (string | null)[];
-  while (out.length < Math.max(5, slots)) out.push(null);
-  return out.slice(0, Math.max(5, slots));
+  const size = Math.max(5, slots);
+  // Scripted offers may reference units whose art is still pending. Keep the tutorial playable
+  // with the authored visual set instead of showing placeholder beasts.
+  const out = authored.filter(hasUnitVisual).slice(0, size) as (string | null)[];
+  for (const id of TUTORIAL_VISUAL_POOL) {
+    if (out.length >= size) break;
+    if (!out.includes(id)) out.push(id);
+  }
+  while (out.length < size) out.push(null);
+  return out.slice(0, size);
 }
 
 export function incrementTutorialShopVariant(s: Pick<RunState, "tutorial">): void {
@@ -488,7 +498,7 @@ export function tutorialPreparationPlan(s: RunState): TutorialPreparationPlan | 
   const hasEquipmentAnywhere = (itemId: string) =>
     s.itemBag.includes(itemId) || [...s.bench, ...s.board.filter((u): u is OwnedUnit => !!u)].some((unit) => unit.equips.includes(itemId));
   const base: TutorialPreparationPlan = { round: s.round, clearCraftStaging: false };
-  if (s.round === 3 && s.bench.length === 0) base.grantBenchBaseId = "falcon_dive";
+  if (s.round === 3 && s.bench.length === 0) base.grantBenchBaseId = "jaguar_hunt";
   if (s.round === 5) {
     if (!hasEquipmentAnywhere("eq_warmog_armor")) base.grantItemId = "eq_warmog_armor";
     if (!s.board.some((unit) => Boolean(unit && unit.star >= 2))) base.ensureBoardStar = 2;

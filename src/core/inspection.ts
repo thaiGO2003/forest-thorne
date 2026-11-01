@@ -1,5 +1,6 @@
 // Shared unit readout + combat-strength formulas (spec A59, A68). No UI formatting/layout ownership here.
 import { NORMAL_UNITS, getUnit, type Role, type UnitDef } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import { combatStat, makeFighter, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
 import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
@@ -295,7 +296,7 @@ const ROLE_ORDER: Readonly<Record<Role, number>> = { ARCHER: 0, ASSASSIN: 1, FIG
 
 /** A69 deterministic normal shop roster, independent from randomized offer rolls. */
 export function canonicalShopRoster(tier?: number): UnitDef[] {
-  return NORMAL_UNITS.filter((unit) => tier == null || unit.tier === tier)
+  return NORMAL_UNITS.filter((unit) => (tier == null || unit.tier === tier) && hasUnitVisual(unit.id))
     .slice()
     .sort((a, b) => a.tier - b.tier || ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.id.localeCompare(b.id));
 }

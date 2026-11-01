@@ -356,7 +356,7 @@ describe("co-op WebRTC host relay", () => {
 
     const payload = planningPayload();
     payload.players!.P1!.bench = [owned("host-unit")];
-    payload.players!.P2!.bench = [owned("guest-unit", "deer_song")];
+    payload.players!.P2!.bench = [owned("guest-unit", "ant_guard")];
     expect(hostRuntime.attachPayload(payload)).not.toBeNull();
     expect(clientRuntime.attachPayload(payload)).not.toBeNull();
 
@@ -434,7 +434,7 @@ describe("co-op WebRTC host relay", () => {
     await connect(host, client, "P2");
 
     const payload = planningPayload();
-    payload.players!.P2!.enemyPreview = [{ uid: "guest-stale", baseId: "deer_song", star: 1, row: 1, col: 6 }];
+    payload.players!.P2!.enemyPreview = [{ uid: "guest-stale", baseId: "ant_guard", star: 1, row: 1, col: 6 }];
     payload.players!.P2!.enemyPreviewRound = 1;
     payload.players!.P2!.enemyBudget = 999;
     expect(hostRuntime.attachPayload(payload)).not.toBeNull();

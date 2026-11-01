@@ -9,6 +9,7 @@ import frogAlchemy from "./roster/frogAlchemy";
 import batLove from "./roster/batLove";
 import antGuard from "./roster/antGuard";
 import rabbitBlood from "./roster/rabbitBlood";
+import roosterRapper from "./roster/roosterRapper";
 
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
@@ -18,6 +19,7 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   bat_blood: batLove,
   ant_guard: antGuard,
   rabbit_blood: rabbitBlood,
+  crane_blessing: roosterRapper,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

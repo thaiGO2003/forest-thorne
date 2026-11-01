@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { materializeCombat, simulate } from "../src/core/combat";
 import { bossForRound, encounterBudget, generateEncounter, normalizeAiMode } from "../src/core/encounter";
+import { hasUnitVisual } from "../src/content/unitVisuals";
 import { environmentFor, environmentMods } from "../src/core/environment";
 import { dayNightForRound } from "../src/core/dayNight";
 import { getUnit, NORMAL_UNITS } from "../src/content/catalog";
@@ -42,10 +43,11 @@ describe("environment A32", () => {
 });
 
 describe("encounter A33/A34", () => {
-  it("boss every 10 rounds, rotates, 3★ at row 2 col 7", () => {
+  it("boss rotation exists but unrendered bosses fall back to a normal encounter", () => {
     expect([10, 20, 50, 60, 15].map(bossForRound)).toEqual(["boss_ember_dragon", "boss_storm_phoenix", "boss_tempest_jelly", "boss_ember_dragon", null]);
     const e = generateEncounter({ round: 30, mode: "MEDIUM", rng: rng(1), bossRounds: true });
-    expect(e.units).toEqual([{ uid: "e0", baseId: "boss_venom_hydra", star: 3, row: 2, col: 7 }]);
+    expect(e.boss).toBe(false);
+    expect(e.units.every((unit) => hasUnitVisual(unit.baseId))).toBe(true);
   });
   it("budget formula and unknown mode fallback", () => {
     expect(encounterBudget(10, "HARD")).toBe(Math.round((8 + 26) * 1.05));
@@ -80,7 +82,8 @@ describe("encounter A33/A34", () => {
     const coopMediumTier = generateEncounter({ round: 3, mode: "COOP_MEDIUM", rng: fixed(0.999) });
     const tiers = new Map(NORMAL_UNITS.map((unit) => [unit.id, unit.tier]));
     expect(Math.max(...mediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBeLessThanOrEqual(2);
-    expect(Math.max(...coopMediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBe(3);
+    // Tier-3 visuals exist, but COOP_MEDIUM round 3 only unlocks up to tier 2.
+    expect(Math.max(...coopMediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBe(2);
 
     const mediumStars = generateEncounter({ round: 7, mode: "MEDIUM", rng: fixed(0.05) });
     const coopMediumStars = generateEncounter({ round: 7, mode: "COOP_MEDIUM", rng: fixed(0.05) });

@@ -1,6 +1,7 @@
 // Persistence (A37, A57): versioned envelope, ordered migration, Continue inspection,
 // import/export, three distinct clear scopes, Co-op slot store.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import { normalizeEquipment, slotCapForUnit } from "./equipment";
 import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
 import { isGameMode, modeConfig } from "./modes";
@@ -87,9 +88,9 @@ function sanitizeUnit(u: unknown, log: string[], recoveredEquipment: string[]): 
     return null;
   }
   const id = UNIT_BY_ID.has(u.baseId) ? u.baseId : UNIT_REPLACEMENTS[u.baseId];
-  if (!id || !UNIT_BY_ID.has(id)) {
+  if (!id || !UNIT_BY_ID.has(id) || !hasUnitVisual(id)) {
     recoverRemovedUnitEquipment(u, log, recoveredEquipment);
-    log.push(`drop unknown unit ${u.baseId}`);
+    log.push(`drop unknown or unrendered unit ${u.baseId}`);
     return null;
   }
   if (id !== u.baseId) log.push(`replace ${u.baseId} → ${id}`);
@@ -208,7 +209,7 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   for (let i = 25; i < savedBoard.length; i++) recoverRemovedUnitEquipment(savedBoard[i], log, p.itemBag);
   while (p.board.length < 25) p.board.push(null);
   p.bench = Array.isArray(p.bench) ? p.bench.map((u) => sanitizeUnit(u, log, p.itemBag)).filter((u): u is OwnedUnit => !!u) : [];
-  p.shop = Array.isArray(p.shop) ? p.shop.map((id) => (typeof id === "string" && UNIT_BY_ID.has(id) ? id : null)) : [];
+  p.shop = Array.isArray(p.shop) ? p.shop.map((id) => (typeof id === "string" && UNIT_BY_ID.has(id) && hasUnitVisual(id) ? id : null)) : [];
   const savedShopLength = Math.min(20, Math.max(5, p.shop.length));
   p.shopSlotCount = clampInt(p.shopSlotCount, savedShopLength, 20, savedShopLength);
   p.shop = p.shop.slice(0, p.shopSlotCount);

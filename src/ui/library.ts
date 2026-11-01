@@ -2,6 +2,7 @@
 // 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import { shopTierOdds } from "../core/economy";
 import { BASE_MATERIALS, EQUIPMENT } from "../core/itemRegistry";
 import { AUGMENTS, type AugGroup } from "../core/augments";
@@ -346,7 +347,7 @@ export function mountLibrary(
     for (const c of cards) c.dispose();
     cards = [];
     gridEl.replaceChildren();
-    const list = filterUnits(UNITS, f);
+    const list = filterUnits(UNITS.filter((u) => hasUnitVisual(u.id)), f);
     const per = (lastPer = pageSize(gridEl));
     const pages = Math.max(1, Math.ceil(list.length / per));
     page = Math.min(page, pages - 1);
@@ -367,13 +368,13 @@ export function mountLibrary(
     const prev = kitButton({ skin: "wood", label: "‹", cls: "lib-page", onClick: () => { page--; renderGrid(); } });
     const next = kitButton({ skin: "wood", label: "›", cls: "lib-page", onClick: () => { page++; renderGrid(); } });
     prev.setDisabled(page === 0); next.setDisabled(page >= pages - 1);
-    footEl.append(prev.el, h("span", "lib-count", `${t("library.count", { shown: list.length, total: UNITS.length })} · ${t("library.page", { page: page + 1, pages })}`), next.el);
+    footEl.append(prev.el, h("span", "lib-count", `${t("library.count", { shown: list.length, total: UNITS.filter((u) => hasUnitVisual(u.id)).length })} · ${t("library.page", { page: page + 1, pages })}`), next.el);
   }
 
   function showDetail(id: string) {
     clearCardTips();
     clearViewTips();
-    const found = UNITS.find((x) => x.id === id);
+    const found = UNITS.find((x) => x.id === id && hasUnitVisual(x.id));
     if (!found) return;
     const u: UnitDef = found; // non-optional binding: nested renderInfo keeps the narrowed type
     for (const c of cards) c.dispose();

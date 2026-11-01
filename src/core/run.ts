@@ -1,6 +1,7 @@
 // Canonical serializable run state + atomic Planning mutations (spec A1, A2, A3, A4).
 // Every mutation returns ok/false; a failed mutation leaves state untouched.
 import { getUnit, NORMAL_UNITS } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import {
   addXp, benchCapacity, deployCap, refreshCost, roundIncome, sellValue, shopTierOdds, xpBuyCost,
 } from "./economy";
@@ -207,7 +208,10 @@ function rollShop(s: RunState): void {
       r -= odds[i]!;
       if (r < 0) { tier = i + 1; break; }
     }
-    const pool = NORMAL_UNITS.filter((u) => u.tier === tier);
+    const tierPool = NORMAL_UNITS.filter((u) => u.tier === tier && hasUnitVisual(u.id));
+    // High tiers may have no finished visuals yet; keep the shop populated with the authored set
+    // instead of returning an empty slot.
+    const pool = tierPool.length ? tierPool : NORMAL_UNITS.filter((u) => hasUnitVisual(u.id));
     return pool[Math.floor(nextRandom(s) * pool.length)]?.id ?? null;
   });
 }
@@ -876,7 +880,7 @@ export function recruitFortressBeast(s: RunState, baseId: string): boolean {
   const pending = s.fortress.pendingNode;
   if (s.phase !== "PLANNING" || pending?.type !== "beast_den" || pending.serviceResult) return false;
   if (!pending.serviceOffers?.includes(baseId) || s.bench.length >= benchCap(s)) return false;
-  const def = NORMAL_UNITS.find((unit) => unit.id === baseId);
+  const def = NORMAL_UNITS.find((unit) => unit.id === baseId && hasUnitVisual(unit.id));
   if (!def) return false;
   const uid = allocateUid(s);
   const seed = nextUint32(s);
