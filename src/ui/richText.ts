@@ -7,6 +7,10 @@ export type RichTone = "physical" | "magic" | "true" | "heal" | "shield" | "elem
 
 export const richSpan = (text: string, tone: string): HTMLElement => h("span", `rich rich-${tone}`, text);
 
+/** Keywords read as a heading inside prose: only the first letter is uppercased (vi-aware). */
+export const capitalizeKeyword = (text: string): string =>
+  text ? text.charAt(0).toLocaleUpperCase("vi") + text.slice(1) : text;
+
 const PATTERNS: { re: RegExp; emoji: string; tone: RichTone | "auto" }[] = [
   { re: /\(\s*\d+(?:[.,]\d+)?\s*\+\s*\d+(?:[.,]\d+)?%\s*(?:ATK|MATK|DEF|MDEF|HP(?:\s+tối đa)?)\s*\)/gi, emoji: "", tone: "auto" },
   { re: /(?:Tự\s+)?[Hh]ồi\s+\d+(?:[.,]\d+)?%\s*HP(?:\s+tối đa)?/g, emoji: "💚", tone: "heal" },
@@ -46,7 +50,7 @@ export function decorateDescription(text: string, fallbackTone: RichTone = infer
     if (!best) { frag.append(text.slice(index)); break; }
     if (best.match.index > index) frag.append(text.slice(index, best.match.index));
     const tone = best.rule.tone === "auto" ? fallbackTone : best.rule.tone;
-    frag.append(richSpan(best.match[0], tone));
+    frag.append(richSpan(capitalizeKeyword(best.match[0]), tone));
     if (best.rule.emoji) frag.append(` ${best.rule.emoji}`);
     index = best.match.index + best.match[0].length;
   }
