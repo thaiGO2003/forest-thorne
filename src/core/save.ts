@@ -1,7 +1,7 @@
 // Persistence (A37, A57): versioned envelope, ordered migration, Continue inspection,
 // import/export, three distinct clear scopes, Co-op slot store.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
-import { getEquipment, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { normalizeEquipment, slotCapForUnit } from "./equipment";
 import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
 import { isGameMode, modeConfig } from "./modes";
 import { normalizeFortressState } from "./fortress";
@@ -9,7 +9,6 @@ import { normalizeCreativeSandboxUnits } from "./creative";
 import { normalizeAiMode } from "./encounter";
 import { normalizeTutorialState, TUTORIAL_END_ROUND } from "./tutorial";
 import { normalizeEnemyPreview } from "./preview";
-import { BASE_MATERIALS } from "./craft";
 import { AUGMENT_BY_ID } from "./augments";
 import { TECH_BY_ID, maxLevel } from "./tech";
 import { normalizeWeatherBlessingQueue } from "./blessings";
@@ -25,7 +24,7 @@ export const PROGRESS_KEY = "forest_throne_progress_v1";
 export const COOP_KEY = "forest_throne_coop_save_slots_v1";
 export const ACHIEVEMENTS_KEY = "forest_throne_endless_achievements_v1";
 export const COLLECTION_KEY = "forest_throne_collection_profile_v1";
-export const ENVELOPE_VERSION = 4;
+export const ENVELOPE_VERSION = 5;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
 
 /** Host-owned co-op round state mirrored into every player payload on save/migrate. */
@@ -74,16 +73,34 @@ export function createEnvelope(payload: RunPayload, extra: Partial<Envelope> = {
 /** Explicit removed-id replacements; never guess by name/species (A57.2). */
 export const UNIT_REPLACEMENTS: Record<string, string> = {};
 
-function sanitizeUnit(u: unknown, log: string[]): OwnedUnit | null {
-  if (!isObj(u) || typeof u.baseId !== "string" || typeof u.uid !== "string") return null;
+function recoverRemovedUnitEquipment(u: unknown, log: string[], itemBag: string[]): void {
+  if (!isObj(u) || !Array.isArray(u.equips)) return;
+  const ids = u.equips.filter((id): id is string => typeof id === "string");
+  if (!ids.length) return;
+  itemBag.push(...ids);
+  log.push(`recover removed unit equipment: returned ${ids.length} to itemBag`);
+}
+
+function sanitizeUnit(u: unknown, log: string[], recoveredEquipment: string[]): OwnedUnit | null {
+  if (!isObj(u) || typeof u.baseId !== "string" || typeof u.uid !== "string") {
+    recoverRemovedUnitEquipment(u, log, recoveredEquipment);
+    return null;
+  }
   const id = UNIT_BY_ID.has(u.baseId) ? u.baseId : UNIT_REPLACEMENTS[u.baseId];
-  if (!id || !UNIT_BY_ID.has(id)) { log.push(`drop unknown unit ${u.baseId}`); return null; }
+  if (!id || !UNIT_BY_ID.has(id)) {
+    recoverRemovedUnitEquipment(u, log, recoveredEquipment);
+    log.push(`drop unknown unit ${u.baseId}`);
+    return null;
+  }
   if (id !== u.baseId) log.push(`replace ${u.baseId} → ${id}`);
   const def = getUnit(id);
   const star = clampInt(u.star, 1, 3, 1) as 1 | 2 | 3;
   const rawEquips = Array.isArray(u.equips) ? u.equips.filter((e): e is string => typeof e === "string") : [];
   const equipment = normalizeEquipment(rawEquips, star, slotCapForUnit(def, star));
-  if (equipment.rejected.length) log.push(`normalize equipment ${u.uid}: dropped ${equipment.rejected.length}`);
+  if (equipment.rejected.length) {
+    recoveredEquipment.push(...equipment.rejected);
+    log.push(`normalize equipment ${u.uid}: returned ${equipment.rejected.length} to itemBag`);
+  }
   const rawTraits: VariantTraitRef[] = Array.isArray(u.traits)
     ? u.traits.flatMap((v) => isObj(v) && typeof v.id === "string" ? [{ id: v.id, seed: Number(v.seed) }] : [])
     : [];
@@ -183,13 +200,14 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.winStreak = clampInt(p.winStreak, 0, Number.MAX_SAFE_INTEGER, 0);
   p.loseStreak = clampInt(p.loseStreak, 0, Number.MAX_SAFE_INTEGER, 0);
   p.rngSeed = Number.isFinite(Number(p.rngSeed)) ? Number(p.rngSeed) | 0 : 1;
-  const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
+  // Unknown legacy IDs retain identity and capacity; only gameplay transactions reject them.
   p.itemBag = Array.isArray(p.itemBag)
-    ? p.itemBag.filter((id): id is string => typeof id === "string" && validBagItem(id)) : [];
-  p.board = Array.isArray(p.board) ? p.board.map((u) => (u ? sanitizeUnit(u, log) : null)) : [];
-  p.board = p.board.slice(0, 25);
+    ? p.itemBag.filter((id): id is string => typeof id === "string") : [];
+  const savedBoard = Array.isArray(p.board) ? p.board : [];
+  p.board = savedBoard.slice(0, 25).map((u) => (u ? sanitizeUnit(u, log, p.itemBag) : null));
+  for (let i = 25; i < savedBoard.length; i++) recoverRemovedUnitEquipment(savedBoard[i], log, p.itemBag);
   while (p.board.length < 25) p.board.push(null);
-  p.bench = Array.isArray(p.bench) ? p.bench.map((u) => sanitizeUnit(u, log)).filter((u): u is OwnedUnit => !!u) : [];
+  p.bench = Array.isArray(p.bench) ? p.bench.map((u) => sanitizeUnit(u, log, p.itemBag)).filter((u): u is OwnedUnit => !!u) : [];
   p.shop = Array.isArray(p.shop) ? p.shop.map((id) => (typeof id === "string" && UNIT_BY_ID.has(id) ? id : null)) : [];
   const savedShopLength = Math.min(20, Math.max(5, p.shop.length));
   p.shopSlotCount = clampInt(p.shopSlotCount, savedShopLength, 20, savedShopLength);
@@ -268,6 +286,7 @@ export function migrate(raw: unknown): MigrateResult | null {
     const log: string[] = [];
     // v1→v2: level into 1..25 (old >9 allowed, clamped to 25). v2→v3: legacy archived-roster cleanup is NOT applied.
     // v3→v4: archived ids kept when present in the live catalog — handled by sanitizeUnit below.
+    // v4→v5: preserve unrecognized item IDs and duplicates while rejecting malformed non-string values.
     if (from < 2) for (const p of playersOf(payload)) p.level = clampInt(p.level, 1, 25, 1);
     const before = JSON.stringify(payload);
     for (const p of playersOf(payload)) sanitizePlayer(p, log);

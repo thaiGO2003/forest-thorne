@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NORMAL_UNITS } from "../src/content/catalog";
 import {
   autoMerge, benchToBench, benchToBoard, boardToBench, boardToBoard, buy, canBenchToBench, canBenchToBoard, canBoardToBench,
-  canBoardToBoard, createRun, equipItem, refresh, sell, sellItem, startCombat, unequipAll, unequipItem,
+  canBoardToBoard, craftRunItem, createRun, equipItem, refresh, sell, sellItem, stageRunCraftItem, startCombat, unequipAll, unequipItem,
   type OwnedUnit, type RunState,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
@@ -66,6 +66,24 @@ describe("run state", () => {
     ].sort());
     expect(m.uid).not.toBe("a");
   });
+
+  it("merge returns unknown future-version equipment without granting an equipped slot", () => {
+    const s = normalRun(1);
+    s.bench = [
+      unit("a", ["eq_future_item", "eq_blue_buff"]),
+      unit("b", ["eq_future_item"]),
+      unit("c", ["eq_blue_buff"]),
+    ];
+    expect(autoMerge(s)).toBe(1);
+    expect(s.bench).toHaveLength(1);
+    const merged = s.bench[0]!;
+    expect(merged.star).toBe(2);
+    expect(merged.equips).toEqual(["eq_blue_buff"]);
+    expect([...merged.equips, ...s.itemBag].sort()).toEqual([
+      "eq_future_item", "eq_blue_buff", "eq_future_item", "eq_blue_buff",
+    ].sort());
+  });
+
 
   it("merge prefers first board location and chains 9 copies into 3★", () => {
     const s = normalRun(1);
@@ -222,4 +240,76 @@ describe("run state", () => {
     expect(sellItem(s, s.itemBag.indexOf("eq_warmog_armor"))).toBe(true);
     expect(s.gold).toBe(bagGold + 4);
   });
+
+  it("sellItem fails closed for unknown IDs without changing the run or item ownership", () => {
+    for (const unknownId of ["unregistered_material", "eq_unregistered_armor"]) {
+      const s = normalRun(1);
+      s.bench = [unit("owner", ["eq_blue_buff"])];
+      s.itemBag = ["tear", unknownId, "tear", "eq_warmog_armor"];
+      const before = snap(s);
+      const gold = s.gold;
+      const bag = [...s.itemBag];
+      const equipped = [...s.bench[0]!.equips];
+
+      expect(sellItem(s, 1)).toBe(false);
+      expect(snap(s)).toBe(before);
+      expect(s.gold).toBe(gold);
+      expect(s.itemBag).toEqual(bag);
+      expect(s.bench[0]?.equips).toEqual(equipped);
+    }
+  });
+
+  it("sellItem consumes exactly one known material for one gold", () => {
+    const s = normalRun(1);
+    s.itemBag = ["tear", "eq_blue_buff", "tear"];
+    const gold = s.gold;
+
+    expect(sellItem(s, 2)).toBe(true);
+    expect(s.itemBag).toEqual(["tear", "eq_blue_buff"]);
+    expect(s.gold).toBe(gold + 1);
+  });
+
+  it("sellItem uses authored equipment tier sale values", () => {
+    const s = normalRun(1);
+    s.itemBag = ["eq_blue_buff", "eq_warmog_armor"];
+    const gold = s.gold;
+
+    expect(sellItem(s, 0)).toBe(true);
+    expect(s.itemBag).toEqual(["eq_warmog_armor"]);
+    expect(s.gold).toBe(gold + 1); // Tier 1
+    expect(sellItem(s, 0)).toBe(true);
+    expect(s.itemBag).toEqual([]);
+    expect(s.gold).toBe(gold + 5); // Tier 2 adds 4
+  });
+
+  it("equipItem rejects an unknown equipment ID without changing the run", () => {
+    const s = normalRun(1);
+    s.bench = [unit("owner")];
+    s.itemBag = ["eq_unregistered_armor", "eq_blue_buff"];
+    const before = snap(s);
+
+    expect(equipItem(s, "eq_unregistered_armor", "bench", 0)).toBe(false);
+    expect(snap(s)).toBe(before);
+    expect(s.itemBag).toEqual(["eq_unregistered_armor", "eq_blue_buff"]);
+    expect(s.bench[0]?.equips).toEqual([]);
+  });
+  it("retains unknown legacy IDs without allowing sale, equipment or crafting consumption", () => {
+    const s = normalRun(33);
+    s.craftTableLevel = 1;
+    s.bench = [unit("legacy-target")];
+    s.itemBag = ["legacy_piece", "tear", "legacy_piece"];
+    const before = snap(s);
+    expect(sellItem(s, 0)).toBe(false);
+    expect(equipItem(s, "legacy_piece", "bench", 0)).toBe(false);
+    expect(stageRunCraftItem(s, Array(9).fill(null), 4, "legacy_piece")).toBeNull();
+    expect(stageRunCraftItem(s, Array(9).fill(null), 4, "bark")).toBeNull();
+    expect(snap(s)).toBe(before);
+
+    const staged = stageRunCraftItem(s, Array(9).fill(null), 4, "tear");
+    expect(staged?.[4]).toBe("tear");
+    expect(s.itemBag).toEqual(["legacy_piece", "tear", "legacy_piece"]);
+    expect(craftRunItem(s, staged!)).toBe("eq_blue_buff");
+    expect(s.itemBag).toEqual(["legacy_piece", "legacy_piece", "eq_blue_buff"]);
+  });
+
 });

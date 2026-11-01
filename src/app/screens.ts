@@ -1,8 +1,8 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
 import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary } from "../core/run";
-import { RECIPES } from "../core/craft";
-import { getEquipment } from "../core/equipment";
+import { RECIPES, getEquipment } from "../core/itemRegistry";
+import { itemDisplayName } from "../core/itemPresentation";
 import { AUGMENT_BY_ID } from "../core/augments";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
 import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
@@ -73,12 +73,7 @@ function openReturnToMenuConfirm(app: App) {
   m.body.append(body);
 }
 
-const ITEM_COPY: Partial<Record<string, MsgKey>> = {
-  eq_warmog_armor: "item.eq_warmog_armor",
-  eq_blue_buff: "item.eq_blue_buff",
-  tear: "item.tear",
-};
-const itemName = (id: string) => ITEM_COPY[id] ? t(ITEM_COPY[id]!) : id;
+const itemName = itemDisplayName;
 const MOD_PACKAGE_TYPE_COPY: Record<ModPackageType, MsgKey> = {
   ".ftunit": "mods.packageType.ftunit",
   ".ftlogic": "mods.packageType.ftlogic",
@@ -783,7 +778,7 @@ function mountRecipes(host: HTMLElement) {
   const root = h("div", "choice-list");
   for (const recipe of RECIPES) {
     const row = h("div", "slot");
-    row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(`eq_${recipe.id}`)}`;
+    row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(recipe.outputId)}`;
     root.append(row);
   }
   host.append(root);

@@ -271,12 +271,14 @@ function reactionSpec(text: string, family: string): SkillReactionSpec {
   return out;
 }
 
-/**
- * Huyết Thố "Huyết Nộ Bộc Phá": burst hit + self frenzy + delayed curse, resolved by the combat engine
- * (combat.ts, castFrenzy). The authored damage formula is kept for the burst and the preview; the
- * sacrifice/lifesteal prose is player-facing only and must not run through the generic cast path.
- */
+/** Huyết Thỏ "Huyết Nộ Bộc Phá": burst hit + self frenzy + delayed curse, resolved by the combat engine. */
 export const FRENZY_FAMILY = "blood_moon_frenzy";
+
+/**
+ * Cóc Độc "Sương Độc": pooled area denial resolved by the combat engine (combat.ts, spore pools).
+ * Its authored text describes the mechanic for players only; numbers live in the engine constants.
+ */
+export const SPORE_FAMILY = "toad_spore_mist";
 
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
@@ -290,8 +292,16 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const s = parseSkill(detail);
   s.reaction = reactionSpec(detail, u.skill.family);
   if (u.skill.family === FRENZY_FAMILY) {
+    // The burst and the frenzy numbers live in the engine; the prose must not hit the generic cast path.
     Object.assign(s, {
       side: "enemy", area: "single", count: 1, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === SPORE_FAMILY) {
+    // The prose mentions a damage formula and a heal; none of it may run through the generic cast path.
+    Object.assign(s, {
+      side: "enemy", area: "all", count: 1, damage: null, dots: [], controls: [], heal: null, hot: null,
       selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }

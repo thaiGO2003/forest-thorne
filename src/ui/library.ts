@@ -2,9 +2,9 @@
 // 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
-import { BASE_MATERIALS, RECIPES } from "../core/craft";
+import { BASE_MATERIALS, RECIPES, EQUIPMENT } from "../core/itemRegistry";
+import { itemDisplayName } from "../core/itemPresentation";
 import { shopTierOdds } from "../core/economy";
-import { EQUIPMENT } from "../core/equipment";
 import { AUGMENTS, type AugGroup } from "../core/augments";
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
@@ -35,9 +35,6 @@ const TABS: readonly { id: LibraryTab; name: string }[] = [
   { id: "augments", name: "Chúc phúc" },
   { id: "odds", name: "Xác suất cửa hàng" },
 ];
-const MATERIAL_NAMES: Record<string, string> = {
-  bark: "Vỏ cây", feather: "Lông vũ", belt: "Đai", claw: "Vuốt", tear: "Nước mắt", crystal: "Pha lê",
-};
 const AUGMENT_GROUPS: Record<AugGroup, string> = {
   ECONOMY: "Kinh tế", FORMATION: "Đội hình", COMBAT: "Giao tranh", SYNERGY: "Cộng hưởng",
 };
@@ -138,12 +135,10 @@ export function mountLibrary(
       icon.loading = "lazy";
       heading?.prepend(icon);
     };
-    const nameOfEquipment = (id: string) => id === "eq_blue_buff"
-      ? t("item.eq_blue_buff")
-      : id === "eq_warmog_armor" ? t("item.eq_warmog_armor") : id;
+    const nameOfEquipment = itemDisplayName;
     if (tab === "materials") {
       entry("Danh mục nguyên liệu", "Các nguyên liệu có thể sử dụng trên bàn chế tạo.");
-      for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? id);
+      for (const id of BASE_MATERIALS) iconEntry(id, itemDisplayName(id));
     } else if (tab === "equipment") {
       for (const item of EQUIPMENT) {
         const bonuses = Object.entries(item.bonuses).map(([key, value]) => `${key}: ${value}`);
@@ -155,9 +150,9 @@ export function mountLibrary(
         const lines = [];
         for (let row = 0; row < recipe.size; row++) {
           lines.push(recipe.pattern.slice(row * recipe.size, (row + 1) * recipe.size)
-            .map((id) => id ? MATERIAL_NAMES[id] ?? id : "Ô trống").join(" · "));
+            .map((id) => id ? itemDisplayName(id) : "Ô trống").join(" · "));
         }
-        iconEntry(`eq_${recipe.id}`, nameOfEquipment(`eq_${recipe.id}`), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
+        iconEntry(recipe.outputId, nameOfEquipment(recipe.outputId), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
       }
     } else if (tab === "augments") {
       const picker = h("select", "lib-input");

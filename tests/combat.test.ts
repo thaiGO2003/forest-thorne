@@ -49,6 +49,59 @@ describe("combat", () => {
     expect(turnOrder(fs).map((f) => f.uid)).toEqual(["b", "d", "a", "c"]);
   });
 
+  it("schedules every fighter sharing a scan cell with stable UID ties", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "zeta", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "alpha", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+      ],
+      [{ uid: "right", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    const expected = ["alpha", "right", "zeta"];
+    expect(turnOrder(fighters).map((fighter) => fighter.uid)).toEqual(expected);
+
+    const result = runCombat(fighters, { seed: 29, rageGain: { L: 0, R: 0 } });
+    const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    expect(cycleTwo).toBeGreaterThan(0);
+    const acted = result.events.slice(1, cycleTwo)
+      .filter((event) => event.t === "basic" || event.t === "miss" || event.t === "skip")
+      .map((event) => "src" in event ? event.src : "");
+    expect(acted).toEqual(expected);
+    expect(result.actions).toBe(60);
+  });
+
+  it("rejects malformed coordinates instead of aliasing a valid scan cell", () => {
+    const base = materializeOne({ uid: "left", baseId: ids[0]!, star: 1, row: 0, col: 4 }, "L");
+    const right = materializeOne({ uid: "right", baseId: ids[0]!, star: 1, row: 0, col: 5 }, "R");
+    for (const [col, row] of [[3, 5], [4, -1], [5, 0], [4.5, 0], [4, NaN]]) {
+      const left = { ...base, col, row };
+      expect(() => turnOrder([left, right])).toThrow(/Invalid combat position/);
+      expect(() => runCombat([left, right], { seed: 19 })).toThrow(/Invalid combat position/);
+    }
+  });
+
+  it("rejects duplicate fighter identities before queuing any attacks", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "duplicate", baseId: ids[0]!, star: 1, row: 0, col: 4 },
+        { uid: "duplicate", baseId: ids[0]!, star: 1, row: 0, col: 4 },
+      ],
+      [{ uid: "right", baseId: ids[0]!, star: 1, row: 0, col: 5 }],
+    );
+    expect(() => turnOrder(fighters)).toThrow(/Duplicate combat UID: duplicate/);
+    expect(() => runCombat(fighters, { seed: 19 })).toThrow(/Duplicate combat UID: duplicate/);
+    fighters[1]!.uid = "unique";
+    fighters[2]!.uid = "duplicate";
+    expect(() => turnOrder(fighters)).toThrow(/Duplicate combat UID: duplicate/);
+    expect(() => runCombat(fighters, { seed: 19 })).toThrow(/Duplicate combat UID: duplicate/);
+  });
+
   it("keeps empty-cell timing entries presentation-only for sparse scan positions", () => {
     const frontLeft: Placement[] = [{ uid: "left", baseId: "salamander_flame", star: 1, row: 0, col: 4 }];
     const frontRight: Placement[] = [{ uid: "right", baseId: "salamander_flame", star: 1, row: 0, col: 5 }];
@@ -115,28 +168,25 @@ describe("combat", () => {
     const result = runCombat(fighters, { seed: 29, rageGain: { L: 0, R: 0 } });
     const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
     expect(cycleTwo).toBeGreaterThan(0);
-    const chunks: string[][] = [];
-    let emptySlots: string[] = [];
-    for (const event of result.events.slice(1, cycleTwo)) {
-      if (event.t === "empty") emptySlots.push(`${event.side}${event.col}:${event.row}`);
-      if (event.t === "basic" || event.t === "miss" || event.t === "skip") {
-        chunks.push([...emptySlots, event.src]);
-        emptySlots = [];
-      }
-    }
-    expect(chunks).toEqual([
-      ["L-front-high"],
-      ["R5:0", "R5:1", "R-front"],
-      ["L4:1", "L4:2", "L-front-low"],
-      ["R5:3", "R5:4", "R6:0", "R6:1", "R6:2", "R6:3", "R-middle"],
-      ["L4:4", "L3:0", "L3:1", "L3:2", "L3:3", "L3:4", "L2:0", "L2:1", "L-back"],
-      ["R7:0", "R7:1", "R7:2", "R7:3", "R7:4", "R8:0", "R-back"],
+    const firstCycle = result.events.slice(1, cycleTwo);
+    const actionSources = firstCycle.flatMap((event) =>
+      event.t === "basic" || event.t === "miss" || event.t === "skip" ? [event.src] : []);
+    expect(actionSources).toEqual([
+      "L-front-high", "R-front", "L-front-low", "R-middle", "L-back", "R-back",
     ]);
-    expect(emptySlots).toEqual([
-      "L2:3", "L2:4", "L1:0", "L1:1", "L1:2", "L1:3", "L1:4",
-      "L0:0", "L0:1", "L0:2", "L0:3", "L0:4",
-      "R8:2", "R8:3", "R8:4", "R9:0", "R9:1", "R9:2", "R9:3", "R9:4",
-    ]);
+    const empties = firstCycle.filter((event) => event.t === "empty");
+    const emptyCells = empties.map((event) => `${event.side}${event.col}:${event.row}`);
+    expect(emptyCells).toHaveLength(44);
+    expect(new Set(emptyCells).size).toBe(44);
+    expect(emptyCells).not.toContain("L4:0");
+    expect(emptyCells).not.toContain("R5:2");
+    const firstRightAction = firstCycle.findIndex((event) =>
+      (event.t === "basic" || event.t === "miss") && event.src === "R-front");
+    expect(firstRightAction).toBeGreaterThan(0);
+    expect(firstCycle.slice(0, firstRightAction)
+      .filter((event) => event.t === "empty")
+      .map((event) => `${event.side}${event.col}:${event.row}`))
+      .toEqual(["R5:0", "R5:1"]);
   });
 
   it("stops after exactly 20 full cycles when both sides survive", () => {
@@ -188,6 +238,66 @@ describe("combat", () => {
     expect(burnEvents.map(({ index }) => cycleForEvent(index))).toEqual([1, 2]);
     expect(result.events.filter((event) => event.t === "cycle").length).toBeGreaterThan(2);
     expect(result.fighters.find((fighter) => fighter.uid === "burned")?.status.burn).toBeUndefined();
+  });
+
+  it("resolves lethal burn before scheduling and excludes the dead unit across cycles", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "burned", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "backup", baseId: "titan_earth", star: 1, row: 0, col: 3 },
+      ],
+      [{ uid: "enemy", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    fighters[0]!.hp = 3;
+    fighters[0]!.status.burn = { turns: 2, value: 7 };
+    const result = runCombat(fighters, { seed: 47, rageGain: { L: 0, R: 0 } });
+    const firstCycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    const firstCycle = result.events.slice(0, firstCycleTwo);
+    const burn = firstCycle.findIndex((event) => event.t === "dot" && event.dst === "burned");
+    const death = firstCycle.findIndex((event) => event.t === "death" && event.dst === "burned");
+    const firstAction = firstCycle.findIndex((event) => event.t === "basic" || event.t === "miss");
+    expect(burn).toBeGreaterThan(0);
+    expect(death).toBeGreaterThan(burn);
+    expect(firstAction).toBeGreaterThan(death);
+    expect(result.events.filter((event) => (event.t === "basic" || event.t === "miss" || event.t === "skip")
+      && event.src === "burned")).toHaveLength(0);
+    expect(result.events.filter((event) => event.t === "cycle")).toHaveLength(20);
+    expect(result.actions).toBe(40);
+  });
+
+  it("keeps a queued empty presentation slot when a fighter dies earlier in its cycle", () => {
+    const fighters = materializeCombat(
+      [{ uid: "left", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+      [
+        { uid: "fragile", baseId: "titan_earth", star: 1, row: 0, col: 5 },
+        { uid: "backup", baseId: "titan_earth", star: 1, row: 1, col: 6 },
+      ],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    fighters[0]!.atk = 100;
+    fighters[1]!.hp = 1;
+    const result = runCombat(fighters, { seed: 31, rageGain: { L: 0, R: 0 } });
+    const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    expect(cycleTwo).toBeGreaterThan(0);
+    const firstCycle = result.events.slice(1, cycleTwo);
+    const death = firstCycle.findIndex((event) => event.t === "death" && event.dst === "fragile");
+    const empty = firstCycle.findIndex((event) => event.t === "empty" && event.side === "R" && event.col === 5 && event.row === 0);
+    expect(death).toBeGreaterThanOrEqual(0);
+    expect(empty).toBeGreaterThan(death);
+    expect(firstCycle.filter((event) => (event.t === "basic" || event.t === "miss" || event.t === "skip")
+      && event.src === "fragile")).toHaveLength(0);
+    expect(firstCycle.some((event) => (event.t === "basic" || event.t === "miss") && event.src === "backup")).toBe(true);
   });
 
   it("is deterministic for identical input + seed", () => {

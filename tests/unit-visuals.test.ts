@@ -129,8 +129,10 @@ describe("Library combat-idle authored poses", () => {
     const relaxed = idlePose("toad_poison", false);
     const combat = idlePose("toad_poison", true);
     expect(relaxed.part("body").position.y).toBeCloseTo(0);
-    expect(combat.part("body").position.y).toBeCloseTo(-0.35);
-    expect(combat.part("head").rotation.x).toBeCloseTo(0.08);
+    // Combat crouch is a ground-anchored squash (a translation sank the belly into the tile).
+    expect(combat.part("body").scale.y).toBeLessThan(0.95);
+    expect(combat.part("body").scale.y).toBeLessThan(relaxed.part("body").scale.y - 0.05);
+    expect(combat.part("body").rotation.x).toBeGreaterThan(0); // leaning in, nose down
   });
 
   it("Báo Đốm Săn keeps inspection idle normally and uses its alert combat stance", () => {

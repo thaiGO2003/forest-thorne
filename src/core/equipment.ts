@@ -2,41 +2,7 @@
 // The rebuild source currently authors only two concrete equipment ids. Their bonus payloads
 // are intentionally empty until the missing recipe/item table is supplied; rules must not invent stats.
 import type { UnitDef } from "../content/catalog";
-
-export interface EquipmentBonuses {
-  hpPct?: number;
-  atkPct?: number;
-  matkPct?: number;
-  def?: number;
-  mdef?: number;
-  healPct?: number;
-  lifestealPct?: number;
-  evadePct?: number;
-  critPct?: number;
-  burnOnHit?: number;
-  poisonOnHit?: number;
-  startingShield?: number;
-  startingRage?: number;
-}
-
-export interface EquipmentDef {
-  id: string;
-  /** Stable duplicate key. Display/localized name is resolved elsewhere. */
-  nameKey: string;
-  tier: number;
-  unequipCost?: number;
-  bonuses: EquipmentBonuses;
-}
-
-export const EQUIPMENT: readonly EquipmentDef[] = [
-  { id: "eq_blue_buff", nameKey: "blue_buff", tier: 1, bonuses: {} },
-  { id: "eq_warmog_armor", nameKey: "warmog_armor", tier: 2, bonuses: {} },
-];
-
-export const EQUIPMENT_BY_ID: ReadonlyMap<string, EquipmentDef> = new Map(EQUIPMENT.map((item) => [item.id, item]));
-
-export const getEquipment = (id: string): EquipmentDef | null => EQUIPMENT_BY_ID.get(id) ?? null;
-export const isEquipment = (id: string): boolean => EQUIPMENT_BY_ID.has(id);
+import { getEquipment, type EquipmentBonuses, type EquipmentDef } from "./itemRegistry";
 
 export function equipmentSaleValue(tier: number): number {
   if (tier <= 1) return 1;

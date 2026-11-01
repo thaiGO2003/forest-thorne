@@ -1,6 +1,7 @@
 // Creative sandbox persistent unit model (spec A46). No rendering or input code lives here.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
-import { equipmentSaleValue, getEquipment, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { equipmentSaleValue, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { getEquipment } from "./itemRegistry";
 import type { Placement } from "./combat";
 import type { OwnedUnit } from "./run";
 import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
