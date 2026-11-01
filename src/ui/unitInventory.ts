@@ -28,7 +28,6 @@ export interface UnitInventoryModel {
 }
 export interface UnitInventoryIntents {
   getModel(): UnitInventoryModel | null;
-  select(): void;
   sell(): boolean;
   equip(itemId: string): boolean;
   unequip(index: number): boolean;
@@ -93,6 +92,26 @@ const variantBonusCopy = (bonuses: VariantBonuses): string => Object.entries(bon
   .filter(Boolean)
   .join(" · ");
 
+const richSpan = (text: string, tone: string): HTMLElement => h("span", `rich rich-${tone}`, text);
+const richLine = (...parts: Array<string | Node>): HTMLElement => {
+  const line = h("p", "ui-inventory-formula-line");
+  for (const part of parts) line.append(part);
+  return line;
+};
+/** Wrap authored damage formulas so the numbers carry the effect colour the panel headings use. */
+const colorizeFormulas = (text: string, tone: string): DocumentFragment => {
+  const frag = document.createDocumentFragment();
+  const pattern = /\((\d[\d.,]*)\s*\+\s*([\d.,]+)%\s*(ATK|MATK|DEF|MDEF|HP(?: tối đa)?)\)/g;
+  let last = 0;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    if (match.index > last) frag.append(text.slice(last, match.index));
+    frag.append(richSpan(match[0], tone));
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) frag.append(text.slice(last));
+  return frag;
+};
+
 /** The owned inventory and read-only enemy inspection share the same DOM, kit and stat painters. */
 function createInventoryView(modal: ModalHandle, portraits: Portraits, getDisplay: () => InventoryDisplay, readonly = false) {
   const initial = getDisplay();
@@ -145,31 +164,43 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
 
   const renderSkill = (star: number) => {
     const rageCost = unit.skill.rageCost[star - 1] ?? unit.skill.rageCost[0];
-    skillRage.textContent = t("unit.rage", { cost: rageCost });
+    skillRage.textContent = `${ICONS.rage} ${t("unit.rage", { cost: rageCost })}`;
     skillMeta.textContent = [unit.skill.targetVi, unit.skill.shapeVi, unit.skill.selectionVi, unit.skill.countVi, unit.skill.durationVi]
       .filter(Boolean).join(" · ");
     const spec = skillSpec(unit.id, star);
     const statKey = (key: string) => t(`inventory.${key}` as MsgKey);
     const formula = (f: { base: number; scale: number; stat: string }) =>
       t("inventory.formula", { base: fmt(f.base), scale: fmt(Math.round(f.scale * 100)), stat: statKey(f.stat) });
-    const rows: string[] = [];
-    if (spec.damage) rows.push(`${formula(spec.damage)} · ${t(`inventory.${spec.damage.type}` as MsgKey)}`);
-    if (spec.heal?.formula) rows.push(`${t("inventory.healPct")}: ${formula(spec.heal.formula)}`);
-    if (spec.shield) rows.push(`${t("inventory.shield")}: ${formula(spec.shield)}`);
-    for (const dot of spec.dots) rows.push(`${t(`inventory.${dot.kind}` as MsgKey)}: ${fmt(dot.value)}/lượt · ${t("inventory.turns", { turns: dot.turns })}`);
-    for (const control of spec.controls) rows.push(`${t(`inventory.${control.kind}` as MsgKey)} · ${t("inventory.turns", { turns: control.turns })}`);
-    for (const mod of [...spec.buffs, ...spec.debuffs]) {
-      rows.push(`${mod.value >= 0 ? "+" : ""}${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`);
+    const rows: HTMLElement[] = [];
+    if (spec.damage) {
+      rows.push(richLine(`${spec.damage.type === "magic" ? ICONS.matk : spec.damage.type === "true" ? "✨" : ICONS.atk} `,
+        richSpan(formula(spec.damage), spec.damage.type), ` · ${t(`inventory.${spec.damage.type}` as MsgKey)}`));
     }
-    skillFormula.replaceChildren(...rows.map((line) => h("p", "", line)));
-    skillDescription.textContent = unit.skill.starDetailVi[star - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
-    milestones.replaceChildren(h("h4", "", t("inventory.starMilestones")));
+    if (spec.heal?.formula) rows.push(richLine(`💚 ${t("inventory.healPct")}: `, richSpan(formula(spec.heal.formula), "heal")));
+    if (spec.shield) rows.push(richLine(`🛡️ ${t("inventory.shield")}: `, richSpan(formula(spec.shield), "shield")));
+    for (const dot of spec.dots) {
+      const icon = dot.kind === "burn" ? "🔥" : dot.kind === "poison" ? "☠️" : dot.kind === "disease" ? "🦠" : "🩸";
+      rows.push(richLine(`${icon} ${t(`inventory.${dot.kind}` as MsgKey)}: `, richSpan(`${fmt(dot.value)}/lượt`, "element"), ` · ${t("inventory.turns", { turns: dot.turns })}`));
+    }
+    for (const control of spec.controls) rows.push(richLine(`💫 ${t(`inventory.${control.kind}` as MsgKey)} · ${t("inventory.turns", { turns: control.turns })}`));
+    for (const mod of spec.buffs) rows.push(richLine(`💪 +${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`));
+    for (const mod of spec.debuffs) rows.push(richLine(`🥀 ${fmt(mod.value)}${mod.pct ? "%" : ""} ${statKey(mod.stat)} · ${t("inventory.turns", { turns: mod.turns })}`));
+    skillFormula.replaceChildren(...rows);
+    const tone = spec.damage?.type ?? (spec.heal ? "heal" : "magic");
+    const prose = unit.skill.starDetailVi[star - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
+    skillDescription.replaceChildren(colorizeFormulas(prose, tone));
+    milestones.replaceChildren(h("h4", "", `${ICONS.star} ${t("inventory.starMilestones")}`));
     for (let s = 1; s <= 3; s++) {
-      milestones.append(h("p", s === star ? "is-current" : "",
-        `${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}: ${unit.skill.starDetailVi[s - 1] ?? ""}`));
+      const entry = h("p", s === star ? "is-current" : "");
+      entry.append(`${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}: `,
+        colorizeFormulas(unit.skill.starDetailVi[s - 1] ?? "", tone));
+      milestones.append(entry);
     }
     const milestone = starStatMilestones(unit)[star - 1];
-    basicCopy.textContent = `${basicAttackCopy(unit).replace(/\.\s*$/, "")} · ${t("inventory.basicDamage")}: ${fmt(milestone?.basicDamage ?? 0)}`;
+    basicCopy.replaceChildren(
+      `${unit.basic.damageType === "magic" ? ICONS.matk : ICONS.atk} ${basicAttackCopy(unit).replace(/\.\s*$/, "")} · ${t("inventory.basicDamage")}: `,
+      richSpan(fmt(milestone?.basicDamage ?? 0), unit.basic.damageType),
+    );
   };
   renderSkill(initial.star);
 
@@ -407,7 +438,6 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     update();
   };
   const removeAll = kitButton({ skin: "wood", cls: "ui-inventory-action", onClick: () => execute(intents.unequipAll, "inventory.unequippedOk") });
-  const select = kitButton({ skin: "green", label: t("inventory.select"), cls: "ui-inventory-action", onClick: () => { intents.select(); modal.close(); } });
   const sell = kitButton({ skin: "red", cls: "ui-inventory-action", onClick: () => { confirmingSale = true; update(); confirm.el.focus(); } });
   const library = intents.openLibrary
     ? kitButton({
@@ -415,7 +445,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
       onClick: () => { modal.close(); intents.openLibrary?.(); },
     })
     : null;
-  footer.append(gold, removeAll.el, select.el, sell.el, ...(library ? [library.el] : []));
+  footer.append(gold, removeAll.el, sell.el, ...(library ? [library.el] : []));
   const saleHint = h("p", "ui-inventory-sale-hint", t("inventory.sellHint"));
   const confirmation = panel("ui-inventory-confirm");
   const confirmationText = h("p");
@@ -549,7 +579,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     disposed = true;
     view.dispose();
     library?.dispose();
-    for (const b of [removeAll, select, sell, confirm, cancel]) b.dispose();
+    for (const b of [removeAll, sell, confirm, cancel]) b.dispose();
   } };
 }
 

@@ -54,12 +54,25 @@
 .ui-inventory-stars { text-align: center; font-size: 22px; }
 .ui-inventory-identity { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; font-size: 12px; font-weight: 700; }
 .ui-inventory-profile > .ui-inventory-note { text-align: center; }
-.ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
+.ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.5; }
+.ui-inventory-skill > h3, .ui-inventory-passive > h3, .ui-inventory-basic > h3, .ui-inventory-section-head > h3 { margin: 0; text-align: left; }
+.ui-inventory-skill p, .ui-inventory-passive p, .ui-inventory-basic p { margin: 0; }
+.ui-inventory-formula { display: flex; flex-direction: column; gap: 4px; }
+.ui-inventory-formula-line { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.rich { font-weight: 800; }
+.rich-physical { color: #b23a2e; }
+.rich-magic { color: #7a4bb0; }
+.rich-true { color: #8a6a1f; }
+.rich-heal { color: #2f7d32; }
+.rich-shield { color: #2c6fa8; }
+.rich-element { color: #c0417e; }
+.rich-buff { color: #2f7d32; }
+.rich-debuff { color: #a3402f; }
 .ui-inventory-formula p { margin: 0; }
 .ui-inventory-milestones { display: flex; flex-direction: column; gap: 4px; }
 .ui-inventory-milestones h4 { margin: 2px 0 0; font-size: 11px; }
 .ui-inventory-milestones .is-current { outline: 2px solid rgba(255, 211, 107, .65); outline-offset: 2px; border-radius: 4px; }
-.ui-inventory-passive, .ui-inventory-basic { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
+.ui-inventory-passive, .ui-inventory-basic { padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ui-inventory-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }

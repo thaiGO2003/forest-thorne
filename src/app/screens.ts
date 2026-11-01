@@ -1078,7 +1078,6 @@ registerScreen("planning", (app) => {
   let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx; lowHpMusic: { dispose(): void } } | null = null;
   let resultFireworks: VictoryFireworks | null = null;
   let planningEnemyPreview: ReturnType<typeof bridge.prepareEnemyPreview> = null;
-  let selectedUid: string | null = null;
   let inventoryView: ReturnType<typeof mountUnitInventory> | null = null;
   let inventoryInspection: OwnedUnitInspection | null = null;
   let inventoryUid: string | null = null;
@@ -1104,7 +1103,6 @@ registerScreen("planning", (app) => {
           const current = live?.inspection ? snapshotWithResources(live.inspection, live, getUnit(inventoryInspection.unit.baseId).role) : inventoryInspection.boosted;
           return { run: state, inspection: inventoryInspection, current, inCombat: state.phase === "COMBAT" };
         },
-        select: () => { selectedUid = uid; board.setSelected?.(uid); },
         openLibrary: () => app.openPanel("library", inspection.unit.baseId),
         sell: () => withOwned(uid, (where, index) => bridge.sell(where, index)),
         equip: (itemId) => withOwned(uid, (where, index) => bridge.equip(itemId, where, index)),
@@ -1204,7 +1202,6 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
-    if (selectedUid && !findOwnedUnit(run, selectedUid)) { selectedUid = null; board.setSelected?.(null); }
     if (inventoryUid) { inventoryInspection = inspectOwnedUnit(run, inventoryUid); inventoryView?.update(); }
     const preview = bridge.prepareEnemyPreview();
     planningEnemyPreview = preview;

@@ -93,8 +93,9 @@ try {
     assert.equal(await modal.getByRole("button", { name: /Bán trang bị/ }).count(), 0);
     const bounds = await modal.boundingBox();
     assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width + 1 && bounds.y + bounds.height <= viewport.height + 1);
-    assert(await modal.getByRole("button", { name: "Chọn", exact: true }).isVisible());
+    assert(await modal.getByRole("button", { name: "Thư viện", exact: true }).isVisible());
     assert(await modal.getByRole("button", { name: /Bán thú/ }).isVisible());
+    assert.equal(await modal.getByRole("button", { name: "Chọn", exact: true }).count(), 0);
     const overflows = await modal.evaluate((element) => [...element.querySelectorAll(".ui-inventory-content,.ui-inventory-footer")].map((el) => el.scrollWidth > el.clientWidth + 1));
     assert.deepEqual(overflows, [false, false]);
     await page.waitForTimeout(300);
@@ -111,7 +112,7 @@ try {
     await modal.getByRole("button", { name: /Bán thú/ }).click();
     await modal.getByRole("button", { name: "Hủy", exact: true }).click();
     assert(await page.evaluate(() => Boolean(window.__app.bridge.run().board[12])));
-    await modal.getByRole("button", { name: "Chọn", exact: true }).click();
+    await page.keyboard.press("Escape");
     assert.equal(await page.locator('[data-modal="unit-inventory"]').count(), 0);
 
     // Re-open by instance and sell, checking the equipment refund and saved state.
