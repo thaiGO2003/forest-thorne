@@ -33,6 +33,8 @@ export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; a
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
 const PROJECTILE_COLOR = 0xffd36a;
+/** Billboard badge while a delayed curse holds debuffs (ICONS.lock); negative group, it is a curse. */
+const CURSE_LOCK_STATUS: BillboardStatus = { key: "lock", positive: false };
 /** Sương Độc presentation: purple pool landing, lime detonation (matches the concept VFX). */
 const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
 const PRESENTATION_ONLY = () => {};
@@ -43,7 +45,7 @@ export function playCombat(o: {
   inspectionFrames?: CombatInspectionFrame[];
 }): CombatPlayer {
   const { board, fx } = o;
-  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], spores: 0 }]));
+  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], locks: 0, spores: 0 }]));
   // Active Sương Độc pools per owner (cell keys), mirrored onto the board as hazard tiles.
   const hazards = new Map<string, Map<number, SporeCell>>();
   const hazardKey = (cell: SporeCell) => cell.row * 100 + cell.col;
@@ -93,7 +95,8 @@ export function playCombat(o: {
   const push = (uid: string) => {
     const unit = units.get(uid);
     if (unit) board.setLive(uid, {
-      hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax, statuses: unit.statuses,
+      hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax,
+      statuses: unit.locks > 0 ? [...unit.statuses, CURSE_LOCK_STATUS] : unit.statuses,
       counter: unit.spores > 0 ? { icon: ICONS.poison, value: unit.spores, max: SPORE_BURST_POINTS } : undefined,
     });
   };
@@ -365,6 +368,17 @@ export function playCombat(o: {
       case "skip":
         fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? ICONS.sleep, "status");
         break;
+      case "curse": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.locks = event.locked; push(event.dst); }
+        if (!event.released.length) {
+          if (event.locked > 0) fx.float(position(event.dst), `${ICONS.lock}${event.locked}`, "status");
+        } else {
+          const icons = event.released.map((key) => ICONS[key as keyof typeof ICONS] ?? ICONS.question).join("");
+          fx.float(position(event.dst), `${ICONS.unlock}${icons}`, "status");
+        }
+        break;
+      }
       case "sporeThrow": {
         // Pools appear on the caster's skill impact, like skill damage; immediately if no window is open.
         const land = () => {

@@ -4437,6 +4437,63 @@
   }
  },
  {
+  "id": "rabbit_blood",
+  "species": "tho",
+  "nameVi": "Huyết Thố",
+  "tier": 2,
+  "role": "FIGHTER",
+  "faction": "BEAST",
+  "element": "NIGHT",
+  "boss": false,
+  "stats": {
+   "hp": 320,
+   "atk": 72,
+   "def": 18,
+   "matk": 15,
+   "mdef": 15,
+   "range": 1,
+   "rageMax": 3,
+   "crit": 0.05,
+   "critDmg": 1.5,
+   "evade": 0.05,
+   "accuracy": 0.95
+  },
+  "pitchVi": "Đấu sĩ bộc phát: hy sinh thế thủ đổi lấy sát thương, hút máu bằng đòn đánh và trì hoãn lời nguyền.",
+  "basic": {
+   "delivery": "melee",
+   "damageType": "physical",
+   "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
+  },
+  "skill": {
+   "nameVi": "Huyết Nộ Bộc Phá",
+   "family": "blood_moon_frenzy",
+   "rageCost": [
+    2,
+    3,
+    4
+   ],
+   "targetVi": "mục tiêu đánh thường hiện tại + bản thân",
+   "shapeVi": "1 mục tiêu trước mặt; cuồng nộ trên bản thân",
+   "selectionVi": "Bùng nổ vào mục tiêu đánh thường hiện tại, rồi tự cường hóa.",
+   "countVi": "1 mục tiêu",
+   "durationVi": "cuồng nộ 2 lượt (3 lượt ở 3★)",
+   "starDetailVi": [
+    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 60% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.",
+    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 80% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.",
+    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 3 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 100% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết."
+   ]
+  },
+  "skin": {
+   "id": "bloodMoon",
+   "unlock": "locked",
+   "stagesVi": [
+    "Thỏ Đỏ",
+    "Huyết Thố",
+    "Huyết Nguyệt Vương"
+   ]
+  }
+ },
+ {
   "id": "ram_charge",
   "species": "cuu",
   "nameVi": "Cừu Núi Húc",

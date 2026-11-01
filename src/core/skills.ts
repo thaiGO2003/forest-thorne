@@ -271,6 +271,9 @@ function reactionSpec(text: string, family: string): SkillReactionSpec {
   return out;
 }
 
+/** Huyết Thỏ "Huyết Nộ Bộc Phá": burst hit + self frenzy + delayed curse, resolved by the combat engine. */
+export const FRENZY_FAMILY = "blood_moon_frenzy";
+
 /**
  * Cóc Độc "Sương Độc": pooled area denial resolved by the combat engine (combat.ts, spore pools).
  * Its authored text describes the mechanic for players only; numbers live in the engine constants.
@@ -288,6 +291,13 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
   s.reaction = reactionSpec(detail, u.skill.family);
+  if (u.skill.family === FRENZY_FAMILY) {
+    // The burst and the frenzy numbers live in the engine; the prose must not hit the generic cast path.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === SPORE_FAMILY) {
     // The prose mentions a damage formula and a heal; none of it may run through the generic cast path.
     Object.assign(s, {
@@ -303,7 +313,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   }
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
-    s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
+    // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
+    s.selector = u.skill.family === FRENZY_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
