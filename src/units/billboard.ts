@@ -2,6 +2,7 @@
 // segmented rage, ≤3 positive statuses (left) and ≤3 negative (right). Static chrome is kit art
 // (9/3-slice); only fills and text are dynamic. One canvas + texture per unit, redrawn on change.
 import * as THREE from "three";
+import type { Role } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { drawFit, kitImage, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
 
@@ -9,6 +10,7 @@ export interface BillboardStatus { key: string; positive: boolean }
 
 export interface BillboardState {
   name: string;
+  role?: Role;
   star: number;
   hp: number;
   maxHp: number;
@@ -24,6 +26,14 @@ const MAX_PER_SIDE = 3, MAX_SEGMENTS = 10;
 const WORLD_W = 1.85;
 const BASE_RENDER_ORDER = 10;
 const HOVER_RENDER_ORDER = 20;
+const ROLE_NAME_COLORS: Record<Role, string> = {
+  TANKER: "#83d8f2",
+  ASSASSIN: "#ff9ebd",
+  ARCHER: "#a9e374",
+  MAGE: "#c2a3ff",
+  SUPPORT: "#82e0bc",
+  FIGHTER: "#ffc56f",
+};
 
 export interface Normalized extends BillboardState { segments: number; filled: number; pos: string[]; neg: string[] }
 
@@ -103,7 +113,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     // Name + stars.
     const ally = s.side === "L";
     for (let i = 0; i < s.star; i++) drawFit(g, "star", 18 + i * 26, sy + 12, 24, 24);
-    label(g, s.name, 308, sy + 24, { size: 38, weight: 800, maxW: 390, fill: LABEL });
+    label(g, s.name, 308, sy + 24, { size: 38, weight: 800, maxW: 390, fill: s.role ? ROLE_NAME_COLORS[s.role] : LABEL });
 
     // HP bar with the heart and lightning readouts adjacent (no gutter between bar and readouts).
     const bx = 14, readoutW = 72, readoutGap = 6;
