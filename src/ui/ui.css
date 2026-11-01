@@ -364,30 +364,43 @@
 .info-order-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .info-order-actions { flex: none; }
 .info-order-actions .kit-btn { min-width: 64px; height: 30px; }
-.blessing-modal { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
-.blessing-head { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; flex: none; }
-.blessing-subtitle { margin: 0; font-size: 14px; letter-spacing: .08em; }
-.blessing-meta { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
-.blessing-chip { padding: 4px 12px; min-width: 110px; text-align: center; }
-.blessing-cards { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; overflow: auto; overscroll-behavior: contain; }
-.blessing-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 8px; padding: 14px; min-width: 0; align-content: start; }
-.blessing-art { display: grid; place-items: center; min-height: 72px; }
-.blessing-icon { font-size: 56px; line-height: 1; }
-.blessing-copy { display: flex; flex-direction: column; gap: 4px; text-align: center; min-width: 0; }
-.blessing-group { font-size: 12px; letter-spacing: .12em; font-weight: 800; }
-.blessing-title { margin: 0; font-size: 20px; line-height: 1.1; }
-.blessing-effect { margin: 0; font-size: 14px; line-height: 1.4; }
-.blessing-choose { width: 100%; min-width: 0; height: 46px; }
+/* Blessing choice (concept art 2026-10-31): tier-card frames + wood group bar + framed icon slot. */
+.blessing-modal { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+.blessing-head { display: flex; flex-direction: column; gap: 10px; flex: none; }
+.blessing-subtitle { margin: 0; font-family: "Noto Sans", sans-serif; font-size: 15px; letter-spacing: .10em; font-weight: 800; text-align: center; }
+.blessing-meta { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.blessing-chip { padding: 4px 14px; min-width: 96px; text-align: center; font-size: 12px; letter-spacing: .12em; font-weight: 800; }
+.blessing-cards { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; overflow: auto; overscroll-behavior: contain; }
+.blessing-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(5, auto); align-content: space-evenly; gap: 12px; padding: 16px 20px 18px; min-width: 0; }
+.blessing-group { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px; font-size: 13px; letter-spacing: .14em; font-weight: 800; text-align: center; }
+.blessing-slot { position: relative; display: grid; place-items: center; width: 150px; height: 150px; margin: 0 auto; }
+.blessing-icon { font-size: 96px; line-height: 1; }
+.blessing-slot > .blessing-star { position: absolute; top: -6px; right: -6px; font-size: 22px; line-height: 1; }
+.blessing-copy { display: flex; flex-direction: column; gap: 6px; text-align: center; min-width: 0; }
+.blessing-card .blessing-title { margin: 0; font-family: "Times New Roman", Times, serif; font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: .01em; }
+.blessing-effect { margin: 0; font-size: 15px; line-height: 1.4; }
+.blessing-rule { position: relative; height: 5px; margin: 0 2px; overflow: hidden; }
+.blessing-choose { width: 100%; min-width: 0; height: 56px; }
 .blessing-footer { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; padding: 8px 12px; flex: none; }
 .blessing-footer strong { font-size: 13px; letter-spacing: .06em; }
 .blessing-footer small { font-size: 12px; }
 @media (max-width: 760px) {
-  .blessing-cards { grid-template-columns: minmax(0, 1fr); }
-  .blessing-card { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); align-items: center; padding: 10px; }
-  .blessing-art { min-height: 0; }
-  .blessing-icon { font-size: 40px; }
-  .blessing-copy { text-align: left; }
-  .blessing-choose { width: auto; min-width: 96px; padding: 0 8px; }
+  .blessing-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .blessing-card {
+    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas: "slot group" "slot copy" "slot rule" "slot choose";
+    column-gap: 10px; row-gap: 6px; align-items: start; align-content: start; padding: 10px 12px 12px;
+  }
+  .blessing-group { grid-area: group; min-height: 28px; font-size: 11px; }
+  .blessing-slot { grid-area: slot; width: 84px; height: 84px; margin: 0; }
+  .blessing-icon { font-size: 52px; }
+  .blessing-slot > .blessing-star { top: -4px; right: -4px; font-size: 14px; }
+  .blessing-copy { grid-area: copy; text-align: left; }
+  .blessing-rule { grid-area: rule; height: 4px; }
+  .blessing-choose { grid-area: choose; align-self: stretch; height: 44px; }
+  .blessing-card .blessing-title { font-size: 19px; }
+  .blessing-effect { font-size: 13px; }
 }
 .mods { min-height: 0; height: 100%; display: flex; flex-direction: column; }
 .mods-header { flex: none; }
@@ -915,4 +928,7 @@
   text-align: center;
   pointer-events: none;
 }
-.modal-frame:has(.blessing-modal) { width: min(1400px, 100%); }
+.modal-frame:has(.blessing-modal) { width: min(1400px, 100%); height: min(760px, 100%); }
+@media (max-width: 760px) {
+  .modal-frame:has(.blessing-modal) { height: 100%; }
+}

@@ -10,7 +10,7 @@ export type ButtonState = "normal" | "hover" | "pressed" | "disabled" | "selecte
 export const SLICE = {
   panel_parchment: 8, panel_wood: 8, panel_tooltip: 5, slot_well: 5,
   shell_billboard: 7, tile_status: 7, frame_bar: 3, frame_rage_cell: 2,
-  card: 8, btn: 6, btn_icon: 10, ribbon: 16,
+  card: 8, card_t2: 8, card_t3: 8, card_t4: 8, btn: 6, btn_icon: 10, ribbon: 16,
 } as const;
 
 /** Art-pixel → CSS-pixel factor. Integer keeps pixel art crisp. */
@@ -215,7 +215,9 @@ export function disposeSurfaceTree(root: HTMLElement): void {
   }
 }
 
-export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard";
+export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard"
+  /** Tier card art reused as tinted frames (green/blue/purple) for choice cards. */
+  | "card_t2" | "card_t3" | "card_t4";
 
 /** Panel host: element whose background chrome is a 9-sliced kit image. */
 export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {

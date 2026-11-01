@@ -27,7 +27,7 @@ import { createBoardView } from "../units/boardView";
 import { createPortraits } from "../units/portraits";
 import { createPlanningDragController } from "./planningDrag";
 import { getUnit } from "../content/catalog";
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, setEmojiRichText } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
 import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
@@ -1133,10 +1133,10 @@ function augmentChoiceCopy(id: string): string {
   return `${id} · ${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}`;
 }
 
-const BLESSING_COPY: Record<BlessingChoiceId, { group: MsgKey; title: MsgKey; effect: MsgKey; icon: string; skin: "green" | "blue" | "plum" }> = {
-  gold_cache: { group: "blessing.group.economy", title: "blessing.gold.title", effect: "blessing.gold.effect", icon: ICONS.gold, skin: "green" },
-  forest_order: { group: "blessing.group.formation", title: "blessing.deploy.title", effect: "blessing.deploy.effect", icon: ICONS.synergy, skin: "blue" },
-  opening_fury: { group: "blessing.group.combat", title: "blessing.rage.title", effect: "blessing.rage.effect", icon: ICONS.rage, skin: "plum" },
+const BLESSING_COPY: Record<BlessingChoiceId, { group: MsgKey; title: MsgKey; effect: MsgKey; icon: string; frame: "card_t2" | "card_t3" | "card_t4" }> = {
+  gold_cache: { group: "blessing.group.economy", title: "blessing.gold.title", effect: "blessing.gold.effect", icon: ICONS.gold, frame: "card_t2" },
+  forest_order: { group: "blessing.group.formation", title: "blessing.deploy.title", effect: "blessing.deploy.effect", icon: ICONS.leaf, frame: "card_t3" },
+  opening_fury: { group: "blessing.group.combat", title: "blessing.rage.title", effect: "blessing.rage.effect", icon: ICONS.FIRE, frame: "card_t4" },
 };
 
 function mountBlessingChoice(app: App, m: ModalHandle) {
@@ -1161,23 +1161,35 @@ function mountBlessingChoice(app: App, m: ModalHandle) {
     const cards = h("div", "blessing-cards");
     for (const def of BLESSING_CHOICES) {
       const copy = BLESSING_COPY[def.id];
-      const card = panelEl("panel_wood", "blessing-card");
-      const art = h("div", "blessing-art");
-      art.append(h("span", "blessing-icon", copy.icon));
+      // Tier-card art already ships green/blue/purple frames with a parchment interior, so the
+      // card chrome stays PNG 9-slice; only layout is CSS (asset-first, spec 2.3).
+      const card = panelEl(copy.frame, "blessing-card");
+      const group = panelEl("panel_wood", "blessing-group");
+      group.append(h("span", "", t(copy.group)));
+      const slot = panelEl("slot_well", "blessing-slot");
+      const star = h("span", "blessing-star");
+      star.setAttribute("aria-hidden", "true");
+      setEmojiRichText(star, ICONS.star);
+      const icon = h("span", "blessing-icon");
+      icon.setAttribute("aria-hidden", "true");
+      setEmojiRichText(icon, copy.icon);
+      slot.append(icon, star);
       const text = h("div", "blessing-copy");
       text.append(
-        h("span", "blessing-group", t(copy.group)),
         h("h3", "blessing-title", t(copy.title)),
         h("p", "blessing-effect", t(copy.effect)),
       );
+      const rule = h("div", "blessing-rule");
+      rule.setAttribute("aria-hidden", "true");
+      surface(rule, (g, w, hh) => threeSlice(g, "bar_trough", 1, 0, 0, w, hh));
       const choose = kitButton({
-        skin: copy.skin,
+        skin: "green",
         label: t("blessing.choose"),
         cls: "blessing-choose",
         aria: `${t(copy.title)} — ${t(copy.effect)}`,
         onClick: () => { if (app.bridge.chooseBlessing(def.id)) m.close(); },
       });
-      card.append(art, text, choose.el);
+      card.append(group, slot, text, rule, choose.el);
       cards.append(card);
     }
     const footer = panelEl("panel_parchment", "blessing-footer");
