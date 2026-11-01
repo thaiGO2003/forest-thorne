@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { FRENZY_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses, type EquipmentBonuses } from "./equipment";
@@ -89,8 +89,22 @@ export interface Fighter {
   counterTurns: number;
   phoenix: PhoenixReactionState;
   berserk: BerserkReactionState | null;
+  /** Huyết Thố delayed curse: debuffs suspended by the frenzy, returned one per basic attack. */
+  curse: CurseState | null;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
+}
+
+/** A debuff suspended by the delayed curse: it has no effect and does not tick until it returns. */
+export type LockedEffect =
+  | { kind: "status"; key: string; status: TimedStatus }
+  | { kind: "mod"; mod: StatMod & { stackKey?: string } };
+
+export interface CurseState {
+  /** Own turns left before every remaining locked effect returns at once. */
+  turns: number;
+  /** Oldest first: each basic attack returns the head of the queue. */
+  locked: LockedEffect[];
 }
 export function cloneFighter(fighter: Fighter): Fighter {
   return {
@@ -107,6 +121,12 @@ export function cloneFighter(fighter: Fighter): Fighter {
     } : null,
     phoenix: { ...fighter.phoenix },
     berserk: fighter.berserk ? { ...fighter.berserk } : null,
+    curse: fighter.curse ? {
+      turns: fighter.curse.turns,
+      locked: fighter.curse.locked.map((e) => e.kind === "status"
+        ? { kind: "status" as const, key: e.key, status: { ...e.status, source: e.status.source ? { ...e.status.source } : undefined } }
+        : { kind: "mod" as const, mod: { ...e.mod } }),
+    } : null,
     env: { ...fighter.env },
   };
 }
@@ -148,7 +168,9 @@ export type CombatEvent =
   | { t: "status"; dst: string; kind: string; turns: number; source?: SkillStatusSource }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
-  | { t: "death"; dst: string };
+  | { t: "death"; dst: string }
+  /** Delayed curse: `locked` debuffs are suspended on `dst`; `released` names the ones that just returned. */
+  | { t: "curse"; dst: string; locked: number; released: string[] };
 
 export interface CombatResult {
   winner: Side | null;
@@ -288,7 +310,7 @@ function freshFighter(p: Placement, side: Side): Fighter {
     evade: Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (star - 1) * 0.05),
     lifesteal: 0, rageGainPct: 0, healPct: 0, onHitBurn: 0, onHitPoison: 0,
     status: {}, mods: [], tauntBy: null, casting: false,
-    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null,
+    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, curse: null,
     env: environmentMods(undefined, u.element),
   };
 }
@@ -1087,6 +1109,95 @@ interface CastSkillOptions {
   trigger?: AutoCastRole;
 }
 
+// ---------- Huyết Nộ Bộc Phá (blood_moon_frenzy) ----------
+
+/** Frenzy length in own turns, by star (same counting as other "N lượt" self buffs). */
+export const FRENZY_TURNS: readonly number[] = [0, 2, 2, 3];
+/** Lifesteal on every hit while frenzied, by star. */
+export const FRENZY_LIFESTEAL: readonly number[] = [0, 0.6, 0.8, 1];
+/** Sacrificed defences and gained attack, percent. */
+export const FRENZY_DEF_PCT = -30, FRENZY_MDEF_PCT = -30, FRENZY_ATK_PCT = 40;
+
+/** Every timed status except healing-over-time is harmful to its bearer. */
+const isHarmfulStatus = (key: string) => key !== "hot";
+
+/**
+ * Suspend every debuff on `f` (harmful statuses and negative stat mods) into its curse queue. Locked
+ * statuses are removed from `f.status`, so they neither apply nor tick; the billboard is told they ended.
+ */
+function lockCurse(c: Ctx, f: Fighter, turns: number) {
+  const curse: CurseState = f.curse ?? { turns, locked: [] };
+  curse.turns = Math.max(curse.turns, turns);
+  for (const [key, status] of Object.entries(f.status)) {
+    if (!isHarmfulStatus(key) || !(status.turns > 0)) continue;
+    curse.locked.push({ kind: "status", key, status });
+    delete f.status[key];
+    c.events.push({ t: "status", dst: f.uid, kind: key, turns: 0 });
+  }
+  const kept: Mod[] = [];
+  for (const mod of f.mods) (mod.value < 0 ? curse.locked.push({ kind: "mod", mod }) : kept.push(mod));
+  f.mods = kept;
+  f.curse = curse;
+  c.events.push({ t: "curse", dst: f.uid, locked: curse.locked.length, released: [] });
+}
+
+/** Return up to `n` locked debuffs, oldest first. A returning status never shortens a newer one. */
+function releaseCurse(c: Ctx, f: Fighter, n: number) {
+  const curse = f.curse;
+  if (!curse?.locked.length || !f.alive) return;
+  const released: string[] = [];
+  for (let i = 0; i < n && curse.locked.length; i++) {
+    const e = curse.locked.shift()!;
+    if (e.kind === "status") {
+      const cur = f.status[e.key];
+      const status = cur && cur.turns >= e.status.turns ? cur : e.status;
+      f.status[e.key] = status;
+      const ev: Extract<CombatEvent, { t: "status" }> = { t: "status", dst: f.uid, kind: e.key, turns: status.turns };
+      if (status.source) ev.source = status.source;
+      c.events.push(ev);
+      released.push(e.key);
+    } else {
+      f.mods.push(e.mod);
+      released.push(`${e.mod.stat}Down`);
+    }
+  }
+  c.events.push({ t: "curse", dst: f.uid, locked: curse.locked.length, released });
+}
+
+/**
+ * Burst the current basic target with the authored formula, then frenzy: −30% DEF/MDEF, +40% ATK and
+ * star-scaled lifesteal on every hit for FRENZY_TURNS, while the delayed curse suspends current debuffs.
+ */
+function castFrenzy(c: Ctx, f: Fighter, preferred: Fighter | undefined, trigger?: AutoCastRole) {
+  const target = preferred?.alive && preferred.side !== f.side ? preferred : basicTarget(c, f);
+  const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
+  if (trigger) castEvent.trigger = trigger;
+  c.events.push(castEvent);
+  const d = f.skill.damage;
+  if (target && d) {
+    const raw = Math.round((d.base + statValue(f, d.stat) * d.scale) * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+    strike(c, f, target, raw, d.type, true);
+  }
+  if (!f.alive) return;
+  const turns = FRENZY_TURNS[f.star] ?? 2;
+  // Lock first: the frenzy's own defence sacrifice is a cost, not a curse.
+  lockCurse(c, f, turns);
+  const key = (stat: string) => `${FRENZY_FAMILY}:${stat}`;
+  applyMod(f, { stat: "def", value: FRENZY_DEF_PCT, pct: true, turns }, key("def"));
+  applyMod(f, { stat: "mdef", value: FRENZY_MDEF_PCT, pct: true, turns }, key("mdef"));
+  applyMod(f, { stat: "atk", value: FRENZY_ATK_PCT, pct: true, turns }, key("atk"));
+  f.berserk = {
+    turns,
+    lifestealPct: FRENZY_LIFESTEAL[f.star] ?? 0.6,
+    firstBasicMultiplier: 1,
+    firstBasicPending: false,
+    rageOnKill: 0,
+    extendTurnsOnKill: 0,
+    chainedBasicsOnKill: 0,
+    atkBuffStackKey: key("atk"),
+  };
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1100,6 +1211,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === FRENZY_FAMILY) {
+      castFrenzy(c, f, preferred, options.trigger);
+      return;
+    }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
     const targets = skillTargets(c, f, sp, preferred, supportSelfFallback);
     const fallbackSelfTarget = supportSelfFallback && targets.length === 1 && targets[0] === f;
@@ -1155,7 +1270,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (dead) {
         dead.alive = true;
         dead.hp = Math.max(1, Math.round(dead.maxHp * sp.revivePct));
-        dead.status = {}; dead.mods = []; dead.rage = 0;
+        dead.status = {}; dead.mods = []; dead.rage = 0; dead.curse = null;
         c.events.push({ t: "revive", src: f.uid, dst: dead.uid, hp: dead.hp });
       }
     }
@@ -1235,6 +1350,11 @@ function startCycle(c: Ctx) {
 
 /** A79: capture control state first, then resolve timed triggers and one canonical duration tick. */
 function startTurn(c: Ctx, f: Fighter): TurnGate {
+  // Delayed curse expiry: everything still locked comes back before control state is read.
+  if (f.curse && --f.curse.turns <= 0) {
+    releaseCurse(c, f, Infinity);
+    f.curse = null;
+  }
   const skip = CONTROL_PRIORITY.find((k) => (f.status[k]?.turns ?? 0) > 0) ?? null;
   const silenced = (f.status.silence?.turns ?? 0) > 0;
   const disarmed = (f.status.disarm?.turns ?? 0) > 0;
@@ -1283,6 +1403,8 @@ function act(c: Ctx, f: Fighter) {
     return;
   }
   basicAttack(c, f, target);
+  // Delayed curse: each basic attack the frenzied unit makes returns its oldest locked debuff.
+  if (f.curse) releaseCurse(c, f, 1);
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
 }
 

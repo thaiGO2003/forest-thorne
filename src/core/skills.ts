@@ -271,6 +271,13 @@ function reactionSpec(text: string, family: string): SkillReactionSpec {
   return out;
 }
 
+/**
+ * Huyết Thố "Huyết Nộ Bộc Phá": burst hit + self frenzy + delayed curse, resolved by the combat engine
+ * (combat.ts, castFrenzy). The authored damage formula is kept for the burst and the preview; the
+ * sacrifice/lifesteal prose is player-facing only and must not run through the generic cast path.
+ */
+export const FRENZY_FAMILY = "blood_moon_frenzy";
+
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
 export function skillSpec(baseId: string, star: number): SkillSpec {
@@ -282,6 +289,12 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
   s.reaction = reactionSpec(detail, u.skill.family);
+  if (u.skill.family === FRENZY_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -290,7 +303,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   }
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
-    s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
+    // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
+    s.selector = u.skill.family === FRENZY_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
