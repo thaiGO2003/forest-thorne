@@ -5,6 +5,8 @@ import * as THREE from "three";
 import { RIVER_X, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
 import type { EnvironmentId } from "../core/environment";
 import type { DayNightPhase } from "../core/dayNight";
+import { patchWaterfallSheet, type WaterUniforms } from "./water";
+import { patchFoliageSway, type FoliageUniforms } from "./foliage";
 
 /** Rings of terrain beyond the bench slab. */
 const REACH = 34;
@@ -30,6 +32,8 @@ export function createScenery(
   own: Own,
   toWorld: (c: Cell) => { x: number; z: number },
   waterMat: THREE.Material,
+  /** Optional shader plumbing; when omitted (unit tests) the meshes stay plain materials. */
+  fx?: { water?: WaterUniforms; foliage?: FoliageUniforms },
 ): { setEnvironment(environment: EnvironmentId): void; setDayNight(phase: DayNightPhase): void; update(dt: number): void } {
   const rows = totalRows(p);
   // Bench slab in visual-cell space (see arena foundation).
@@ -162,6 +166,13 @@ export function createScenery(
     side: THREE.DoubleSide,
   }));
   const sheetGeo = own(new THREE.PlaneGeometry(1.9, 7.2));
+  // The sheet top is the plane centre plus half its height; streaks scale against that so the
+  // waterfall stays consistent if the sheet is ever re-proportioned.
+  if (fx?.water) {
+    fx.water.uSheetTop.value = 3.6 + 7.2 / 2;
+    fx.water.uSheetCenter.value = source.x;
+    patchWaterfallSheet(sheetMat, fx.water);
+  }
   const sheet = new THREE.Mesh(sheetGeo, sheetMat);
   sheet.name = "scenery-waterfall-sheet";
   sheet.position.set(source.x, 3.6, source.z - 1.25);
@@ -205,7 +216,9 @@ export function createScenery(
     return hash(c.cx, c.cz, 1) < density;
   });
   const trunks = instanced(forest.length, white(), "scenery-trunks");
-  const leaves = instanced(forest.length * 2, white(), "scenery-leaves");
+  const leafMat = white();
+  const leaves = instanced(forest.length * 2, leafMat, "scenery-leaves");
+  if (fx?.foliage) patchFoliageSway(leafMat, fx.foliage, 0.75);
   trunks.castShadow = leaves.castShadow = true;
   const treePlacement = (c: Column) => {
     const k = 0.8 + hash(c.cx, c.cz, 2) * 0.5;
