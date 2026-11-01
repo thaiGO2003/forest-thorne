@@ -5655,29 +5655,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Dồn độc cộng tầng lên một mục tiêu để càng lúc càng đau.",
+  "pitchVi": "Rải bãi độc khắp nửa sân địch, gom điểm độc rồi bùng nổ hút máu.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Nhổ Độc",
-   "family": "toad_poison_spit",
+   "nameVi": "Sương Độc",
+   "family": "toad_spore_mist",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "1 kẻ địch bị nhắm",
-   "shapeVi": "1 ô khóa mục tiêu",
-   "selectionVi": "Khóa 1 kẻ địch trong tầm rồi dồn độc lặp lại lên đúng mục tiêu đó.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "độc cộng dồn 2 lượt, tối đa 5 lớp",
+   "targetVi": "3 ô ngẫu nhiên ở nửa sân địch",
+   "shapeVi": "3 bãi độc, mỗi bãi 1 ô",
+   "selectionVi": "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch, không cần ô đó có thú.",
+   "countVi": "3 bãi độc mỗi lần ném",
+   "durationVi": "mỗi bãi tồn tại 2 vòng; bùng nổ khi đủ 5 điểm độc",
    "starDetailVi": [
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (15 + 0.60 x MATK) sát thương phép. Mỗi lần trúng cộng thêm 12 độc mỗi lượt trong 2 lượt lên mục tiêu, tối đa 5 lớp.",
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (16 + 0.63 x MATK) sát thương phép. Nếu mục tiêu đã có từ 3 lớp độc, đòn này gây thêm 30% sát thương và kéo dài độc thêm 1 lượt. Mỗi lần trúng cộng thêm 15 độc mỗi lượt trong 2 lượt lên mục tiêu, tối đa 5 lớp.",
-    "Nhổ bọt độc vào 1 kẻ địch bị nhắm, gây (17 + 0.66 x MATK) sát thương phép. Nếu mục tiêu có 5 lớp độc, độc bùng nổ gây thêm 50% sát thương phép và lan 1 lớp độc sang kẻ địch gần nhất. Mỗi lần trúng cộng thêm 18 độc mỗi lượt trong 3 lượt lên mục tiêu, tối đa 5 lớp."
+    "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch (ô không cần có thú), mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, mỗi kẻ địch đứng trên bãi cho Cóc Độc 1 điểm độc. Cuối vòng, khi đủ 5 điểm độc: bùng nổ, mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch đã tạo ra điểm đó, Cóc Độc hồi máu bằng 50% sát thương HP thực tế; các bãi đã bùng nổ biến mất.",
+    "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch (ô không cần có thú), mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, mỗi kẻ địch đứng trên bãi cho Cóc Độc 1 điểm độc. Cuối vòng, khi đủ 5 điểm độc: bùng nổ, mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch đã tạo ra điểm đó, Cóc Độc hồi máu bằng 50% sát thương HP thực tế; các bãi đã bùng nổ biến mất. Mỗi lần ném có thêm 20% khả năng ưu tiên rơi vào ô đang có thú.",
+    "Ném 3 bãi độc vào 3 ô ngẫu nhiên khác nhau ở nửa sân địch (ô không cần có thú), mỗi bãi tồn tại 2 vòng. Đầu mỗi vòng, mỗi kẻ địch đứng trên bãi cho Cóc Độc 1 điểm độc. Cuối vòng, khi đủ 5 điểm độc: bùng nổ, mỗi điểm gây (10 + 0.25 x MATK) sát thương phép lên kẻ địch đã tạo ra điểm đó, Cóc Độc hồi máu bằng 50% sát thương HP thực tế; các bãi đã bùng nổ biến mất. Mỗi lần ném có thêm 40% khả năng ưu tiên rơi vào ô đang có thú."
    ]
   },
   "skin": {
