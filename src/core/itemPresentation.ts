@@ -13,12 +13,12 @@ const ITEM_NAME_KEYS: Partial<Record<string, MsgKey>> = {
 };
 
 const ITEM_ICON_HOOKS: Readonly<Record<string, string>> = {
-  bark: "leaf",
-  feather: "wind",
-  belt: "shield",
-  claw: "swords",
-  tear: "droplet",
-  crystal: "sparkles",
+  bark: "materialBark",
+  feather: "materialFeather",
+  belt: "materialBelt",
+  claw: "materialClaw",
+  tear: "materialTear",
+  crystal: "materialCrystal",
   eq_blue_buff: "sparkles",
   eq_warmog_armor: "shield",
 };

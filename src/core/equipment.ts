@@ -53,11 +53,9 @@ export function defaultUnequipCost(tier: number): number {
 export const itemUnequipCost = (item: EquipmentDef, discount = 0): number =>
   Math.max(1, Math.round(item.unequipCost ?? defaultUnequipCost(item.tier)) - Math.max(0, Math.round(discount)));
 
-/** Star-aware slot capacity: resolved skill cost -> rageMax -> compatibility default 3. */
-export function slotCapForUnit(unit: UnitDef, star: number): number {
-  const index = Math.max(0, Math.min(2, Math.round(star) - 1));
-  const cap = unit.skill.rageCost[index] ?? unit.stats.rageMax ?? 3;
-  return Math.max(0, Math.round(cap));
+/** Equipment slots follow the unit's star: 1★ one slot, 2★ two, 3★ three (old-src rule). */
+export function slotCapForUnit(_unit: UnitDef, star: number): number {
+  return Math.max(1, Math.min(3, Math.round(Number.isFinite(star) ? star : 1)));
 }
 
 export interface NormalizedEquipment {

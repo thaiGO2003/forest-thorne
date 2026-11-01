@@ -83,9 +83,9 @@ describe("loot", () => {
     });
   });
   it("resolves canonical localized names and semantic icon hooks for loot items", () => {
-    expect(itemDisplayName("bark")).toBe("Vỏ Cây");
+    expect(itemDisplayName("bark")).toBe("Gỗ Cứng");
     expect(itemDisplayName("eq_blue_buff")).toBe("Bùa Xanh");
-    expect(itemSemanticIcon("bark")).toBe("leaf");
+    expect(itemSemanticIcon("bark")).toBe("materialBark");
     expect(itemSemanticIcon("eq_warmog_armor")).toBe("shield");
   });
 

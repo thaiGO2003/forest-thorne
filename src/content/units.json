@@ -1229,8 +1229,8 @@
    "family": "chromatic_dart_chain",
    "rageCost": [
     4,
-    4,
-    4
+    5,
+    6
    ],
    "targetVi": "một kẻ địch có % máu thấp nhất",
    "shapeVi": "chuỗi phi tiêu cùng một mục tiêu",
@@ -2075,8 +2075,8 @@
    "family": "alchemy_poison_cloud",
    "rageCost": [
     3,
-    3,
-    4
+    4,
+    5
    ],
    "targetVi": "3 kẻ địch khác nhau",
    "shapeVi": "mây độc phun ngẫu nhiên không trùng đích",

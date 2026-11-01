@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { materializeCombat } from "../src/core/combat";
 import { parseSkill, skillSpec } from "../src/core/skills";
+import { UNITS } from "../src/content/catalog";
 
 describe("skill parser", () => {
   it("multi-target damage with bleed duration", () => {
@@ -109,5 +110,13 @@ describe("skill parser", () => {
       debuffs: [{ stat: "mdef", value: 15, pct: false, turns: 2 }],
       heal: { formula: null, pctMaxHp: 0.06 }, selfHealPctMaxHp: 0,
     });
+  });
+
+  it("authored rage costs grow with every star", () => {
+    for (const unit of UNITS) {
+      const [star1, star2, star3] = unit.skill.rageCost;
+      expect(star1, unit.id).toBeLessThan(star2);
+      expect(star2, unit.id).toBeLessThan(star3);
+    }
   });
 });

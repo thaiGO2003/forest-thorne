@@ -331,6 +331,7 @@ export const ICONS = {
   synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
   social: "💬", donate: "💝", cortisol: "🧘",
   rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨", accuracy: "🎯", critDmg: "💢", variant: "🧬",
+  materialBark: "🪵", materialFeather: "🪶", materialBelt: "🧥", materialClaw: "🦷", materialTear: "💧", materialCrystal: "🔮",
   // Roles
   TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",
   // Factions
