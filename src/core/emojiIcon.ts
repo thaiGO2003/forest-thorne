@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { Role } from "../content/catalog";
 
 // A61. Emoji/icon authority and fallback behavior
 // Semantic icon names map to canonical Unicode characters and optional emoji-api slugs.
@@ -30,6 +31,9 @@ export const SEMANTIC_EMOJIS: Record<string, { char: string; slug?: string }> = 
   sparkle: { char: "❇️", slug: "sparkle" },
   zap: { char: "⚡", slug: "high-voltage" },
   bow: { char: "🏹", slug: "bow-and-arrow" },
+  fist: { char: "👊", slug: "oncoming-fist" },
+  dagger: { char: "🗡️", slug: "dagger-knife" },
+  axe: { char: "🪓", slug: "axe" },
   potion: { char: "🧪", slug: "test-tube" },
   hammer: { char: "🔨", slug: "hammer" },
   map: { char: "🗺️", slug: "world-map" },
@@ -334,6 +338,8 @@ export const ICONS = {
   materialBark: "🪵", materialFeather: "🪶", materialBelt: "🧥", materialClaw: "🦷", materialTear: "💧", materialCrystal: "🔮",
   // Roles
   TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",
+  // Action markers: the fist always means "basic attack"; skills use authored role weapons.
+  fist: SEMANTIC_EMOJIS.fist.char, dagger: SEMANTIC_EMOJIS.dagger.char, axe: SEMANTIC_EMOJIS.axe.char,
   // Factions
   BEAST: SEMANTIC_EMOJIS.paw.char, AVIAN: "🪶", INSECT: "🐞", REPTILE: "🦎", AQUATIC: "🐟", MYTHICAL: "🐉",
   // Elements
@@ -343,3 +349,19 @@ export const ICONS = {
   shield: "🛡️", taunt: "📣", healBlock: "🚫", atkUp: "💪", atkDown: "🥀", defUp: "🧱", defDown: "🪓",
   regen: "🌱", reflect: "🪞", immune: "✳️", disease: "🦠", slow: "🐌", haste: "⚡",
 } as const;
+
+/**
+ * Authored skill markers. The dagger belongs to ASSASSIN and the axe to FIGHTER so the two melee
+ * roles never share one glyph; every other role keeps its own weapon/identity marker.
+ */
+export const SKILL_ICONS: Record<Role, string> = {
+  TANKER: ICONS.TANKER,
+  ASSASSIN: ICONS.dagger,
+  ARCHER: ICONS.ARCHER,
+  MAGE: ICONS.MAGE,
+  SUPPORT: ICONS.SUPPORT,
+  FIGHTER: ICONS.axe,
+};
+
+/** Badge glyph for a basic attack, shared by board previews and every summary surface. */
+export const BASIC_ATTACK_ICON = ICONS.fist;

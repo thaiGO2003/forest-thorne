@@ -3,7 +3,7 @@
 // unit moving between cells keeps its rig, and are rebuilt only when identity or star changes.
 import * as THREE from "three";
 import { benchSlots, toVisual, type Profile } from "../board/geometry";
-import { getUnit, type Role } from "../content/catalog";
+import { getUnit } from "../content/catalog";
 import { STAR_STAT } from "../core/economy";
 import { ICONS, onEmojiAssetReady, preloadEmojiImage } from "../core/emojiIcon";
 import type { RunState } from "../core/run";
@@ -11,6 +11,7 @@ import type { CombatPreviewEffect, CombatPreviewTag, CombatTargetPreview } from 
 import { BLOCK, cellToWorld } from "../world/arena";
 import type { Stage } from "../world/stage";
 import { BILLBOARD_H, BILLBOARD_W, createBillboard, type Billboard, type BillboardState } from "./billboard";
+import { groupPreviewIcons } from "./previewIcons";
 import { label } from "../ui/kit";
 import { createUnit } from "./registry";
 import type { Star, UnitVisual } from "./rig";
@@ -31,7 +32,9 @@ const PREVIEW_STYLE: Record<CombatPreviewEffect, { color: number; opacity: numbe
 };
 const PREVIEW_BASIC = { color: 0xffd36b, opacity: .40 };
 const RAINBOW_STEP_MS = 50;
-const PREVIEW_ICON_SIZE = 0.46;
+const PREVIEW_ICON_SIZE = 0.42;
+/** Horizontal stride between stacked badges on the same tile (one world unit per tile). */
+const PREVIEW_ICON_GAP = 0.42;
 const PREVIEW_ICON_Y = 0.95;
 const HEAL_ARROW_SIZE = 0.5;
 
@@ -351,19 +354,6 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     return material;
   };
-  const previewIconChar = (tag: CombatPreviewTag, role?: Role): string => {
-    if (tag.kind === "basic") {
-      return role === "ARCHER" ? ICONS.ARCHER : role === "MAGE" ? ICONS.matk : role === "ASSASSIN" ? ICONS.ASSASSIN : ICONS.atk;
-    }
-    switch (tag.effect) {
-      case "heal": return ICONS.regen;
-      case "shield": return ICONS.shield;
-      case "buff": return ICONS.augment;
-      case "debuff": return ICONS.atkDown;
-      case "control": return ICONS.freeze;
-      default: return role === "MAGE" ? ICONS.matk : role === "ARCHER" ? ICONS.ARCHER : ICONS.atk;
-    }
-  };
   const drawPreviewIcon = (entry: PreviewIconMaterial) => {
     const g = entry.canvas.getContext("2d");
     if (!g) return;
@@ -479,28 +469,36 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     healTargetUids = [];
     if (activePreview) {
       const tags = previewTags(activePreview);
-      let iconIndex = 0;
       for (const tag of tags) {
         const s = slots.get(tag.uid);
         if (!s || s.kind === "bench" || s.row < 0) continue;
-        const style = previewStyle(tag.kind === "basic" ? "basic" : tag.effect);
         const material = previewMaterial(tag.kind === "basic" ? "basic" : tag.effect, tag.primary);
         const { key } = ensureTileEffect(s.col, s.row);
         const existing = previewCells.get(key);
         if (!existing || tag.primary || existing.priority < 2) {
           previewCells.set(key, { material, priority: tag.primary ? 2 : 1 });
         }
-        if (canDraw()) {
-          const icon = previewIconChar(tag, activePreview.actorRole);
-          const iconMaterial = ensurePreviewIconMaterial(icon, style.color);
-          const sprite = previewIcons[iconIndex] ?? createPreviewIconSprite();
-          previewIcons[iconIndex] = sprite;
-          sprite.material = iconMaterial.material;
-          sprite.visible = true;
-          sprite.position.set(s.x, PREVIEW_ICON_Y, s.z + .28);
-          iconIndex++;
-        }
         if (tag.effect === "heal") healTargetUids.push(tag.uid);
+      }
+      // One badge stack per affected unit: basic attacks always show the fist, so a target hit by
+      // both the basic and the skill carries both markers side by side instead of one replacing the other.
+      if (canDraw()) {
+        let iconIndex = 0;
+        for (const stack of groupPreviewIcons(tags, activePreview.actorRole)) {
+          const s = slots.get(stack.uid);
+          if (!s || s.kind === "bench" || s.row < 0) continue;
+          const count = stack.icons.length;
+          stack.icons.forEach((icon, index) => {
+            const style = previewStyle(icon.kind);
+            const iconMaterial = ensurePreviewIconMaterial(icon.char, style.color);
+            const sprite = previewIcons[iconIndex] ?? createPreviewIconSprite();
+            previewIcons[iconIndex] = sprite;
+            sprite.material = iconMaterial.material;
+            sprite.visible = true;
+            sprite.position.set(s.x + (index - (count - 1) / 2) * PREVIEW_ICON_GAP, PREVIEW_ICON_Y, s.z + .28);
+            iconIndex++;
+          });
+        }
       }
       ensureHealArrows(healTargetUids.length);
     } else {

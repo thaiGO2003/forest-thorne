@@ -6,7 +6,7 @@ import { BASE_MATERIALS, RECIPES } from "../core/craft";
 import { shopTierOdds } from "../core/economy";
 import { EQUIPMENT } from "../core/equipment";
 import { AUGMENTS, type AugGroup } from "../core/augments";
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
 import { basicAttackCopy } from "../core/unitText";
@@ -402,9 +402,9 @@ export function mountLibrary(
       const statSec = panelEl("panel_tooltip", "lib-sec");
       statSec.append(h("h3", "lib-h", t("library.stars")), table);
       info.append(statSec);
-      sec(`${u.basic.damageType === "magic" ? ICONS.matk : ICONS.atk} ${t("library.basic")}`, basicAttackCopy(u));
+      sec(`${ICONS.fist} ${t("library.basic")}`, basicAttackCopy(u));
       const s = u.skill;
-      sec(`${ICONS.rage} ${t("library.skill")}: ${s.nameVi} (${t("unit.rage", { cost: s.rageCost[star - 1] ?? s.rageCost[0] })})`,
+      sec(`${SKILL_ICONS[u.role]} ${t("library.skill")}: ${s.nameVi} (${t("unit.rage", { cost: s.rageCost[star - 1] ?? s.rageCost[0] })})`,
         s.starDetailVi[star - 1] ?? s.detailVi,
         s.targetVi && `${ICONS.range} ${t("library.target")}: ${s.targetVi}`,
         s.shapeVi && `${ICONS.synergy} ${t("library.shape")}: ${s.shapeVi}`,
@@ -417,7 +417,7 @@ export function mountLibrary(
           `${ICONS.hp} ${current.hp} → ${next.hp}`,
           `${ICONS.atk} ${current.atk} → ${next.atk} · ${ICONS.matk} ${current.matk} → ${next.matk}`,
           `${ICONS.def} ${current.def} → ${next.def} · ${ICONS.mdef} ${current.mdef} → ${next.mdef}`);
-        sec(`${ICONS.rage} ${t("library.skill")}: ${s.nameVi} · ${next.star}★ (${t("unit.rage", { cost: next.rageCost })})`,
+        sec(`${SKILL_ICONS[u.role]} ${t("library.skill")}: ${s.nameVi} · ${next.star}★ (${t("unit.rage", { cost: next.rageCost })})`,
           s.starDetailVi[next.star - 1] ?? s.detailVi);
       }
       const skin = u.skin;

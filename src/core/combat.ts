@@ -210,7 +210,7 @@ export interface CombatTargetPreview {
   skillCasterUid: string | null;
   /** Per-target semantic effect for hover preview colours/icons. */
   tags?: CombatPreviewTag[];
-  /** Acting unit's role, used to pick sword/bow/wand badges without owning presentation data. */
+  /** Acting unit's role, used to pick the fist/basic and role-authored skill badges without owning presentation data. */
   actorRole?: Role;
 }
 
@@ -1048,7 +1048,9 @@ export function combatTargetPreview(
     kind: "skill",
     primary: index === 0,
   }));
-  const tags = options.kitPreview && !skillTags.some((tag) => tag.uid === basic.uid)
+  // The kit preview projects the unit's whole kit, so a target can legitimately carry both the
+  // basic-attack marker and the skill marker; one badge stack per target renders both.
+  const tags = options.kitPreview
     ? [...skillTags, { uid: basic.uid, effect: "damage" as const, kind: "basic" as const, primary: false }]
     : skillTags;
   return {

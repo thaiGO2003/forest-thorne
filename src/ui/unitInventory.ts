@@ -2,7 +2,7 @@
 import { getUnit } from "../content/catalog";
 import { unitEvolutionName } from "../content/unitNames";
 import type { CombatUnitSnapshot } from "../core/combat";
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { getEquipment, slotCapForUnit } from "../core/equipment";
 import { sellValue } from "../core/economy";
 import { t, type MsgKey } from "../core/i18n";
@@ -175,7 +175,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   const skillHead = h("div", "ui-inventory-section-head");
   const skillName = h("strong", "", unit.skill.nameVi);
   const skillRage = h("span", "ui-inventory-note");
-  skillHead.append(h("h3", "", t("inventory.skillBlock")), skillRage);
+  skillHead.append(h("h3", "", `${SKILL_ICONS[unit.role]} ${t("inventory.skillBlock")}`), skillRage);
   const skillMeta = h("p", "ui-inventory-note");
   const skillFormula = h("div", "ui-inventory-formula");
   const skillDescription = h("p");
@@ -187,7 +187,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
 
   const basic = panel("ui-inventory-basic");
   const basicCopy = h("p");
-  basic.append(h("h3", "", t("inventory.basicAttack")), basicCopy);
+  basic.append(h("h3", "", `${ICONS.fist} ${t("inventory.basicAttack")}`), basicCopy);
 
   profile.append(portraitPanel, name, stars, identity, location, skill, passive, basic);
 
@@ -242,7 +242,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     }
     const milestone = starStatMilestones(unit)[star - 1];
     basicCopy.replaceChildren(
-      `${unit.basic.damageType === "magic" ? ICONS.matk : ICONS.atk} ${basicAttackCopy(unit).replace(/\.\s*$/, "")} · ${t("inventory.basicDamage")}: `,
+      `${ICONS.fist} ${basicAttackCopy(unit).replace(/\.\s*$/, "")} · ${t("inventory.basicDamage")}: `,
       richSpan(fmt(milestone?.basicDamage ?? 0), unit.basic.damageType),
     );
   };

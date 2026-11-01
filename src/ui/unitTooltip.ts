@@ -4,7 +4,7 @@
 // live diagnostics; planning/combat hover adds the live stat, shield, rage and status readouts.
 import type { UnitDef } from "../content/catalog";
 import { unitEvolutionName } from "../content/unitNames";
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { equipmentSaleValue, getEquipment } from "../core/equipment";
 import { sellValue } from "../core/economy";
 import { hasMessage, t, type MsgKey } from "../core/i18n";
@@ -113,7 +113,9 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
   const variants = diagnostics?.traits ?? [];
   const equips = diagnostics?.equips ?? [];
   const spec = skillSpec(unit.id, star);
-  const skillIcon = spec.damage?.type === "physical" ? ICONS.atk : spec.damage?.type === "magic" ? ICONS.matk : ICONS.xp;
+  // Skills carry their authored role marker (dagger for ASSASSIN, axe for FIGHTER) so two physical
+  // skill lines never read as the same action; basic attacks always use the shared fist.
+  const skillIcon = SKILL_ICONS[unit.role];
 
   // ── header ────────────────────────────────────────────────────────────────
   const badges: TooltipChip[] = [
@@ -159,7 +161,7 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
       text: `${t("inventory.evade")} ${pct(current.evade)} · ${t("inventory.crit")} ${pct(current.crit)} · ${t("inventory.accuracy")} ${pct(current.accuracy)}`,
     });
   }
-  lines.push({ icon: ICONS.star, text: `${t("library.skill")}: ${skill.nameVi} (${t("unit.rage", { cost: rageCost })})` });
+  lines.push({ icon: skillIcon, text: `${t("library.skill")}: ${skill.nameVi} (${t("unit.rage", { cost: rageCost })})` });
 
   // ── summary blocks (old_src buildSummaryUnitSectionBlocks) ────────────────
   const traitLines: string[] = [
@@ -218,7 +220,7 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
     : [t("inventory.noVariant")];
 
   const basicLines: string[] = [
-    basicAttackCopy(unit),
+    `${ICONS.fist} ${basicAttackCopy(unit)}`,
     `${ICONS.crit} ${t("inventory.basicDamage")}: ${basicDamage}`,
   ];
 
