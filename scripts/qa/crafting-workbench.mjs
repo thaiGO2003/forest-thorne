@@ -143,29 +143,70 @@ try {
     }));
   });
 
-  await check(checks, "recipe library opens, switches recipes and shows the relationship tree", async () => {
+  await check(checks, "recipe library opens with tier columns, category rail and relationship tree", async () => {
     await page.evaluate(() => document.querySelector(".craft-library-button")?.click());
     await waitFor(page, () => Boolean(document.querySelector(".craft-overlay-panel.is-library")), { timeout: 5000, label: "craft library" });
     const first = await page.evaluate(() => ({
-      rows: document.querySelectorAll(".craft-library-row").length,
-      detail: document.querySelector(".craft-library-hero-copy h3")?.textContent,
-      tree: document.querySelectorAll(".craft-tree-row").length,
+      rail: document.querySelectorAll(".craft-graph-rail-button").length,
+      railActive: document.querySelector('.craft-graph-rail-button[data-selected="true"]')?.getAttribute("data-category"),
+      columns: [...document.querySelectorAll(".craft-graph-column")].map((c) => ({
+        tier: c.dataset.tier,
+        cards: c.querySelectorAll(".craft-graph-card").length,
+      })),
+      note: document.querySelector(".craft-library-note")?.textContent,
+      empty: document.querySelector(".craft-graph-detail-empty")?.textContent?.trim(),
       headHidden: document.querySelector(".modal-root")?.classList.contains("craft-overlay-open"),
     }));
-    if (first.rows !== 205) throw new Error(`rows=${first.rows}`);
-    if (!first.tree) throw new Error("empty relationship tree");
+    if (first.rail !== 3) throw new Error(`rail=${first.rail}`);
+    if (first.railActive !== "offense") throw new Error(`active=${first.railActive}`);
+    if (first.columns.length !== 3) throw new Error(JSON.stringify(first.columns));
+    if (first.columns.reduce((n, c) => n + c.cards, 0) !== 57) throw new Error(JSON.stringify(first.columns));
+    if (!first.note?.includes("205")) throw new Error(`note=${first.note}`);
+    if (!first.empty?.includes("Chọn một công thức")) throw new Error(`empty=${first.empty}`);
     if (!first.headHidden) throw new Error("underlying modal head still visible");
-    await page.evaluate(() => document.querySelectorAll(".craft-library-row")[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await page.evaluate(() => document.querySelectorAll(".craft-graph-card")[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await page.waitForTimeout(300);
-    const second = await page.evaluate(() => ({
-      detail: document.querySelector(".craft-library-hero-copy h3")?.textContent,
-      relations: document.querySelectorAll(".craft-relation-row").length,
+    const selected = await page.evaluate(() => ({
+      name: document.querySelector(".craft-library-hero-copy h3")?.textContent,
+      tree: document.querySelectorAll(".craft-tree-row").length,
+      sections: document.querySelectorAll(".craft-library-sec").length,
     }));
+    if (!selected.name || !selected.tree) throw new Error(JSON.stringify(selected));
+
+    await page.evaluate(() => document.querySelectorAll(".craft-graph-rail-button")[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await page.waitForTimeout(300);
+    const defense = await page.evaluate(() => ({
+      active: document.querySelector('.craft-graph-rail-button[data-selected="true"]')?.getAttribute("data-category"),
+      cards: [...document.querySelectorAll(".craft-graph-column")].reduce((n, c) => n + c.querySelectorAll(".craft-graph-card").length, 0),
+      empty: Boolean(document.querySelector(".craft-graph-detail-empty")),
+    }));
+    if (defense.active !== "defense" || !defense.cards || !defense.empty) throw new Error(JSON.stringify(defense));
+
     await page.keyboard.press("Escape");
     await waitFor(page, () => !document.querySelector(".craft-overlay"), { timeout: 5000, label: "overlay closed" });
     const craftAlive = await page.evaluate(() => Boolean(document.querySelector(".crafting-workbench")));
     if (!craftAlive) throw new Error("craft workbench closed with the overlay");
-    return { first, second };
+    return { first, selected, defense };
+  });
+
+  await check(checks, "main Library recipes tab embeds the same graph", async () => {
+    await page.keyboard.press("Escape");
+    await waitFor(page, () => !document.querySelector(".crafting-workbench"), { timeout: 5000, label: "craft modal closed" });
+    await page.evaluate(() => window.__app.openPanel("library"));
+    await waitFor(page, () => Boolean(document.querySelector(".lib-tabs")), { timeout: 5000, label: "library modal" });
+    await page.evaluate(() => [...document.querySelectorAll(".lib-tabs .kit-btn")]
+      .find((b) => b.getAttribute("aria-label")?.includes("Chế tạo"))?.click());
+    await waitFor(page, () => Boolean(document.querySelector(".craft-library-embed .craft-graph")), { timeout: 5000, label: "embedded graph" });
+    const embedded = await page.evaluate(() => ({
+      note: document.querySelector(".craft-library-embed .craft-library-note")?.textContent,
+      columns: document.querySelectorAll(".craft-library-embed .craft-graph-column").length,
+      cards: document.querySelectorAll(".craft-library-embed .craft-graph-card").length,
+      empty: document.querySelector(".craft-library-embed .craft-graph-detail-empty")?.textContent?.trim(),
+    }));
+    if (embedded.columns !== 3 || !embedded.cards) throw new Error(JSON.stringify(embedded));
+    if (!embedded.empty?.includes("Chọn một công thức")) throw new Error(JSON.stringify(embedded));
+    return embedded;
   });
 } finally {
   await page.screenshot({ path: `${process.env.QA_OUT ?? "/tmp/forest-qa"}/crafting-workbench.png` }).catch(() => {});

@@ -2,7 +2,7 @@
 // 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
-import { BASE_MATERIALS, RECIPES } from "../core/craft";
+import { BASE_MATERIALS } from "../core/craft";
 import { shopTierOdds } from "../core/economy";
 import { EQUIPMENT } from "../core/equipment";
 import { AUGMENTS, type AugGroup } from "../core/augments";
@@ -12,6 +12,7 @@ import { starStatMilestones } from "../core/inspection";
 import { basicAttackCopy } from "../core/unitText";
 import { unitEvolutionName } from "../content/unitNames";
 import { createCard, unitCardTooltip, type CardView } from "./card";
+import { createCraftLibrary, type CraftLibraryView } from "./crafting/library";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
 import type { ModalHandle } from "./modal";
@@ -92,6 +93,7 @@ export function mountLibrary(
   let tab: LibraryTab = "units";
   let catalogTier = 0;
   let catalogPage = 0;
+  let craftLibraryView: CraftLibraryView | null = null;
   const cardTips: (() => void)[] = [];
   const clearCardTips = () => {
     for (const unbind of cardTips.splice(0)) unbind();
@@ -131,6 +133,17 @@ export function mountLibrary(
   };
 
   function renderCatalog() {
+    if (tab === "recipes") {
+      // The graph library owns its own search, rail, columns and detail; the modal only supplies
+      // the tab shell so both the Library tab and the crafting overlay render the same view.
+      craftLibraryView?.dispose();
+      craftLibraryView = null;
+      const embed = h("div", "craft-library-embed");
+      craftLibraryView = createCraftLibrary({ tip });
+      embed.append(craftLibraryView.el);
+      root.append(embed);
+      return;
+    }
     const list = h("div", "lib-info");
     root.append(list);
     const entry = (title: string, ...detail: string[]) => {
@@ -165,16 +178,11 @@ export function mountLibrary(
     if (tab === "materials") {
       entry("Danh mục nguyên liệu", "Các nguyên liệu có thể sử dụng trên bàn chế tạo.");
       for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? itemDisplayName(id));
-    } else if (tab === "equipment" || tab === "recipes") {
-      const isEquipment = tab === "equipment";
-      const tiers = isEquipment
-        ? [...new Set(EQUIPMENT.map((item) => item.tier))].sort((a, b) => a - b)
-        : [...new Set(RECIPES.map((recipe) => recipe.size))].sort((a, b) => a - b);
+    } else if (tab === "equipment") {
+      const tiers = [...new Set(EQUIPMENT.map((item) => item.tier))].sort((a, b) => a - b);
       entry(
-        isEquipment ? "Trang bị cổ" : "Công thức cổ",
-        isEquipment
-          ? `${EQUIPMENT.length} trang bị từ bản classic. Chỉ số cộng đã áp dụng; hiệu ứng kích hoạt đặc biệt của old_src chưa được mô phỏng.`
-          : `${RECIPES.length} công thức 1×1–3×3 từ bản classic. Bàn chế tạo cấp 1/2/3 tương ứng bậc 1/2/3.`,
+        "Trang bị cổ",
+        `${EQUIPMENT.length} trang bị từ bản classic. Chỉ số cộng đã áp dụng; hiệu ứng kích hoạt đặc biệt của old_src chưa được mô phỏng.`,
         "Chọn bậc để lọc; dùng nút chuyển trang ở cuối danh sách.",
       );
       const filters = h("div", "lib-catalog-filters");
@@ -198,31 +206,15 @@ export function mountLibrary(
       list.append(filters, body, foot);
       const paint = () => {
         const per = 6;
-        const equipment = isEquipment
-          ? (catalogTier ? EQUIPMENT.filter((item) => item.tier === catalogTier) : EQUIPMENT)
-          : [];
-        const recipes = isEquipment
-          ? []
-          : (catalogTier ? RECIPES.filter((recipe) => recipe.size === catalogTier) : RECIPES);
-        const total = isEquipment ? equipment.length : recipes.length;
+        const equipment = catalogTier ? EQUIPMENT.filter((item) => item.tier === catalogTier) : EQUIPMENT;
+        const total = equipment.length;
         const pages = Math.max(1, Math.ceil(total / per));
         catalogPage = Math.min(catalogPage, pages - 1);
         disposeSurfaceTree(body);
         body.replaceChildren();
-        if (isEquipment) {
-          for (const item of equipment.slice(catalogPage * per, catalogPage * per + per)) {
-            hostIconEntry(body, item.id, itemDisplayName(item.id), t("library.tier", { tier: item.tier }),
-              equipmentBonusCopy(item.bonuses) || t("inventory.itemNoBonus"));
-          }
-        } else {
-          for (const recipe of recipes.slice(catalogPage * per, catalogPage * per + per)) {
-            const lines: string[] = [];
-            for (let row = 0; row < recipe.size; row++) {
-              lines.push(recipe.pattern.slice(row * recipe.size, (row + 1) * recipe.size)
-                .map((id) => id ? itemDisplayName(id) : "Ô trống").join(" · "));
-            }
-            hostIconEntry(body, `eq_${recipe.id}`, itemDisplayName(`eq_${recipe.id}`), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
-          }
+        for (const item of equipment.slice(catalogPage * per, catalogPage * per + per)) {
+          hostIconEntry(body, item.id, itemDisplayName(item.id), t("library.tier", { tier: item.tier }),
+            equipmentBonusCopy(item.bonuses) || t("inventory.itemNoBonus"));
         }
         disposeSurfaceTree(foot);
         foot.replaceChildren();
@@ -290,6 +282,8 @@ export function mountLibrary(
     clearCardTips();
     clearViewTips();
     clearIdleTimer();
+    craftLibraryView?.dispose();
+    craftLibraryView = null;
     viewer?.dispose(); viewer = null;
     controlsOff?.(); controlsOff = null;
     for (const c of cards) c.dispose();
@@ -537,5 +531,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
+  return { showDetail, dispose() { craftLibraryView?.dispose(); craftLibraryView = null; controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }
