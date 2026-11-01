@@ -1,4 +1,4 @@
-// Báo Đốm Săn (jaguar_hunt) — bespoke rig from the approved reference sheet (art/drafts/bao-dom-san.jxl).
+// Báo Đốm Săn (jaguar_hunt) — bespoke rig from the approved concept sheet.
 // Lean tan feline with dark rosette spots, white muzzle, boxy brown ears, brown paws with white claws,
 // long segmented tail with dark tip. Body → neck → head is one connected chain (A24, A90.2).
 // Idle: watch → sniff → head dip → tail flick, with blinks, independent ear twitches and rib breathing.
