@@ -12,7 +12,7 @@ import type { DayNightPhase } from "../core/dayNight";
 
 export const BLOCK = 1;
 const TILE_H = 0.12;
-const FLOW_SPEED = 0.62;
+export const FLOW_SPEED = 0.62;
 
 export type LightPhase = "menu" | "planning" | "combat";
 export type ShadowQuality = "low" | "medium" | "high";
@@ -97,6 +97,9 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const root = new THREE.Group();
   root.name = "arena";
   scene.add(root);
+  // Named scene-node contract for structural tests and diagnostics: tactical-tiles,
+  // brown-ring, bench-perimeter, bench-highlights, river-water,
+  // river-flow-marker, sun-rays. Keep names stable when refactoring meshes.
   const disposables: { dispose(): void }[] = [];
   const own = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
   const m4 = new THREE.Matrix4();
@@ -336,6 +339,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   applyLighting();
 
   let flowT = 0;
+  let disposed = false;
   return {
     root,
     tiles,
@@ -434,6 +438,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       });
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       restoreHighlights();
       sun.shadow.map?.dispose();
       boardLabels.dispose();

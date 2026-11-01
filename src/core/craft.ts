@@ -1,6 +1,11 @@
 // Crafting (spec A7). Staging is non-destructive: `staged` only references bag items; craft() is atomic.
 import { RECIPES, type Recipe, getRecipe } from "./itemRegistry";
 
+/** A recipe ingredient is usable only when an authored recipe references it. */
+export function isCraftIngredient(id: string): boolean {
+  return RECIPES.some((recipe) => recipe.pattern.includes(id));
+}
+
 /** Active square per craftTableLevel: [rowOffset, colOffset, side]. */
 const ACTIVE: Record<number, [number, number, number]> = { 1: [1, 1, 1], 2: [0, 0, 2], 3: [0, 0, 3] };
 

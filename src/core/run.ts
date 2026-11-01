@@ -8,10 +8,10 @@ import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "./tech";
 import {
   equipmentSaleValue, itemUnequipCost, normalizeEquipment, slotCapForUnit,
 } from "./equipment";
-import { getEquipment, isKnownItem } from "./itemRegistry";
+import { BASE_MATERIALS, getEquipment, isKnownItem } from "./itemRegistry";
 import { normalizeVariantTraits, rollVariantTrait, type VariantTraitRef } from "./variants";
 import { applyAugment, AUGMENTS, AUGMENT_ROUNDS, restoreRunHearts } from "./augments";
-import { craft as commitCraft, stage as stageCraft } from "./craft";
+import { craft as commitCraft, isCraftIngredient, stage as stageCraft } from "./craft";
 import { isRegisteredDrop, lossDamage, type Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
 import {
@@ -410,6 +410,8 @@ export function sellItem(s: RunState, bagIndex: number): boolean {
   const id = s.itemBag[bagIndex]!;
   if (!isKnownItem(id)) return false;
   const equipment = getEquipment(id);
+  // Unresolved legacy IDs are held for recovery, not converted into sale currency.
+  if (!equipment && !(BASE_MATERIALS as readonly string[]).includes(id)) return false;
   const value = equipment ? equipmentSaleValue(equipment.tier) : 1;
   s.itemBag.splice(bagIndex, 1);
   gainGold(s, value);
@@ -652,6 +654,7 @@ export function stageRunCraftItem(s: RunState, staged: (string | null)[], index:
     source: itemId ? { where: "inventory", index: s.itemBag.indexOf(itemId), itemId } : undefined,
     destination: { where: "craft", index }, itemId: itemId ?? undefined,
   })) return null;
+  if (itemId !== null && (!isCraftIngredient(itemId) || !s.itemBag.includes(itemId))) return null;
   const next = stageCraft(staged, index, itemId, s.craftTableLevel);
   if (next) recordTutorialEvent(s, "add_craft_item");
   return next;
