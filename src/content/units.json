@@ -5123,9 +5123,9 @@
  {
   "id": "spider_venom",
   "species": "nhen-doc",
-  "nameVi": "Nhện Độc",
+  "nameVi": "Nhện Linh",
   "tier": 1,
-  "role": "ASSASSIN",
+  "role": "MAGE",
   "faction": "INSECT",
   "element": "SWARM",
   "boss": false,
