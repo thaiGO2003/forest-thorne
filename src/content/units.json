@@ -2615,7 +2615,7 @@
  {
   "id": "ice_mage",
   "species": "chuon-chuon",
-  "nameVi": "Chuồn Chuồn Băng",
+  "nameVi": "Sương Điệp",
   "tier": 2,
   "role": "MAGE",
   "faction": "INSECT",
@@ -6662,9 +6662,9 @@
  {
   "id": "woodpecker_drill",
   "species": "go-kien",
-  "nameVi": "Gõ Kiến Khoan",
+  "nameVi": "Gõ Kiến Mỏ Cứng",
   "tier": 3,
-  "role": "ARCHER",
+  "role": "TANKER",
   "faction": "AVIAN",
   "element": "WOOD",
   "boss": false,
