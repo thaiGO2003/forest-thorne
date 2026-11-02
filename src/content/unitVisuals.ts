@@ -9,6 +9,7 @@ export const VISUAL_UNIT_IDS: readonly string[] = [
   "ant_guard",
   "rabbit_blood",
   "crane_blessing",
+  "weasel_quick",
 ];
 
 const VISUAL_UNITS = new Set<string>(VISUAL_UNIT_IDS);
