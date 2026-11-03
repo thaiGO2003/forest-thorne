@@ -458,9 +458,9 @@
  {
   "id": "beetle_mystic",
   "species": "bo-huyen",
-  "nameVi": "Bọ Huyền",
+  "nameVi": "Bọ Hung Nhấm Nháp",
   "tier": 4,
-  "role": "MAGE",
+  "role": "ASSASSIN",
   "faction": "INSECT",
   "element": "SPIRIT",
   "boss": false,
@@ -1256,7 +1256,7 @@
  {
   "id": "deer_song",
   "species": "nai",
-  "nameVi": "Nai Thần Ca",
+  "nameVi": "Nai Y Tá",
   "tier": 2,
   "role": "SUPPORT",
   "faction": "BEAST",
@@ -1655,9 +1655,9 @@
  {
   "id": "fairy_forest",
   "species": "tien",
-  "nameVi": "Tiên Rừng",
+  "nameVi": "Sóc Tu",
   "tier": 2,
-  "role": "SUPPORT",
+  "role": "MAGE",
   "faction": "MYTHICAL",
   "element": "WOOD",
   "boss": false,
@@ -3470,9 +3470,9 @@
  {
   "id": "monkey_spear",
   "species": "khi",
-  "nameVi": "Khỉ Lao Cành",
+  "nameVi": "Sơn Thân",
   "tier": 2,
-  "role": "ARCHER",
+  "role": "ASSASSIN",
   "faction": "BEAST",
   "element": "WIND",
   "boss": false,
@@ -5408,7 +5408,7 @@
  {
   "id": "storm_mage",
   "species": "ran",
-  "nameVi": "Rắn Lôi",
+  "nameVi": "Rắn Đoạt Hồn",
   "tier": 4,
   "role": "MAGE",
   "faction": "REPTILE",
@@ -6548,7 +6548,7 @@
  {
   "id": "wolf_alpha",
   "species": "soi",
-  "nameVi": "Sói Thủ Lĩnh",
+  "nameVi": "Bí Ngô Ma Vương",
   "tier": 3,
   "role": "FIGHTER",
   "faction": "BEAST",

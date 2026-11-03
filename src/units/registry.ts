@@ -18,6 +18,12 @@ import spiderSpirit from "./roster/spiderSpirit";
 
 import elephantTide from "./roster/elephantTide";
 import hawkLance from "./roster/hawkLance";
+import snakeSoul from "./roster/snakeSoul";
+import beetleNibble from "./roster/beetleNibble";
+import monkeySage from "./roster/monkeySage";
+import pumpkinKing from "./roster/pumpkinKing";
+import deerNurse from "./roster/deerNurse";
+import squirrelMonk from "./roster/squirrelMonk";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -35,6 +41,13 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   spider_venom: spiderSpirit,
   elephant_guard: elephantTide,
   hawk_hunter: hawkLance,
+  // The six reworks below keep their legacy catalog ids so existing saves still resolve.
+  storm_mage: snakeSoul,
+  beetle_mystic: beetleNibble,
+  monkey_spear: monkeySage,
+  wolf_alpha: pumpkinKing,
+  deer_song: deerNurse,
+  fairy_forest: squirrelMonk,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];
