@@ -6,11 +6,23 @@ import { createUnitVisual, defineUnit, type Star, type UnitRigDef, type UnitVisu
 import jaguarHunt from "./roster/jaguarHunt";
 import toadPoison from "./roster/toadPoison";
 import frogAlchemy from "./roster/frogAlchemy";
+import weaselWind from "./roster/weaselWind";
+import batLove from "./roster/batLove";
+import antGuard from "./roster/antGuard";
+import rabbitBlood from "./roster/rabbitBlood";
+import roosterRapper from "./roster/roosterRapper";
 
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
   frog_alchemy: frogAlchemy,
+  // Phong Liêm Dứu keeps the legacy catalog id so existing saves still resolve.
+  weasel_quick: weaselWind,
+  // Dơi Tình Yêu keeps the legacy catalog id so existing saves still resolve.
+  bat_blood: batLove,
+  ant_guard: antGuard,
+  rabbit_blood: rabbitBlood,
+  crane_blessing: roosterRapper,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

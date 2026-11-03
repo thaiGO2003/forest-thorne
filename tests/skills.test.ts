@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { materializeCombat } from "../src/core/combat";
 import { parseSkill, skillSpec } from "../src/core/skills";
+import { UNITS } from "../src/content/catalog";
 
 describe("skill parser", () => {
   it("multi-target damage with bleed duration", () => {
@@ -109,5 +110,35 @@ describe("skill parser", () => {
       debuffs: [{ stat: "mdef", value: 15, pct: false, turns: 2 }],
       heal: { formula: null, pctMaxHp: 0.06 }, selfHealPctMaxHp: 0,
     });
+  });
+
+  it("ant_guard parses the self-sustain kit: heal, shield, damage reduction and cleanse", () => {
+    expect(skillSpec("ant_guard", 1)).toMatchObject({
+      side: "self", selector: "self",
+      selfHealPctMaxHp: 0.08,
+      shield: { base: 10, scale: 0, stat: "def" },
+      damageReductionPct: 0.10, damageReductionTurns: 1,
+      cleanseCount: 0,
+    });
+    expect(skillSpec("ant_guard", 2)).toMatchObject({
+      selfHealPctMaxHp: 0.10,
+      shield: { base: 16, scale: 0, stat: "def" },
+      damageReductionPct: 0.12, damageReductionTurns: 1,
+      cleanseCount: 1,
+    });
+    expect(skillSpec("ant_guard", 3)).toMatchObject({
+      selfHealPctMaxHp: 0.12,
+      shield: { base: 22, scale: 0, stat: "def" },
+      damageReductionPct: 0.15, damageReductionTurns: 2,
+      cleanseCount: 2,
+    });
+  });
+
+  it("authored rage costs grow with every star", () => {
+    for (const unit of UNITS) {
+      const [star1, star2, star3] = unit.skill.rageCost;
+      expect(star1, unit.id).toBeLessThan(star2);
+      expect(star2, unit.id).toBeLessThan(star3);
+    }
   });
 });

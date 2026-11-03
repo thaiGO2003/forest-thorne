@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createRun, type RunState } from "../src/core/run";
 import {
   ACHIEVEMENTS_KEY, clearCollectionProfile, clearProgress, clearRunProgress, COLLECTION_KEY, COOP_KEY, createEnvelope,
-  importProgress, inspectSave, loadAchievementProfile, loadCollectionProfile, migrate, PROGRESS_KEY, remapCoopHost,
+  ENVELOPE_VERSION, exportProgress, importProgress, inspectSave, loadAchievementProfile, loadCollectionProfile, migrate, PROGRESS_KEY, remapCoopHost,
   saveCollectionProfile, saveCoopSlot, saveRun, selectCoopSlot,
 } from "../src/core/save";
 import { createSettingsStore, loadSettings, normalizeSettings, SETTINGS_KEY } from "../src/core/settings";
@@ -29,7 +29,7 @@ describe("persistence A57", () => {
     expect(inspectSave(s).status).toBe("valid");
   });
 
-  it("v1 run migrates to v4: level clamped to 25, bench_up 0..4 preserved, unknown units dropped, persisted once", () => {
+  it("v1 run migrates to v5: level clamped to 25, bench_up 0..4 preserved, unknown units dropped, persisted once", () => {
     const s = mem();
     const p = createRun(2);
     Object.assign(p, { level: 40, benchUpgradeLevel: 4 });
@@ -38,7 +38,7 @@ describe("persistence A57", () => {
     const r = inspectSave(s);
     if (r.status !== "valid") throw new Error(r.status);
     const out = r.envelope.payload.player!;
-    expect([r.envelope.version, out.level, out.benchUpgradeLevel, out.bench.map((u) => u.uid)]).toEqual([4, 25, 4, ["b"]]);
+    expect([r.envelope.version, out.level, out.benchUpgradeLevel, out.bench.map((u) => u.uid)]).toEqual([5, 25, 4, ["b"]]);
     const writes = s.setItem.mock.calls.length;
     inspectSave(s);
     expect(s.setItem.mock.calls.length).toBe(writes);
@@ -189,12 +189,158 @@ describe("persistence A57", () => {
     expect(migrated.envelope.payload.player).toMatchObject({
       phase: "PLANNING",
       shopLocked: false,
-      itemBag: ["tear", "eq_blue_buff"],
+      itemBag: ["tear", "eq_blue_buff", "missing_item"],
       techLevels: { vet: 1, survive: 123456 },
       augments: ["gold_cache_1"],
       activeAugmentChoices: ["team_atk_1"],
       unequipDiscount: 0,
     });
+  });
+
+  it("preserves unknown, duplicate and authored material/equipment IDs through v1, v4, v5 and future v6 migrations", () => {
+    const ids = ["legacy_eq_alpha", "tear", "eq_blue_buff", "legacy_eq_alpha", "eq_warmog_armor"];
+    const invalid = [17, null, false, { id: "tear" }, ["feather"]];
+    for (const version of [1, 4, ENVELOPE_VERSION, ENVELOPE_VERSION + 1]) {
+      const player = createRun(version);
+      player.itemBag = [...ids, ...invalid] as unknown as string[];
+      const source = createEnvelope({ player }, { version });
+      const original = structuredClone(source);
+
+      const migrated = migrate(source)!;
+      expect(source).toEqual(original);
+      expect(migrated.envelope.version).toBe(Math.max(version, ENVELOPE_VERSION));
+      expect(migrated.envelope.payload.player?.itemBag).toEqual(ids);
+      expect(migrated.envelope.payload.player?.itemBag).not.toBe(player.itemBag);
+
+      const repeated = migrate(migrated.envelope)!;
+      expect(repeated.changed).toBe(false);
+      expect(repeated.envelope.payload.player?.itemBag).toEqual(ids);
+    }
+  });
+
+  it("recovers rejected equipped items without losing duplicate ownership during solo migration", () => {
+    const player = createRun(71);
+    player.itemBag = ["legacy_ghost", "tear", "legacy_ghost"];
+    player.board[0] = { uid: "board-a", baseId: "ant_guard", star: 1, equips: ["eq_blue_buff", "legacy_ghost", "legacy_ghost", "eq_warmog_armor"] };
+    player.bench = [{ uid: "bench-b", baseId: "ant_guard", star: 1, equips: ["legacy_bench", "eq_warmog_armor"] }];
+    const source = createEnvelope({ player }, { version: 4 });
+    const original = structuredClone(source);
+
+    const migrated = migrate(source)!;
+    const saved = migrated.envelope.payload.player!;
+    expect(source).toEqual(original);
+    expect(saved.board[0]?.equips).toEqual(["eq_blue_buff", "eq_warmog_armor"]);
+    expect(saved.bench[0]?.equips).toEqual(["eq_warmog_armor"]);
+    expect(saved.itemBag).toEqual([
+      "legacy_ghost", "tear", "legacy_ghost",
+      "legacy_ghost", "legacy_ghost", "legacy_bench",
+    ]);
+    const repeated = migrate(migrated.envelope)!;
+    expect(repeated.changed).toBe(false);
+    expect(repeated.envelope.payload.player?.itemBag).toEqual(saved.itemBag);
+  });
+
+  it("keeps rejected equipment with its original co-op owner", () => {
+    const a = createRun(81);
+    const b = createRun(82);
+    a.itemBag = ["old_a"];
+    b.itemBag = ["old_b", "old_b"];
+    a.board[0] = { uid: "owned-a", baseId: "ant_guard", star: 1, equips: ["old_a_equipped"] };
+    b.bench = [{ uid: "owned-b", baseId: "ant_guard", star: 1, equips: ["old_b_equipped", "old_b_equipped"] }];
+    const source = createEnvelope({ players: { P1: a, P2: b }, localSlot: "P1", aiMode: "COOP_MEDIUM" }, { version: 4 });
+    const migrated = migrate(source)!;
+    expect(migrated.envelope.payload.players?.P1?.itemBag).toEqual(["old_a", "old_a_equipped"]);
+    expect(migrated.envelope.payload.players?.P2?.itemBag).toEqual(["old_b", "old_b", "old_b_equipped", "old_b_equipped"]);
+    expect(migrated.envelope.payload.players?.P1?.board[0]?.equips).toEqual([]);
+    expect(migrated.envelope.payload.players?.P2?.bench[0]?.equips).toEqual([]);
+    expect(migrate(migrated.envelope)!.changed).toBe(false);
+  });
+
+  it("salvages items from dropped unknown units without inventing their identity", () => {
+    const player = createRun(83);
+    player.itemBag = ["tear", "unknown_inventory"];
+    player.bench = [{ uid: "removed", baseId: "missing_unit", star: 1, equips: ["legacy_equipped", "legacy_equipped", "eq_blue_buff"] }];
+    const source = createEnvelope({ player }, { version: 4 });
+    const original = structuredClone(source);
+    const migrated = migrate(source)!;
+    const saved = migrated.envelope.payload.player!;
+    expect(source).toEqual(original);
+    expect(saved.bench).toEqual([]);
+    expect(saved.itemBag).toEqual(["tear", "unknown_inventory", "legacy_equipped", "legacy_equipped", "eq_blue_buff"]);
+    expect(migrate(migrated.envelope)!.envelope.payload.player?.itemBag).toEqual(saved.itemBag);
+  });
+
+  it("recovers equipped items on trimmed board tiles even with a full legacy bag", () => {
+    const player = createRun(84);
+    player.itemBag = Array(20).fill("legacy_full_slot");
+    player.board[25] = { uid: "off-board", baseId: "ant_guard", star: 1, equips: ["eq_blue_buff", "legacy_overflow"] };
+    const source = createEnvelope({ player }, { version: 4 });
+    const migrated = migrate(source)!;
+    const saved = migrated.envelope.payload.player!;
+    expect(saved.board).toHaveLength(25);
+    expect(saved.itemBag).toEqual([...player.itemBag, "eq_blue_buff", "legacy_overflow"]);
+    expect(migrate(migrated.envelope)!.changed).toBe(false);
+  });
+
+  it("normalizes malformed non-array item bags without modifying the supplied envelope", () => {
+    for (const malformed of [null, "tear", 42, { 0: "claw", length: 1 }]) {
+      const player = createRun(13);
+      (player as unknown as Record<string, unknown>).itemBag = malformed;
+      const source = createEnvelope({ player });
+      const original = structuredClone(source);
+      const migrated = migrate(source)!;
+      expect(source).toEqual(original);
+      expect(migrated.envelope.payload.player?.itemBag).toEqual([]);
+      const repeated = migrate(migrated.envelope)!;
+      expect(repeated.changed).toBe(false);
+      expect(repeated.envelope.payload.player?.itemBag).toEqual([]);
+    }
+  });
+
+  it("keeps unknown item IDs, order and duplicates through solo save, export and import", () => {
+    const ids = ["legacy_ghost", "feather", "legacy_ghost", "eq_warmog_armor", "legacy_potion"];
+    const original = createRun(31);
+    original.itemBag = ids.slice();
+    const store = mem();
+    const envelope = saveRun(store, { player: original });
+    const loaded = inspectSave(store);
+    if (loaded.status !== "valid") throw new Error(loaded.status);
+    expect(loaded.envelope.payload.player?.itemBag).toEqual(ids);
+    expect(original.itemBag).toEqual(ids);
+
+    const exported = exportProgress(envelope);
+    const importedStore = mem();
+    expect(importProgress(importedStore, exported, false)?.player?.itemBag).toEqual(ids);
+    expect(importedStore.setItem).not.toHaveBeenCalled();
+    expect(importProgress(importedStore, exported, true)?.player?.itemBag).toEqual(ids);
+    expect(inspectSave(importedStore)).toMatchObject({
+      status: "valid", envelope: { payload: { player: { itemBag: ids } } },
+    });
+  });
+
+  it("preserves separate unknown item ownership and duplicates across co-op recovery and host remap", () => {
+    const a = createRun(41);
+    const b = createRun(42);
+    a.itemBag = ["old_a", "old_a", "claw"];
+    b.itemBag = ["eq_warmog_armor", "old_b", "old_a"];
+    const store = mem();
+    saveCoopSlot(store, "SAVE_1", {
+      players: { P1: a, P2: b }, localSlot: "P1", aiMode: "COOP_MEDIUM",
+    });
+    const slot = selectCoopSlot(store, "SAVE_1");
+    expect(slot.mode).toBe("resume");
+    if (slot.mode !== "resume") throw new Error("missing co-op slot");
+    expect(slot.payload.players?.P1?.itemBag).toEqual(a.itemBag);
+    expect(slot.payload.players?.P2?.itemBag).toEqual(b.itemBag);
+    expect(slot.payload.players?.P1?.itemBag).not.toBe(slot.payload.players?.P2?.itemBag);
+    expect(selectCoopSlot(store, "SAVE_1")).toMatchObject({ mode: "resume" });
+
+    const moved = remapCoopHost(slot.payload, "P2");
+    expect([moved.localSlot, moved.hostSlot]).toEqual(["P2", "P2"]);
+    expect(moved.players?.P2?.itemBag).toEqual(a.itemBag);
+    expect(moved.players?.P1?.itemBag).toEqual(b.itemBag);
+    expect(slot.payload.players?.P1?.itemBag).toEqual(a.itemBag);
+    expect(slot.payload.players?.P2?.itemBag).toEqual(b.itemBag);
   });
 
   it("Clear Run keeps profiles + settings; full clear removes profiles", () => {

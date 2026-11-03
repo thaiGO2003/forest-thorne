@@ -134,4 +134,17 @@ describe("combatTargetPreview", () => {
     expect(kit.tags?.some((tag) => tag.effect === "shield")).toBe(true);
     expect(combatTargetPreview(fighters, "guard")?.skillCasterUid).toBeNull();
   });
+
+  it("kit preview keeps the basic marker alongside the skill marker on the same target", () => {
+    const fighters = materializeCombat(
+      [left("source", "wasp_assassin", 2)],
+      [right("prey", "titan_earth", 2, 5)],
+    );
+
+    const preview = combatTargetPreview(fighters, "source", { kitPreview: true })!;
+    const onPrey = preview.tags?.filter((tag) => tag.uid === "prey") ?? [];
+    expect(onPrey.some((tag) => tag.kind === "basic" && tag.effect === "damage")).toBe(true);
+    expect(onPrey.some((tag) => tag.kind === "skill")).toBe(true);
+    expect(preview.tags?.find((tag) => tag.kind === "basic")?.primary).toBe(false);
+  });
 });

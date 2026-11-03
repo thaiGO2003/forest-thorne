@@ -152,4 +152,51 @@ describe("scenery presentation", () => {
     for (const resource of owned.reverse()) resource.dispose();
     water.dispose();
   });
+
+  it("anchors the waterfall sheet in a mountain that rises above it", () => {
+    const root = new THREE.Group();
+    const owned: { dispose(): void }[] = [];
+    const water = new THREE.MeshStandardMaterial();
+    createScenery(root, "solo", (resource) => {
+      owned.push(resource);
+      return resource;
+    }, ({ x, z }) => ({ x, z }), water);
+
+    const mountain = root.getObjectByName("scenery-waterfall-mountain") as THREE.InstancedMesh;
+    const sheet = root.getObjectByName("scenery-waterfall-sheet") as THREE.Mesh;
+    expect(mountain).toBeInstanceOf(THREE.InstancedMesh);
+    expect(sheet).toBeInstanceOf(THREE.Mesh);
+    expect(mountain.count).toBeGreaterThan(40);
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    let crest = -Infinity;
+    let crestWidth = 0;
+    for (let i = 0; i < mountain.count; i++) {
+      mountain.getMatrixAt(i, matrix);
+      matrix.decompose(position, quaternion, scale);
+      const top = position.y + scale.y / 2;
+      if (top > crest) { crest = top; crestWidth = 1; }
+    }
+    const sheetGeometry = sheet.geometry as THREE.PlaneGeometry;
+    const sheetTop = sheet.position.y + sheetGeometry.parameters.height / 2;
+    // The crest must stand at or above the sheet top, otherwise the water falls out of the sky.
+    expect(crest).toBeGreaterThanOrEqual(sheetTop - 0.25);
+    expect(crestWidth).toBeGreaterThan(0);
+
+    // The carved notch leaves the sheet a rock-free channel down to the river.
+    const sheetX = sheet.position.x, sheetZ = sheet.position.z;
+    let notchBlocked = 0;
+    for (let i = 0; i < mountain.count; i++) {
+      mountain.getMatrixAt(i, matrix);
+      matrix.decompose(position, quaternion, scale);
+      if (Math.abs(position.x - sheetX) < 1.2 && position.z > sheetZ - 1 && position.y < sheetTop - 1) notchBlocked++;
+    }
+    expect(notchBlocked).toBe(0);
+
+    for (const resource of owned.reverse()) resource.dispose();
+    water.dispose();
+  });
 });

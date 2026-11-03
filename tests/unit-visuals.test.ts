@@ -90,7 +90,7 @@ describe("Library combat-idle authored poses", () => {
       unit = createUnit("jaguar_hunt", 1);
       const root = unit.root;
       unit.die();
-      for (let frame = 0; frame < 7; frame++) unit.update(.1);
+      for (let frame = 0; frame < 14; frame++) unit.update(.1); // authored jaguar death lasts 1.3 s
       expect(root.visible).toBe(false);
       unit.setHpRatio(.5); unit.update(.016);
       expect(root.visible).toBe(true);
@@ -129,16 +129,22 @@ describe("Library combat-idle authored poses", () => {
     const relaxed = idlePose("toad_poison", false);
     const combat = idlePose("toad_poison", true);
     expect(relaxed.part("body").position.y).toBeCloseTo(0);
-    expect(combat.part("body").position.y).toBeCloseTo(-0.35);
-    expect(combat.part("head").rotation.x).toBeCloseTo(0.08);
+    // Combat crouch is a ground-anchored squash (a translation sank the belly into the tile).
+    expect(combat.part("body").scale.y).toBeLessThan(0.95);
+    expect(combat.part("body").scale.y).toBeLessThan(relaxed.part("body").scale.y - 0.05);
+    expect(combat.part("body").rotation.x).toBeGreaterThan(0); // leaning in, nose down
   });
 
   it("Báo Đốm Săn keeps inspection idle normally and uses its alert combat stance", () => {
     const relaxed = idlePose("jaguar_hunt", false);
     const combat = idlePose("jaguar_hunt", true);
-    expect(relaxed.part("torso").position.y).toBeCloseTo(5.6);
-    expect(combat.part("torso").position.y).toBeCloseTo(4.9);
-    expect(combat.part("ears").rotation.x).toBeCloseTo(-0.35);
+    expect(relaxed.part("torso").position.y).toBeCloseTo(5.95);
+    // Combat stance crouches ~0.7 voxel (breathing bob ±0.1, snarl beat −0.2) with both ears pinned.
+    const drop = relaxed.part("torso").position.y - combat.part("torso").position.y;
+    expect(drop).toBeGreaterThan(0.55);
+    expect(drop).toBeLessThan(1.05);
+    expect(combat.part("earL").rotation.x).toBeLessThan(-0.15);
+    expect(combat.part("earR").rotation.x).toBeLessThan(-0.15);
   });
 
   it("Ếch Giả Kim breathes upright out of combat and lowers with the flask raised in combat", () => {

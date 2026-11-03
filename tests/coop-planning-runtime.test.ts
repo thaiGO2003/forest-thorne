@@ -79,9 +79,9 @@ describe("co-op planning runtime ownership", () => {
 
     const payload = payloadFor(4);
     payload.players!.P1!.board[0] = owned("p1");
-    payload.players!.P2!.board[6] = owned("p2", "deer_song");
-    payload.players!.P3!.board[24] = owned("p3", "ram_charge");
-    payload.players!.P4!.board[4] = owned("p4", "fox_flame");
+    payload.players!.P2!.board[6] = owned("p2", "rabbit_blood");
+    payload.players!.P3!.board[24] = owned("p3", "ant_guard");
+    payload.players!.P4!.board[4] = owned("p4", "ant_guard");
     expect(composeCoopSharedBoard(payload, { playerCapacity: 4 }).map(
       ({ slot, localRow, sharedRow, col, unit }) => [slot, localRow, sharedRow, col, unit.uid],
     )).toEqual([
@@ -105,8 +105,8 @@ describe("co-op planning runtime ownership", () => {
       players: { P1: { connected: true }, P2: { connected: true } },
     });
     const payload = payloadFor(2);
-    payload.players!.P1!.bench = [owned("a"), owned("b", "deer_song")];
-    payload.players!.P2!.bench = [owned("remote", "ram_charge")];
+    payload.players!.P1!.bench = [owned("a"), owned("b", "rabbit_blood")];
+    payload.players!.P2!.bench = [owned("remote", "ant_guard")];
     const runtime = new CoopPlanningRuntime(storage, sessions);
     expect(runtime.attachPayload(payload)).not.toBeNull();
 
@@ -168,7 +168,7 @@ describe("co-op planning runtime ownership", () => {
       enemyPreviewRound: 1,
       enemyBudget: 17,
     };
-    payload.players!.P2!.enemyPreview = [{ uid: "guest-stale", baseId: "deer_song", star: 1, row: 1, col: 6 }];
+    payload.players!.P2!.enemyPreview = [{ uid: "guest-stale", baseId: "rabbit_blood", star: 1, row: 1, col: 6 }];
     payload.players!.P2!.enemyPreviewRound = 1;
     payload.players!.P2!.enemyBudget = 99;
     const runtime = new CoopPlanningRuntime(storage, sessions);
@@ -231,7 +231,7 @@ describe("co-op planning runtime ownership", () => {
     });
     const payload = payloadFor(2);
     payload.players!.P1!.bench = [owned("host")];
-    payload.players!.P2!.bench = [owned("guest", "deer_song")];
+    payload.players!.P2!.bench = [owned("guest", "rabbit_blood")];
     const runtime = new CoopPlanningRuntime(storage, sessions);
     runtime.attachPayload(payload);
 

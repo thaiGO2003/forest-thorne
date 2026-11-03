@@ -1,0 +1,5615 @@
+[
+ {
+  "id": "blue_buff",
+  "nameVi": "Bùa Xanh",
+  "icon": "🟦",
+  "tier": 1,
+  "size": 1,
+  "pattern": [
+   "tear"
+  ],
+  "bonuses": {
+   "startingRage": 1
+  },
+  "descriptionVi": "Người mang +1 Nộ khởi đầu",
+  "logic": {
+   "trigger": "onSkillUse",
+   "chance": 0.2,
+   "gainRage": 1
+  }
+ },
+ {
+  "id": "bramble_vest",
+  "nameVi": "Giáp Gai",
+  "icon": "🌵",
+  "tier": 1,
+  "size": 1,
+  "pattern": [
+   "bark"
+  ],
+  "bonuses": {
+   "hpPct": 5,
+   "def": 15
+  },
+  "descriptionVi": "Người mang +5% HP, +15 DEF",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "reflectPct": 0.05
+  }
+ },
+ {
+  "id": "death_blade",
+  "nameVi": "Kiếm Vô Cực",
+  "icon": "⚔️",
+  "tier": 1,
+  "size": 1,
+  "pattern": [
+   "claw"
+  ],
+  "bonuses": {
+   "atkPct": 10
+  },
+  "descriptionVi": "Người mang +10% ATK",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsHighHp": 0.05
+  }
+ },
+ {
+  "id": "guinsoo_rageblade",
+  "nameVi": "Cuồng Đao",
+  "icon": "🪓",
+  "tier": 1,
+  "size": 1,
+  "pattern": [
+   "feather"
+  ],
+  "bonuses": {
+   "critPct": 15
+  },
+  "descriptionVi": "Người mang +15% Crit",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 2,
+   "maxStacks": 5
+  }
+ },
+ {
+  "id": "rabadon_deathcap",
+  "nameVi": "Mũ Phù Thủy",
+  "icon": "🧙",
+  "tier": 1,
+  "size": 1,
+  "pattern": [
+   "crystal"
+  ],
+  "bonuses": {
+   "matkPct": 10
+  },
+  "descriptionVi": "Người mang +10% MATK",
+  "logic": {
+   "trigger": "onSkillUse",
+   "nextSkillDmgBonus": 0.08
+  }
+ },
+ {
+  "id": "warmog_armor",
+  "nameVi": "Giáp Máu",
+  "icon": "💚",
+  "tier": 1,
+  "size": 1,
+  "pattern": [
+   "belt"
+  ],
+  "bonuses": {
+   "hpPct": 15
+  },
+  "descriptionVi": "Người mang +15% HP",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 2,
+   "healPctMax": 0.03
+  }
+ },
+ {
+  "id": "aegis_oath",
+  "nameVi": "Thệ Ước Hộ Vệ",
+  "icon": "🛡️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "bark",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "hpPct": 20,
+   "def": 18,
+   "mdef": 12
+  },
+  "descriptionVi": "Cấp 2: +20% HP, +18 DEF, +12 MDEF. Đánh trúng có 30% giảm 12 DEF mục tiêu trong 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.3,
+   "debuff": "def",
+   "amount": -12,
+   "turns": 1
+  }
+ },
+ {
+  "id": "an_dinh_troi",
+  "nameVi": "Ấn Đỉnh Trời",
+  "icon": "🌴",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "tear",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "startingShield": 72,
+   "hpPct": 12,
+   "mdef": 6
+  },
+  "descriptionVi": "Cấp 2: +12% HP, +6 MDEF, +72 khiên. Kẻ địch liền kề giảm 7% ATK",
+  "logic": {
+   "trigger": "aura",
+   "debuff": "atkPct",
+   "amount": -0.07,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "ao_cung_thu",
+  "nameVi": "Áo Cung Thủ",
+  "icon": "🗡️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "tear",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "poisonOnHit": 1,
+   "burnOnHit": 4,
+   "matkPct": 13
+  },
+  "descriptionVi": "Cấp 2: +13% MATK, đốt cháy 4, gây độc 1. Tăng 6% sát thương lên kẻ địch có HP < 30%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsLowHp": 0.06
+  }
+ },
+ {
+  "id": "ao_phap_su",
+  "nameVi": "Áo Pháp Sư",
+  "icon": "♈",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "belt",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "lifestealPct": 7,
+   "atkPct": 12
+  },
+  "descriptionVi": "Cấp 2: +12% ATK, +7% hút máu. Tăng 11% tỉ lệ né cho đồng minh liền kề",
+  "logic": {
+   "trigger": "aura",
+   "buff": "evadePct",
+   "amount": 0.11,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "binh_thanh_long",
+  "nameVi": "Bình Thanh Long",
+  "icon": "💫",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "claw",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "def": 13,
+   "hpPct": 14,
+   "startingShield": 47
+  },
+  "descriptionVi": "Cấp 2: +14% HP, +13 DEF, +47 khiên. Khi bị đánh, có 15% giảm sát thương nhận 15%",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "chance": 0.15,
+   "dmgReduction": 0.15
+  }
+ },
+ {
+  "id": "bua_bao_to",
+  "nameVi": "Búa Bão Tố",
+  "icon": "💙",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "tear",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "atkPct": 21,
+   "critPct": 9,
+   "lifestealPct": 11
+  },
+  "descriptionVi": "Cấp 2: +21% ATK, +9% Crit, +11% hút máu. Khi bị đánh, phản 5% sát thương nhận về kẻ tấn công",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "reflectPct": 0.05
+  }
+ },
+ {
+  "id": "chuong_thuong_hai",
+  "nameVi": "Chuông Thương Hải",
+  "icon": "🔴",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "belt",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "poisonOnHit": 1,
+   "matkPct": 12,
+   "burnOnHit": 1
+  },
+  "descriptionVi": "Cấp 2: +12% MATK, đốt cháy 1, gây độc 1. Sau 1 lượt, kích hoạt nổ gây 10 sát thương phép AoE",
+  "logic": {
+   "trigger": "timedBomb",
+   "turns": 1,
+   "aoeMagicDmg": 10
+  }
+ },
+ {
+  "id": "dawn_edge",
+  "nameVi": "Lưỡi Rạng Đông",
+  "icon": "🌅",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_death_blade",
+   "claw",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "atkPct": 22,
+   "critPct": 12,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +22% ATK, +12% Crit, +1 Nộ. Đánh thường có 25% gây thêm 13 sát thương phép",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.25,
+   "bonusMagicDmg": 13
+  }
+ },
+ {
+  "id": "ember_grimoire",
+  "nameVi": "Hỏa Tâm Thư",
+  "icon": "🔥",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "crystal",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "matkPct": 18,
+   "burnOnHit": 4,
+   "hpPct": 10
+  },
+  "descriptionVi": "Cấp 2: +10% HP, +18% MATK, đốt cháy 4. Khi HP < 42%, tăng 11% DEF",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.42,
+   "buff": "defPct",
+   "amount": 0.11
+  }
+ },
+ {
+  "id": "giay_bao_to",
+  "nameVi": "Giày Bão Tố",
+  "icon": "🐍",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "tear",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "mdef": 7,
+   "hpPct": 11,
+   "startingShield": 67
+  },
+  "descriptionVi": "Cấp 2: +11% HP, +7 MDEF, +67 khiên. Dùng kỹ năng có 29% nhận thêm 1 Nộ",
+  "logic": {
+   "trigger": "onSkillUse",
+   "chance": 0.29,
+   "gainRage": 1
+  }
+ },
+ {
+  "id": "hat_bao_to",
+  "nameVi": "Hạt Bão Tố",
+  "icon": "☀️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "bark",
+   "claw",
+   "belt"
+  ],
+  "bonuses": {
+   "lifestealPct": 12,
+   "critPct": 8,
+   "atkPct": 12
+  },
+  "descriptionVi": "Cấp 2: +12% ATK, +8% Crit, +12% hút máu. Khi HP > 32%, tăng 10% Crit",
+  "logic": {
+   "trigger": "hpThreshold",
+   "above": 0.32,
+   "buff": "critPct",
+   "amount": 0.1
+  }
+ },
+ {
+  "id": "hop_tai_sinh",
+  "nameVi": "Hộp Tái Sinh",
+  "icon": "🫗",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "feather",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "poisonOnHit": 1,
+   "burnOnHit": 4,
+   "matkPct": 10
+  },
+  "descriptionVi": "Cấp 2: +10% MATK, đốt cháy 4, gây độc 1. Đánh trúng hồi 5 HP cho bản thân",
+  "logic": {
+   "trigger": "onHit",
+   "flatHeal": 5
+  }
+ },
+ {
+  "id": "hop_tinh_linh",
+  "nameVi": "Hộp Tinh Linh",
+  "icon": "♌",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "bark",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "critPct": 17,
+   "lifestealPct": 9
+  },
+  "descriptionVi": "Cấp 2: +17% Crit, +9% hút máu. Miễn nhiễm hiệu ứng bất lợi 2 lượt đầu",
+  "logic": {
+   "trigger": "combatStart",
+   "immuneCC": true,
+   "turns": 2
+  }
+ },
+ {
+  "id": "kiem_vinh_cuu",
+  "nameVi": "Kiếm Vĩnh Cửu",
+  "icon": "🔭",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "crystal",
+   "feather",
+   "belt"
+  ],
+  "bonuses": {
+   "def": 12,
+   "startingShield": 75,
+   "mdef": 6
+  },
+  "descriptionVi": "Cấp 2: +12 DEF, +6 MDEF, +75 khiên. Tăng 8% MATK mỗi khi đồng minh dùng kỹ năng (tối đa 6%)",
+  "logic": {
+   "trigger": "onAllySkill",
+   "stackBuff": "matkPct",
+   "perStack": 0.08,
+   "maxStacks": 6
+  }
+ },
+ {
+  "id": "la_ky_lan",
+  "nameVi": "Lá Kỳ Lân",
+  "icon": "🪸",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "claw",
+   "tear",
+   "bark"
+  ],
+  "bonuses": {
+   "hpPct": 14,
+   "startingShield": 83,
+   "mdef": 16
+  },
+  "descriptionVi": "Cấp 2: +14% HP, +16 MDEF, +83 khiên. Tăng 12% sát thương lên kẻ địch có HP > 50%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsHighHp": 0.12
+  }
+ },
+ {
+  "id": "la_vinh_cuu",
+  "nameVi": "Lá Vĩnh Cửu",
+  "icon": "🎑",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "bark",
+   "feather",
+   "crystal"
+  ],
+  "bonuses": {
+   "mdef": 16,
+   "def": 13,
+   "startingShield": 78
+  },
+  "descriptionVi": "Cấp 2: +13 DEF, +16 MDEF, +78 khiên. Bắt đầu giao tranh nhận khiên 9 HP",
+  "logic": {
+   "trigger": "combatStart",
+   "shield": 9
+  }
+ },
+ {
+  "id": "long_bach_ho",
+  "nameVi": "Lông Bạch Hổ",
+  "icon": "🍸",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "bark",
+   "tear",
+   "claw"
+  ],
+  "bonuses": {
+   "mdef": 7,
+   "startingShield": 80
+  },
+  "descriptionVi": "Cấp 2: +7 MDEF, +80 khiên. Hạ gục kẻ địch hồi 15% HP tối đa",
+  "logic": {
+   "trigger": "onKill",
+   "healPctMax": 0.15
+  }
+ },
+ {
+  "id": "long_thuong_hai",
+  "nameVi": "Lông Thương Hải",
+  "icon": "♏",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_death_blade",
+   "crystal",
+   "claw",
+   "belt"
+  ],
+  "bonuses": {
+   "atkPct": 8,
+   "critPct": 17
+  },
+  "descriptionVi": "Cấp 2: +8% ATK, +17% Crit. Đánh trúng có 33% làm chậm mục tiêu 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.33,
+   "slow": true,
+   "turns": 1
+  }
+ },
+ {
+  "id": "long_tinh_linh",
+  "nameVi": "Lông Tinh Linh",
+  "icon": "🌧️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "tear",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "atkPct": 13,
+   "critPct": 15,
+   "lifestealPct": 10
+  },
+  "descriptionVi": "Cấp 2: +13% ATK, +15% Crit, +10% hút máu. Khi HP < 49%, tăng 12% ATK",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.49,
+   "buff": "atkPct",
+   "amount": 0.12
+  }
+ },
+ {
+  "id": "mat_na_khai_sang",
+  "nameVi": "Mặt Nạ Khai Sáng",
+  "icon": "🟣",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "feather",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "def": 11,
+   "mdef": 15,
+   "hpPct": 16
+  },
+  "descriptionVi": "Cấp 2: +16% HP, +11 DEF, +15 MDEF. Khi HP < 39%, nhận khiên 13 HP (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.39,
+   "shield": 13,
+   "once": true
+  }
+ },
+ {
+  "id": "mindforge_spear",
+  "nameVi": "Thương Tâm Trí",
+  "icon": "🪄",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "tear",
+   "crystal",
+   "crystal"
+  ],
+  "bonuses": {
+   "atkPct": 10,
+   "matkPct": 14,
+   "startingRage": 2
+  },
+  "descriptionVi": "Cấp 2: +10% ATK, +14% MATK, +2 Nộ. Mỗi đòn đánh tăng ATK thêm 8 (tối đa 6 lần)",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 8,
+   "maxStacks": 6
+  }
+ },
+ {
+  "id": "mong_than_bi",
+  "nameVi": "Móng Thần Bí",
+  "icon": "🧥",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "claw",
+   "feather",
+   "bark"
+  ],
+  "bonuses": {
+   "poisonOnHit": 4,
+   "burnOnHit": 4,
+   "matkPct": 11
+  },
+  "descriptionVi": "Cấp 2: +11% MATK, đốt cháy 4, gây độc 4. Khi chết, gây 8 sát thương phép lên kẻ địch xung quanh",
+  "logic": {
+   "trigger": "onDeath",
+   "aoeMagicDmg": 8,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "moonwell_pendant",
+  "nameVi": "Dây Chuyền Nguyệt Tuyền",
+  "icon": "🌙",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "tear",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "hpPct": 16,
+   "healPct": 15,
+   "mdef": 10
+  },
+  "descriptionVi": "Cấp 2: +16% HP, +10 MDEF, +15% hồi máu. Khi HP < 36%, nhận khiên 9 HP (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.36,
+   "shield": 9,
+   "once": true
+  }
+ },
+ {
+  "id": "mu_phuong_hoang",
+  "nameVi": "Mũ Phượng Hoàng",
+  "icon": "⚛️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "feather",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "burnOnHit": 4,
+   "matkPct": 13
+  },
+  "descriptionVi": "Cấp 2: +13% MATK, đốt cháy 4. Bắt đầu giao tranh tăng 15% tốc đánh trong 2 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkSpd",
+   "amount": 0.15,
+   "turns": 2
+  }
+ },
+ {
+  "id": "nanh_ngoc_bich",
+  "nameVi": "Nanh Ngọc Bích",
+  "icon": "🪖",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "bark",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "healPct": 9,
+   "evadePct": 7,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +9% hồi máu, +7% né, +1 Nộ. Bắt đầu giao tranh giảm 14 DEF toàn bộ kẻ địch trong 1 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "aoeDebuff": "def",
+   "amount": -14,
+   "turns": 1,
+   "target": "allEnemies"
+  }
+ },
+ {
+  "id": "nhan_dinh_troi",
+  "nameVi": "Nhẫn Đỉnh Trời",
+  "icon": "♣️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "crystal",
+   "feather",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 12,
+   "atkPct": 16,
+   "lifestealPct": 14
+  },
+  "descriptionVi": "Cấp 2: +16% ATK, +12% Crit, +14% hút máu. Dùng kỹ năng tăng 8% sát thương kỹ năng kế tiếp",
+  "logic": {
+   "trigger": "onSkillUse",
+   "nextSkillDmgBonus": 0.08
+  }
+ },
+ {
+  "id": "nhan_tinh_lang",
+  "nameVi": "Nhẫn Tĩnh Lặng",
+  "icon": "👊",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "belt",
+   "feather",
+   "bark"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "evadePct": 8
+  },
+  "descriptionVi": "Cấp 2: +8% né, +1 Nộ. Khi chết, hồi 12% HP tối đa cho đồng minh liền kề",
+  "logic": {
+   "trigger": "onDeath",
+   "healAllyPctMax": 0.12,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "non_tinh_lang",
+  "nameVi": "Nón Tĩnh Lặng",
+  "icon": "⛏️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_death_blade",
+   "tear",
+   "feather",
+   "belt"
+  ],
+  "bonuses": {
+   "lifestealPct": 13,
+   "critPct": 14
+  },
+  "descriptionVi": "Cấp 2: +14% Crit, +13% hút máu. Bắt đầu giao tranh tăng 11% ATK cho đồng minh cùng hàng",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkPct",
+   "amount": 0.11,
+   "target": "sameRow"
+  }
+ },
+ {
+  "id": "phu_vuc_sau",
+  "nameVi": "Phù Vực Sâu",
+  "icon": "☮️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "belt",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "burnOnHit": 4,
+   "matkPct": 16
+  },
+  "descriptionVi": "Cấp 2: +16% MATK, đốt cháy 4. Mỗi 2 lượt hồi 7% HP tối đa",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 2,
+   "healPctMax": 0.07
+  }
+ },
+ {
+  "id": "qua_co_dai",
+  "nameVi": "Quả Cổ Đại",
+  "icon": "♎",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "tear",
+   "feather",
+   "crystal"
+  ],
+  "bonuses": {
+   "lifestealPct": 9,
+   "atkPct": 18
+  },
+  "descriptionVi": "Cấp 2: +18% ATK, +9% hút máu. Đánh trúng có 35% giảm 7 DEF mục tiêu trong 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.35,
+   "debuff": "def",
+   "amount": -7,
+   "turns": 1
+  }
+ },
+ {
+  "id": "qua_mang_xa",
+  "nameVi": "Quả Mãng Xà",
+  "icon": "❤️‍🔥",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "feather",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "evadePct": 12,
+   "healPct": 13
+  },
+  "descriptionVi": "Cấp 2: +13% hồi máu, +12% né. Hạ gục kẻ địch nhận 7 Nộ",
+  "logic": {
+   "trigger": "onKill",
+   "gainRage": 7
+  }
+ },
+ {
+  "id": "qua_thuong_hai",
+  "nameVi": "Quả Thương Hải",
+  "icon": "🍁",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "feather",
+   "belt",
+   "tear"
+  ],
+  "bonuses": {
+   "healPct": 7,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +7% hồi máu, +1 Nộ. Mỗi 1 lượt gây 8 sát thương phép lên kẻ địch gần nhất",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 1,
+   "magicDmg": 8,
+   "target": "nearestEnemy"
+  }
+ },
+ {
+  "id": "rang_loi_dinh",
+  "nameVi": "Răng Lôi Đình",
+  "icon": "🎖️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "def": 19,
+   "startingShield": 92
+  },
+  "descriptionVi": "Cấp 2: +19 DEF, +92 khiên. Đánh trúng có 23% gây choáng 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.23,
+   "stun": true,
+   "turns": 1
+  }
+ },
+ {
+  "id": "sanguine_codex",
+  "nameVi": "Sách Huyết Thuật",
+  "icon": "📕",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_death_blade",
+   "crystal",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "atkPct": 10,
+   "matkPct": 14,
+   "lifestealPct": 12
+  },
+  "descriptionVi": "Cấp 2: +10% ATK, +14% MATK, +12% hút máu. Đánh trúng có 20% giảm 14 MDEF mục tiêu trong 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.2,
+   "debuff": "mdef",
+   "amount": -14,
+   "turns": 1
+  }
+ },
+ {
+  "id": "skyhunter_scope",
+  "nameVi": "Ống Ngắm Thiên Ưng",
+  "icon": "🎯",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "feather",
+   "crystal",
+   "claw"
+  ],
+  "bonuses": {
+   "atkPct": 16,
+   "critPct": 18
+  },
+  "descriptionVi": "Cấp 2: +16% ATK, +18% Crit. Đánh trúng hồi 8% sát thương gây ra thành HP",
+  "logic": {
+   "trigger": "onHit",
+   "healOnDmgPct": 0.08
+  }
+ },
+ {
+  "id": "stormbreaker_ballista",
+  "nameVi": "Nỏ Phá Bão",
+  "icon": "🏹",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "claw",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "atkPct": 15,
+   "critPct": 15,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +15% ATK, +15% Crit, +1 Nộ. Khi HP < 38%, tăng 7% ATK",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.38,
+   "buff": "atkPct",
+   "amount": 0.07
+  }
+ },
+ {
+  "id": "sung_than_sam",
+  "nameVi": "Sừng Thần Sấm",
+  "icon": "🦈",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "belt",
+   "claw",
+   "feather"
+  ],
+  "bonuses": {
+   "evadePct": 9,
+   "healPct": 10,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +10% hồi máu, +9% né, +1 Nộ. Đánh thường có 31% gây thêm 14 sát thương phép",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.31,
+   "bonusMagicDmg": 14
+  }
+ },
+ {
+  "id": "tempest_shroud",
+  "nameVi": "Phong Ảnh Y",
+  "icon": "🌪️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "feather",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "evadePct": 12,
+   "mdef": 12,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +12 MDEF, +12% né, +1 Nộ. Đánh trúng hồi 13 HP cho bản thân",
+  "logic": {
+   "trigger": "onHit",
+   "flatHeal": 13
+  }
+ },
+ {
+  "id": "thorn_abyss_plate",
+  "nameVi": "Giáp Gai Vực Sâu",
+  "icon": "🧱",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "bark",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "hpPct": 15,
+   "def": 24,
+   "mdef": 16
+  },
+  "descriptionVi": "Cấp 2: +15% HP, +24 DEF, +16 MDEF. Đánh trúng có 27% gây choáng 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.27,
+   "stun": true,
+   "turns": 1
+  }
+ },
+ {
+  "id": "truong_loi_dinh",
+  "nameVi": "Trượng Lôi Đình",
+  "icon": "🖤",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_blue_buff",
+   "tear",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "mdef": 7,
+   "startingShield": 93
+  },
+  "descriptionVi": "Cấp 2: +7 MDEF, +93 khiên. Đánh trúng có 21% giảm 15 MDEF mục tiêu trong 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.21,
+   "debuff": "mdef",
+   "amount": -15,
+   "turns": 1
+  }
+ },
+ {
+  "id": "truong_ngoc_bich",
+  "nameVi": "Trượng Ngọc Bích",
+  "icon": "🐻",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "crystal",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "poisonOnHit": 2,
+   "burnOnHit": 3,
+   "matkPct": 9
+  },
+  "descriptionVi": "Cấp 2: +9% MATK, đốt cháy 3, gây độc 2. Đánh trúng hồi 10% sát thương gây ra thành HP",
+  "logic": {
+   "trigger": "onHit",
+   "healOnDmgPct": 0.1
+  }
+ },
+ {
+  "id": "vay_tien_nhan",
+  "nameVi": "Vảy Tiên Nhân",
+  "icon": "☯️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "belt",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "evadePct": 10
+  },
+  "descriptionVi": "Cấp 2: +10% né, +1 Nộ. Khi HP < 47%, tăng 13% DEF",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.47,
+   "buff": "defPct",
+   "amount": 0.13
+  }
+ },
+ {
+  "id": "voidfang_lantern",
+  "nameVi": "Đèn Nanh Hư Không",
+  "icon": "🏮",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "crystal",
+   "claw",
+   "feather"
+  ],
+  "bonuses": {
+   "hpPct": 12,
+   "atkPct": 10,
+   "poisonOnHit": 4
+  },
+  "descriptionVi": "Cấp 2: +10% ATK, +12% HP, gây độc 4. Khi HP < 31%, hồi 14% HP tối đa (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.31,
+   "healPctMax": 0.14,
+   "once": true
+  }
+ },
+ {
+  "id": "vong_thanh_long",
+  "nameVi": "Vòng Thanh Long",
+  "icon": "🎁",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_rabadon_deathcap",
+   "belt",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "healPct": 14
+  },
+  "descriptionVi": "Cấp 2: +14% hồi máu, +1 Nộ. Giảm 10% sát thương nhận từ đòn chí mạng",
+  "logic": {
+   "trigger": "passive",
+   "reduceCritDmg": 0.1
+  }
+ },
+ {
+  "id": "vuong_mien_ho_ve",
+  "nameVi": "Vương Miện Hộ Vệ",
+  "icon": "💗",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "bark",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "lifestealPct": 13,
+   "atkPct": 14,
+   "critPct": 17
+  },
+  "descriptionVi": "Cấp 2: +14% ATK, +17% Crit, +13% hút máu. Đòn đánh thứ 3 gây gấp 1.7x sát thương",
+  "logic": {
+   "trigger": "nthAttack",
+   "nth": 3,
+   "dmgMult": 1.7
+  }
+ },
+ {
+  "id": "wild_talon_cloak",
+  "nameVi": "Áo Choàng Móng Dữ",
+  "icon": "🦴",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_warmog_armor",
+   "belt",
+   "claw",
+   "crystal"
+  ],
+  "bonuses": {
+   "hpPct": 20,
+   "atkPct": 12,
+   "def": 8
+  },
+  "descriptionVi": "Cấp 2: +12% ATK, +20% HP, +8 DEF. Đánh trúng có 35% làm chậm mục tiêu 2 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.35,
+   "slow": true,
+   "turns": 2
+  }
+ },
+ {
+  "id": "xuong_co_dai",
+  "nameVi": "Xương Cổ Đại",
+  "icon": "🔦",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_bramble_vest",
+   "crystal",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "burnOnHit": 3,
+   "poisonOnHit": 2
+  },
+  "descriptionVi": "Cấp 2: đốt cháy 3, gây độc 2. Mỗi lần bị đánh tăng 10 DEF (tối đa 4 lần)",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "stackBuff": "def",
+   "perStack": 10,
+   "maxStacks": 4
+  }
+ },
+ {
+  "id": "xuong_cung_thu",
+  "nameVi": "Xương Cung Thủ",
+  "icon": "🌫️",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_death_blade",
+   "bark",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "healPct": 11,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 2: +11% hồi máu, +1 Nộ. Mỗi đòn đánh tăng ATK thêm 8 (tối đa 3 lần)",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 8,
+   "maxStacks": 3
+  }
+ },
+ {
+  "id": "xuong_than_sam",
+  "nameVi": "Xương Thần Sấm",
+  "icon": "🀄",
+  "tier": 2,
+  "size": 2,
+  "pattern": [
+   "eq_guinsoo_rageblade",
+   "feather",
+   "tear",
+   "bark"
+  ],
+  "bonuses": {
+   "matkPct": 10,
+   "burnOnHit": 2,
+   "poisonOnHit": 4
+  },
+  "descriptionVi": "Cấp 2: +10% MATK, đốt cháy 2, gây độc 4. Hạ gục kẻ địch tăng 13 ATK vĩnh viễn",
+  "logic": {
+   "trigger": "onKill",
+   "permBuff": "atk",
+   "amount": 13
+  }
+ },
+ {
+  "id": "an_sao_bang",
+  "nameVi": "Ấn Sao Băng",
+  "icon": "⭐",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_tinh_linh",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "feather",
+   "feather",
+   "tear",
+   "crystal",
+   "crystal",
+   "bark"
+  ],
+  "bonuses": {
+   "lifestealPct": 19,
+   "critPct": 14,
+   "atkPct": 21
+  },
+  "descriptionVi": "Cấp 3: +21% ATK, +14% Crit, +19% hút máu. Bắt đầu giao tranh tăng 10% tốc đánh trong 2 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkSpd",
+   "amount": 0.1,
+   "turns": 2
+  }
+ },
+ {
+  "id": "an_than_sam",
+  "nameVi": "Ấn Thần Sấm",
+  "icon": "👾",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_cung_thu",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "crystal",
+   "feather",
+   "claw",
+   "feather",
+   "feather"
+  ],
+  "bonuses": {
+   "healPct": 17,
+   "startingRage": 2,
+   "evadePct": 15
+  },
+  "descriptionVi": "Cấp 3: +17% hồi máu, +15% né, +2 Nộ. Khi chết, gây 9 sát thương phép lên kẻ địch xung quanh",
+  "logic": {
+   "trigger": "onDeath",
+   "aoeMagicDmg": 9,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "ao_dinh_troi",
+  "nameVi": "Áo Đỉnh Trời",
+  "icon": "🪬",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_phap_su",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "bark",
+   "belt",
+   "crystal",
+   "crystal",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "healPct": 11,
+   "evadePct": 11
+  },
+  "descriptionVi": "Cấp 3: +11% hồi máu, +11% né. Đánh thường có 41% gây thêm 37 sát thương phép",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.41,
+   "bonusMagicDmg": 37
+  }
+ },
+ {
+  "id": "ao_ky_lan",
+  "nameVi": "Áo Kỳ Lân",
+  "icon": "🌕",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_hop_tai_sinh",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "bark",
+   "tear",
+   "crystal",
+   "belt",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 21,
+   "lifestealPct": 17
+  },
+  "descriptionVi": "Cấp 3: +21% Crit, +17% hút máu. Giảm 13% sát thương nhận từ đòn chí mạng",
+  "logic": {
+   "trigger": "passive",
+   "reduceCritDmg": 0.13
+  }
+ },
+ {
+  "id": "ao_rang_dong",
+  "nameVi": "Áo Rạng Đông",
+  "icon": "👻",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_thuong_hai",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "claw",
+   "crystal",
+   "claw",
+   "feather",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "lifestealPct": 12,
+   "critPct": 23
+  },
+  "descriptionVi": "Cấp 3: +23% Crit, +12% hút máu. Bắt đầu giao tranh nhận khiên 8 HP",
+  "logic": {
+   "trigger": "combatStart",
+   "shield": 8
+  }
+ },
+ {
+  "id": "ao_thanh_long",
+  "nameVi": "Áo Thanh Long",
+  "icon": "🎀",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_warmog_armor",
+   "eq_death_blade",
+   "feather",
+   "tear",
+   "tear",
+   "crystal",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "critPct": 15,
+   "atkPct": 27
+  },
+  "descriptionVi": "Cấp 3: +27% ATK, +15% Crit. Đánh trúng có 29% làm chậm mục tiêu 3 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.29,
+   "slow": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "bao_thach_soi_bac",
+  "nameVi": "Bảo Thạch Sói Bạc",
+  "icon": "🐝",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_phap_su",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "belt",
+   "belt",
+   "tear",
+   "belt",
+   "bark",
+   "claw"
+  ],
+  "bonuses": {
+   "evadePct": 11,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +11% né, +1 Nộ. Hạ gục kẻ địch hồi 8% HP tối đa",
+  "logic": {
+   "trigger": "onKill",
+   "healPctMax": 0.08
+  }
+ },
+ {
+  "id": "binh_dia_nguc",
+  "nameVi": "Bình Địa Ngục",
+  "icon": "🎊",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_wild_talon_cloak",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "belt",
+   "bark",
+   "claw",
+   "tear",
+   "belt",
+   "feather"
+  ],
+  "bonuses": {
+   "atkPct": 27,
+   "critPct": 12,
+   "lifestealPct": 18
+  },
+  "descriptionVi": "Cấp 3: +27% ATK, +12% Crit, +18% hút máu. Khi chết, hồi 24% HP tối đa cho đồng minh liền kề",
+  "logic": {
+   "trigger": "onDeath",
+   "healAllyPctMax": 0.24,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "binh_hoang_hon",
+  "nameVi": "Bình Hoàng Hôn",
+  "icon": "🥃",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_wild_talon_cloak",
+   "eq_death_blade",
+   "eq_bramble_vest",
+   "bark",
+   "belt",
+   "bark",
+   "tear",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "healPct": 13
+  },
+  "descriptionVi": "Cấp 3: +13% hồi máu, +1 Nộ. Khi HP > 42%, tăng 20% Crit",
+  "logic": {
+   "trigger": "hpThreshold",
+   "above": 0.42,
+   "buff": "critPct",
+   "amount": 0.2
+  }
+ },
+ {
+  "id": "binh_nguyen_thuy",
+  "nameVi": "Bình Nguyên Thuỷ",
+  "icon": "🥝",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mu_phuong_hoang",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "claw",
+   "tear",
+   "feather",
+   "bark",
+   "claw",
+   "crystal"
+  ],
+  "bonuses": {
+   "evadePct": 11,
+   "healPct": 13,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +13% hồi máu, +11% né, +1 Nộ. Khi HP < 38%, tăng 24% ATK",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.38,
+   "buff": "atkPct",
+   "amount": 0.24
+  }
+ },
+ {
+  "id": "binh_sat_thu",
+  "nameVi": "Bình Sát Thủ",
+  "icon": "🪞",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_ngoc_bich",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "feather",
+   "claw",
+   "crystal",
+   "crystal",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "startingRage": 2,
+   "evadePct": 9,
+   "healPct": 18
+  },
+  "descriptionVi": "Cấp 3: +18% hồi máu, +9% né, +2 Nộ. Dùng kỹ năng tăng 14% sát thương kỹ năng kế tiếp",
+  "logic": {
+   "trigger": "onSkillUse",
+   "nextSkillDmgBonus": 0.14
+  }
+ },
+ {
+  "id": "bloodfang_reaper",
+  "nameVi": "Huyết Nha",
+  "icon": "🩸",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_mang_xa",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "claw",
+   "bark",
+   "bark",
+   "feather",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "atkPct": 20,
+   "lifestealPct": 22,
+   "critPct": 10
+  },
+  "descriptionVi": "Cấp 3: +20% ATK, +10% Crit, +22% hút máu. Bắt đầu giao tranh giảm 14 DEF toàn bộ kẻ địch trong 3 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "aoeDebuff": "def",
+   "amount": -14,
+   "turns": 3,
+   "target": "allEnemies"
+  }
+ },
+ {
+  "id": "bua_hac_am",
+  "nameVi": "Bùa Hắc Ám",
+  "icon": "🧹",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_tinh_linh",
+   "eq_bramble_vest",
+   "eq_warmog_armor",
+   "bark",
+   "belt",
+   "crystal",
+   "claw",
+   "tear",
+   "tear"
+  ],
+  "bonuses": {
+   "matkPct": 15,
+   "burnOnHit": 4,
+   "poisonOnHit": 6
+  },
+  "descriptionVi": "Cấp 3: +15% MATK, đốt cháy 4, gây độc 6. Khi HP > 46%, tăng 17% Crit",
+  "logic": {
+   "trigger": "hpThreshold",
+   "above": 0.46,
+   "buff": "critPct",
+   "amount": 0.17
+  }
+ },
+ {
+  "id": "bua_hoang_hon",
+  "nameVi": "Bùa Hoàng Hôn",
+  "icon": "🕯️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_bach_ho",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "claw",
+   "feather",
+   "claw",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "evadePct": 12,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +12% né, +1 Nộ. Khi chết, hồi 25% HP tối đa cho đồng minh liền kề",
+  "logic": {
+   "trigger": "onDeath",
+   "healAllyPctMax": 0.25,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "bua_loi_dinh",
+  "nameVi": "Búa Lôi Đình",
+  "icon": "🟩",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_cung_thu",
+   "eq_bramble_vest",
+   "eq_warmog_armor",
+   "tear",
+   "crystal",
+   "crystal",
+   "bark",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 12,
+   "atkPct": 18,
+   "lifestealPct": 13
+  },
+  "descriptionVi": "Cấp 3: +18% ATK, +12% Crit, +13% hút máu. Tăng 8% tỉ lệ né cho đồng minh liền kề",
+  "logic": {
+   "trigger": "aura",
+   "buff": "evadePct",
+   "amount": 0.08,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "bua_ma_vuong",
+  "nameVi": "Búa Ma Vương",
+  "icon": "♍",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_mang_xa",
+   "eq_bramble_vest",
+   "eq_blue_buff",
+   "bark",
+   "tear",
+   "feather",
+   "crystal",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "evadePct": 11,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +11% né, +1 Nộ. Đánh trúng hồi 25% sát thương gây ra thành HP",
+  "logic": {
+   "trigger": "onHit",
+   "healOnDmgPct": 0.25
+  }
+ },
+ {
+  "id": "bua_thuong_hai",
+  "nameVi": "Búa Thương Hải",
+  "icon": "🏅",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "bark",
+   "feather",
+   "belt",
+   "feather",
+   "crystal"
+  ],
+  "bonuses": {
+   "hpPct": 22,
+   "def": 34
+  },
+  "descriptionVi": "Cấp 3: +22% HP, +34 DEF. Khi HP < 37%, nhận khiên 18 HP (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.37,
+   "shield": 18,
+   "once": true
+  }
+ },
+ {
+  "id": "chuong_cung_thu",
+  "nameVi": "Chuông Cung Thủ",
+  "icon": "🟥",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_cung_thu",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "claw",
+   "feather",
+   "belt",
+   "feather",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "def": 23,
+   "mdef": 23
+  },
+  "descriptionVi": "Cấp 3: +23 DEF, +23 MDEF. Khi HP > 42%, tăng 9% Crit",
+  "logic": {
+   "trigger": "hpThreshold",
+   "above": 0.42,
+   "buff": "critPct",
+   "amount": 0.09
+  }
+ },
+ {
+  "id": "chuong_rang_dong",
+  "nameVi": "Chuông Rạng Đông",
+  "icon": "🦇",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vay_tien_nhan",
+   "eq_bramble_vest",
+   "eq_rabadon_deathcap",
+   "crystal",
+   "claw",
+   "tear",
+   "crystal",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "startingShield": 109,
+   "hpPct": 21,
+   "def": 23
+  },
+  "descriptionVi": "Cấp 3: +21% HP, +23 DEF, +109 khiên. Đánh trúng có 24% giảm 12 MDEF mục tiêu trong 2 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.24,
+   "debuff": "mdef",
+   "amount": -12,
+   "turns": 2
+  }
+ },
+ {
+  "id": "cung_vuc_sau",
+  "nameVi": "Cung Vực Sâu",
+  "icon": "🔯",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_sanguine_codex",
+   "eq_rabadon_deathcap",
+   "eq_death_blade",
+   "crystal",
+   "crystal",
+   "claw",
+   "feather",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "startingRage": 2,
+   "evadePct": 12,
+   "healPct": 11
+  },
+  "descriptionVi": "Cấp 3: +11% hồi máu, +12% né, +2 Nộ. Giảm 15% sát thương nhận từ đòn chí mạng",
+  "logic": {
+   "trigger": "passive",
+   "reduceCritDmg": 0.15
+  }
+ },
+ {
+  "id": "cuon_loi_dinh",
+  "nameVi": "Cuốn Lôi Đình",
+  "icon": "🪣",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_binh_thanh_long",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "feather",
+   "belt",
+   "belt",
+   "feather",
+   "tear"
+  ],
+  "bonuses": {
+   "healPct": 13,
+   "evadePct": 10,
+   "startingRage": 2
+  },
+  "descriptionVi": "Cấp 3: +13% hồi máu, +10% né, +2 Nộ. Hạ gục kẻ địch tăng 19 ATK vĩnh viễn",
+  "logic": {
+   "trigger": "onKill",
+   "permBuff": "atk",
+   "amount": 19
+  }
+ },
+ {
+  "id": "cuon_luc_dia",
+  "nameVi": "Cuốn Lục Địa",
+  "icon": "🌸",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_bao_to",
+   "eq_bramble_vest",
+   "eq_blue_buff",
+   "feather",
+   "crystal",
+   "tear",
+   "claw",
+   "tear",
+   "bark"
+  ],
+  "bonuses": {
+   "poisonOnHit": 5,
+   "matkPct": 21
+  },
+  "descriptionVi": "Cấp 3: +21% MATK, gây độc 5. Tăng 21% sát thương lên kẻ địch có HP > 50%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsHighHp": 0.21
+  }
+ },
+ {
+  "id": "cuon_nguyet_thuc",
+  "nameVi": "Cuốn Nguyệt Thực",
+  "icon": "🏰",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_ngoc_bich",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "tear",
+   "tear",
+   "belt",
+   "bark",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "evadePct": 15,
+   "healPct": 13,
+   "startingRage": 2
+  },
+  "descriptionVi": "Cấp 3: +13% hồi máu, +15% né, +2 Nộ. Đòn đánh thứ 3 gây gấp 2.2x sát thương",
+  "logic": {
+   "trigger": "nthAttack",
+   "nth": 3,
+   "dmgMult": 2.2
+  }
+ },
+ {
+  "id": "cuon_phong_ba",
+  "nameVi": "Cuốn Phong Ba",
+  "icon": "🦂",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_ky_lan",
+   "eq_bramble_vest",
+   "eq_warmog_armor",
+   "bark",
+   "claw",
+   "claw",
+   "tear",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "atkPct": 24,
+   "critPct": 13,
+   "lifestealPct": 10
+  },
+  "descriptionVi": "Cấp 3: +24% ATK, +13% Crit, +10% hút máu. Khi bị đánh, phản 25% sát thương nhận về kẻ tấn công",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "reflectPct": 0.25
+  }
+ },
+ {
+  "id": "cuon_phuong_hoang",
+  "nameVi": "Cuốn Phượng Hoàng",
+  "icon": "🫧",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_cung_thu",
+   "eq_rabadon_deathcap",
+   "eq_death_blade",
+   "claw",
+   "crystal",
+   "tear",
+   "bark",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "hpPct": 31,
+   "mdef": 12
+  },
+  "descriptionVi": "Cấp 3: +31% HP, +12 MDEF. Mỗi lần bị đánh tăng 9 DEF (tối đa 5 lần)",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "stackBuff": "def",
+   "perStack": 9,
+   "maxStacks": 5
+  }
+ },
+ {
+  "id": "dai_bong_dem",
+  "nameVi": "Đai Bóng Đêm",
+  "icon": "🧋",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_ky_lan",
+   "eq_death_blade",
+   "eq_bramble_vest",
+   "belt",
+   "bark",
+   "claw",
+   "tear",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "mdef": 20,
+   "startingShield": 154,
+   "hpPct": 25
+  },
+  "descriptionVi": "Cấp 3: +25% HP, +20 MDEF, +154 khiên. Khi chết, gây 10 sát thương phép lên kẻ địch xung quanh",
+  "logic": {
+   "trigger": "onDeath",
+   "aoeMagicDmg": 10,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "dao_bang_gia",
+  "nameVi": "Đao Băng Giá",
+  "icon": "💎",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_wild_talon_cloak",
+   "eq_bramble_vest",
+   "eq_rabadon_deathcap",
+   "tear",
+   "crystal",
+   "feather",
+   "feather",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "atkPct": 15,
+   "lifestealPct": 20
+  },
+  "descriptionVi": "Cấp 3: +15% ATK, +20% hút máu. Hạ gục kẻ địch nhận 8 Nộ",
+  "logic": {
+   "trigger": "onKill",
+   "gainRage": 8
+  }
+ },
+ {
+  "id": "dao_ho_phach",
+  "nameVi": "Đao Hổ Phách",
+  "icon": "☕",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_sung_than_sam",
+   "eq_warmog_armor",
+   "eq_blue_buff",
+   "claw",
+   "bark",
+   "tear",
+   "bark",
+   "claw",
+   "feather"
+  ],
+  "bonuses": {
+   "critPct": 18,
+   "atkPct": 19,
+   "lifestealPct": 13
+  },
+  "descriptionVi": "Cấp 3: +19% ATK, +18% Crit, +13% hút máu. Kẻ địch liền kề giảm 18% ATK",
+  "logic": {
+   "trigger": "aura",
+   "debuff": "atkPct",
+   "amount": -0.18,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "dao_tai_sinh",
+  "nameVi": "Đao Tái Sinh",
+  "icon": "🎆",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_aegis_oath",
+   "eq_bramble_vest",
+   "eq_warmog_armor",
+   "feather",
+   "feather",
+   "claw",
+   "claw",
+   "tear",
+   "claw"
+  ],
+  "bonuses": {
+   "evadePct": 12,
+   "healPct": 12
+  },
+  "descriptionVi": "Cấp 3: +12% hồi máu, +12% né. Đánh trúng có 27% làm chậm mục tiêu 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.27,
+   "slow": true,
+   "turns": 1
+  }
+ },
+ {
+  "id": "day_chuyen_phong_ba",
+  "nameVi": "Dây Chuyền Phong Ba",
+  "icon": "🎌",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_phu_vuc_sau",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "claw",
+   "claw",
+   "tear",
+   "feather",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "burnOnHit": 4,
+   "poisonOnHit": 5
+  },
+  "descriptionVi": "Cấp 3: đốt cháy 4, gây độc 5. Giảm 8% sát thương nhận từ đòn chí mạng",
+  "logic": {
+   "trigger": "passive",
+   "reduceCritDmg": 0.08
+  }
+ },
+ {
+  "id": "den_huyet_nguyet",
+  "nameVi": "Đèn Huyết Nguyệt",
+  "icon": "🦁",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_thorn_abyss_plate",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "belt",
+   "claw",
+   "tear",
+   "bark",
+   "claw",
+   "crystal"
+  ],
+  "bonuses": {
+   "matkPct": 20,
+   "burnOnHit": 3
+  },
+  "descriptionVi": "Cấp 3: +20% MATK, đốt cháy 3. Khi chết, hồi 8% HP tối đa cho đồng minh liền kề",
+  "logic": {
+   "trigger": "onDeath",
+   "healAllyPctMax": 0.08,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "den_thanh_long",
+  "nameVi": "Đèn Thanh Long",
+  "icon": "🍀",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_kiem_vinh_cuu",
+   "eq_warmog_armor",
+   "eq_blue_buff",
+   "tear",
+   "crystal",
+   "crystal",
+   "bark",
+   "feather",
+   "feather"
+  ],
+  "bonuses": {
+   "burnOnHit": 5,
+   "matkPct": 19,
+   "poisonOnHit": 5
+  },
+  "descriptionVi": "Cấp 3: +19% MATK, đốt cháy 5, gây độc 5. Khi HP < 42%, hồi 25% HP tối đa (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.42,
+   "healPctMax": 0.25,
+   "once": true
+  }
+ },
+ {
+  "id": "dragon_heart",
+  "nameVi": "Trái Tim Rồng",
+  "icon": "🐉",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_giay_bao_to",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "crystal",
+   "belt",
+   "feather",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "atkPct": 22,
+   "hpPct": 18,
+   "critPct": 12
+  },
+  "descriptionVi": "Cấp 3: +22% ATK, +18% HP, +12% Crit. Khi HP > 46%, tăng 19% Crit",
+  "logic": {
+   "trigger": "hpThreshold",
+   "above": 0.46,
+   "buff": "critPct",
+   "amount": 0.19
+  }
+ },
+ {
+  "id": "gaia_oath",
+  "nameVi": "Thệ Ước Đại Địa",
+  "icon": "🌿",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_phu_vuc_sau",
+   "eq_blue_buff",
+   "eq_death_blade",
+   "belt",
+   "claw",
+   "tear",
+   "claw",
+   "claw",
+   "tear"
+  ],
+  "bonuses": {
+   "hpPct": 30,
+   "healPct": 12,
+   "startingShield": 100
+  },
+  "descriptionVi": "Cấp 3: +30% HP, +12% hồi máu, +100 khiên. Hạ gục kẻ địch tăng 17 ATK vĩnh viễn",
+  "logic": {
+   "trigger": "onKill",
+   "permBuff": "atk",
+   "amount": 17
+  }
+ },
+ {
+  "id": "gang_kim_cuong",
+  "nameVi": "Găng Kim Cương",
+  "icon": "🪔",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nhan_dinh_troi",
+   "eq_blue_buff",
+   "eq_bramble_vest",
+   "crystal",
+   "feather",
+   "belt",
+   "bark",
+   "belt",
+   "feather"
+  ],
+  "bonuses": {
+   "atkPct": 21,
+   "critPct": 14,
+   "lifestealPct": 18
+  },
+  "descriptionVi": "Cấp 3: +21% ATK, +14% Crit, +18% hút máu. Tăng 20% sát thương lên kẻ địch có HP < 30%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsLowHp": 0.2
+  }
+ },
+ {
+  "id": "gang_nguyet_thuc",
+  "nameVi": "Găng Nguyệt Thực",
+  "icon": "🔵",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_tempest_shroud",
+   "eq_warmog_armor",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "crystal",
+   "crystal",
+   "crystal",
+   "bark",
+   "crystal"
+  ],
+  "bonuses": {
+   "mdef": 17,
+   "startingShield": 150
+  },
+  "descriptionVi": "Cấp 3: +17 MDEF, +150 khiên. Kẻ địch liền kề giảm 19% ATK",
+  "logic": {
+   "trigger": "aura",
+   "debuff": "atkPct",
+   "amount": -0.19,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "gang_than_moc",
+  "nameVi": "Găng Thần Mộc",
+  "icon": "🌋",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_skyhunter_scope",
+   "eq_guinsoo_rageblade",
+   "eq_rabadon_deathcap",
+   "belt",
+   "bark",
+   "bark",
+   "crystal",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "healPct": 12,
+   "startingRage": 2,
+   "evadePct": 15
+  },
+  "descriptionVi": "Cấp 3: +12% hồi máu, +15% né, +2 Nộ. Kẻ địch liền kề giảm 14% ATK",
+  "logic": {
+   "trigger": "aura",
+   "debuff": "atkPct",
+   "amount": -0.14,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "gay_hoang_hon",
+  "nameVi": "Gậy Hoàng Hôn",
+  "icon": "🟫",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_hop_tai_sinh",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "feather",
+   "bark",
+   "bark",
+   "crystal",
+   "bark"
+  ],
+  "bonuses": {
+   "mdef": 18,
+   "startingShield": 142,
+   "hpPct": 20
+  },
+  "descriptionVi": "Cấp 3: +20% HP, +18 MDEF, +142 khiên. Đánh trúng có 30% gây choáng 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.3,
+   "stun": true,
+   "turns": 1
+  }
+ },
+ {
+  "id": "gay_huy_diet",
+  "nameVi": "Gậy Hủy Diệt",
+  "icon": "💥",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mat_na_khai_sang",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "crystal",
+   "claw",
+   "crystal",
+   "bark",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "poisonOnHit": 6,
+   "burnOnHit": 2,
+   "matkPct": 20
+  },
+  "descriptionVi": "Cấp 3: +20% MATK, đốt cháy 2, gây độc 6. Bắt đầu giao tranh tăng 25% ATK cho đồng minh cùng hàng",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkPct",
+   "amount": 0.25,
+   "target": "sameRow"
+  }
+ },
+ {
+  "id": "gay_than_bi",
+  "nameVi": "Gậy Thần Bí",
+  "icon": "🧪",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nanh_ngoc_bich",
+   "eq_blue_buff",
+   "eq_death_blade",
+   "crystal",
+   "belt",
+   "tear",
+   "belt",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "atkPct": 20,
+   "critPct": 21,
+   "lifestealPct": 20
+  },
+  "descriptionVi": "Cấp 3: +20% ATK, +21% Crit, +20% hút máu. Khi HP < 35%, tăng 19% ATK",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.35,
+   "buff": "atkPct",
+   "amount": 0.19
+  }
+ },
+ {
+  "id": "giap_bang_gia",
+  "nameVi": "Giáp Băng Giá",
+  "icon": "🫂",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_aegis_oath",
+   "eq_death_blade",
+   "eq_blue_buff",
+   "crystal",
+   "belt",
+   "belt",
+   "claw",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "poisonOnHit": 2,
+   "matkPct": 25
+  },
+  "descriptionVi": "Cấp 3: +25% MATK, gây độc 2. Đánh trúng có 38% giảm 10 DEF mục tiêu trong 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.38,
+   "debuff": "def",
+   "amount": -10,
+   "turns": 1
+  }
+ },
+ {
+  "id": "giap_chien_than",
+  "nameVi": "Giáp Chiến Thần",
+  "icon": "🌻",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_than_sam",
+   "eq_warmog_armor",
+   "eq_death_blade",
+   "claw",
+   "belt",
+   "claw",
+   "tear",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 16,
+   "atkPct": 19
+  },
+  "descriptionVi": "Cấp 3: +19% ATK, +16% Crit. Đánh trúng có 43% gây choáng 2 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.43,
+   "stun": true,
+   "turns": 2
+  }
+ },
+ {
+  "id": "giap_ky_lan",
+  "nameVi": "Giáp Kỳ Lân",
+  "icon": "🔫",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vong_thanh_long",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "feather",
+   "claw",
+   "claw",
+   "belt",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "critPct": 20,
+   "atkPct": 28,
+   "lifestealPct": 20
+  },
+  "descriptionVi": "Cấp 3: +28% ATK, +20% Crit, +20% hút máu. Bắt đầu giao tranh giảm 18 DEF toàn bộ kẻ địch trong 3 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "aoeDebuff": "def",
+   "amount": -18,
+   "turns": 3,
+   "target": "allEnemies"
+  }
+ },
+ {
+  "id": "giap_suong_mu",
+  "nameVi": "Giáp Sương Mù",
+  "icon": "🪤",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mu_phuong_hoang",
+   "eq_death_blade",
+   "eq_rabadon_deathcap",
+   "belt",
+   "tear",
+   "tear",
+   "claw",
+   "tear",
+   "claw"
+  ],
+  "bonuses": {
+   "poisonOnHit": 2,
+   "matkPct": 17
+  },
+  "descriptionVi": "Cấp 3: +17% MATK, gây độc 2. Hạ gục kẻ địch hồi 25% HP tối đa",
+  "logic": {
+   "trigger": "onKill",
+   "healPctMax": 0.25
+  }
+ },
+ {
+  "id": "giap_thien_duong",
+  "nameVi": "Giáp Thiên Đường",
+  "icon": "💝",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_binh_thanh_long",
+   "eq_death_blade",
+   "eq_bramble_vest",
+   "claw",
+   "belt",
+   "crystal",
+   "crystal",
+   "crystal",
+   "claw"
+  ],
+  "bonuses": {
+   "burnOnHit": 5,
+   "matkPct": 24,
+   "poisonOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: +24% MATK, đốt cháy 5, gây độc 4. Khi chết, gây 13 sát thương phép lên kẻ địch xung quanh",
+  "logic": {
+   "trigger": "onDeath",
+   "aoeMagicDmg": 13,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "giay_chien_than",
+  "nameVi": "Giày Chiến Thần",
+  "icon": "🤛",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_stormbreaker_ballista",
+   "eq_warmog_armor",
+   "eq_death_blade",
+   "crystal",
+   "belt",
+   "claw",
+   "belt",
+   "feather",
+   "bark"
+  ],
+  "bonuses": {
+   "def": 23,
+   "hpPct": 19,
+   "mdef": 25
+  },
+  "descriptionVi": "Cấp 3: +19% HP, +23 DEF, +25 MDEF. Khi chết, hồi 20% HP tối đa cho đồng minh liền kề",
+  "logic": {
+   "trigger": "onDeath",
+   "healAllyPctMax": 0.2,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "giay_ky_lan",
+  "nameVi": "Giày Kỳ Lân",
+  "icon": "🦋",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_bramble_vest",
+   "eq_warmog_armor",
+   "tear",
+   "claw",
+   "bark",
+   "crystal",
+   "claw",
+   "feather"
+  ],
+  "bonuses": {
+   "healPct": 17,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +17% hồi máu, +1 Nộ. Tăng 10% sát thương lên kẻ địch có HP < 30%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsLowHp": 0.1
+  }
+ },
+ {
+  "id": "hat_bach_ho",
+  "nameVi": "Hạt Bạch Hổ",
+  "icon": "♐",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_stormbreaker_ballista",
+   "eq_rabadon_deathcap",
+   "eq_blue_buff",
+   "crystal",
+   "bark",
+   "tear",
+   "tear",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "mdef": 16,
+   "def": 23,
+   "hpPct": 30
+  },
+  "descriptionVi": "Cấp 3: +30% HP, +23 DEF, +16 MDEF. Đòn đánh thứ 3 gây gấp 2.3x sát thương",
+  "logic": {
+   "trigger": "nthAttack",
+   "nth": 3,
+   "dmgMult": 2.3
+  }
+ },
+ {
+  "id": "hat_nguyet_thuc",
+  "nameVi": "Hạt Nguyệt Thực",
+  "icon": "💖",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_bao_to",
+   "eq_guinsoo_rageblade",
+   "eq_rabadon_deathcap",
+   "tear",
+   "bark",
+   "tear",
+   "belt",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "poisonOnHit": 3,
+   "burnOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: đốt cháy 4, gây độc 3. Kẻ địch liền kề giảm 9% ATK",
+  "logic": {
+   "trigger": "aura",
+   "debuff": "atkPct",
+   "amount": -0.09,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "hat_phong_ba",
+  "nameVi": "Hạt Phong Ba",
+  "icon": "🦅",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_phu_vuc_sau",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "bark",
+   "tear",
+   "feather",
+   "crystal",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "matkPct": 24,
+   "burnOnHit": 3
+  },
+  "descriptionVi": "Cấp 3: +24% MATK, đốt cháy 3. Đánh thường có 30% gây thêm 28 sát thương phép",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.3,
+   "bonusMagicDmg": 28
+  }
+ },
+ {
+  "id": "hat_sao_bang",
+  "nameVi": "Hạt Sao Băng",
+  "icon": "🎉",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_ky_lan",
+   "eq_warmog_armor",
+   "eq_blue_buff",
+   "tear",
+   "belt",
+   "crystal",
+   "belt",
+   "claw",
+   "belt"
+  ],
+  "bonuses": {
+   "lifestealPct": 13,
+   "critPct": 22
+  },
+  "descriptionVi": "Cấp 3: +22% Crit, +13% hút máu. Miễn nhiễm hiệu ứng bất lợi 3 lượt đầu",
+  "logic": {
+   "trigger": "combatStart",
+   "immuneCC": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "hop_long_vuong",
+  "nameVi": "Hộp Long Vương",
+  "icon": "🏆",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_kiem_vinh_cuu",
+   "eq_rabadon_deathcap",
+   "eq_blue_buff",
+   "bark",
+   "belt",
+   "crystal",
+   "belt",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "healPct": 11,
+   "evadePct": 12
+  },
+  "descriptionVi": "Cấp 3: +11% hồi máu, +12% né, +1 Nộ. Khi HP < 46%, nhận khiên 14 HP (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.46,
+   "shield": 14,
+   "once": true
+  }
+ },
+ {
+  "id": "hop_phap_su",
+  "nameVi": "Hộp Pháp Sư",
+  "icon": "🗡",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_sanguine_codex",
+   "eq_blue_buff",
+   "eq_warmog_armor",
+   "crystal",
+   "crystal",
+   "crystal",
+   "tear",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "matkPct": 19,
+   "poisonOnHit": 3,
+   "burnOnHit": 6
+  },
+  "descriptionVi": "Cấp 3: +19% MATK, đốt cháy 6, gây độc 3. Mỗi đòn đánh tăng ATK thêm 21 (tối đa 4 lần)",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 21,
+   "maxStacks": 4
+  }
+ },
+ {
+  "id": "hop_tu_than",
+  "nameVi": "Hộp Tử Thần",
+  "icon": "⌛",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_hac_am",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "tear",
+   "feather",
+   "crystal",
+   "feather",
+   "bark",
+   "bark"
+  ],
+  "bonuses": {
+   "startingShield": 106,
+   "mdef": 13,
+   "hpPct": 24
+  },
+  "descriptionVi": "Cấp 3: +24% HP, +13 MDEF, +106 khiên. Khi bị đánh, phản 8% sát thương nhận về kẻ tấn công",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "reflectPct": 0.08
+  }
+ },
+ {
+  "id": "khien_co_dai",
+  "nameVi": "Khiên Cổ Đại",
+  "icon": "💉",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nhan_tinh_lang",
+   "eq_guinsoo_rageblade",
+   "eq_rabadon_deathcap",
+   "tear",
+   "bark",
+   "belt",
+   "tear",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "healPct": 11,
+   "startingRage": 1,
+   "evadePct": 8
+  },
+  "descriptionVi": "Cấp 3: +11% hồi máu, +8% né, +1 Nộ. Khi bị đánh, có 41% giảm sát thương nhận 19%",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "chance": 0.41,
+   "dmgReduction": 0.19
+  }
+ },
+ {
+  "id": "khien_hoa_nguc",
+  "nameVi": "Khiên Hỏa Ngục",
+  "icon": "💟",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_mang_xa",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "crystal",
+   "claw",
+   "tear",
+   "belt",
+   "feather",
+   "bark"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "healPct": 12
+  },
+  "descriptionVi": "Cấp 3: +12% hồi máu, +1 Nộ. Tăng 11% sát thương lên kẻ địch có HP > 50%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsHighHp": 0.11
+  }
+ },
+ {
+  "id": "khien_tu_than",
+  "nameVi": "Khiên Tử Thần",
+  "icon": "🧠",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_bach_ho",
+   "eq_blue_buff",
+   "eq_bramble_vest",
+   "claw",
+   "belt",
+   "tear",
+   "crystal",
+   "crystal",
+   "claw"
+  ],
+  "bonuses": {
+   "healPct": 16,
+   "startingRage": 2,
+   "evadePct": 16
+  },
+  "descriptionVi": "Cấp 3: +16% hồi máu, +16% né, +2 Nộ. Mỗi đòn đánh tăng ATK thêm 19 (tối đa 4 lần)",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 19,
+   "maxStacks": 4
+  }
+ },
+ {
+  "id": "la_bong_dem",
+  "nameVi": "Lá Bóng Đêm",
+  "icon": "🔧",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vuong_mien_ho_ve",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "bark",
+   "tear",
+   "bark",
+   "crystal",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "poisonOnHit": 5,
+   "matkPct": 22,
+   "burnOnHit": 6
+  },
+  "descriptionVi": "Cấp 3: +22% MATK, đốt cháy 6, gây độc 5. Tăng 21% tỉ lệ né cho đồng minh liền kề",
+  "logic": {
+   "trigger": "aura",
+   "buff": "evadePct",
+   "amount": 0.21,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "la_huy_diet",
+  "nameVi": "Lá Hủy Diệt",
+  "icon": "🍶",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_co_dai",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "feather",
+   "feather",
+   "crystal",
+   "crystal",
+   "bark"
+  ],
+  "bonuses": {
+   "startingRage": 2,
+   "healPct": 15,
+   "evadePct": 10
+  },
+  "descriptionVi": "Cấp 3: +15% hồi máu, +10% né, +2 Nộ. Dùng kỹ năng hồi 22 HP",
+  "logic": {
+   "trigger": "onSkillUse",
+   "flatHeal": 22
+  }
+ },
+ {
+  "id": "la_phuong_hoang",
+  "nameVi": "Lá Phượng Hoàng",
+  "icon": "✨",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nanh_ngoc_bich",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "tear",
+   "tear",
+   "feather",
+   "crystal",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "atkPct": 24,
+   "critPct": 24
+  },
+  "descriptionVi": "Cấp 3: +24% ATK, +24% Crit. Đánh trúng có 42% giảm 18 DEF mục tiêu trong 2 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.42,
+   "debuff": "def",
+   "amount": -18,
+   "turns": 2
+  }
+ },
+ {
+  "id": "liem_ho_ve",
+  "nameVi": "Liềm Hộ Vệ",
+  "icon": "🫀",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_giay_bao_to",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "belt",
+   "belt",
+   "bark",
+   "tear",
+   "feather",
+   "feather"
+  ],
+  "bonuses": {
+   "mdef": 14,
+   "hpPct": 20,
+   "startingShield": 87
+  },
+  "descriptionVi": "Cấp 3: +20% HP, +14 MDEF, +87 khiên. Giảm 22% sát thương nhận từ đòn chí mạng",
+  "logic": {
+   "trigger": "passive",
+   "reduceCritDmg": 0.22
+  }
+ },
+ {
+  "id": "liem_linh_hon",
+  "nameVi": "Liềm Linh Hồn",
+  "icon": "♉",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_bach_ho",
+   "eq_bramble_vest",
+   "eq_blue_buff",
+   "claw",
+   "claw",
+   "tear",
+   "claw",
+   "claw",
+   "claw"
+  ],
+  "bonuses": {
+   "evadePct": 13,
+   "healPct": 12
+  },
+  "descriptionVi": "Cấp 3: +12% hồi máu, +13% né. Tăng 14% MATK mỗi khi đồng minh dùng kỹ năng (tối đa 5%)",
+  "logic": {
+   "trigger": "onAllySkill",
+   "stackBuff": "matkPct",
+   "perStack": 0.14,
+   "maxStacks": 5
+  }
+ },
+ {
+  "id": "liem_ngoc_bich",
+  "nameVi": "Liềm Ngọc Bích",
+  "icon": "🪝",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nanh_ngoc_bich",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "tear",
+   "bark",
+   "belt",
+   "claw",
+   "tear",
+   "feather"
+  ],
+  "bonuses": {
+   "atkPct": 25,
+   "lifestealPct": 20
+  },
+  "descriptionVi": "Cấp 3: +25% ATK, +20% hút máu. Mỗi 1 lượt hồi 18% HP tối đa",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 1,
+   "healPctMax": 0.18
+  }
+ },
+ {
+  "id": "liem_nguyen_thuy",
+  "nameVi": "Liềm Nguyên Thuỷ",
+  "icon": "🪚",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mindforge_spear",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "belt",
+   "belt",
+   "tear",
+   "bark",
+   "tear",
+   "tear"
+  ],
+  "bonuses": {
+   "mdef": 25,
+   "hpPct": 34
+  },
+  "descriptionVi": "Cấp 3: +34% HP, +25 MDEF. Bắt đầu giao tranh tăng 8% tốc đánh trong 2 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkSpd",
+   "amount": 0.08,
+   "turns": 2
+  }
+ },
+ {
+  "id": "loi_bao_to",
+  "nameVi": "Lõi Bão Tố",
+  "icon": "🔑",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_skyhunter_scope",
+   "eq_rabadon_deathcap",
+   "eq_warmog_armor",
+   "bark",
+   "claw",
+   "tear",
+   "claw",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "critPct": 12,
+   "atkPct": 27,
+   "lifestealPct": 16
+  },
+  "descriptionVi": "Cấp 3: +27% ATK, +12% Crit, +16% hút máu. Khi HP < 30%, nhận khiên 20 HP (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.3,
+   "shield": 20,
+   "once": true
+  }
+ },
+ {
+  "id": "loi_chien_than",
+  "nameVi": "Lõi Chiến Thần",
+  "icon": "🕷️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vong_thanh_long",
+   "eq_blue_buff",
+   "eq_death_blade",
+   "belt",
+   "tear",
+   "tear",
+   "belt",
+   "tear",
+   "bark"
+  ],
+  "bonuses": {
+   "evadePct": 10,
+   "healPct": 14,
+   "startingRage": 2
+  },
+  "descriptionVi": "Cấp 3: +14% hồi máu, +10% né, +2 Nộ. Đánh trúng có 29% gây choáng 3 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.29,
+   "stun": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "loi_dia_nguc",
+  "nameVi": "Lõi Địa Ngục",
+  "icon": "🟡",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "claw",
+   "bark",
+   "tear",
+   "belt",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 18,
+   "atkPct": 24
+  },
+  "descriptionVi": "Cấp 3: +24% ATK, +18% Crit. Dùng kỹ năng hồi 24 HP",
+  "logic": {
+   "trigger": "onSkillUse",
+   "flatHeal": 24
+  }
+ },
+ {
+  "id": "loi_mang_xa",
+  "nameVi": "Lõi Mãng Xà",
+  "icon": "🌊",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_phu_vuc_sau",
+   "eq_rabadon_deathcap",
+   "eq_death_blade",
+   "feather",
+   "crystal",
+   "crystal",
+   "tear",
+   "belt",
+   "tear"
+  ],
+  "bonuses": {
+   "mdef": 15,
+   "startingShield": 97,
+   "def": 19
+  },
+  "descriptionVi": "Cấp 3: +19 DEF, +15 MDEF, +97 khiên. Miễn nhiễm hiệu ứng bất lợi 3 lượt đầu",
+  "logic": {
+   "trigger": "combatStart",
+   "immuneCC": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "loi_nhat_thuc",
+  "nameVi": "Lõi Nhật Thực",
+  "icon": "📡",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_moonwell_pendant",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "belt",
+   "claw",
+   "feather",
+   "claw",
+   "claw",
+   "claw"
+  ],
+  "bonuses": {
+   "atkPct": 18,
+   "critPct": 18
+  },
+  "descriptionVi": "Cấp 3: +18% ATK, +18% Crit. Tăng 11% sát thương lên kẻ địch có HP > 50%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsHighHp": 0.11
+  }
+ },
+ {
+  "id": "loi_rang_dong",
+  "nameVi": "Lõi Rạng Đông",
+  "icon": "🗝️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_hac_am",
+   "eq_rabadon_deathcap",
+   "eq_warmog_armor",
+   "bark",
+   "claw",
+   "belt",
+   "bark",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "startingShield": 113,
+   "mdef": 15,
+   "def": 26
+  },
+  "descriptionVi": "Cấp 3: +26 DEF, +15 MDEF, +113 khiên. Đánh trúng hồi 14% sát thương gây ra thành HP",
+  "logic": {
+   "trigger": "onHit",
+   "healOnDmgPct": 0.14
+  }
+ },
+ {
+  "id": "loi_thien_duong",
+  "nameVi": "Lõi Thiên Đường",
+  "icon": "🍷",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_loi_dinh",
+   "eq_bramble_vest",
+   "eq_warmog_armor",
+   "claw",
+   "belt",
+   "claw",
+   "crystal",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 15,
+   "lifestealPct": 15
+  },
+  "descriptionVi": "Cấp 3: +15% Crit, +15% hút máu. Đòn đánh thứ 3 gây gấp 2.5x sát thương",
+  "logic": {
+   "trigger": "nthAttack",
+   "nth": 3,
+   "dmgMult": 2.5
+  }
+ },
+ {
+  "id": "long_bao_to",
+  "nameVi": "Lông Bão Tố",
+  "icon": "🧊",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_non_tinh_lang",
+   "eq_guinsoo_rageblade",
+   "eq_warmog_armor",
+   "bark",
+   "claw",
+   "tear",
+   "claw",
+   "bark",
+   "crystal"
+  ],
+  "bonuses": {
+   "critPct": 22,
+   "lifestealPct": 19,
+   "atkPct": 17
+  },
+  "descriptionVi": "Cấp 3: +17% ATK, +22% Crit, +19% hút máu. Khi HP < 37%, hồi 23% HP tối đa (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.37,
+   "healPctMax": 0.23,
+   "once": true
+  }
+ },
+ {
+  "id": "long_dia_nguc",
+  "nameVi": "Lông Địa Ngục",
+  "icon": "⚙️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_co_dai",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "feather",
+   "feather",
+   "belt",
+   "crystal",
+   "crystal"
+  ],
+  "bonuses": {
+   "startingShield": 134,
+   "hpPct": 26,
+   "mdef": 12
+  },
+  "descriptionVi": "Cấp 3: +26% HP, +12 MDEF, +134 khiên. Mỗi 2 lượt hồi 16% HP tối đa",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 2,
+   "healPctMax": 0.16
+  }
+ },
+ {
+  "id": "long_kim_cuong",
+  "nameVi": "Lông Kim Cương",
+  "icon": "🎋",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_non_tinh_lang",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "feather",
+   "bark",
+   "claw",
+   "claw",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "critPct": 17,
+   "atkPct": 16
+  },
+  "descriptionVi": "Cấp 3: +16% ATK, +17% Crit. Hạ gục kẻ địch tăng 19 ATK vĩnh viễn",
+  "logic": {
+   "trigger": "onKill",
+   "permBuff": "atk",
+   "amount": 19
+  }
+ },
+ {
+  "id": "long_tien_nhan",
+  "nameVi": "Lông Tiên Nhân",
+  "icon": "🍂",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_dawn_edge",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "tear",
+   "belt",
+   "claw",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "poisonOnHit": 3,
+   "matkPct": 19
+  },
+  "descriptionVi": "Cấp 3: +19% MATK, gây độc 3. Bắt đầu giao tranh giảm 12 DEF toàn bộ kẻ địch trong 1 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "aoeDebuff": "def",
+   "amount": -12,
+   "turns": 1,
+   "target": "allEnemies"
+  }
+ },
+ {
+  "id": "manh_dia_nguc",
+  "nameVi": "Mảnh Địa Ngục",
+  "icon": "🍹",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vong_thanh_long",
+   "eq_blue_buff",
+   "eq_bramble_vest",
+   "crystal",
+   "tear",
+   "crystal",
+   "belt",
+   "crystal",
+   "bark"
+  ],
+  "bonuses": {
+   "lifestealPct": 19,
+   "critPct": 18,
+   "atkPct": 28
+  },
+  "descriptionVi": "Cấp 3: +28% ATK, +18% Crit, +19% hút máu. Khi chết, gây 24 sát thương phép lên kẻ địch xung quanh",
+  "logic": {
+   "trigger": "onDeath",
+   "aoeMagicDmg": 24,
+   "target": "adjacentEnemy"
+  }
+ },
+ {
+  "id": "manh_loi_dinh",
+  "nameVi": "Mảnh Lôi Đình",
+  "icon": "🪃",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_binh_thanh_long",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "feather",
+   "belt",
+   "feather",
+   "feather",
+   "crystal",
+   "claw"
+  ],
+  "bonuses": {
+   "lifestealPct": 15,
+   "atkPct": 24,
+   "critPct": 13
+  },
+  "descriptionVi": "Cấp 3: +24% ATK, +13% Crit, +15% hút máu. Đánh trúng hồi 24 HP cho bản thân",
+  "logic": {
+   "trigger": "onHit",
+   "flatHeal": 24
+  }
+ },
+ {
+  "id": "manh_thuong_hai",
+  "nameVi": "Mảnh Thương Hải",
+  "icon": "🫁",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_cung_thu",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "feather",
+   "feather",
+   "claw",
+   "crystal",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "atkPct": 18,
+   "critPct": 16,
+   "lifestealPct": 20
+  },
+  "descriptionVi": "Cấp 3: +18% ATK, +16% Crit, +20% hút máu. Tăng 19% MATK mỗi khi đồng minh dùng kỹ năng (tối đa 4%)",
+  "logic": {
+   "trigger": "onAllySkill",
+   "stackBuff": "matkPct",
+   "perStack": 0.19,
+   "maxStacks": 4
+  }
+ },
+ {
+  "id": "manh_tinh_linh",
+  "nameVi": "Mảnh Tinh Linh",
+  "icon": "☪️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_ky_lan",
+   "eq_rabadon_deathcap",
+   "eq_warmog_armor",
+   "tear",
+   "belt",
+   "tear",
+   "feather",
+   "tear",
+   "tear"
+  ],
+  "bonuses": {
+   "healPct": 15,
+   "startingRage": 1,
+   "evadePct": 11
+  },
+  "descriptionVi": "Cấp 3: +15% hồi máu, +11% né, +1 Nộ. Đánh trúng có 41% giảm 11 MDEF mục tiêu trong 2 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.41,
+   "debuff": "mdef",
+   "amount": -11,
+   "turns": 2
+  }
+ },
+ {
+  "id": "mat_na_cuong_no",
+  "nameVi": "Mặt Nạ Cuồng Nộ",
+  "icon": "👁️‍🗨️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_binh_thanh_long",
+   "eq_blue_buff",
+   "eq_death_blade",
+   "bark",
+   "crystal",
+   "feather",
+   "claw",
+   "feather",
+   "tear"
+  ],
+  "bonuses": {
+   "matkPct": 24,
+   "burnOnHit": 3,
+   "poisonOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: +24% MATK, đốt cháy 3, gây độc 4. Đánh trúng có 32% giảm 13 MDEF mục tiêu trong 3 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.32,
+   "debuff": "mdef",
+   "amount": -13,
+   "turns": 3
+  }
+ },
+ {
+  "id": "mat_na_hoa_diem",
+  "nameVi": "Mặt Nạ Hoả Diệm",
+  "icon": "🤖",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_cung_thu",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "tear",
+   "belt",
+   "bark",
+   "crystal",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "evadePct": 12,
+   "healPct": 14
+  },
+  "descriptionVi": "Cấp 3: +14% hồi máu, +12% né, +1 Nộ. Miễn nhiễm hiệu ứng bất lợi 3 lượt đầu",
+  "logic": {
+   "trigger": "combatStart",
+   "immuneCC": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "mat_na_hoang_hon",
+  "nameVi": "Mặt Nạ Hoàng Hôn",
+  "icon": "🪷",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_blue_buff",
+   "eq_death_blade",
+   "bark",
+   "crystal",
+   "feather",
+   "bark",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "startingRage": 2,
+   "healPct": 18
+  },
+  "descriptionVi": "Cấp 3: +18% hồi máu, +2 Nộ. Dùng kỹ năng có 34% nhận thêm 1 Nộ",
+  "logic": {
+   "trigger": "onSkillUse",
+   "chance": 0.34,
+   "gainRage": 1
+  }
+ },
+ {
+  "id": "mat_na_kim_cuong",
+  "nameVi": "Mặt Nạ Kim Cương",
+  "icon": "🧲",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nhan_dinh_troi",
+   "eq_rabadon_deathcap",
+   "eq_guinsoo_rageblade",
+   "claw",
+   "bark",
+   "crystal",
+   "belt",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "evadePct": 13
+  },
+  "descriptionVi": "Cấp 3: +13% né, +1 Nộ. Tăng 24% tỉ lệ né cho đồng minh liền kề",
+  "logic": {
+   "trigger": "aura",
+   "buff": "evadePct",
+   "amount": 0.24,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "mat_na_sat_thu",
+  "nameVi": "Mặt Nạ Sát Thủ",
+  "icon": "🐺",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_ky_lan",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "tear",
+   "bark",
+   "crystal",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "atkPct": 26,
+   "lifestealPct": 17,
+   "critPct": 23
+  },
+  "descriptionVi": "Cấp 3: +26% ATK, +23% Crit, +17% hút máu. Mỗi 3 lượt gây 8 sát thương phép lên kẻ địch gần nhất",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 3,
+   "magicDmg": 8,
+   "target": "nearestEnemy"
+  }
+ },
+ {
+  "id": "mat_na_soi_bac",
+  "nameVi": "Mặt Nạ Sói Bạc",
+  "icon": "🃏",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "feather",
+   "crystal",
+   "belt",
+   "crystal",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "startingRage": 2,
+   "healPct": 17,
+   "evadePct": 13
+  },
+  "descriptionVi": "Cấp 3: +17% hồi máu, +13% né, +2 Nộ. Bắt đầu giao tranh tăng 15% tốc đánh trong 3 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkSpd",
+   "amount": 0.15,
+   "turns": 3
+  }
+ },
+ {
+  "id": "mat_na_tai_sinh",
+  "nameVi": "Mặt Nạ Tái Sinh",
+  "icon": "🔩",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_voidfang_lantern",
+   "eq_guinsoo_rageblade",
+   "eq_warmog_armor",
+   "feather",
+   "bark",
+   "bark",
+   "tear",
+   "claw",
+   "feather"
+  ],
+  "bonuses": {
+   "burnOnHit": 6,
+   "matkPct": 16
+  },
+  "descriptionVi": "Cấp 3: +16% MATK, đốt cháy 6. Dùng kỹ năng hồi 22 HP",
+  "logic": {
+   "trigger": "onSkillUse",
+   "flatHeal": 22
+  }
+ },
+ {
+  "id": "mat_na_than_bi",
+  "nameVi": "Mặt Nạ Thần Bí",
+  "icon": "♊",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_bach_ho",
+   "eq_warmog_armor",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "crystal",
+   "belt",
+   "belt",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "atkPct": 19,
+   "critPct": 15,
+   "lifestealPct": 19
+  },
+  "descriptionVi": "Cấp 3: +19% ATK, +15% Crit, +19% hút máu. Hạ gục kẻ địch hồi 19% HP tối đa",
+  "logic": {
+   "trigger": "onKill",
+   "healPctMax": 0.19
+  }
+ },
+ {
+  "id": "mong_ky_lan",
+  "nameVi": "Móng Kỳ Lân",
+  "icon": "⬜",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_skyhunter_scope",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "tear",
+   "crystal",
+   "tear",
+   "feather",
+   "claw",
+   "crystal"
+  ],
+  "bonuses": {
+   "burnOnHit": 6,
+   "matkPct": 28,
+   "poisonOnHit": 5
+  },
+  "descriptionVi": "Cấp 3: +28% MATK, đốt cháy 6, gây độc 5. Đòn đánh thứ 3 gây gấp 2.4x sát thương",
+  "logic": {
+   "trigger": "nthAttack",
+   "nth": 3,
+   "dmgMult": 2.4
+  }
+ },
+ {
+  "id": "mong_loi_dinh",
+  "nameVi": "Móng Lôi Đình",
+  "icon": "🔮",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vay_tien_nhan",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "tear",
+   "belt",
+   "crystal",
+   "crystal",
+   "belt",
+   "feather"
+  ],
+  "bonuses": {
+   "burnOnHit": 2,
+   "poisonOnHit": 4,
+   "matkPct": 22
+  },
+  "descriptionVi": "Cấp 3: +22% MATK, đốt cháy 2, gây độc 4. Khi bị đánh, phản 11% sát thương nhận về kẻ tấn công",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "reflectPct": 0.11
+  }
+ },
+ {
+  "id": "mong_tai_sinh",
+  "nameVi": "Móng Tái Sinh",
+  "icon": "♓",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_aegis_oath",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "claw",
+   "bark",
+   "crystal",
+   "tear",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "burnOnHit": 2,
+   "matkPct": 26,
+   "poisonOnHit": 5
+  },
+  "descriptionVi": "Cấp 3: +26% MATK, đốt cháy 2, gây độc 5. Hạ gục kẻ địch nhận 11 Nộ",
+  "logic": {
+   "trigger": "onKill",
+   "gainRage": 11
+  }
+ },
+ {
+  "id": "mong_tien_nhan",
+  "nameVi": "Móng Tiên Nhân",
+  "icon": "🌑",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_ngoc_bich",
+   "eq_rabadon_deathcap",
+   "eq_blue_buff",
+   "claw",
+   "bark",
+   "bark",
+   "claw",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "evadePct": 11,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +11% né, +1 Nộ. Bắt đầu giao tranh nhận khiên 17 HP",
+  "logic": {
+   "trigger": "combatStart",
+   "shield": 17
+  }
+ },
+ {
+  "id": "mu_long_vuong",
+  "nameVi": "Mũ Long Vương",
+  "icon": "💊",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mat_na_khai_sang",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "crystal",
+   "bark",
+   "bark",
+   "belt",
+   "feather",
+   "feather"
+  ],
+  "bonuses": {
+   "poisonOnHit": 6,
+   "burnOnHit": 5,
+   "matkPct": 24
+  },
+  "descriptionVi": "Cấp 3: +24% MATK, đốt cháy 5, gây độc 6. Đánh trúng hồi 8% sát thương gây ra thành HP",
+  "logic": {
+   "trigger": "onHit",
+   "healOnDmgPct": 0.08
+  }
+ },
+ {
+  "id": "mu_soi_bac",
+  "nameVi": "Mũ Sói Bạc",
+  "icon": "📿",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_phu_vuc_sau",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "claw",
+   "tear",
+   "crystal",
+   "belt",
+   "claw",
+   "bark"
+  ],
+  "bonuses": {
+   "critPct": 14,
+   "lifestealPct": 18
+  },
+  "descriptionVi": "Cấp 3: +14% Crit, +18% hút máu. Khi bị đánh, có 24% giảm sát thương nhận 25%",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "chance": 0.24,
+   "dmgReduction": 0.25
+  }
+ },
+ {
+  "id": "mu_thien_duong",
+  "nameVi": "Mũ Thiên Đường",
+  "icon": "🌩️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mat_na_khai_sang",
+   "eq_rabadon_deathcap",
+   "eq_bramble_vest",
+   "crystal",
+   "claw",
+   "tear",
+   "crystal",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "evadePct": 15,
+   "startingRage": 2,
+   "healPct": 17
+  },
+  "descriptionVi": "Cấp 3: +17% hồi máu, +15% né, +2 Nộ. Sau 3 lượt, kích hoạt nổ gây 17 sát thương phép AoE",
+  "logic": {
+   "trigger": "timedBomb",
+   "turns": 3,
+   "aoeMagicDmg": 17
+  }
+ },
+ {
+  "id": "nanh_hu_khong",
+  "nameVi": "Nanh Hư Không",
+  "icon": "👁️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_cung_thu",
+   "eq_bramble_vest",
+   "eq_blue_buff",
+   "claw",
+   "belt",
+   "feather",
+   "claw",
+   "bark",
+   "claw"
+  ],
+  "bonuses": {
+   "burnOnHit": 5,
+   "matkPct": 21
+  },
+  "descriptionVi": "Cấp 3: +21% MATK, đốt cháy 5. Khi HP < 41%, tăng 19% ATK",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.41,
+   "buff": "atkPct",
+   "amount": 0.19
+  }
+ },
+ {
+  "id": "nanh_than_moc",
+  "nameVi": "Nanh Thần Mộc",
+  "icon": "🍵",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_bach_ho",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "claw",
+   "belt",
+   "claw",
+   "claw",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "poisonOnHit": 5,
+   "burnOnHit": 6,
+   "matkPct": 17
+  },
+  "descriptionVi": "Cấp 3: +17% MATK, đốt cháy 6, gây độc 5. Sau 3 lượt, kích hoạt nổ gây 17 sát thương phép AoE",
+  "logic": {
+   "trigger": "timedBomb",
+   "turns": 3,
+   "aoeMagicDmg": 17
+  }
+ },
+ {
+  "id": "nanh_than_sam",
+  "nameVi": "Nanh Thần Sấm",
+  "icon": "🌺",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_co_dai",
+   "eq_warmog_armor",
+   "eq_rabadon_deathcap",
+   "claw",
+   "belt",
+   "belt",
+   "bark",
+   "belt",
+   "feather"
+  ],
+  "bonuses": {
+   "burnOnHit": 3,
+   "poisonOnHit": 6,
+   "matkPct": 21
+  },
+  "descriptionVi": "Cấp 3: +21% MATK, đốt cháy 3, gây độc 6. Đánh trúng hồi 16 HP cho bản thân",
+  "logic": {
+   "trigger": "onHit",
+   "flatHeal": 16
+  }
+ },
+ {
+  "id": "nanh_thien_duong",
+  "nameVi": "Nanh Thiên Đường",
+  "icon": "🐬",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_moonwell_pendant",
+   "eq_rabadon_deathcap",
+   "eq_bramble_vest",
+   "feather",
+   "bark",
+   "feather",
+   "crystal",
+   "tear",
+   "belt"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "healPct": 16,
+   "evadePct": 11
+  },
+  "descriptionVi": "Cấp 3: +16% hồi máu, +11% né, +1 Nộ. Khi bị đánh, phản 18% sát thương nhận về kẻ tấn công",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "reflectPct": 0.18
+  }
+ },
+ {
+  "id": "nanh_vinh_cuu",
+  "nameVi": "Nanh Vĩnh Cửu",
+  "icon": "🔱",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_moonwell_pendant",
+   "eq_guinsoo_rageblade",
+   "eq_warmog_armor",
+   "tear",
+   "tear",
+   "crystal",
+   "belt",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "matkPct": 21,
+   "poisonOnHit": 5
+  },
+  "descriptionVi": "Cấp 3: +21% MATK, gây độc 5. Khi HP < 31%, tăng 23% DEF",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.31,
+   "buff": "defPct",
+   "amount": 0.23
+  }
+ },
+ {
+  "id": "ngoc_hac_am",
+  "nameVi": "Ngọc Hắc Ám",
+  "icon": "🏔️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_vinh_cuu",
+   "eq_death_blade",
+   "eq_blue_buff",
+   "bark",
+   "crystal",
+   "belt",
+   "bark",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "hpPct": 23,
+   "startingShield": 147
+  },
+  "descriptionVi": "Cấp 3: +23% HP, +147 khiên. Tăng 10% sát thương lên kẻ địch có HP > 50%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsHighHp": 0.1
+  }
+ },
+ {
+  "id": "ngoc_tai_sinh",
+  "nameVi": "Ngọc Tái Sinh",
+  "icon": "✊",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_hac_am",
+   "eq_warmog_armor",
+   "eq_death_blade",
+   "crystal",
+   "belt",
+   "claw",
+   "bark",
+   "claw",
+   "claw"
+  ],
+  "bonuses": {
+   "mdef": 23,
+   "startingShield": 81,
+   "def": 26
+  },
+  "descriptionVi": "Cấp 3: +26 DEF, +23 MDEF, +81 khiên. Đánh trúng có 40% làm chậm mục tiêu 3 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.4,
+   "slow": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "ngoc_tu_than",
+  "nameVi": "Ngọc Tử Thần",
+  "icon": "🧧",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_than_sam",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "crystal",
+   "tear",
+   "crystal",
+   "crystal",
+   "bark",
+   "crystal"
+  ],
+  "bonuses": {
+   "mdef": 22,
+   "def": 27
+  },
+  "descriptionVi": "Cấp 3: +27 DEF, +22 MDEF. Hạ gục kẻ địch tăng 11 ATK vĩnh viễn",
+  "logic": {
+   "trigger": "onKill",
+   "permBuff": "atk",
+   "amount": 11
+  }
+ },
+ {
+  "id": "nhan_khai_sang",
+  "nameVi": "Nhẫn Khai Sáng",
+  "icon": "☄️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_bach_ho",
+   "eq_blue_buff",
+   "eq_death_blade",
+   "feather",
+   "belt",
+   "tear",
+   "tear",
+   "belt",
+   "bark"
+  ],
+  "bonuses": {
+   "matkPct": 17,
+   "burnOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: +17% MATK, đốt cháy 4. Tăng 21% MATK mỗi khi đồng minh dùng kỹ năng (tối đa 4%)",
+  "logic": {
+   "trigger": "onAllySkill",
+   "stackBuff": "matkPct",
+   "perStack": 0.21,
+   "maxStacks": 4
+  }
+ },
+ {
+  "id": "nhan_thanh_long",
+  "nameVi": "Nhẫn Thanh Long",
+  "icon": "💣",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_xuong_than_sam",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "bark",
+   "claw",
+   "feather",
+   "claw",
+   "belt"
+  ],
+  "bonuses": {
+   "def": 26,
+   "hpPct": 28
+  },
+  "descriptionVi": "Cấp 3: +28% HP, +26 DEF. Khi bị đánh, có 28% giảm sát thương nhận 20%",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "chance": 0.28,
+   "dmgReduction": 0.2
+  }
+ },
+ {
+  "id": "nhan_tien_nhan",
+  "nameVi": "Nhẫn Tiên Nhân",
+  "icon": "🎇",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_loi_dinh",
+   "eq_bramble_vest",
+   "eq_rabadon_deathcap",
+   "crystal",
+   "bark",
+   "tear",
+   "tear",
+   "crystal",
+   "tear"
+  ],
+  "bonuses": {
+   "poisonOnHit": 5,
+   "matkPct": 18,
+   "burnOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: +18% MATK, đốt cháy 4, gây độc 5. Mỗi 3 lượt gây 8 sát thương phép lên kẻ địch gần nhất",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 3,
+   "magicDmg": 8,
+   "target": "nearestEnemy"
+  }
+ },
+ {
+  "id": "no_bao_to",
+  "nameVi": "Nỏ Bão Tố",
+  "icon": "💀",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ember_grimoire",
+   "eq_warmog_armor",
+   "eq_death_blade",
+   "crystal",
+   "tear",
+   "tear",
+   "crystal",
+   "tear",
+   "crystal"
+  ],
+  "bonuses": {
+   "poisonOnHit": 4,
+   "burnOnHit": 6
+  },
+  "descriptionVi": "Cấp 3: đốt cháy 6, gây độc 4. Bắt đầu giao tranh nhận khiên 17 HP",
+  "logic": {
+   "trigger": "combatStart",
+   "shield": 17
+  }
+ },
+ {
+  "id": "no_cuong_no",
+  "nameVi": "Nỏ Cuồng Nộ",
+  "icon": "🛸",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mu_phuong_hoang",
+   "eq_rabadon_deathcap",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "tear",
+   "bark",
+   "belt",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "startingRage": 2,
+   "healPct": 11
+  },
+  "descriptionVi": "Cấp 3: +11% hồi máu, +2 Nộ. Bắt đầu giao tranh tăng 12% ATK cho đồng minh cùng hàng",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkPct",
+   "amount": 0.12,
+   "target": "sameRow"
+  }
+ },
+ {
+  "id": "no_loi_dinh",
+  "nameVi": "Nỏ Lôi Đình",
+  "icon": "📘",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_ngoc_bich",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "tear",
+   "crystal",
+   "crystal",
+   "feather",
+   "claw"
+  ],
+  "bonuses": {
+   "startingRage": 1,
+   "healPct": 10
+  },
+  "descriptionVi": "Cấp 3: +10% hồi máu, +1 Nộ. Mỗi 2 lượt hồi 21% HP tối đa",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 2,
+   "healPctMax": 0.21
+  }
+ },
+ {
+  "id": "no_vuc_sau",
+  "nameVi": "Nỏ Vực Sâu",
+  "icon": "🌟",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_chuong_thuong_hai",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "tear",
+   "claw",
+   "belt",
+   "feather",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "lifestealPct": 13,
+   "critPct": 19,
+   "atkPct": 28
+  },
+  "descriptionVi": "Cấp 3: +28% ATK, +19% Crit, +13% hút máu. Đánh thường có 44% gây thêm 20 sát thương phép",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.44,
+   "bonusMagicDmg": 20
+  }
+ },
+ {
+  "id": "non_bong_dem",
+  "nameVi": "Nón Bóng Đêm",
+  "icon": "🥂",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_phu_vuc_sau",
+   "eq_bramble_vest",
+   "eq_death_blade",
+   "belt",
+   "claw",
+   "bark",
+   "crystal",
+   "belt",
+   "tear"
+  ],
+  "bonuses": {
+   "evadePct": 10,
+   "healPct": 19
+  },
+  "descriptionVi": "Cấp 3: +19% hồi máu, +10% né. Mỗi 3 lượt gây 18 sát thương phép lên kẻ địch gần nhất",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 3,
+   "magicDmg": 18,
+   "target": "nearestEnemy"
+  }
+ },
+ {
+  "id": "phoenix_plume",
+  "nameVi": "Lông Phượng",
+  "icon": "🐦‍🔥",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_la_vinh_cuu",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "tear",
+   "crystal",
+   "belt",
+   "claw",
+   "claw"
+  ],
+  "bonuses": {
+   "matkPct": 20,
+   "healPct": 18,
+   "startingRage": 2
+  },
+  "descriptionVi": "Cấp 3: +20% MATK, +18% hồi máu, +2 Nộ. Bắt đầu giao tranh tăng 24% ATK cho đồng minh cùng hàng",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkPct",
+   "amount": 0.24,
+   "target": "sameRow"
+  }
+ },
+ {
+  "id": "phu_bach_ho",
+  "nameVi": "Phù Bạch Hổ",
+  "icon": "🧰",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_phap_su",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "bark",
+   "feather",
+   "bark",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "mdef": 16,
+   "startingShield": 116,
+   "def": 32
+  },
+  "descriptionVi": "Cấp 3: +32 DEF, +16 MDEF, +116 khiên. Hạ gục kẻ địch nhận 8 Nộ",
+  "logic": {
+   "trigger": "onKill",
+   "gainRage": 8
+  }
+ },
+ {
+  "id": "phu_cung_thu",
+  "nameVi": "Phù Cung Thủ",
+  "icon": "❄️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nanh_ngoc_bich",
+   "eq_bramble_vest",
+   "eq_blue_buff",
+   "belt",
+   "crystal",
+   "bark",
+   "crystal",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "healPct": 14,
+   "startingRage": 1,
+   "evadePct": 9
+  },
+  "descriptionVi": "Cấp 3: +14% hồi máu, +9% né, +1 Nộ. Khi HP < 35%, tăng 25% DEF",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.35,
+   "buff": "defPct",
+   "amount": 0.25
+  }
+ },
+ {
+  "id": "qua_cung_thu",
+  "nameVi": "Quả Cung Thủ",
+  "icon": "💠",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_sung_than_sam",
+   "eq_warmog_armor",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "bark",
+   "tear",
+   "claw",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "hpPct": 26,
+   "startingShield": 125
+  },
+  "descriptionVi": "Cấp 3: +26% HP, +125 khiên. Dùng kỹ năng hồi 22 HP",
+  "logic": {
+   "trigger": "onSkillUse",
+   "flatHeal": 22
+  }
+ },
+ {
+  "id": "rang_linh_hon",
+  "nameVi": "Răng Linh Hồn",
+  "icon": "🏜️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_dawn_edge",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "claw",
+   "bark",
+   "crystal",
+   "bark",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "mdef": 22,
+   "startingShield": 151,
+   "hpPct": 29
+  },
+  "descriptionVi": "Cấp 3: +29% HP, +22 MDEF, +151 khiên. Dùng kỹ năng tăng 25% sát thương kỹ năng kế tiếp",
+  "logic": {
+   "trigger": "onSkillUse",
+   "nextSkillDmgBonus": 0.25
+  }
+ },
+ {
+  "id": "rang_tien_nhan",
+  "nameVi": "Răng Tiên Nhân",
+  "icon": "🟧",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_warmog_armor",
+   "eq_death_blade",
+   "tear",
+   "belt",
+   "belt",
+   "feather",
+   "feather",
+   "tear"
+  ],
+  "bonuses": {
+   "hpPct": 34,
+   "mdef": 18,
+   "startingShield": 128
+  },
+  "descriptionVi": "Cấp 3: +34% HP, +18 MDEF, +128 khiên. Đánh thường có 43% gây thêm 48 sát thương phép",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.43,
+   "bonusMagicDmg": 48
+  }
+ },
+ {
+  "id": "riu_hoa_nguc",
+  "nameVi": "Rìu Hỏa Ngục",
+  "icon": "🎽",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_bao_to",
+   "eq_bramble_vest",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "crystal",
+   "crystal",
+   "crystal",
+   "belt",
+   "belt"
+  ],
+  "bonuses": {
+   "burnOnHit": 2,
+   "matkPct": 15
+  },
+  "descriptionVi": "Cấp 3: +15% MATK, đốt cháy 2. Khi bị đánh, có 29% giảm sát thương nhận 12%",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "chance": 0.29,
+   "dmgReduction": 0.12
+  }
+ },
+ {
+  "id": "riu_ky_lan",
+  "nameVi": "Rìu Kỳ Lân",
+  "icon": "🪛",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_hop_tai_sinh",
+   "eq_bramble_vest",
+   "eq_rabadon_deathcap",
+   "feather",
+   "crystal",
+   "tear",
+   "tear",
+   "claw",
+   "belt"
+  ],
+  "bonuses": {
+   "matkPct": 18,
+   "burnOnHit": 3,
+   "poisonOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: +18% MATK, đốt cháy 3, gây độc 4. Dùng kỹ năng có 26% nhận thêm 1 Nộ",
+  "logic": {
+   "trigger": "onSkillUse",
+   "chance": 0.26,
+   "gainRage": 1
+  }
+ },
+ {
+  "id": "riu_thanh_quang",
+  "nameVi": "Rìu Thánh Quang",
+  "icon": "🪜",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_tinh_linh",
+   "eq_warmog_armor",
+   "eq_bramble_vest",
+   "bark",
+   "belt",
+   "belt",
+   "feather",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "hpPct": 26,
+   "mdef": 17
+  },
+  "descriptionVi": "Cấp 3: +26% HP, +17 MDEF. Đánh trúng có 42% giảm 11 DEF mục tiêu trong 2 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.42,
+   "debuff": "def",
+   "amount": -11,
+   "turns": 2
+  }
+ },
+ {
+  "id": "riu_tien_nhan",
+  "nameVi": "Rìu Tiên Nhân",
+  "icon": "📖",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_rang_loi_dinh",
+   "eq_rabadon_deathcap",
+   "eq_bramble_vest",
+   "claw",
+   "claw",
+   "claw",
+   "tear",
+   "bark",
+   "feather"
+  ],
+  "bonuses": {
+   "poisonOnHit": 2,
+   "matkPct": 23
+  },
+  "descriptionVi": "Cấp 3: +23% MATK, gây độc 2. Mỗi 1 lượt hồi 18% HP tối đa",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 1,
+   "healPctMax": 0.18
+  }
+ },
+ {
+  "id": "sach_hac_am",
+  "nameVi": "Sách Hắc Ám",
+  "icon": "♠️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_aegis_oath",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "bark",
+   "bark",
+   "claw",
+   "bark",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "startingShield": 95,
+   "hpPct": 33
+  },
+  "descriptionVi": "Cấp 3: +33% HP, +95 khiên. Đánh trúng hồi 12 HP cho bản thân",
+  "logic": {
+   "trigger": "onHit",
+   "flatHeal": 12
+  }
+ },
+ {
+  "id": "sach_huy_diet",
+  "nameVi": "Sách Hủy Diệt",
+  "icon": "♋",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_non_tinh_lang",
+   "eq_death_blade",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "tear",
+   "feather",
+   "bark",
+   "bark",
+   "crystal"
+  ],
+  "bonuses": {
+   "mdef": 12,
+   "startingShield": 114
+  },
+  "descriptionVi": "Cấp 3: +12 MDEF, +114 khiên. Mỗi 1 lượt gây 16 sát thương phép lên kẻ địch gần nhất",
+  "logic": {
+   "trigger": "periodic",
+   "interval": 1,
+   "magicDmg": 16,
+   "target": "nearestEnemy"
+  }
+ },
+ {
+  "id": "sach_phuong_hoang",
+  "nameVi": "Sách Phượng Hoàng",
+  "icon": "🪐",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_wild_talon_cloak",
+   "eq_rabadon_deathcap",
+   "eq_warmog_armor",
+   "tear",
+   "crystal",
+   "bark",
+   "claw",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "mdef": 25,
+   "startingShield": 83,
+   "hpPct": 20
+  },
+  "descriptionVi": "Cấp 3: +20% HP, +25 MDEF, +83 khiên. Bắt đầu giao tranh tăng 10% ATK cho đồng minh cùng hàng",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkPct",
+   "amount": 0.1,
+   "target": "sameRow"
+  }
+ },
+ {
+  "id": "sach_thanh_quang",
+  "nameVi": "Sách Thánh Quang",
+  "icon": "⚡",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mat_na_khai_sang",
+   "eq_guinsoo_rageblade",
+   "eq_rabadon_deathcap",
+   "bark",
+   "feather",
+   "tear",
+   "belt",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "critPct": 17,
+   "lifestealPct": 20
+  },
+  "descriptionVi": "Cấp 3: +17% Crit, +20% hút máu. Sau 1 lượt, kích hoạt nổ gây 24 sát thương phép AoE",
+  "logic": {
+   "trigger": "timedBomb",
+   "turns": 1,
+   "aoeMagicDmg": 24
+  }
+ },
+ {
+  "id": "sach_tinh_lang",
+  "nameVi": "Sách Tĩnh Lặng",
+  "icon": "📗",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_bao_to",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "tear",
+   "belt",
+   "claw",
+   "bark",
+   "bark"
+  ],
+  "bonuses": {
+   "def": 22,
+   "startingShield": 125
+  },
+  "descriptionVi": "Cấp 3: +22 DEF, +125 khiên. Tăng 21% sát thương lên kẻ địch có HP < 30%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsLowHp": 0.21
+  }
+ },
+ {
+  "id": "storm_crown",
+  "nameVi": "Vương Miện Bão Tố",
+  "icon": "👑",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mat_na_khai_sang",
+   "eq_rabadon_deathcap",
+   "eq_bramble_vest",
+   "bark",
+   "tear",
+   "bark",
+   "bark",
+   "crystal",
+   "claw"
+  ],
+  "bonuses": {
+   "matkPct": 28,
+   "startingRage": 3,
+   "mdef": 20
+  },
+  "descriptionVi": "Cấp 3: +28% MATK, +20 MDEF, +3 Nộ. Bắt đầu giao tranh nhận khiên 18 HP",
+  "logic": {
+   "trigger": "combatStart",
+   "shield": 18
+  }
+ },
+ {
+  "id": "sung_rong_lua",
+  "nameVi": "Sừng Rồng Lửa",
+  "icon": "👁",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_kiem_vinh_cuu",
+   "eq_blue_buff",
+   "eq_warmog_armor",
+   "tear",
+   "crystal",
+   "bark",
+   "claw",
+   "claw",
+   "feather"
+  ],
+  "bonuses": {
+   "mdef": 23,
+   "hpPct": 29,
+   "startingShield": 81
+  },
+  "descriptionVi": "Cấp 3: +29% HP, +23 MDEF, +81 khiên. Khi HP < 34%, hồi 10% HP tối đa (1 lần/trận)",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.34,
+   "healPctMax": 0.1,
+   "once": true
+  }
+ },
+ {
+  "id": "sung_sao_bang",
+  "nameVi": "Sừng Sao Băng",
+  "icon": "🔀",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_tempest_shroud",
+   "eq_guinsoo_rageblade",
+   "eq_rabadon_deathcap",
+   "feather",
+   "claw",
+   "feather",
+   "bark",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "matkPct": 25,
+   "poisonOnHit": 6
+  },
+  "descriptionVi": "Cấp 3: +25% MATK, gây độc 6. Dùng kỹ năng tăng 23% sát thương kỹ năng kế tiếp",
+  "logic": {
+   "trigger": "onSkillUse",
+   "nextSkillDmgBonus": 0.23
+  }
+ },
+ {
+  "id": "sung_than_bi",
+  "nameVi": "Sừng Thần Bí",
+  "icon": "🥈",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_tempest_shroud",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "crystal",
+   "belt",
+   "tear",
+   "bark",
+   "feather",
+   "feather"
+  ],
+  "bonuses": {
+   "evadePct": 9,
+   "healPct": 19,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +19% hồi máu, +9% né, +1 Nộ. Mỗi lần bị đánh tăng 11 DEF (tối đa 7 lần)",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "stackBuff": "def",
+   "perStack": 11,
+   "maxStacks": 7
+  }
+ },
+ {
+  "id": "sung_vinh_cuu",
+  "nameVi": "Sừng Vĩnh Cửu",
+  "icon": "🧯",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_long_tinh_linh",
+   "eq_death_blade",
+   "eq_blue_buff",
+   "feather",
+   "claw",
+   "bark",
+   "belt",
+   "feather",
+   "bark"
+  ],
+  "bonuses": {
+   "mdef": 25,
+   "hpPct": 23,
+   "startingShield": 125
+  },
+  "descriptionVi": "Cấp 3: +23% HP, +25 MDEF, +125 khiên. Khi HP < 43%, tăng 19% DEF",
+  "logic": {
+   "trigger": "hpThreshold",
+   "below": 0.43,
+   "buff": "defPct",
+   "amount": 0.19
+  }
+ },
+ {
+  "id": "thunder_pike",
+  "nameVi": "Thương Lôi",
+  "icon": "⛈️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_rang_loi_dinh",
+   "eq_guinsoo_rageblade",
+   "eq_blue_buff",
+   "crystal",
+   "bark",
+   "bark",
+   "feather",
+   "tear",
+   "bark"
+  ],
+  "bonuses": {
+   "atkPct": 18,
+   "critPct": 20,
+   "startingRage": 2
+  },
+  "descriptionVi": "Cấp 3: +18% ATK, +20% Crit, +2 Nộ. Hạ gục kẻ địch nhận 20 Nộ",
+  "logic": {
+   "trigger": "onKill",
+   "gainRage": 20
+  }
+ },
+ {
+  "id": "thuong_cuong_no",
+  "nameVi": "Thương Cuồng Nộ",
+  "icon": "⚜️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mindforge_spear",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "bark",
+   "crystal",
+   "feather",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "healPct": 12,
+   "evadePct": 9
+  },
+  "descriptionVi": "Cấp 3: +12% hồi máu, +9% né. Đánh trúng có 40% giảm 21 DEF mục tiêu trong 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.4,
+   "debuff": "def",
+   "amount": -21,
+   "turns": 1
+  }
+ },
+ {
+  "id": "thuong_suong_mu",
+  "nameVi": "Thương Sương Mù",
+  "icon": "🔬",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_hop_tinh_linh",
+   "eq_warmog_armor",
+   "eq_blue_buff",
+   "feather",
+   "tear",
+   "feather",
+   "belt",
+   "bark",
+   "tear"
+  ],
+  "bonuses": {
+   "matkPct": 17,
+   "poisonOnHit": 6,
+   "burnOnHit": 6
+  },
+  "descriptionVi": "Cấp 3: +17% MATK, đốt cháy 6, gây độc 6. Tăng 21% sát thương lên kẻ địch có HP < 30%",
+  "logic": {
+   "trigger": "passive",
+   "bonusDmgVsLowHp": 0.21
+  }
+ },
+ {
+  "id": "titan_shell",
+  "nameVi": "Mai Titan",
+  "icon": "🐢",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vay_tien_nhan",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "crystal",
+   "claw",
+   "bark",
+   "bark",
+   "tear",
+   "claw"
+  ],
+  "bonuses": {
+   "hpPct": 40,
+   "def": 35,
+   "mdef": 20
+  },
+  "descriptionVi": "Cấp 3: +40% HP, +35 DEF, +20 MDEF. Bắt đầu giao tranh tăng 9% tốc đánh trong 2 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "buff": "atkSpd",
+   "amount": 0.09,
+   "turns": 2
+  }
+ },
+ {
+  "id": "trai_hoa_diem",
+  "nameVi": "Trái Hoả Diệm",
+  "icon": "🧬",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_hat_bao_to",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "belt",
+   "feather",
+   "belt",
+   "crystal",
+   "feather",
+   "tear"
+  ],
+  "bonuses": {
+   "atkPct": 23,
+   "critPct": 24,
+   "lifestealPct": 22
+  },
+  "descriptionVi": "Cấp 3: +23% ATK, +24% Crit, +22% hút máu. Đánh trúng hồi 12% sát thương gây ra thành HP",
+  "logic": {
+   "trigger": "onHit",
+   "healOnDmgPct": 0.12
+  }
+ },
+ {
+  "id": "trai_sang_tao",
+  "nameVi": "Trái Sáng Tạo",
+  "icon": "♑",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_qua_mang_xa",
+   "eq_warmog_armor",
+   "eq_bramble_vest",
+   "feather",
+   "bark",
+   "crystal",
+   "crystal",
+   "crystal",
+   "belt"
+  ],
+  "bonuses": {
+   "atkPct": 26,
+   "critPct": 23
+  },
+  "descriptionVi": "Cấp 3: +26% ATK, +23% Crit. Dùng kỹ năng có 38% nhận thêm 1 Nộ",
+  "logic": {
+   "trigger": "onSkillUse",
+   "chance": 0.38,
+   "gainRage": 1
+  }
+ },
+ {
+  "id": "truong_chu_tuoc",
+  "nameVi": "Trượng Chu Tước",
+  "icon": "🐙",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_cung_thu",
+   "eq_rabadon_deathcap",
+   "eq_guinsoo_rageblade",
+   "crystal",
+   "belt",
+   "belt",
+   "claw",
+   "feather",
+   "belt"
+  ],
+  "bonuses": {
+   "poisonOnHit": 6,
+   "burnOnHit": 4,
+   "matkPct": 19
+  },
+  "descriptionVi": "Cấp 3: +19% MATK, đốt cháy 4, gây độc 6. Mỗi lần bị đánh tăng 11 DEF (tối đa 5 lần)",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "stackBuff": "def",
+   "perStack": 11,
+   "maxStacks": 5
+  }
+ },
+ {
+  "id": "truong_phong_ba",
+  "nameVi": "Trượng Phong Ba",
+  "icon": "🫴",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_truong_loi_dinh",
+   "eq_rabadon_deathcap",
+   "eq_bramble_vest",
+   "bark",
+   "belt",
+   "bark",
+   "crystal",
+   "feather",
+   "belt"
+  ],
+  "bonuses": {
+   "startingShield": 116,
+   "hpPct": 31
+  },
+  "descriptionVi": "Cấp 3: +31% HP, +116 khiên. Tăng 11% MATK mỗi khi đồng minh dùng kỹ năng (tối đa 7%)",
+  "logic": {
+   "trigger": "onAllySkill",
+   "stackBuff": "matkPct",
+   "perStack": 0.11,
+   "maxStacks": 7
+  }
+ },
+ {
+  "id": "truong_vinh_cuu",
+  "nameVi": "Trượng Vĩnh Cửu",
+  "icon": "🤜",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_bua_bao_to",
+   "eq_blue_buff",
+   "eq_rabadon_deathcap",
+   "tear",
+   "tear",
+   "feather",
+   "tear",
+   "crystal",
+   "bark"
+  ],
+  "bonuses": {
+   "poisonOnHit": 5,
+   "burnOnHit": 5,
+   "matkPct": 25
+  },
+  "descriptionVi": "Cấp 3: +25% MATK, đốt cháy 5, gây độc 5. Đánh trúng có 42% làm chậm mục tiêu 1 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.42,
+   "slow": true,
+   "turns": 1
+  }
+ },
+ {
+  "id": "vay_huyen_bi",
+  "nameVi": "Vảy Huyền Bí",
+  "icon": "🟢",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_moonwell_pendant",
+   "eq_warmog_armor",
+   "eq_blue_buff",
+   "feather",
+   "crystal",
+   "claw",
+   "feather",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "lifestealPct": 18,
+   "atkPct": 27
+  },
+  "descriptionVi": "Cấp 3: +27% ATK, +18% hút máu. Đánh trúng có 23% giảm 23 MDEF mục tiêu trong 3 lượt",
+  "logic": {
+   "trigger": "onHit",
+   "chance": 0.23,
+   "debuff": "mdef",
+   "amount": -23,
+   "turns": 3
+  }
+ },
+ {
+  "id": "vay_mang_xa",
+  "nameVi": "Vảy Mãng Xà",
+  "icon": "♾️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_cung_thu",
+   "eq_rabadon_deathcap",
+   "eq_guinsoo_rageblade",
+   "feather",
+   "claw",
+   "belt",
+   "feather",
+   "feather",
+   "feather"
+  ],
+  "bonuses": {
+   "hpPct": 25,
+   "startingShield": 101,
+   "mdef": 17
+  },
+  "descriptionVi": "Cấp 3: +25% HP, +17 MDEF, +101 khiên. Tăng 19% tỉ lệ né cho đồng minh liền kề",
+  "logic": {
+   "trigger": "aura",
+   "buff": "evadePct",
+   "amount": 0.19,
+   "target": "adjacent"
+  }
+ },
+ {
+  "id": "void_engine",
+  "nameVi": "Lõi Hư Không",
+  "icon": "🌌",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_vong_thanh_long",
+   "eq_guinsoo_rageblade",
+   "eq_death_blade",
+   "feather",
+   "belt",
+   "crystal",
+   "tear",
+   "bark",
+   "feather"
+  ],
+  "bonuses": {
+   "atkPct": 12,
+   "matkPct": 12,
+   "critPct": 15,
+   "startingRage": 1
+  },
+  "descriptionVi": "Cấp 3: +12% ATK, +12% MATK, +15% Crit, +1 Nộ. Hạ gục kẻ địch hồi 11% HP tối đa",
+  "logic": {
+   "trigger": "onKill",
+   "healPctMax": 0.11
+  }
+ },
+ {
+  "id": "vong_huyet_nguyet",
+  "nameVi": "Vòng Huyết Nguyệt",
+  "icon": "🟠",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_tempest_shroud",
+   "eq_blue_buff",
+   "eq_guinsoo_rageblade",
+   "tear",
+   "bark",
+   "belt",
+   "crystal",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "startingShield": 132,
+   "mdef": 14,
+   "def": 33
+  },
+  "descriptionVi": "Cấp 3: +33 DEF, +14 MDEF, +132 khiên. Dùng kỹ năng có 38% nhận thêm 1 Nộ",
+  "logic": {
+   "trigger": "onSkillUse",
+   "chance": 0.38,
+   "gainRage": 1
+  }
+ },
+ {
+  "id": "vong_ngoc_bich",
+  "nameVi": "Vòng Ngọc Bích",
+  "icon": "♥️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nhan_dinh_troi",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "feather",
+   "feather",
+   "bark",
+   "belt",
+   "belt",
+   "crystal"
+  ],
+  "bonuses": {
+   "startingShield": 148,
+   "def": 23,
+   "hpPct": 19
+  },
+  "descriptionVi": "Cấp 3: +19% HP, +23 DEF, +148 khiên. Bắt đầu giao tranh giảm 8 DEF toàn bộ kẻ địch trong 3 lượt",
+  "logic": {
+   "trigger": "combatStart",
+   "aoeDebuff": "def",
+   "amount": -8,
+   "turns": 3,
+   "target": "allEnemies"
+  }
+ },
+ {
+  "id": "vong_suong_mu",
+  "nameVi": "Vòng Sương Mù",
+  "icon": "🤍",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_ao_phap_su",
+   "eq_rabadon_deathcap",
+   "eq_bramble_vest",
+   "bark",
+   "crystal",
+   "crystal",
+   "belt",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "lifestealPct": 17,
+   "critPct": 17
+  },
+  "descriptionVi": "Cấp 3: +17% Crit, +17% hút máu. Dùng kỹ năng tăng 22% sát thương kỹ năng kế tiếp",
+  "logic": {
+   "trigger": "onSkillUse",
+   "nextSkillDmgBonus": 0.22
+  }
+ },
+ {
+  "id": "vong_tai_sinh",
+  "nameVi": "Vòng Tái Sinh",
+  "icon": "🦷",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_nanh_ngoc_bich",
+   "eq_warmog_armor",
+   "eq_guinsoo_rageblade",
+   "bark",
+   "bark",
+   "tear",
+   "feather",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "mdef": 12,
+   "hpPct": 29,
+   "startingShield": 95
+  },
+  "descriptionVi": "Cấp 3: +29% HP, +12 MDEF, +95 khiên. Sau 3 lượt, kích hoạt nổ gây 20 sát thương phép AoE",
+  "logic": {
+   "trigger": "timedBomb",
+   "turns": 3,
+   "aoeMagicDmg": 20
+  }
+ },
+ {
+  "id": "vuong_mien_dia_nguc",
+  "nameVi": "Vương Miện Địa Ngục",
+  "icon": "🌠",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_mong_than_bi",
+   "eq_death_blade",
+   "eq_blue_buff",
+   "tear",
+   "bark",
+   "feather",
+   "claw",
+   "belt",
+   "claw"
+  ],
+  "bonuses": {
+   "burnOnHit": 6,
+   "matkPct": 21,
+   "poisonOnHit": 4
+  },
+  "descriptionVi": "Cấp 3: +21% MATK, đốt cháy 6, gây độc 4. Miễn nhiễm hiệu ứng bất lợi 3 lượt đầu",
+  "logic": {
+   "trigger": "combatStart",
+   "immuneCC": true,
+   "turns": 3
+  }
+ },
+ {
+  "id": "xuong_bang_gia",
+  "nameVi": "Xương Băng Giá",
+  "icon": "🌬️",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_sung_than_sam",
+   "eq_death_blade",
+   "eq_warmog_armor",
+   "feather",
+   "bark",
+   "feather",
+   "crystal",
+   "bark",
+   "crystal"
+  ],
+  "bonuses": {
+   "lifestealPct": 17,
+   "critPct": 19,
+   "atkPct": 22
+  },
+  "descriptionVi": "Cấp 3: +22% ATK, +19% Crit, +17% hút máu. Mỗi lần bị đánh tăng 23 DEF (tối đa 7 lần)",
+  "logic": {
+   "trigger": "onTakeDmg",
+   "stackBuff": "def",
+   "perStack": 23,
+   "maxStacks": 7
+  }
+ },
+ {
+  "id": "xuong_phuong_hoang",
+  "nameVi": "Xương Phượng Hoàng",
+  "icon": "🦑",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_sanguine_codex",
+   "eq_warmog_armor",
+   "eq_blue_buff",
+   "bark",
+   "claw",
+   "feather",
+   "claw",
+   "bark",
+   "belt"
+  ],
+  "bonuses": {
+   "startingShield": 91,
+   "mdef": 24,
+   "hpPct": 33
+  },
+  "descriptionVi": "Cấp 3: +33% HP, +24 MDEF, +91 khiên. Mỗi đòn đánh tăng ATK thêm 25 (tối đa 5 lần)",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 25,
+   "maxStacks": 5
+  }
+ },
+ {
+  "id": "xuong_thien_duong",
+  "nameVi": "Xương Thiên Đường",
+  "icon": "🦠",
+  "tier": 3,
+  "size": 3,
+  "pattern": [
+   "eq_dawn_edge",
+   "eq_guinsoo_rageblade",
+   "eq_rabadon_deathcap",
+   "belt",
+   "tear",
+   "tear",
+   "tear",
+   "crystal",
+   "feather"
+  ],
+  "bonuses": {
+   "lifestealPct": 18,
+   "critPct": 17
+  },
+  "descriptionVi": "Cấp 3: +17% Crit, +18% hút máu. Mỗi đòn đánh tăng ATK thêm 9 (tối đa 5 lần)",
+  "logic": {
+   "trigger": "onHit",
+   "stackBuff": "atk",
+   "perStack": 9,
+   "maxStacks": 5
+  }
+ }
+]

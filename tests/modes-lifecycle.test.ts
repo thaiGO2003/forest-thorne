@@ -6,6 +6,7 @@ import {
   type OwnedUnit,
 } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
+import type { Drop } from "../src/core/loot";
 import { applyFinishFast, finishFastCost, FINISH_FAST_BASE_COST } from "../src/core/combatFast";
 
 const owned = (uid: string): OwnedUnit => ({ uid, baseId: NORMAL_UNITS[0]!.id, star: 1, equips: [] });
@@ -156,6 +157,29 @@ describe("game modes and run lifecycle", () => {
     expect(chooseAugment(s, s.activeAugmentChoices[0]!)).toBe(true);
     expect(s.phase).toBe("PLANNING");
     expect(s.augmentRoundsTaken).toEqual([3]);
+  });
+
+  it("accepts only registered, correctly classified loot without spending capacity on invalid drops", () => {
+    const s = normalRun(31);
+    s.board[0] = owned("loot-guard");
+    expect(startCombat(s)).toBeNull();
+    const drops: Drop[] = [
+      { item: "eq_unauthored", source: "enemy", rule: "equipment" },
+      { item: "tear", source: "enemy", rule: "equipment" },
+      { item: "eq_blue_buff", source: "enemy", rule: "equipment" },
+      { item: "bark", source: "enemy", rule: "material" },
+    ];
+    const input = {
+      combatId: "loot-validation", winner: "DRAW" as const,
+      enemySurvivors: 0, enemyStars: [], bounty: 0, drops,
+    };
+    const summary = applyRoundResult(s, input)!;
+    expect(summary.acceptedDrops).toEqual([drops[2]]);
+    expect(summary.rejectedDrops).toEqual([drops[0], drops[1], drops[3]]);
+    expect(s.itemBag).toEqual(["eq_blue_buff"]);
+    const after = JSON.stringify(s);
+    expect(applyRoundResult(s, input)).toBeNull();
+    expect(JSON.stringify(s)).toBe(after);
   });
 
   it("HP-based Fortress uses survivor-count damage while Creative ignores defeat/wallet result mutation", () => {

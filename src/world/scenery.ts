@@ -128,21 +128,27 @@ export function createScenery(
 
   const mountainMat = white({ roughness: 1 });
   const mountainSpecs: { x: number; y: number; z: number; sx: number; sy: number; sz: number; tone: number }[] = [];
-  for (let layer = 0; layer < 5; layer++) {
-    const width = 5 - layer;
+  // Terrain columns out here reach ~10 blocks, so the source has to be a real massif, not a rock
+  // wall: twelve tiers crest above the sheet (y=7.2) and clear the surrounding hills. The centre
+  // notch stays open until the snow line so the sheet reaches the river, while the top tiers bridge
+  // over it as the mountain face.
+  const MOUNTAIN_TIERS = 12;
+  for (let layer = 0; layer < MOUNTAIN_TIERS; layer++) {
+    const width = 11 - Math.floor(layer / 2);
     for (let ix = -width; ix <= width; ix++) {
-      if (Math.abs(ix) <= 1 && layer < 3) continue; // carved notch lets the waterfall reach the river
+      if (Math.abs(ix) <= 1 && layer < 8) continue; // carved notch lets the waterfall reach the river
       mountainSpecs.push({
         x: source.x + ix * 1.05,
-        y: 0.55 + layer * 1.0,
-        z: source.z - 2.2 - layer * 0.35,
+        y: 0.55 + layer * 1.05,
+        z: source.z - 2.2 - layer * 0.5,
         sx: 1.1,
-        sy: 1.1,
-        sz: 1.15,
-        tone: layer >= 4 ? 0xf2f6f8 : layer >= 3 ? 0x8d8f86 : 0x6e6a60,
+        sy: 1.05,
+        sz: 1.2,
+        tone: layer >= 9 ? 0xf2f6f8 : layer >= 7 ? 0x9fa19a : layer >= 4 ? 0x7d7a70 : 0x6e6a60,
       });
     }
   }
+
   const mountain = own(new THREE.InstancedMesh(box, mountainMat, Math.max(1, mountainSpecs.length)));
   mountain.name = "scenery-waterfall-mountain";
   mountain.count = mountainSpecs.length;

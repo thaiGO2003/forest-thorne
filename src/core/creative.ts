@@ -1,6 +1,8 @@
 // Creative sandbox persistent unit model (spec A46). No rendering or input code lives here.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
-import { equipmentSaleValue, getEquipment, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { hasUnitVisual } from "../content/unitVisuals";
+import { equipmentSaleValue, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { getEquipment } from "./itemRegistry";
 import type { Placement } from "./combat";
 import type { OwnedUnit } from "./run";
 import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
@@ -32,7 +34,7 @@ export function normalizeCreativeSandboxUnits(value: unknown): CreativeSandboxUn
   const occupied = new Set<string>();
   for (const entry of value) {
     const raw = record(entry);
-    if (!raw || typeof raw.uid !== "string" || typeof raw.baseId !== "string" || !UNIT_BY_ID.has(raw.baseId)) continue;
+    if (!raw || typeof raw.uid !== "string" || typeof raw.baseId !== "string" || !UNIT_BY_ID.has(raw.baseId) || !hasUnitVisual(raw.baseId)) continue;
     const def = getUnit(raw.baseId);
     const star = Math.min(3, Math.max(1, Math.round(Number(raw.star) || 1))) as 1 | 2 | 3;
     const side: SandboxSide = raw.side === "RIGHT" ? "RIGHT" : "LEFT";
@@ -71,7 +73,7 @@ export function normalizeCreativeSandboxUnits(value: unknown): CreativeSandboxUn
 export function cloneSandboxUnit(
   source: OwnedUnit, uid: string, row: number, col: number,
 ): CreativeSandboxUnit | null {
-  if (!validSandboxCell(row, col) || !UNIT_BY_ID.has(source.baseId)) return null;
+  if (!validSandboxCell(row, col) || !UNIT_BY_ID.has(source.baseId) || !hasUnitVisual(source.baseId)) return null;
   const def = getUnit(source.baseId);
   const star = Math.min(3, Math.max(1, source.star)) as 1 | 2 | 3;
   return {

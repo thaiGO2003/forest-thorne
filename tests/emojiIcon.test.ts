@@ -52,6 +52,7 @@ describe("A61 emoji/icon authority and fallback behavior", () => {
 
   it("builds pinned image URLs from normalized codepoints and splits mixed labels", () => {
     expect(getEmojiImageUrl("heart")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/2764.png`);
+    expect(getEmojiImageUrl("❤️‍🔥")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/2764-fe0f-200d-1f525.png`);
     expect(getEmojiImageUrl("🪙")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/1fa99.png`);
     expect(splitEmojiText("Mua (1 🪙)")).toEqual([
       { kind: "text", value: "Mua (1 " },

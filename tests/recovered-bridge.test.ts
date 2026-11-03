@@ -312,18 +312,18 @@ describe("recovered application bridge", () => {
     const bridge = createBridge(store);
     const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
     run.bench = [{ uid: "equip", baseId: "ant_guard", star: 1, equips: [] }];
-    run.itemBag = ["eq_warmog_armor"];
-    expect(bridge.equip("eq_warmog_armor", "bench", 0)).toBe(false);
-    expect(run.itemBag).toEqual(["eq_warmog_armor"]);
+    run.itemBag = ["eq_aegis_oath"];
+    expect(bridge.equip("eq_aegis_oath", "bench", 0)).toBe(false);
+    expect(run.itemBag).toEqual(["eq_aegis_oath"]);
 
     run.bench[0]!.star = 2;
-    expect(bridge.equip("eq_warmog_armor", "bench", 0)).toBe(true);
+    expect(bridge.equip("eq_aegis_oath", "bench", 0)).toBe(true);
     expect(run.itemBag).toEqual([]);
-    expect(run.bench[0]!.equips).toEqual(["eq_warmog_armor"]);
+    expect(run.bench[0]!.equips).toEqual(["eq_aegis_oath"]);
     const inspection = inspectSave(store);
     expect(inspection.status).toBe("valid");
     if (inspection.status !== "valid") throw new Error("save missing");
-    expect(inspection.envelope.payload.player?.bench[0]?.equips).toEqual(["eq_warmog_armor"]);
+    expect(inspection.envelope.payload.player?.bench[0]?.equips).toEqual(["eq_aegis_oath"]);
   });
 
   it("records accepted Classic shop actions once and ignores rejected actions", () => {

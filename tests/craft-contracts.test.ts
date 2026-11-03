@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activeIndices, craft, matchRecipe, stage, type CraftState } from "../src/core/craft";
-import { getEquipment } from "../src/core/equipment";
+import { getEquipment } from "../src/core/itemRegistry";
 
 const blank = (): (string | null)[] => Array(9).fill(null);
 const makeState = (over: Partial<CraftState> = {}): CraftState => ({
@@ -82,9 +82,9 @@ describe("craft commit contracts (A7)", () => {
   });
 
   it("failed craft leaves the run untouched for every failure mode", () => {
-    const noRecipe = makeState({ itemBag: ["bark"] });
-    expect(craft(noRecipe, stage(blank(), 4, "bark", 1)!)).toBeNull();
-    expect(noRecipe).toEqual(makeState({ itemBag: ["bark"] }));
+    const noRecipe = makeState({ itemBag: ["ghost"] });
+    expect(craft(noRecipe, stage(blank(), 4, "ghost", 1)!)).toBeNull();
+    expect(noRecipe).toEqual(makeState({ itemBag: ["ghost"] }));
 
     const missing = makeState({ itemBag: ["bark"] });
     expect(craft(missing, stage(blank(), 4, "tear", 1)!)).toBeNull();

@@ -54,7 +54,31 @@
 .ui-inventory-stars { text-align: center; font-size: 22px; }
 .ui-inventory-identity { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; font-size: 12px; font-weight: 700; }
 .ui-inventory-profile > .ui-inventory-note { text-align: center; }
-.ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
+.ui-inventory-skill { padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: var(--ft-12); line-height: 1.5; }
+.ui-inventory-skill > h3, .ui-inventory-passive > h3, .ui-inventory-basic > h3, .ui-inventory-section-head > h3 { margin: 0; text-align: left; }
+.ui-inventory-skill p, .ui-inventory-passive p, .ui-inventory-basic p { margin: 0; }
+.ui-inventory-formula { display: flex; flex-direction: column; gap: 4px; }
+.ui-inventory-formula-line { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.rich { font-weight: 800; }
+.rich-physical { color: #b23a2e; }
+.rich-magic { color: #7a4bb0; }
+.rich-true { color: #8a6a1f; }
+.rich-heal { color: #2f7d32; }
+.rich-shield { color: #2c6fa8; }
+.rich-element { color: #c0417e; }
+.rich-buff { color: #2f7d32; }
+.rich-debuff { color: #a3402f; }
+.rich-control { color: #6a5acd; }
+.ui-inventory-section-head .ui-inventory-section-action { height: 30px; min-height: 30px; padding: 0 10px; font-size: var(--ft-12); flex: none; }
+.ui-inventory-formula p { margin: 0; }
+.ui-inventory-milestones { display: flex; flex-direction: column; gap: 8px; }
+.ui-inventory-milestone { padding: 6px 8px; border-left: 3px solid rgba(120, 84, 44, .35); }
+.ui-inventory-milestone strong { display: block; margin-bottom: 2px; font-size: var(--ft-13); }
+.ui-inventory-milestone p { margin: 0; }
+.ui-inventory-star-formula { font-size: var(--ft-11); line-height: 1.4; }
+.ui-inventory-milestones h4 { margin: 2px 0 0; font-size: var(--ft-13); }
+.ui-inventory-milestones .is-current { outline: 2px solid rgba(255, 211, 107, .65); outline-offset: 2px; border-radius: 4px; border-left-color: #8a5a22; }
+.ui-inventory-passive, .ui-inventory-basic { padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: var(--ft-12); line-height: 1.5; }
 .ui-inventory-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ui-inventory-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .ui-inventory-stat-column { min-width: 0; padding: 10px 10px 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
@@ -63,9 +87,16 @@
 .ui-inventory-column-hint { min-height: 36px; font-size: 10px; text-align: center; padding: 4px 0; line-height: 1.35; }
 .ui-inventory-stat { position: relative; height: 41px; }
 .ui-inventory-secondary { padding-top: 6px; font-size: 10px; line-height: 1.5; }
-.ui-inventory-lower { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 8px; align-items: start; }
-.ui-inventory-equipment, .ui-inventory-effects { padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.ui-inventory-section-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.ui-inventory-lower { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: start; }
+.ui-inventory-equipment, .ui-inventory-effects, .ui-inventory-variants { padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ui-inventory-variant-list { display: flex; flex-direction: column; gap: 4px; font-size: 11px; line-height: 1.45; }
+.ui-inventory-equipped-actions { display: flex; gap: 6px; }
+.ui-inventory-equipped-actions .kit-btn { width: 100%; height: 38px; }
+.ui-inventory-variant { margin: 0; }
+.ui-inventory-section-head { display: flex; align-items: center; justify-content: space-between; gap: 5px 8px; flex-wrap: wrap; }
+.ui-inventory-section-head > h3 { flex: 1 1 auto; white-space: nowrap; }
+.ui-inventory-section-head > .ui-inventory-note { flex: 0 0 auto; white-space: nowrap; }
+.ui-inventory-section-head .ui-inventory-section-action { flex: 0 0 auto; margin-left: auto; }
 .ui-inventory-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
 .ui-inventory-item { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
 .ui-inventory-item-icon { width: 68px; height: 68px; display: grid; place-items: center; font-size: 32px; }
@@ -82,7 +113,7 @@
 .ui-inventory-effect { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.5; }
 .ui-inventory-effect strong { font-size: 12px; }
 .ui-inventory-effect small { font-size: 10px; }
-.ui-inventory-footer { display: grid; grid-template-columns: auto 1.2fr .8fr 1.1fr auto; align-items: center; gap: 8px; flex: none; }
+.ui-inventory-footer { display: grid; grid-template-columns: auto 1.3fr 1fr; align-items: center; gap: 8px; flex: none; }
 .ui-inventory-gold { font-size: 14px; padding: 0 6px; white-space: nowrap; }
 .ui-inventory-action { width: 100%; height: 46px; }
 .ui-inventory-sale-hint { font-size: 11px; text-align: right; padding-right: 4px; }
@@ -120,14 +151,67 @@
 
 .emoji-inline { display: inline-block; width: 1em; height: 1em; max-width: 1em; vertical-align: -0.12em; object-fit: contain; flex: none; }
 /* ---------- tooltip ---------- */
-.tooltip { position: fixed; left: 0; top: 0; max-width: min(320px, calc(100vw - 16px)); padding: 10px 12px; }
+.tooltip { position: fixed; left: 0; top: 0; width: max-content; max-width: min(360px, calc(100vw - 16px)); padding: 12px 14px; }
 .tooltip[data-open="false"] { visibility: hidden; }
-.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; color: #111; font-size: 13px; line-height: 1.35; font-family: "Times New Roman", Times, serif; }
-.tt-title { font-weight: 800; font-size: 15px; }
-.tt-sub { font-size: 12px; font-style: italic; }
-.tt-line { display: flex; gap: 6px; align-items: baseline; }
+.tooltip[data-rich="true"] { max-width: min(560px, calc(100vw - 16px)); }
+.tooltip[data-mode="compact"][data-rich="true"] { max-width: min(460px, calc(100vw - 16px)); }
+.tooltip[data-mode="expanded"][data-rich="true"] { width: min(1320px, calc(100vw - 24px)); max-width: min(1320px, calc(100vw - 24px)); }
+.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #111; font-size: 13px; line-height: 1.35; font-family: "Times New Roman", Times, serif; }
+.tt-head { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.tt-avatar { flex: none; width: 96px; height: 96px; display: grid; place-items: center; }
+.tt-avatar-icon { display: grid; place-items: center; width: 100%; height: 100%; font-size: 48px; line-height: 1; }
+.tt-avatar[data-portrait="true"] .tt-avatar-icon { visibility: hidden; }
+.tt-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tt-title { font-weight: 800; font-size: 15px; line-height: 1.15; }
+.tt-sub { font-size: 12px; font-weight: 600; }
+.tt-badges, .tt-statuses { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.tt-chip { position: relative; display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 2px 10px; color: #fff8ec; font-size: 10px; line-height: 1.1; }
+.tt-chip-icon, .tt-meter-icon { display: inline-flex; align-items: center; flex: none; }
+.tt-chip-text { min-width: 0; overflow-wrap: anywhere; }
+.tt-meters { display: flex; flex-direction: column; gap: 5px; margin-top: 2px; min-width: 0; }
+.tt-meter { display: grid; grid-template-columns: max-content minmax(90px, 1fr) max-content; gap: 8px; align-items: center; min-width: 0; font-size: 10px; }
+.tt-meter-label { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; white-space: nowrap; }
+.tt-meter-track { position: relative; height: 22px; min-width: 90px; }
+.tt-meter-value { font-weight: 700; white-space: nowrap; }
+.tt-desc { margin: 2px 0 0; font-size: 12px; line-height: 1.35; font-style: italic; }
+.tt-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; white-space: pre-line; }
+.tt-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; min-width: 0; }
+.tt-columns[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1100px) {
+  .tt-columns[data-count="4"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr); }
+}
+.tt-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-left: 8px; }
+.tt-col[data-first="true"] { padding-left: 0; }
+.tt-sec { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tt-sec-title { margin: 0; font-size: 11px; font-weight: 800; line-height: 1.2; }
+.tt-sec-line { margin: 0; font-size: 11px; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere; }
+.tooltip[data-mode="expanded"] .tt-sec-line { font-size: 10px; }
+.tt-lines { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tt-line { display: flex; gap: 6px; align-items: baseline; font-size: 12px; }
 .tt-icon { flex: none; width: 1.3em; text-align: center; }
-.tt-body { margin-top: 4px; font-size: 12px; font-style: italic; white-space: pre-line; }
+@media (max-width: 760px) {
+  .tooltip[data-rich="true"] { max-width: calc(100vw - 16px); }
+  .tooltip[data-mode="expanded"][data-rich="true"] { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
+  .tt-head { gap: 10px; }
+  .tt-avatar { width: 64px; height: 64px; }
+  .tt-avatar-icon { font-size: 34px; }
+  .tt-columns { grid-template-columns: 1fr; gap: 10px; }
+  .tt-col { padding-left: 0; }
+}
+@media (max-height: 700px) {
+  .tooltip { --ft-10: 18px; --ft-11: 19px; --ft-12: 20px; --ft-13: 21px; --ft-15: 24px; }
+}
+@media (max-height: 520px) {
+  .tooltip { --ft-10: 15px; --ft-11: 16px; --ft-12: 17px; --ft-13: 18px; --ft-15: 21px; padding: 7px 9px; }
+  .tt-head { gap: 8px; }
+  .tt-avatar { width: 48px; height: 48px; }
+  .tt-avatar-icon { font-size: 26px; }
+  .tt-chip { min-height: 22px; padding: 1px 7px; }
+  .tt-meter-track { height: 16px; min-width: 60px; }
+  .tt-meters { gap: 3px; }
+  .tt-desc { display: none; }
+  .tt-body { gap: 5px; }
+}
 
 /* ---------- loading ---------- */
 .loading { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; padding: 24px 16px max(28px, env(safe-area-inset-bottom)); }
@@ -185,59 +269,142 @@
 /* ---------- information / mods / donate ---------- */
 .info-modal { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .info-modal > .tabs { flex: none; flex-wrap: wrap; }
+.info-tabs .kit-btn { min-width: 128px; }
 .info-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .info-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .info-kv { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 8px 10px; }
-.info-unit, .mod-row { display: flex; gap: 10px; align-items: center; }
+.info-unit, .mod-row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; }
+.info-unit-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.info-unit-title { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.info-unit-title strong { font-size: 16px; }
+.info-unit .kit-btn { height: 30px; min-width: 96px; flex: none; }
+.info-unit-stars { font-size: 12px; letter-spacing: .06em; }
+.info-unit-meta { font-size: 12px; line-height: 1.35; }
+.info-unit-equips { font-size: 11px; line-height: 1.3; }
+.info-more { text-align: center; padding: 2px 0; }
 .info-compare { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; }
 .info-compare-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .info-compare-bars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.info-meter { position: relative; min-height: 22px; }
-.info-weather-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; padding: 10px 12px; }
-.info-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; }
+.info-compare-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.info-compare-side-label { font-size: 11px; }
+.info-compare-label { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.info-compare-values { font-size: 12px; text-align: right; }
+.info-meter { position: relative; min-height: 22px; min-width: 0; }
+.info-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; align-items: center; padding: 14px 16px; }
 .info-hero-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .info-hero-title { margin: 0; font-size: 26px; line-height: 1.1; }
 .info-hero-sub { margin: 0; font-size: 13px; }
-.info-hero-stats { display: grid; grid-template-columns: repeat(4, minmax(72px, auto)); gap: 6px; }
+.info-hero-chips { grid-column: 1; display: flex; gap: 6px; flex-wrap: wrap; }
+.info-hero-stats { grid-column: 2; grid-row: 1 / span 2; display: grid; grid-template-columns: repeat(4, minmax(72px, auto)); gap: 6px; }
 .info-stat { display: grid; place-items: center; gap: 1px; padding: 6px 8px; min-width: 72px; }
 .info-stat-icon { font-size: 18px; line-height: 1; }
 .info-stat-value { font-size: 18px; line-height: 1.1; }
 .info-stat-label { font-size: 11px; text-align: center; }
-.info-dashboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
-.info-sec { padding: 10px 12px 12px; min-width: 0; }
-.info-sec-head { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; }
-.info-sec-title { margin: 0; font-size: 16px; }
+.info-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.info-fact { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 0 8px; align-items: center; padding: 8px 10px; }
+.info-fact-icon { grid-row: 1 / span 2; font-size: 20px; line-height: 1; }
+.info-fact-value { font-size: 18px; line-height: 1.15; }
+.info-fact-label { font-size: 11px; line-height: 1.2; }
+.info-dashboard { display: block; columns: 2; column-gap: 10px; }
+.info-dashboard > * { break-inside: avoid; margin: 0 0 10px; }
+.info-sec { padding: 8px; min-width: 0; }
+.info-sec-head { display: flex; gap: 8px; align-items: center; padding: 6px 10px; min-height: 38px; }
+.info-modal .info-sec-title { margin: 0; font-size: 18px; flex: 1 1 auto; min-width: 0; font-family: "Times New Roman", Times, serif; font-weight: 700; }
 .info-sec-icon { font-size: 18px; flex: none; }
-.info-sec-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.info-sec-action { flex: none; height: 28px; }
+.info-sec-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding-top: 8px; }
+.info-chip { display: inline-flex; gap: 5px; align-items: center; padding: 2px 8px; font-size: 12px; width: fit-content; }
+.info-chip-icon { font-size: 13px; line-height: 1; }
 .info-medal { width: 30px; height: 30px; flex: none; display: grid; place-items: center; font-size: 18px; }
-.info-unit-meta { font-size: 12px; line-height: 1.35; }
-.info-compare-label { display: flex; gap: 6px; align-items: center; min-width: 0; }
-.info-compare-values { font-size: 12px; text-align: right; }
-.info-empty { padding: 10px; text-align: center; font-size: 13px; }
-.blessing-modal { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
-.blessing-head { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; flex: none; }
-.blessing-subtitle { margin: 0; font-size: 14px; letter-spacing: .08em; }
-.blessing-meta { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
-.blessing-chip { padding: 4px 12px; min-width: 110px; text-align: center; }
-.blessing-cards { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; overflow: auto; overscroll-behavior: contain; }
-.blessing-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 8px; padding: 14px; min-width: 0; align-content: start; }
-.blessing-art { display: grid; place-items: center; min-height: 72px; }
-.blessing-icon { font-size: 56px; line-height: 1; }
-.blessing-copy { display: flex; flex-direction: column; gap: 4px; text-align: center; min-width: 0; }
-.blessing-group { font-size: 12px; letter-spacing: .12em; font-weight: 800; }
-.blessing-title { margin: 0; font-size: 20px; line-height: 1.1; }
-.blessing-effect { margin: 0; font-size: 14px; line-height: 1.4; }
-.blessing-choose { width: 100%; min-width: 0; height: 46px; }
+.info-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 12px; text-align: center; }
+.info-empty-icon { font-size: 30px; line-height: 1; }
+.info-empty-title { font-size: 14px; }
+.info-empty-hint { font-size: 12px; line-height: 1.35; }
+.info-augments { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.info-augment { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; min-width: 0; }
+.info-augment-head { display: flex; gap: 8px; align-items: center; }
+.info-augment-name { flex: 1 1 auto; min-width: 0; font-size: 14px; }
+.info-augment-value { font-size: 15px; padding: 0 2px; }
+.info-augment-summary { font-size: 12px; line-height: 1.35; }
+.info-weather-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: center; padding: 12px; }
+.info-weather-art { display: grid; place-items: center; width: 84px; height: 84px; }
+.info-weather-icon { font-size: 42px; line-height: 1; }
+.info-weather-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-items: flex-start; }
+.info-weather-kicker { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.info-modal .info-weather-name { margin: 0; font-size: 24px; line-height: 1.1; font-family: "Times New Roman", Times, serif; font-weight: 700; }
+.info-weather-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.info-rule-col { padding: 8px 10px; min-width: 0; }
+.info-rule-head { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.info-rule-icon { font-size: 14px; }
+.info-rule-list { margin: 0; padding-left: 16px; font-size: 12px; line-height: 1.45; }
+.info-cycle { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.info-cycle-pill { display: grid; place-items: center; gap: 1px; padding: 6px 4px; min-width: 0; text-align: center; }
+.info-cycle-icon { font-size: 20px; line-height: 1; }
+.info-cycle-round { font-size: 10px; line-height: 1.1; }
+.info-cycle-name { font-size: 11px; line-height: 1.1; }
+.info-forecast { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.info-forecast-card { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 0 10px; align-items: center; padding: 10px 12px; }
+.info-forecast-icon { grid-row: 1 / span 2; font-size: 26px; line-height: 1; }
+.info-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.info-side { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; min-width: 0; }
+.info-side-head { display: flex; gap: 8px; align-items: center; }
+.info-side-icon { font-size: 20px; line-height: 1; }
+.info-side-title { font-size: 17px; }
+.info-side-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.info-formations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.info-comp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.info-comp-col { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; min-width: 0; }
+.info-comp-title { font-size: 14px; }
+.info-comp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.info-comp-role { font-size: 14px; }
+.info-comp-empty { font-size: 12px; }
+.info-synergy { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; }
+.info-synergy-head { display: flex; gap: 8px; align-items: center; }
+.info-synergy-head strong { flex: 1 1 auto; min-width: 0; }
+.info-synergy-count { font-size: 12px; }
+.info-synergy-active { font-size: 11px; }
+.info-order { display: flex; gap: 10px; align-items: center; padding: 6px 10px; }
+.info-order-rank { display: grid; place-items: center; width: 40px; height: 32px; flex: none; }
+.info-order-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.info-order-actions { flex: none; }
+.info-order-actions .kit-btn { min-width: 64px; height: 30px; }
+/* Blessing choice (concept art 2026-10-31): tier-card frames + wood group bar + framed icon slot. */
+.blessing-modal { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+.blessing-head { display: flex; flex-direction: column; gap: 10px; flex: none; }
+.blessing-subtitle { margin: 0; font-family: "Noto Sans", sans-serif; font-size: 15px; letter-spacing: .10em; font-weight: 800; text-align: center; }
+.blessing-meta { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.blessing-chip { padding: 4px 14px; min-width: 96px; text-align: center; font-size: 12px; letter-spacing: .12em; font-weight: 800; }
+.blessing-cards { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; overflow: auto; overscroll-behavior: contain; }
+.blessing-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(5, auto); align-content: space-evenly; gap: 12px; padding: 16px 20px 18px; min-width: 0; }
+.blessing-group { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px; font-size: 13px; letter-spacing: .14em; font-weight: 800; text-align: center; }
+.blessing-slot { position: relative; display: grid; place-items: center; width: 150px; height: 150px; margin: 0 auto; }
+.blessing-icon { font-size: 96px; line-height: 1; }
+.blessing-slot > .blessing-star { position: absolute; top: -6px; right: -6px; font-size: 22px; line-height: 1; }
+.blessing-copy { display: flex; flex-direction: column; gap: 6px; text-align: center; min-width: 0; }
+.blessing-card .blessing-title { margin: 0; font-family: "Times New Roman", Times, serif; font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: .01em; }
+.blessing-effect { margin: 0; font-size: 15px; line-height: 1.4; }
+.blessing-rule { position: relative; height: 5px; margin: 0 2px; overflow: hidden; }
+.blessing-choose { width: 100%; min-width: 0; height: 56px; }
 .blessing-footer { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; padding: 8px 12px; flex: none; }
 .blessing-footer strong { font-size: 13px; letter-spacing: .06em; }
 .blessing-footer small { font-size: 12px; }
 @media (max-width: 760px) {
-  .blessing-cards { grid-template-columns: minmax(0, 1fr); }
-  .blessing-card { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); align-items: center; padding: 10px; }
-  .blessing-art { min-height: 0; }
-  .blessing-icon { font-size: 40px; }
-  .blessing-copy { text-align: left; }
-  .blessing-choose { width: auto; min-width: 96px; padding: 0 8px; }
+  .blessing-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .blessing-card {
+    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas: "slot group" "slot copy" "slot rule" "slot choose";
+    column-gap: 10px; row-gap: 6px; align-items: start; align-content: start; padding: 10px 12px 12px;
+  }
+  .blessing-group { grid-area: group; min-height: 28px; font-size: 11px; }
+  .blessing-slot { grid-area: slot; width: 84px; height: 84px; margin: 0; }
+  .blessing-icon { font-size: 52px; }
+  .blessing-slot > .blessing-star { top: -4px; right: -4px; font-size: 14px; }
+  .blessing-copy { grid-area: copy; text-align: left; }
+  .blessing-rule { grid-area: rule; height: 4px; }
+  .blessing-choose { grid-area: choose; align-self: stretch; height: 44px; }
+  .blessing-card .blessing-title { font-size: 19px; }
+  .blessing-effect { font-size: 13px; }
 }
 .mods { min-height: 0; height: 100%; display: flex; flex-direction: column; }
 .mods-header { flex: none; }
@@ -272,100 +439,221 @@
 .augment-choose { flex: none; height: 44px; }
 
 /* Crafting modal: workspace geometry only; slots and controls keep authored kit chrome. */
-.craft-tabs { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.craft-content { min-width: 0; min-height: 0; }
-.craft-tabs .kit-btn { min-height: 44px; }
-.craft-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 12px; min-width: 0; min-height: 0; }
-.craft-workspace > * { min-width: 0; }
-.craft-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: min(100%, 330px); aspect-ratio: 1; }
-.craft-cell { position: relative; min-width: 0; min-height: 0; aspect-ratio: 1; }
-.craft-cell > .kit-btn { width: 100%; height: 100%; }
-.craft-cell > .kit-btn + .kit-btn { position: absolute; right: 3px; bottom: 3px; z-index: 1; width: auto; min-width: 42px; height: 28px; min-height: 28px; }
-.craft-bag { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); align-content: start; gap: 8px; min-height: 0; min-width: 0; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding-right: 8px; }
-.craft-bag > strong, .craft-bag > p, .craft-result { grid-column: 1 / -1; }
-.craft-bag > p { margin: 0 0 4px; }
-.craft-material { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
-.craft-material img { display: block; width: 42px; height: 42px; object-fit: contain; }
-.craft-material .kit-btn { width: 100%; min-width: 0; min-height: 42px; }
-.craft-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.craft-result .kit-btn { min-height: 42px; }
 .crafting-workbench { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.crafting-workbench :is(h2, h3, p) { margin: 0; }
+.crafting-workbench :is(h2, h3, h4, p) { margin: 0; }
 .crafting-workbench h2 { font-size: clamp(22px, 3vw, 32px); line-height: 1.15; }
 .crafting-workbench h3 { font-size: clamp(17px, 2vw, 21px); line-height: 1.15; }
 .crafting-eyebrow { display: block; font-family: "Noto Sans", sans-serif; font-size: 11px; letter-spacing: 1px; font-weight: 800; line-height: 1.35; }
 .crafting-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 82px; padding: 10px 18px; }
 .crafting-hero-heading { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.crafting-subtitle { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.4; }
 .crafting-rank { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; flex: none; min-width: 126px; min-height: 66px; padding: 10px 18px; text-align: center; }
 .crafting-rank span { font-size: 10px; font-weight: 800; letter-spacing: 1px; }
 .crafting-rank strong { font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: 23px; line-height: 1; }
-.crafting-columns { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.1fr) minmax(0, .95fr); gap: 12px; align-items: stretch; }
-.crafting-bench { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 18px; min-width: 0; }
+.crafting-workspace { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.05fr); gap: 12px; align-items: start; min-width: 0; }
+
+.craft-table, .craft-bag-panel, .craft-recipes-panel { display: flex; flex-direction: column; gap: 10px; padding: 14px; min-width: 0; min-height: 0; }
 .crafting-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-width: 0; }
 .crafting-section-heading > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .crafting-counter { font-family: "Noto Sans", sans-serif; font-size: 12px; font-weight: 800; text-align: right; white-space: nowrap; }
-.crafting-board { display: grid; place-items: center; width: min(100%, 340px); padding: 16px; margin: 2px 0 0; }
-.crafting-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(6px, 1vw, 11px); width: min(100%, 295px); aspect-ratio: 1; }
-.crafting-cell { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-width: 0; min-height: 0; border: 0; padding: 8px; background: none; appearance: none; font-family: "Forest Heading", "Noto Sans", sans-serif; cursor: pointer; touch-action: manipulation; }
-.crafting-cell:disabled { cursor: not-allowed; }
-.crafting-cell > :not(.kit-canvas) { position: relative; z-index: 1; }
-.crafting-cell-icon { display: block; width: 74%; height: 74%; object-fit: contain; pointer-events: none; }
-.crafting-lock { font-size: clamp(16px, 2vw, 26px); pointer-events: none; }
-.crafting-cell-plus { font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: clamp(24px, 3vw, 36px); line-height: 1; pointer-events: none; }
-.crafting-slot-number { position: absolute !important; left: 10px; top: 6px; font-family: "Times New Roman", Times, serif; font-size: 10px; font-weight: 700; pointer-events: none; }
-.crafting-hint { max-width: 430px; font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.5; text-align: center; }
-.crafting-bench-actions { display: flex; justify-content: center; width: 100%; }
-.crafting-clear { width: min(100%, 220px); height: 44px; }
-.crafting-side { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
-.crafting-inventory, .crafting-recipes { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; }
-.crafting-inventory { flex: none; }
-.crafting-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; align-content: start; min-width: 0; max-height: 310px; overflow-y: auto; overscroll-behavior: contain; padding: 3px; }
-.crafting-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; height: 94px; padding: 9px 5px; border: 0; background: none; appearance: none; font-family: "Times New Roman", Times, serif; cursor: pointer; touch-action: manipulation; }
-.crafting-item:disabled { cursor: not-allowed; }
-.crafting-item > :not(.kit-canvas) { position: relative; z-index: 1; }
-.crafting-item-icon { display: block; width: 42px; height: 42px; max-width: 70%; object-fit: contain; pointer-events: none; }
-.crafting-item-name { font-size: 13px; line-height: 1.15; text-align: center; font-weight: 900; }
-.crafting-item-count { font-size: 12px; font-weight: 800; }
-.crafting-selection { min-height: 22px; font-family: "Noto Sans", sans-serif; font-size: 12px; text-align: center; font-weight: 700; }
-.crafting-muted { grid-column: 1 / -1; text-align: center; padding: 12px; }
-.crafting-recipes { gap: 9px; }
-.crafting-recipe-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.crafting-recipe-icon { flex: none; display: block; width: 48px; height: 48px; object-fit: contain; }
-.crafting-recipe-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.crafting-recipe-copy strong { font-size: 15px; line-height: 1.1; }
-.crafting-recipe-copy small { font-family: "Noto Sans", sans-serif; font-size: 12px; }
-.crafting-autofill { flex: none; min-width: 98px; height: 42px; }
-.crafting-result { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(220px, 340px); align-items: center; gap: 14px; min-width: 0; padding: 12px 18px; }
-.crafting-result-icon { display: grid; place-items: center; width: 80px; height: 80px; padding: 8px; }
-.crafting-result-image { display: block; width: 100%; height: 100%; object-fit: contain; }
-.crafting-result-placeholder { font-size: 32px; }
-.crafting-result-info { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
-.crafting-result-info p { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.35; }
-.crafting-submit { grid-column: auto; width: 100%; height: 64px; }
+.craft-stage { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
+.craft-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; width: min(100%, 190px); max-width: 190px; flex: 1 1 160px; aspect-ratio: 1; }
+.craft-cell { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-width: 0; min-height: 0; border: 0; padding: 7px; background: none; appearance: none; cursor: grab; touch-action: none; }
+.craft-cell:disabled { cursor: not-allowed; }
+.craft-cell > :not(.kit-canvas) { position: relative; z-index: 1; }
+.craft-cell-icon { display: block; width: 74%; height: 74%; object-fit: contain; pointer-events: none; }
+.craft-cell-highlight { position: absolute !important; inset: 0; z-index: 0 !important; pointer-events: none; }
+.craft-cell-plus, .crafting-lock { pointer-events: none; }
+.crafting-lock { font-size: clamp(16px, 2vw, 24px); }
+.craft-cell-plus { font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: clamp(22px, 3vw, 32px); line-height: 1; }
+.crafting-slot-number { position: absolute !important; left: 9px; top: 5px; z-index: 2 !important; font-family: "Times New Roman", Times, serif; font-size: 10px; font-weight: 700; pointer-events: none; }
+.craft-stage-arrow { flex: none; font-family: "Forest Heading", "Noto Sans", sans-serif; font-size: 26px; line-height: 1; }
+.craft-output-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 84px; }
+.craft-output-label { font-family: "Noto Sans", sans-serif; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.craft-output { width: 96px; height: 96px; display: grid; place-items: center; padding: 8px; cursor: pointer; touch-action: manipulation; }
+.craft-output-icon { display: block; width: 74%; height: 74%; object-fit: contain; pointer-events: none; }
+.craft-output-empty { font-size: 28px; pointer-events: none; }
+.craft-output-name { max-width: 112px; max-height: 3.45em; overflow: hidden; font-family: "Noto Sans", sans-serif; font-size: 11px; font-weight: 800; line-height: 1.15; text-align: center; }
+.craft-result-copy { min-height: 16px; text-align: center; font-family: "Noto Sans", sans-serif; font-size: 11px; line-height: 1.3; }
+.craft-stage-actions { display: flex; gap: 8px; align-items: stretch; width: 100%; }
+.craft-clear { flex: none; width: 96px; height: 50px; }
+.craft-commit { flex: 1 1 auto; height: 50px; }
+.crafting-hint { max-width: 430px; font-family: "Noto Sans", sans-serif; font-size: 11px; line-height: 1.5; text-align: center; align-self: center; }
+.crafting-muted { grid-column: 1 / -1; text-align: center; padding: 12px; font-family: "Noto Sans", sans-serif; font-size: 12px; }
 .crafting-feedback { font-family: "Noto Sans", sans-serif; text-align: center; font-size: 12px; font-weight: 700; min-height: 18px; padding: 0 6px 5px; }
 .crafting-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 18px; text-align: center; }
-@media (max-width: 760px) {
-  .craft-tabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 6px; }
-  .craft-tabs .kit-btn { flex: none; }
-  .craft-workspace { grid-template-columns: minmax(0, 1fr); }
-  .craft-grid { justify-self: center; width: min(100%, 280px); }
-  .craft-bag { max-height: 40vh; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
-  .crafting-columns { grid-template-columns: minmax(0, 1fr); }
-  .crafting-hero { min-height: 78px; padding: 10px 16px; }
-  .crafting-rank { min-width: 94px; min-height: 56px; padding: 8px 10px; }
-  .crafting-rank strong { font-size: 18px; }
-  .crafting-bench { padding: 14px 12px; }
-  .crafting-board { width: min(100%, 350px); padding: 12px; }
-  .crafting-grid { width: min(100%, 295px); }
-  .crafting-item { height: 90px; }
-  .crafting-item-icon { width: 34px; height: 34px; }
-  .crafting-items { max-height: 230px; }
-  .crafting-inventory, .crafting-recipes { padding: 14px; }
-  .crafting-result { grid-template-columns: 62px minmax(0, 1fr); gap: 10px; padding: 12px; }
-  .crafting-submit { grid-column: 1 / -1; }
-  .crafting-result-icon { width: 62px; height: 62px; }
-  .crafting-submit { grid-column: 1 / -1; height: 48px; }
+
+.craft-bag-panel { position: relative; }
+.craft-drop-highlight { position: absolute !important; inset: 4px; z-index: 0 !important; pointer-events: none; }
+.kit-panel > .craft-drop-highlight { z-index: 0 !important; }
+.craft-filter-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
+.craft-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.craft-filter-tier { display: flex; gap: 3px; }
+.craft-filter-chip { width: auto; min-width: 42px; height: 30px; min-height: 30px; padding: 0 8px; }
+.craft-tier-chip { width: auto; min-width: 42px; height: 30px; min-height: 30px; padding: 0 6px; }
+.craft-search { width: 100%; height: 34px; min-height: 34px; font-size: 13px; }
+.craft-bag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 6px; align-content: start; min-height: 120px; max-height: 360px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.craft-item-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 100px; padding: 7px 4px; border: 0; background: none; appearance: none; cursor: grab; touch-action: pan-y; user-select: none; }
+.craft-item-tile[data-staged="true"] { opacity: .5; }
+.craft-item-tile.is-dragging { opacity: .3; }
+.craft-item-tile > :not(.kit-canvas) { position: relative; z-index: 1; }
+.craft-item-tile-icon { display: block; width: 32px; height: 32px; object-fit: contain; pointer-events: none; }
+.craft-item-tile-name { max-height: 2.3em; overflow: hidden; font-size: 11px; font-weight: 800; line-height: 1.1; text-align: center; }
+.craft-item-tile-count { font-size: 11px; font-weight: 900; }
+
+.craft-recipe-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.craft-library-button { width: auto; min-width: 96px; height: 38px; }
+.craft-recipe-pager { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.craft-page { width: 38px; min-width: 38px; height: 34px; min-height: 34px; }
+.craft-recipe-list { display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: 390px; overflow-y: auto; overscroll-behavior: contain; padding: 3px; }
+.craft-recipe-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; min-height: 76px; padding: 8px; cursor: default; }
+.craft-recipe-hit { display: flex; align-items: center; gap: 7px; min-width: 0; cursor: pointer; touch-action: pan-y; user-select: none; }
+.craft-recipe-hit > .craft-recipe-copy { flex: 1 1 auto; }
+.craft-recipe-row > :not(.kit-canvas) { position: relative; z-index: 1; }
+.craft-recipe-icon { display: block; width: 40px; height: 40px; object-fit: contain; pointer-events: none; }
+.craft-recipe-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.craft-recipe-copy strong { font-size: 13px; line-height: 1.15; }
+.craft-recipe-copy small { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.25; }
+.craft-recipe-tier { font-family: "Noto Sans", sans-serif; font-size: 10px; font-weight: 800; }
+.craft-fill { width: 64px; min-width: 64px; height: 34px; }
+.craft-cell-icon, .craft-item-tile-icon, .craft-recipe-icon, .craft-output-icon,
+.craft-mini-icon, .craft-relation-icon, .craft-tree-icon, .craft-graph-card-icon,
+.craft-library-portrait-icon, .craft-item-portrait-icon, .craft-drag-ghost-icon {
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  line-height: 1;
 }
+.craft-graph-card-icon { font-size: 20px; }
+.craft-item-portrait-icon, .craft-library-portrait-icon { font-size: 42px; }
+.craft-drag-ghost { position: fixed; z-index: 4000; width: 62px; height: 62px; display: grid; place-items: center; padding: 6px; pointer-events: none; transform: translate(-50%, -50%); }
+.craft-drag-ghost-icon { display: block; width: 36px; height: 36px; object-fit: contain; }
+.craft-drag-ghost-count { font-size: 11px; font-weight: 900; }
+
+/* Nested crafting overlays: item sheet and recipe library. */
+.craft-overlay { position: fixed; inset: 0; z-index: 3200; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.modal-root.craft-overlay-open .modal-head,
+.modal-root.craft-overlay-open .modal-close { visibility: hidden; }
+.craft-overlay-shade { position: absolute; inset: 0; }
+.craft-overlay-panel { position: relative; z-index: 1; display: flex; flex-direction: column; width: min(720px, 100%); max-height: calc(100vh - 24px); padding: 14px 18px 18px; }
+.craft-overlay-panel.is-item { width: min(640px, 100%); }
+.craft-overlay-panel.is-library { width: min(1180px, 100%); height: min(800px, calc(100vh - 24px)); }
+.craft-overlay-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; margin-bottom: 8px; }
+.craft-overlay-title { font-size: 22px; line-height: 1.1; }
+.craft-overlay-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.craft-item-hero { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.craft-item-portrait { flex: none; width: 76px; height: 76px; display: grid; place-items: center; padding: 6px; }
+.craft-item-portrait-icon { display: block; width: 100%; height: 100%; object-fit: contain; }
+.craft-item-hero-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.craft-item-hero-name { font-size: 22px; line-height: 1.1; }
+.craft-item-hero-meta { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.35; }
+.craft-sheet-sec, .craft-library-sec { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; min-width: 0; }
+.craft-sheet-line { font-size: 13px; line-height: 1.45; }
+.craft-sheet-lines { display: flex; flex-direction: column; gap: 4px; }
+.craft-relation-row { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 3px 6px; border: 0; background: none; appearance: none; text-align: left; cursor: pointer; }
+.craft-relation-icon { flex: none; display: block; width: 28px; height: 28px; object-fit: contain; }
+.craft-relation-name { flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.craft-relation-meta { flex: none; font-family: "Noto Sans", sans-serif; font-size: 11px; }
+.craft-base-row { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; }
+.craft-sheet-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.craft-sheet-action { width: auto; min-width: 150px; height: 40px; }
+.craft-sheet-library { width: auto; min-width: 170px; height: 40px; }
+.craft-sheet-note { font-style: italic; }
+.craft-mini-wrap { display: flex; justify-content: center; padding: 4px 0; }
+.craft-mini-grid { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; }
+.craft-mini-cell { width: 44px; height: 44px; display: grid; place-items: center; padding: 4px; }
+.craft-mini-icon { display: block; width: 82%; height: 82%; object-fit: contain; }
+
+/* Recipe graph library: category rail | tier columns | relationship detail. */
+.craft-library { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1 1 auto; }
+.craft-library-modal { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.craft-library-embed { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.craft-library-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; }
+.craft-library-search { flex: 1 1 260px; min-width: 200px; height: 40px; padding: 0 8px; }
+.craft-library-note { font-family: "Noto Sans", sans-serif; font-size: 12px; font-weight: 800; letter-spacing: .3px; white-space: nowrap; }
+.craft-graph { display: grid; grid-template-columns: 104px minmax(0, 1fr) minmax(320px, 400px); gap: 10px; flex: 1 1 auto; min-height: 0; }
+.craft-library :is(h2, h3, h4, p) { margin: 0; }
+.craft-graph-rail { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; }
+.craft-graph-rail-button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; flex: none; min-height: 62px; padding: 8px 4px; border: 0; background: none; appearance: none; cursor: pointer; text-align: center; }
+.craft-graph-rail-button > :not(.kit-canvas) { position: relative; z-index: 1; }
+.craft-graph-rail-icon { font-size: 22px; line-height: 1; }
+.craft-graph-rail-label { font-family: "Noto Sans", sans-serif; font-size: 12px; font-weight: 800; line-height: 1.15; }
+.craft-graph-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; min-height: 0; }
+.craft-graph-column { display: flex; flex-direction: column; gap: 6px; min-height: 0; padding: 8px; }
+.craft-graph-column > :not(.kit-canvas) { position: relative; z-index: 1; }
+.craft-graph-column-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 0 2px 4px; }
+.craft-graph-column-head strong { font-size: 14px; line-height: 1.1; }
+.craft-graph-column-head span { font-family: "Noto Sans", sans-serif; font-size: 11px; font-weight: 800; }
+.craft-graph-scroll { display: flex; flex-direction: column; gap: 5px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.craft-graph-empty { margin: 0; padding: 10px 4px; text-align: center; font-family: "Noto Sans", sans-serif; font-size: 11px; }
+.craft-graph-card { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 7px; flex: none; min-height: 64px; padding: 6px 7px; border: 0; background: none; appearance: none; text-align: left; cursor: pointer; touch-action: pan-y; user-select: none; }
+.craft-graph-card > :not(.kit-canvas) { position: relative; z-index: 1; }
+.craft-graph-card-icon { display: block; width: 34px; height: 34px; object-fit: contain; pointer-events: none; }
+.craft-graph-card-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.craft-graph-card-copy strong { display: -webkit-box; overflow: hidden; font-size: 12px; line-height: 1.1; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.craft-graph-card-copy small { display: -webkit-box; overflow: hidden; font-family: "Noto Sans", sans-serif; font-size: 9px; line-height: 1.15; -webkit-line-clamp: 2; -webkit-box-orient: vertical; opacity: .85; }
+.craft-graph-detail { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.craft-graph-detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 100%; min-height: 220px; padding: 24px; text-align: center; }
+.craft-graph-empty-icon { font-size: 42px; line-height: 1; }
+.craft-graph-detail-empty p { margin: 0; font-family: "Noto Sans", sans-serif; font-size: 13px; }
+.craft-library-hero { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 12px; }
+.craft-library-portrait { flex: none; width: 64px; height: 64px; display: grid; place-items: center; padding: 6px; }
+.craft-library-portrait-icon { display: block; width: 100%; height: 100%; object-fit: contain; }
+.craft-library-hero-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.craft-library-hero-copy h3 { font-size: 22px; line-height: 1.1; }
+.craft-library-hero-copy p { font-family: "Noto Sans", sans-serif; font-size: 12px; line-height: 1.3; }
+.craft-library-info { grid-column: 1 / -1; width: 100%; min-width: 0; height: 38px; }
+.craft-library-sec { gap: 4px; padding: 8px 10px; }
+.craft-library-sec h4 { font-size: 15px; line-height: 1.15; }
+.craft-library-empty { padding: 8px 12px; text-align: center; font-family: "Noto Sans", sans-serif; font-size: 12px; }
+
+.craft-tree { display: flex; flex-direction: column; gap: 2px; }
+.craft-tree-row { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 2px 4px; border: 0; background: none; appearance: none; text-align: left; cursor: pointer; }
+.craft-tree-icon { flex: none; display: block; width: 24px; height: 24px; object-fit: contain; }
+.craft-tree-name { flex: 1 1 auto; min-width: 0; font-size: 12px; }
+.craft-tree-count { flex: none; font-family: "Noto Sans", sans-serif; font-size: 11px; font-weight: 800; }
+.craft-tree-row[data-depth="1"] { padding-left: 16px; }
+.craft-tree-row[data-depth="2"] { padding-left: 30px; }
+.craft-tree-row[data-depth="3"] { padding-left: 44px; }
+.craft-tree-row[data-depth="4"] { padding-left: 58px; }
+
+@media (max-width: 1180px) {
+  .crafting-workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .craft-recipes-panel { grid-column: 1 / -1; }
+  .craft-recipe-list { max-height: 340px; }
+  .craft-graph { grid-template-columns: 92px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .craft-graph-detail { grid-column: 1 / -1; max-height: 44vh; }
+}
+@media (max-width: 820px) {
+  .crafting-workspace { grid-template-columns: minmax(0, 1fr); }
+  .crafting-hero { flex-direction: column; align-items: stretch; gap: 8px; min-height: 0; padding: 10px 16px; }
+  .crafting-rank { flex-direction: row; align-items: center; justify-content: space-between; min-width: 0; min-height: 40px; padding: 4px 10px; }
+  .crafting-rank strong { font-size: 20px; }
+  .craft-table, .craft-bag-panel, .craft-recipes-panel { padding: 12px; }
+  .craft-stage { flex-wrap: wrap; }
+  .craft-stage-arrow { transform: rotate(90deg); }
+  .craft-grid { width: min(100%, 220px); max-width: 220px; }
+  .craft-bag-grid { max-height: 250px; }
+  .craft-recipe-list { max-height: 300px; }
+  .craft-recipe-row { grid-template-columns: minmax(0, 1fr); }
+  .craft-recipe-hit { width: 100%; }
+  .craft-fill { width: 100%; }
+  .craft-graph { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .craft-graph-rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
+  .craft-graph-rail-button { flex: 1 0 84px; min-height: 52px; padding: 6px 4px; }
+  .craft-graph-column-head { flex-direction: column; align-items: flex-start; gap: 0; padding-bottom: 2px; }
+  .craft-graph-column-head strong { font-size: 20px !important; }
+  .craft-graph-card { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 3px; min-height: 66px; padding: 6px 4px; text-align: center; }
+  .craft-graph-card-icon { width: 30px; height: 30px; }
+  .craft-graph-card-copy strong { font-size: 11px; -webkit-line-clamp: 2; }
+  .craft-graph-card-copy small { display: none; }
+  .craft-graph-detail { max-height: none; }
+  .craft-overlay-panel { padding: 12px; }
+  .craft-overlay-panel.is-library { height: calc(100vh - 24px); }
+  .craft-library-hero { flex-wrap: wrap; }
+  .craft-library-info { width: 100%; }
+}
+
 
 /* ---------- unit card ---------- */
 .unit-card { position: relative; width: 100%; aspect-ratio: 5 / 7; }
@@ -395,8 +683,10 @@
 .pl-shop[hidden] { display: none; }
 .pl-shop-toggle { display: none; }
 .pl-shop-head { position: relative; display: flex; justify-content: flex-end; gap: 6px; min-height: 44px; height: 44px; margin-bottom: 4px; }
+.pl-reroll-control { display: flex; align-items: center; gap: 4px; }
+.pl-reroll-cost { position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; flex: none; }
 .pl-shop-head .pl-page { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-.pl-shop-head .pl-reroll { width: 140px; min-width: 56px; height: 44px; min-height: 44px; }
+.pl-shop-head .pl-reroll { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
 .pl-shop-head .pl-lock { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .pl-shop-head .pl-cortisol { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
@@ -425,7 +715,6 @@
   .menu-utility-label { display: block; }
   .menu-utility-item { flex: 1 1 72px; max-width: 84px; }
   .pl-shop { padding: 6px 8px 8px; }
-  .pl-shop-head .pl-reroll { width: 56px; }
   .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
   .pl-offer-card { aspect-ratio: 5 / 6.4; }
   .mod-actions { width: 100%; justify-content: stretch; }
@@ -469,8 +758,8 @@
 .lib-tabs .kit-btn:last-child { flex-basis: 196px; }
 .lib { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
 .lib-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: none; }
-.lib-search { width: min(240px, 100%); height: 44px; padding: 6px 10px; }
-.lib-input { width: 100%; height: 100%; border: 0; background: transparent; font: inherit; font-size: 15px; outline-offset: 2px; }
+.lib-search { width: min(240px, 100%); height: 44px; padding: 0 14px; display: flex; align-items: center; }
+.lib-input { width: 100%; height: 100%; border: 0; background: transparent; font: inherit; font-size: 15px; line-height: 1.2; outline-offset: 2px; }
 .lib-chips { display: flex; gap: 4px; flex-wrap: wrap; }
 .lib-chip { width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
 .lib-reset { height: 40px; min-width: 100px; padding: 0 10px; }
@@ -498,6 +787,10 @@
 .lib-p { margin: 2px 0; font-size: 13px; line-height: 1.45; }
 .lib-story { font-family: "Forest Story", "Noto Sans", sans-serif; }
 .lib-item-icon { display: inline-block; width: 32px; height: 32px; margin-right: 8px; object-fit: contain; vertical-align: middle; flex: none; }
+.lib-item-emoji { display: inline-grid; place-items: center; font-size: 24px; line-height: 1; }
+.lib-catalog-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.lib-catalog-filter { width: auto; min-width: 84px; height: 38px; padding: 0 10px; }
+.lib-catalog-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .lib-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; }
 .lib-table th, .lib-table td { padding: 3px 4px; }
 .lib-row-on { font-weight: 800; }
@@ -547,8 +840,17 @@
 @media (max-width: 760px) {
   .info-summary, .mods-summary { grid-template-columns: 1fr; }
   .info-hero { grid-template-columns: 1fr; }
-  .info-hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .info-dashboard { grid-template-columns: 1fr; }
+  .info-hero-stats { grid-column: 1; grid-row: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .info-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .info-dashboard { columns: 1; }
+  .info-sides, .info-formations, .info-forecast { grid-template-columns: 1fr; }
+  .info-weather-hero { grid-template-columns: 1fr; }
+  /* `.info-modal > .tabs` is (0,2,1); match it so the mobile strip really scrolls. */
+  .info-modal > .info-tabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 4px; }
+  .info-modal > .info-tabs .kit-btn { flex: 0 0 auto; min-width: 132px; height: 36px; }
+  .info-weather-rules { grid-column: 1; }
+  .info-cycle { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .info-augments { grid-template-columns: 1fr; }
   .info-unit, .mod-row { align-items: stretch; flex-direction: column; }
   .mod-meta, .mod-relations { grid-template-columns: 1fr; }
   .mod-actions { width: 100%; justify-content: stretch; }
@@ -640,7 +942,14 @@
 .tooltip { max-width: min(480px, calc(100vw - 16px)); }
 .tooltip-inner { font-size: var(--ft-13); }
 .tt-title { font-size: var(--ft-15); }
-.tt-sub, .tt-body { font-size: var(--ft-12); }
+.tt-sub { font-size: var(--ft-11); }
+.tt-desc { font-size: var(--ft-11); }
+.tt-line { font-size: var(--ft-11); }
+.tt-body { font-size: var(--ft-12); }
+.tt-chip, .tt-meter { font-size: var(--ft-10); }
+.tt-sec-title { font-size: var(--ft-11); }
+.tt-sec-line { font-size: var(--ft-11); }
+.tooltip[data-mode="expanded"] .tt-sec-line { font-size: var(--ft-10); }
 
 .modal-body { font-size: var(--ft-16); }
 .modal-body small { font-size: max(var(--ft-font-min), .68em); }
@@ -649,7 +958,7 @@
 .modal-body .ui-inventory h3 { font-size: var(--ft-15); }
 .modal-body .ui-inventory-name { font-size: var(--ft-24); }
 .modal-body .ui-inventory-stars { font-size: var(--ft-22); }
-.modal-body :is(.ui-inventory-identity, .ui-inventory-skill, .ui-inventory-item-name,
+.modal-body :is(.ui-inventory-identity, .ui-inventory-item-name,
   .ui-inventory-effect, .ui-inventory-effect strong, .ui-inventory-confirm) { font-size: var(--ft-12); }
 .modal-body :is(.ui-inventory-column-hint, .ui-inventory-secondary, .ui-inventory-item-reason,
   .ui-inventory-item-details, .ui-inventory-effect small) { font-size: var(--ft-10); }
@@ -660,13 +969,24 @@
 /* Crafting workbench */
 .modal-body :is(.crafting-eyebrow, .crafting-rank span, .crafting-slot-number) { font-size: var(--ft-10); }
 .modal-body .crafting-rank strong { font-size: var(--ft-23); }
-.modal-body :is(.crafting-counter, .crafting-hint, .crafting-item-count, .crafting-selection,
-  .crafting-recipe-copy small, .crafting-result-info p, .crafting-feedback) { font-size: var(--ft-12); }
-.modal-body .crafting-item-name { font-size: var(--ft-13); }
-.modal-body .crafting-recipe-copy strong { font-size: var(--ft-15); }
+.modal-body :is(.crafting-counter, .crafting-hint, .crafting-feedback, .crafting-subtitle,
+  .craft-item-tile-name, .craft-item-tile-count, .craft-recipe-copy small, .craft-recipe-tier,
+  .craft-output-name, .craft-result-copy, .craft-sheet-line, .craft-relation-name,
+  .craft-relation-meta, .craft-base-row, .craft-graph-card-copy small,
+  .craft-library-empty, .craft-library-hero-copy p, .craft-tree-name, .craft-tree-count,
+  .craft-graph-rail-label, .craft-graph-column-head span, .craft-graph-empty,
+  .craft-graph-detail-empty p, .craft-library-sec h4, .craft-item-hero-meta) { font-size: var(--ft-10); }
+.modal-body :is(.craft-recipe-copy strong, .craft-graph-card-copy strong) { font-size: var(--ft-11); }
+.modal-body .craft-graph-column-head strong { font-size: var(--ft-15); }
+.modal-body .craft-library-hero-copy h3 { font-size: var(--ft-12); }
+.modal-body .craft-library-search .lib-input { font-size: var(--ft-12); }
+@media (max-width: 820px) {
+  .modal-body .craft-graph-card-copy strong { font-size: var(--ft-10); -webkit-line-clamp: 3; }
+}
 
 /* Library, settings, history, mods */
 .modal-body .lib-input { font-size: var(--ft-15); }
+.modal-body .lib-search .lib-input { font-size: var(--ft-12); }
 .modal-body :is(.lib-pending, .lib-p, .lib-table, .lib-count) { font-size: var(--ft-13); }
 .modal-body .lib-h { font-size: var(--ft-15); }
 .modal-body .lib-name { font-size: var(--ft-22); }
@@ -741,4 +1061,27 @@
   text-align: center;
   pointer-events: none;
 }
-.modal-frame:has(.blessing-modal) { width: min(1400px, 100%); }
+.modal-frame:has(.blessing-modal) { width: min(1400px, 100%); height: min(760px, 100%); }
+@media (max-width: 760px) {
+  .modal-frame:has(.blessing-modal) { height: 100%; }
+}
+
+/* Recipe diagram zoom (issue #35): layout and scroll host only; the diagram itself is DOM+kit art. */
+.craft-graph-zoom { overflow: auto; max-width: 100%; max-height: min(70vh, 720px); }
+.craft-graph-zoom:focus-visible { outline-offset: 2px; }
+.craft-graph-zoom .craft-graph { transform-origin: top left; transition: transform 120ms ease-out; }
+.craft-graph-zoom-bar { display: flex; align-items: center; gap: 8px; }
+.craft-graph-zoom-value { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .craft-graph-zoom .craft-graph { transition: none; } }
+
+/* Quick Navigate (#26): layout only — panel and button chrome are kit PNG 9-slices. */
+.quick-nav { display: flex; justify-content: center; padding: 4px; }
+.quick-nav-panel { display: flex; flex-direction: column; gap: 10px; width: min(420px, 100%); padding: 14px; }
+.quick-nav-heading { margin: 0; text-align: center; }
+.quick-nav-hint { margin: 0; text-align: center; }
+.quick-nav-list { display: flex; flex-direction: column; gap: 8px; }
+.quick-nav-item { width: 100%; min-height: 44px; }
+@media (max-width: 760px) {
+  .quick-nav-panel { padding: 10px; }
+  .quick-nav-item { min-height: 48px; }
+}
