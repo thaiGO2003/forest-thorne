@@ -12,7 +12,12 @@ import antGuard from "./roster/antGuard";
 import rabbitBlood from "./roster/rabbitBlood";
 import roosterRapper from "./roster/roosterRapper";
 import butterflyFrost from "./roster/butterflyFrost";
+import woodpeckerShield from "./roster/woodpeckerShield";
+import kirinVolt from "./roster/kirinVolt";
+import spiderSpirit from "./roster/spiderSpirit";
 
+import elephantTide from "./roster/elephantTide";
+import hawkLance from "./roster/hawkLance";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -25,6 +30,11 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   rabbit_blood: rabbitBlood,
   crane_blessing: roosterRapper,
   ice_mage: butterflyFrost,
+  woodpecker_drill: woodpeckerShield,
+  kirin_thunder: kirinVolt,
+  spider_venom: spiderSpirit,
+  elephant_guard: elephantTide,
+  hawk_hunter: hawkLance,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

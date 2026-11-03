@@ -64,7 +64,7 @@ export const MODE_AI: Record<GameMode, { allowed: readonly AiMode[]; def: AiMode
 
 export interface Settings {
   audioEnabled: boolean; audioMuted: boolean; musicEnabled: boolean; ambientEnabled: boolean;
-  uiSfxEnabled: boolean; combatSfxEnabled: boolean; volumeLevel: number; musicVolume: number;
+  uiSfxEnabled: boolean; combatSfxEnabled: boolean; volumeLevel: number; musicVolume: number; sfxVolume: number;
   musicSource: (typeof MUSIC_SOURCES)[number]; musicTrack: string;
   aiMode: AiMode; aiModeByGameMode: Record<GameMode, AiMode>;
   loseCondition: "NO_HEARTS" | "NO_UNITS";
@@ -83,6 +83,7 @@ export function normalizeSettings(raw: unknown): Settings {
   const byMode = (r.aiModeByGameMode ?? {}) as Record<string, unknown>;
   const vol = Math.round(Number(r.volumeLevel));
   const musicVol = Math.round(Number(r.musicVolume));
+  const sfxVol = Math.round(Number(r.sfxVolume));
   const rawGuiScale = Number(r.guiScale);
   const rawFpsLimit = Number(r.fpsLimit);
   const rawRenderScale = Number(r.renderScale);
@@ -104,6 +105,8 @@ export function normalizeSettings(raw: unknown): Settings {
     combatSfxEnabled: bool(r.combatSfxEnabled, true),
     volumeLevel: Number.isFinite(vol) ? Math.min(10, Math.max(1, vol)) : 5,
     musicVolume: Number.isFinite(musicVol) ? Math.min(10, Math.max(0, musicVol)) : 5,
+    // Defaults to 10 so existing saves keep their current loudness; master volume still scales it.
+    sfxVolume: Number.isFinite(sfxVol) ? Math.min(10, Math.max(0, sfxVol)) : 10,
     musicSource: pick(MUSIC_SOURCES, r.musicSource, "local"),
     musicTrack: typeof r.musicTrack === "string" ? r.musicTrack : "",
     aiMode: normalizeAiMode(r.aiMode, "TUTORIAL"),
