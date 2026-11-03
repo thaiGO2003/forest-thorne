@@ -11,8 +11,8 @@ import batLove from "./roster/batLove";
 import antGuard from "./roster/antGuard";
 import rabbitBlood from "./roster/rabbitBlood";
 import roosterRapper from "./roster/roosterRapper";
+import elephantTide from "./roster/elephantTide";
 import hawkLance from "./roster/hawkLance";
-
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -24,6 +24,7 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   ant_guard: antGuard,
   rabbit_blood: rabbitBlood,
   crane_blessing: roosterRapper,
+  elephant_guard: elephantTide,
   hawk_hunter: hawkLance,
 };
 
