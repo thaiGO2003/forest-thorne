@@ -1,5 +1,6 @@
 // AI encounter generation (A33) + endless boss schedule (A34). RNG injected; pure.
 import { NORMAL_UNITS, type Role } from "../content/catalog";
+import { assignEnemyEquipment, enemyEquipmentBudget, enemyMaxTier } from "./enemyEquipment";
 import { hasUnitVisual } from "../content/unitVisuals";
 import type { Placement } from "./combat";
 import { deployCap } from "./economy";
@@ -134,8 +135,10 @@ export interface EncounterInput {
 }
 
 /**
- * ponytail: "working budget" spend is approximated by team size from the A33 level/deploy model
- * (tier cost not authored); equipment rolls stay blocked until canonical encounter item-selection semantics exist.
+ * Unit strength still uses the A33 level/deploy approximation for team size. AI equipment (issue #40)
+ * is now assigned deterministically from the canonical `equipmentSaleValue` cost, an authored pool
+ * filtered by tier and a fixed share of the encounter budget, so gear never competes with team strength
+ * and an empty pool or zero budget simply yields no gear.
  */
 export function generateEncounter(i: EncounterInput): Encounter {
   const { round, rng } = i;
@@ -185,5 +188,17 @@ export function generateEncounter(i: EncounterInput): Encounter {
     used[`${cell.r},${cell.c}`] = true;
     return { uid: `e${k}`, baseId: p.u.id, star: p.star, row: cell.r, col: cell.c };
   });
-  return { boss: false, budget, units };
+
+  // Issue #40: deterministic AI gear from the canonical cost/pool/tier rules.
+  const gear = assignEnemyEquipment({
+    count: units.length,
+    budget: enemyEquipmentBudget(budget),
+    maxTier: enemyMaxTier(round, ai.maxTierBonus),
+    rng,
+  });
+  const geared = units.map((unit, index) => {
+    const equips = gear.assignments[index] ?? [];
+    return equips.length ? { ...unit, equips } : unit;
+  });
+  return { boss: false, budget, units: geared };
 }
