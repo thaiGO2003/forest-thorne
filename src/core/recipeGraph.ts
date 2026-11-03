@@ -34,6 +34,32 @@ export function recipeIngredients(recipe: Recipe): IngredientCount[] {
   return [...counts].map(([id, count]) => ({ id, count }));
 }
 
+/** Ingredient shortfall for a bag; empty when the recipe can be crafted right now. */
+export function missingIngredients(recipe: Recipe, bag: Readonly<Record<string, number>>): IngredientCount[] {
+  return recipeIngredients(recipe).filter((ingredient) => (bag[ingredient.id] ?? 0) < ingredient.count);
+}
+
+export const isRecipeCraftable = (recipe: Recipe, bag: Readonly<Record<string, number>>): boolean =>
+  missingIngredients(recipe, bag).length === 0;
+
+/**
+ * A7 ranking: craftable recipes first so the list answers "what can I build now".
+ * Craftable rows are ordered by smaller footprint, then by a stable key, so pagination
+ * never reshuffles a page between renders; uncraftable rows keep the same stable order.
+ */
+export function rankRecipesCraftable<T extends Recipe>(
+  recipes: readonly T[],
+  bag: Readonly<Record<string, number>>,
+): T[] {
+  const stable = (a: T, b: T) => a.size - b.size || a.outputId.localeCompare(b.outputId) || a.id.localeCompare(b.id);
+  const craftable: T[] = [];
+  const blocked: T[] = [];
+  for (const recipe of recipes) (isRecipeCraftable(recipe, bag) ? craftable : blocked).push(recipe);
+  craftable.sort(stable);
+  blocked.sort(stable);
+  return [...craftable, ...blocked];
+}
+
 /** Recursive base-material bill of materials for an equipment output. */
 export function baseIngredients(outputId: string): IngredientCount[] {
   const totals = new Map<string, number>();
