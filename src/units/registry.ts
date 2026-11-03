@@ -11,7 +11,6 @@ import batLove from "./roster/batLove";
 import antGuard from "./roster/antGuard";
 import rabbitBlood from "./roster/rabbitBlood";
 import roosterRapper from "./roster/roosterRapper";
-import woodpeckerShield from "./roster/woodpeckerShield";
 import butterflyFrost from "./roster/butterflyFrost";
 
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
@@ -25,7 +24,6 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   ant_guard: antGuard,
   rabbit_blood: rabbitBlood,
   crane_blessing: roosterRapper,
-  woodpecker_drill: woodpeckerShield,
   ice_mage: butterflyFrost,
 };
 
