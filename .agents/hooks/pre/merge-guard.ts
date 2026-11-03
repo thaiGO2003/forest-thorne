@@ -1,5 +1,6 @@
 // merge-guard: chặn merge/push vào dev|main và gh pr merge khi chưa có
-// merge review APPROVED (người, hoặc agent được chủ repo uỷ quyền) cho đúng HEAD hiện tại.
+// merge review APPROVED (người, hoặc agent được chủ repo uỷ quyền) cho đúng HEAD hiện tại,
+// kèm ảnh evidence trong .agents/merge-review/<branch>/ (docs-only ghi "No visual surface").
 //
 // Quy trình: .agents/rules/merge-workflow.md
 // Approval: .agents/merge-review/<branch-slug>.md với
@@ -9,7 +10,7 @@
 //   Reviewer: <tên người duyệt>
 // Thêm commit mới => Head đổi => approval cũ hết hiệu lực.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const PROTECTED = new Set(["dev", "main"]);
@@ -46,6 +47,20 @@ function readApproval(cwd: string, branch: string): string | null {
   }
 }
 
+/** Visual evidence captured for this branch: screenshots under
+ * .agents/merge-review/<branch-slug>/. A docs-only change records the waiver
+ * phrase in the review instead. */
+function hasEvidence(cwd: string, branch: string, review: string): boolean {
+  if (/No visual surface/i.test(review)) return true;
+  const dir = join(cwd, REVIEW_DIR, branchSlug(branch));
+  if (!existsSync(dir)) return false;
+  try {
+    return readdirSync(dir).some((name) => /\.(png|jpe?g|webp)$/i.test(name));
+  } catch {
+    return false;
+  }
+}
+
 function isApproved(cwd: string, branch: string, sha: string, target: string): boolean {
   const text = readApproval(cwd, branch);
   if (!text) return false;
@@ -54,7 +69,7 @@ function isApproved(cwd: string, branch: string, sha: string, target: string): b
   const targetOk = new RegExp(`^Target:\\s*${target}\\s*$`, "im").test(text);
   const head = (text.match(/^Head:\s*([0-9a-f]{7,40})\s*$/im)?.[1] ?? "").toLowerCase();
   const headOk = Boolean(head) && (sha.toLowerCase().startsWith(head) || head.startsWith(sha.toLowerCase()));
-  return status && reviewer && targetOk && headOk;
+  return status && reviewer && targetOk && headOk && hasEvidence(cwd, branch, text);
 }
 
 function approvalHint(branch: string, sha: string, target: string): string {

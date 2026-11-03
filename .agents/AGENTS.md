@@ -54,4 +54,5 @@ Chi tiết đầy đủ: `.agents/rules/plans-workflow.md`.
 - Trước khi merge nhánh nào: merge `origin/dev` (và `origin/main` nếu main có commit chưa vào dev) vào nhánh đó, giải conflict trên nhánh nguồn, chạy `pnpm typecheck`, test targeted và `pnpm build`.
 - Bắt buộc có merge review `APPROVED` tại `.agents/merge-review/<branch>.md` với `Head:` đúng SHA, `Target:` đúng đích. Mặc định Reviewer là người; agent chỉ được tự review khi chủ repo uỷ quyền rõ ràng và phải ghi `Authorized-by` (xem `.agents/rules/merge-workflow.md` mục 4).
 - Chỉ merge nhánh đã review vào `dev`; `main` chỉ nhận từ `dev` qua release PR.
+- Thiếu evidence thì agent tự chạy test + chụp ảnh màn hình thay đổi (`.agents/merge-review/<branch>/`) rồi mới merge; docs-only ghi `No visual surface`.
 - Hook `.agents/hooks/pre/merge-guard.ts` chặn `git merge`/`git push` vào `dev|main` và `gh pr merge` khi thiếu approval. Không dùng `-s ours`, `-X ours`, force push hay `--no-verify`.

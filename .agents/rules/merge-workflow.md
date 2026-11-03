@@ -116,5 +116,6 @@ Nếu hook chặn, **không tìm cách lách**. Hoàn tất review hoặc báo n
 - [ ] Conflict giải trên nhánh nguồn, không dùng ours.
 - [ ] `pnpm typecheck`, test targeted, `pnpm build` pass.
 - [ ] `.agents/merge-review/<branch>.md` có `Status: APPROVED`, `Head` đúng, `Target` đúng, `Reviewer` hợp lệ (người, hoặc `agent:<tên>` kèm `Authorized-by`).
+- [ ] `.agents/merge-review/<branch>/` có ảnh evidence khớp code (hoặc ghi `No visual surface` cho docs-only).
 - [ ] Diff không xoá file ngoài phạm vi, không có secret/binary bất thường.
 - [ ] Merge vào `dev` xong chạy lại verify.
