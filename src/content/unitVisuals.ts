@@ -10,6 +10,12 @@ export const VISUAL_UNIT_IDS: readonly string[] = [
   "rabbit_blood",
   "crane_blessing",
   "weasel_quick",
+  "woodpecker_drill",
+  "ice_mage",
+  "kirin_thunder",
+  "spider_venom",
+  "elephant_guard",
+  "hawk_hunter",
 ];
 
 const VISUAL_UNITS = new Set<string>(VISUAL_UNIT_IDS);
