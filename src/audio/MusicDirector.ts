@@ -169,11 +169,11 @@ export function createMusicDirector(options: MusicDirectorOptions): MusicDirecto
         [order[i], order[j]] = [order[j]!, order[i]!];
       }
     }
-    if (order.length > 1) {
-      const preferredIndex = order.findIndex((track) => !track.longPlay && track.key !== avoidFirstKey);
-      if ((order[0]?.longPlay || order[0]?.key === avoidFirstKey) && preferredIndex > 0) {
-        [order[0], order[preferredIndex]] = [order[preferredIndex]!, order[0]!];
-      }
+    // Long mixes keep their slot: demoting a `longPlay` track behind short cues is what cut
+    // the 32-minute playlist short. Only rotate away from a track that just finished.
+    if (order.length > 1 && avoidFirstKey !== null && order[0]?.key === avoidFirstKey) {
+      const swapIndex = order.findIndex((track, i) => i > 0 && track.key !== avoidFirstKey);
+      if (swapIndex > 0) [order[0], order[swapIndex]] = [order[swapIndex]!, order[0]!];
     }
     return order;
   };
