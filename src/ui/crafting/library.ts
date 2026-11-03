@@ -10,6 +10,9 @@ import {
   baseIngredients, outputIdForRecipe, recipeForOutput, recipeIngredients, recipeTree, recipesUsing,
 } from "../../core/recipeGraph";
 import { disposeSurfaceTree, h, kitButton, nineSlice, panelEl, SLICE, surface } from "../kit";
+import {
+  clampZoom, commandFromKey, commandFromWheel, nextZoom, zoomPercent, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN,
+} from "./zoom";
 import type { Tooltip } from "../tooltip";
 import { itemArt } from "./art";
 import { itemBonusLines, itemTooltipContent } from "./copy";
@@ -61,7 +64,49 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   const columns = h("div", "craft-graph-columns");
   const detail = h("div", "craft-graph-detail");
   graph.append(rail, columns, detail);
-  root.append(head, graph);
+
+  // Zoom (#35): the diagram scales inside a scroll host so panning stays native scrolling.
+  let zoom = ZOOM_DEFAULT;
+  const zoomHost = h("div", "craft-graph-zoom");
+  zoomHost.tabIndex = 0;
+  zoomHost.setAttribute("role", "group");
+  zoomHost.setAttribute("aria-label", "Sơ đồ công thức: dùng +, - để thu phóng, 0 để đặt lại");
+  zoomHost.append(graph);
+  const zoomBar = h("div", "craft-graph-zoom-bar");
+  const zoomOut = kitButton({ skin: "icon", icon: "➖", aria: "Thu nhỏ sơ đồ", cls: "craft-zoom-btn", onClick: () => applyZoom("out") });
+  const zoomLabel = h("span", "craft-graph-zoom-value", "");
+  zoomLabel.setAttribute("aria-live", "polite");
+  const zoomIn = kitButton({ skin: "icon", icon: "➕", aria: "Phóng to sơ đồ", cls: "craft-zoom-btn", onClick: () => applyZoom("in") });
+  const zoomReset = kitButton({ skin: "icon", icon: "🔄", aria: "Đặt lại thu phóng", cls: "craft-zoom-btn", onClick: () => applyZoom("reset") });
+  const zoomButtons = [zoomOut, zoomIn, zoomReset];
+  zoomBar.append(zoomOut.el, zoomLabel, zoomIn.el, zoomReset.el);
+  head.append(zoomBar);
+
+  const applyZoom = (command: "in" | "out" | "reset") => {
+    zoom = command === "reset" ? ZOOM_DEFAULT : nextZoom(zoom, command);
+    paintZoom();
+  };
+  const paintZoom = () => {
+    graph.style.transform = `scale(${clampZoom(zoom)})`;
+    zoomLabel.textContent = `${zoomPercent(zoom)}%`;
+    zoomOut.setDisabled(clampZoom(zoom) <= ZOOM_MIN);
+    zoomIn.setDisabled(clampZoom(zoom) >= ZOOM_MAX);
+  };
+  zoomHost.addEventListener("wheel", (event) => {
+    const command = commandFromWheel(event.deltaY);
+    if (!command) return;
+    event.preventDefault();
+    applyZoom(command);
+  }, { passive: false });
+  zoomHost.addEventListener("keydown", (event) => {
+    const command = commandFromKey(event.key);
+    if (!command) return;
+    event.preventDefault();
+    applyZoom(command);
+  });
+  paintZoom();
+
+  root.append(head, zoomHost);
 
   const matchesQuery = (recipe: (typeof RECIPES)[number]) => {
     if (!query) return true;
@@ -275,6 +320,7 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   return {
     el: root,
     dispose() {
+      for (const button of zoomButtons) button.dispose();
       disposeSurfaceTree(root);
       root.remove();
     },
