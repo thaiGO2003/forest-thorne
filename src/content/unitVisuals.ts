@@ -10,6 +10,7 @@ export const VISUAL_UNIT_IDS: readonly string[] = [
   "rabbit_blood",
   "crane_blessing",
   "weasel_quick",
+  "woodpecker_drill",
   "kirin_thunder",
   "spider_venom",
   "elephant_guard",

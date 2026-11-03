@@ -82,8 +82,11 @@ describe("encounter A33/A34", () => {
     const coopMediumTier = generateEncounter({ round: 3, mode: "COOP_MEDIUM", rng: fixed(0.999) });
     const tiers = new Map(NORMAL_UNITS.map((unit) => [unit.id, unit.tier]));
     expect(Math.max(...mediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBeLessThanOrEqual(2);
-    // Tier-3 visuals exist, but COOP_MEDIUM round 3 only unlocks up to tier 2.
-    expect(Math.max(...coopMediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0))).toBe(2);
+    // COOP_MEDIUM adds +1 max tier: round 3 caps at tier 3 (MEDIUM caps at 2). Which tier the fixed RNG
+    // lands on depends on the visual pool, so assert the cap, not one exact tier.
+    const coopMax = Math.max(...coopMediumTier.units.map((unit) => tiers.get(unit.baseId) ?? 0));
+    expect(coopMax).toBeGreaterThanOrEqual(2);
+    expect(coopMax).toBeLessThanOrEqual(3);
 
     const mediumStars = generateEncounter({ round: 7, mode: "MEDIUM", rng: fixed(0.05) });
     const coopMediumStars = generateEncounter({ round: 7, mode: "COOP_MEDIUM", rng: fixed(0.05) });

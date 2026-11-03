@@ -11,6 +11,7 @@ import batLove from "./roster/batLove";
 import antGuard from "./roster/antGuard";
 import rabbitBlood from "./roster/rabbitBlood";
 import roosterRapper from "./roster/roosterRapper";
+import woodpeckerShield from "./roster/woodpeckerShield";
 import kirinVolt from "./roster/kirinVolt";
 import spiderSpirit from "./roster/spiderSpirit";
 
@@ -27,6 +28,7 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   ant_guard: antGuard,
   rabbit_blood: rabbitBlood,
   crane_blessing: roosterRapper,
+  woodpecker_drill: woodpeckerShield,
   kirin_thunder: kirinVolt,
   spider_venom: spiderSpirit,
   elephant_guard: elephantTide,
