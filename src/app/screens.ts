@@ -8,6 +8,7 @@ import { augmentCopy, augmentGroupLabel, augmentGroupRank } from "../content/aug
 import { environmentCopy } from "../content/environmentText";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
 import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
+import { combatEventSfx, combatFeedback, shopFeedback } from "../audio/combatFeedback";
 import { openCraftLibraryModal } from "../ui/crafting/library";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
@@ -1427,17 +1428,20 @@ registerScreen("planning", (app) => {
   });
   const buyUnit = (slot: number) => {
     const bought = bridge.buy(slot);
-    if (bought) void app.sfx.play("buy");
+    const cue = shopFeedback("buy", bought);
+    if (cue) void app.sfx.play(cue);
     return bought;
   };
   const rerollShop = () => {
     const rerolled = bridge.reroll();
-    if (rerolled) void app.sfx.play("reroll");
+    const cue = shopFeedback("reroll", rerolled);
+    if (cue) void app.sfx.play(cue);
     return rerolled;
   };
   const purchaseXp = () => {
     const purchased = bridge.buyXp();
-    if (purchased) void app.sfx.play("buy");
+    const cue = shopFeedback("xp", purchased);
+    if (cue) void app.sfx.play(cue);
     return purchased;
   };
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
@@ -1523,13 +1527,14 @@ registerScreen("planning", (app) => {
           reserveOrigins.push({ x: visual.root.position.x, y: visual.root.position.y, z: visual.root.position.z });
         });
       }
-      void app.sfx.play(summary.winner === "LEFT" ? "victory" : summary.winner === "RIGHT" ? "defeat" : "draw");
+      const feedback = combatFeedback(summary.winner === "LEFT" ? "LEFT" : summary.winner === "RIGHT" ? "RIGHT" : "DRAW");
+      void app.sfx.play(feedback.sfx);
       endCombat();
       resultFireworks?.dispose();
       resultFireworks = summary.winner === "LEFT" && reserveOrigins.length
         ? createVictoryFireworks(stage.scene, stage.onFrame, reserveOrigins)
         : null;
-      app.music.play(summary.winner === "LEFT" ? "victory" : "defeat");
+      app.music.play(feedback.music);
       openResult(app.modals, combatRound, summary, () => {
         resultFireworks?.dispose();
         resultFireworks = null;
@@ -1553,12 +1558,8 @@ registerScreen("planning", (app) => {
       board, fx, roster: session.roster, events: session.events,
       inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
       onEvent: (event) => {
-        switch (event.t) {
-          case "basic": void app.sfx.play("hit"); break;
-          case "skill": void app.sfx.play("skill"); break;
-          case "heal": void app.sfx.play("heal"); break;
-          case "death": void app.sfx.play("ko"); break;
-        }
+        const cue = combatEventSfx(event.t);
+        if (cue) void app.sfx.play(cue);
       },
       onTick: (tk) => {
         const hpRatio = (side: "L" | "R") => {

@@ -46,6 +46,7 @@ const vi = {
   "settings.audioEnabled": "Bật âm thanh",
   "settings.audioMuted": "Tắt tiếng",
   "settings.volume": "Âm lượng",
+  "settings.sfxVolume": "Âm lượng hiệu ứng",
   "settings.quality": "Chất lượng đồ họa",
   "quality.low": "Thấp",
   "quality.medium": "Vừa",
