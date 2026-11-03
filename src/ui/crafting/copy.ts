@@ -4,6 +4,7 @@ import {
   equipmentBonusCopy, itemDisplayName, itemIconChar,
 } from "../../core/itemPresentation";
 import { recipeIngredients, recipesUsing } from "../../core/recipeGraph";
+import { equipmentLogicSummary, readTrigger } from "../../core/equipmentLogic";
 import type { TooltipContent, TooltipSection } from "../tooltip";
 
 export const itemTypeLabel = (id: string): string =>
@@ -28,11 +29,20 @@ export const recipeMissing = (recipe: Recipe, bag: Readonly<Record<string, numbe
 export const recipeCraftable = (recipe: Recipe, bag: Readonly<Record<string, number>>): boolean =>
   recipeMissing(recipe, bag).length === 0;
 
+/**
+ * Authored `logic` note (issue #31): list the effects combat actually executes for this item, and
+ * keep an explicit warning only when the payload carries triggers/fields without an equivalent yet.
+ */
 export const specialLogicNote = (id: string): string | null => {
   const logic = getEquipment(id)?.logic;
-  return logic && Object.keys(logic).length
-    ? "Hiệu ứng kích hoạt đặc biệt của bản classic chưa được mô phỏng trong bản dựng này."
-    : null;
+  if (!logic || !Object.keys(logic).length) return null;
+  const active = equipmentLogicSummary([id]);
+  const trigger = readTrigger(logic);
+  const executed = trigger === "passive" || trigger === "onHit" || trigger === "onSkillUse" || trigger === "combatStart";
+  if (!active.length) return "Hiệu ứng kích hoạt của bản classic chưa có cơ chế tương đương trong bản dựng này.";
+  return executed
+    ? active.join(" · ")
+    : `${active.join(" · ")} (một phần hiệu ứng gốc chưa được mô phỏng)`;
 };
 
 export function itemTooltipContent(itemId: string): TooltipContent {
