@@ -2843,9 +2843,9 @@
  {
   "id": "kirin_thunder",
   "species": "ky-lan",
-  "nameVi": "Kỳ Lân Lôi",
+  "nameVi": "Điện Linh Dương",
   "tier": 5,
-  "role": "MAGE",
+  "role": "FIGHTER",
   "faction": "MYTHICAL",
   "element": "WIND",
   "boss": false,
