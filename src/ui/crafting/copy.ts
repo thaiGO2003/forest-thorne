@@ -3,7 +3,7 @@ import { BASE_MATERIALS, getEquipment, type Recipe } from "../../core/itemRegist
 import {
   equipmentBonusCopy, itemDisplayName, itemIconChar,
 } from "../../core/itemPresentation";
-import { recipeIngredients, recipesUsing } from "../../core/recipeGraph";
+import { isRecipeCraftable, missingIngredients, recipeIngredients, recipesUsing } from "../../core/recipeGraph";
 import type { TooltipContent, TooltipSection } from "../tooltip";
 
 export const itemTypeLabel = (id: string): string =>
@@ -21,12 +21,10 @@ export const recipeIngredientLines = (recipe: Recipe): string[] =>
   recipeIngredients(recipe).map((ingredient) => `${ingredient.count} × ${itemDisplayName(ingredient.id)}`);
 
 export const recipeMissing = (recipe: Recipe, bag: Readonly<Record<string, number>>): string[] =>
-  recipeIngredients(recipe)
-    .filter((ingredient) => (bag[ingredient.id] ?? 0) < ingredient.count)
-    .map((ingredient) => itemDisplayName(ingredient.id));
+  missingIngredients(recipe, bag).map((ingredient) => itemDisplayName(ingredient.id));
 
 export const recipeCraftable = (recipe: Recipe, bag: Readonly<Record<string, number>>): boolean =>
-  recipeMissing(recipe, bag).length === 0;
+  isRecipeCraftable(recipe, bag);
 
 export const specialLogicNote = (id: string): string | null => {
   const logic = getEquipment(id)?.logic;

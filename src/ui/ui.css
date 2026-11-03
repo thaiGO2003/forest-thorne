@@ -1073,3 +1073,15 @@
 .craft-graph-zoom-bar { display: flex; align-items: center; gap: 8px; }
 .craft-graph-zoom-value { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .craft-graph-zoom .craft-graph { transition: none; } }
+
+/* Quick Navigate (#26): layout only — panel and button chrome are kit PNG 9-slices. */
+.quick-nav { display: flex; justify-content: center; padding: 4px; }
+.quick-nav-panel { display: flex; flex-direction: column; gap: 10px; width: min(420px, 100%); padding: 14px; }
+.quick-nav-heading { margin: 0; text-align: center; }
+.quick-nav-hint { margin: 0; text-align: center; }
+.quick-nav-list { display: flex; flex-direction: column; gap: 8px; }
+.quick-nav-item { width: 100%; min-height: 44px; }
+@media (max-width: 760px) {
+  .quick-nav-panel { padding: 10px; }
+  .quick-nav-item { min-height: 48px; }
+}

@@ -9,6 +9,7 @@ import { environmentCopy } from "../content/environmentText";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
 import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
 import { openCraftLibraryModal } from "../ui/crafting/library";
+import { mountQuickNav } from "../ui/quickNavView";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
@@ -1320,6 +1321,15 @@ registerPanel("tech", (app) => {
 registerPanel("inventory", (app) =>
   openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "full" }, (m) => mountInventory(app, m.body)));
 registerPanel("recipes", (app) => openCraftLibraryModal(app));
+registerPanel("quick-nav", (app) => {
+  openPanelModal(app, { id: "quick-nav", title: t("planning.quickNav"), size: "sm" }, (m) => {
+    const view = mountQuickNav({
+      open: (id) => { m.close(); app.openPanel(id); },
+    });
+    m.body.append(view.el);
+    return { dispose: () => view.dispose() };
+  });
+});
 registerPanel("craft", (app) =>
   openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "full" }, (m) => mountCraftWorkbench(app, m.body)));
 registerPanel("augment", (app) =>
