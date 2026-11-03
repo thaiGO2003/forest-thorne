@@ -97,6 +97,16 @@ export function normalizedMasterVolume(settings: Pick<Settings, "audioEnabled" |
   return Math.min(1, Math.max(0, settings.volumeLevel / 10));
 }
 
+/** SFX gain = master × the independent sfxVolume knob (issue #12). */
+export function normalizedSfxVolume(
+  settings: Pick<Settings, "audioEnabled" | "audioMuted" | "volumeLevel"> & { sfxVolume?: number },
+): number {
+  const master = normalizedMasterVolume(settings);
+  if (master <= 0) return 0;
+  const knob = Number.isFinite(settings.sfxVolume) ? settings.sfxVolume as number : 10;
+  return master * Math.min(1, Math.max(0, knob / 10));
+}
+
 function defaultAudioContextFactory(): SfxAudioContextLike | null {
   const root = globalThis as typeof globalThis & {
     AudioContext?: new () => AudioContext;
@@ -140,12 +150,12 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
   };
   const unsubscribe = options.settings.subscribe((next) => {
     currentSettings = next;
-    if (normalizedMasterVolume(next) <= 0) stopVoices();
+    if (normalizedSfxVolume(next) <= 0) stopVoices();
     else for (const voice of voices) {
       if (!(voice.category === "ui" ? next.uiSfxEnabled : next.combatSfxEnabled)) releaseVoice(voice, true);
     }
   });
-  const categoryEnabled = (category: "ui" | "combat") => normalizedMasterVolume(currentSettings) > 0
+  const categoryEnabled = (category: "ui" | "combat") => normalizedSfxVolume(currentSettings) > 0
     && (category === "ui" ? currentSettings.uiSfxEnabled : currentSettings.combatSfxEnabled);
 
   const getContext = () => {
@@ -171,7 +181,7 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
       if (sampleKey && options.samples) {
         try {
           if (options.samples.has(sampleKey)) {
-            const gain = Math.min(1, normalizedMasterVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
+            const gain = Math.min(1, normalizedSfxVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
             await options.samples.play(sampleKey, gain);
             return disposed || !categoryEnabled(category) ? "none" : "sample";
           }
@@ -199,7 +209,7 @@ export function createSemanticSfxManager(options: SemanticSfxOptions): SemanticS
         oscillator = audioContext.createOscillator();
         gainNode = audioContext.createGain();
         const now = audioContext.currentTime;
-        const gain = Math.min(1, normalizedMasterVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
+        const gain = Math.min(1, normalizedSfxVolume(currentSettings) * baseGain * finitePositive(profile.gainMultiplier));
         oscillator.type = profile.waveform ?? "sine";
         oscillator.frequency.value = FALLBACK_FREQUENCIES[event] * finitePositive(profile.pitchMultiplier);
         gainNode.gain.setValueAtTime(Math.max(0.0001, gain), now);

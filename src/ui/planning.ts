@@ -13,11 +13,12 @@ import { h, kitButton, label, LABEL, nineSlice, panelEl, SLICE, surface, threeSl
 import { uiFont } from "./fontScale";
 import type { Tooltip, TooltipContent } from "./tooltip";
 
-export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
+export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "quick-nav" | "history" | "information" | "settings";
 const ACTIONS: { id: PlanningAction; icon: string; key: MsgKey }[] = [
   { id: "library", icon: ICONS.library, key: "menu.library" },
   { id: "tech", icon: ICONS.tech, key: "planning.tech" },
   { id: "craft", icon: ICONS.craft, key: "planning.craft" },
+  { id: "quick-nav", icon: ICONS.explore, key: "planning.quickNav" },
   { id: "history", icon: ICONS.history, key: "planning.history" },
   { id: "information", icon: ICONS.info, key: "menu.information" },
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
