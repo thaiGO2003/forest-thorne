@@ -697,17 +697,13 @@
 .pl-shop-head .pl-reroll { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
 .pl-shop-head .pl-lock { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .pl-shop-head .pl-cortisol { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-.pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+.pl-shop-grid { position: relative; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
 .pl-offer { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pl-offer[hidden] { display: none; }
 .pl-offer-card { aspect-ratio: 5 / 6; cursor: pointer; }
 .unit-card[role="button"]:focus-visible { outline-offset: 3px; }
 .pl-offer-actions { display: flex; gap: 4px; }
 .pl-offer-actions .kit-btn { flex: 1 1 auto; height: 44px; min-height: 44px; min-width: 0; }
-@media (min-width: 1100px) {
-  /* Eight readable cards fit between the side rails without covering board controls. */
-  .pl-shop { width: min(1400px, calc(100% - 180px)); }
-}
 @media (max-width: 760px) {
   /* Compact landscape/tablet keeps the summary directly left of Start. */
   .pl-battle { padding: 6px 8px; gap: 6px; }
