@@ -1598,9 +1598,9 @@
  {
   "id": "elephant_guard",
   "species": "voi",
-  "nameVi": "Voi Thiết Giáp",
+  "nameVi": "Tượng Đại Thủy",
   "tier": 4,
-  "role": "TANKER",
+  "role": "SUPPORT",
   "faction": "BEAST",
   "element": "STONE",
   "boss": false,
@@ -2273,9 +2273,9 @@
  {
   "id": "hawk_hunter",
   "species": "dieu-hau",
-  "nameVi": "Diều Hâu Săn",
+  "nameVi": "Thương Ưng",
   "tier": 2,
-  "role": "ARCHER",
+  "role": "FIGHTER",
   "faction": "AVIAN",
   "element": "WIND",
   "boss": false,
