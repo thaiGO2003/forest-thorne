@@ -2273,9 +2273,9 @@
  {
   "id": "hawk_hunter",
   "species": "dieu-hau",
-  "nameVi": "Diều Hâu Săn",
+  "nameVi": "Thương Ưng",
   "tier": 2,
-  "role": "ARCHER",
+  "role": "FIGHTER",
   "faction": "AVIAN",
   "element": "WIND",
   "boss": false,

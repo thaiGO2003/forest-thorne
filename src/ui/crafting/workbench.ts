@@ -9,6 +9,7 @@ import { equipmentBonusCopy, itemDisplayName } from "../../core/itemPresentation
 import { outputIdForRecipe, recipeIngredients } from "../../core/recipeGraph";
 import { disposeSurfaceTree, h, kitButton, LABEL, nineSlice, panelEl, SLICE, surface, type KitButton } from "../kit";
 import { itemArt } from "./art";
+import { rankRecipesCraftable } from "../../core/recipeGraph";
 import { itemTooltipContent, recipeCraftable, recipeMissing } from "./copy";
 import { openCraftLibraryOverlay, openItemSheetOverlay } from "./library";
 
@@ -621,13 +622,14 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
 
     const unlocked = RECIPES.filter((recipe) => recipe.size <= level);
     const query = recipeQuery.trim().toLowerCase();
-    const filtered = unlocked.filter((recipe) => {
+    const visible = unlocked.filter((recipe) => {
       if (recipeTier && recipe.size !== recipeTier) return false;
       if (recipeOnlyCraftable && !recipeCraftable(recipe, bag)) return false;
       if (!query) return true;
       return itemDisplayName(outputIdForRecipe(recipe)).toLowerCase().includes(query)
         || recipeIngredients(recipe).some((ingredient) => itemDisplayName(ingredient.id).toLowerCase().includes(query));
     });
+    const filtered = rankRecipesCraftable(visible, bag);
     const pages = Math.max(1, Math.ceil(filtered.length / RECIPE_PAGE_SIZE));
     recipePage = Math.min(recipePage, pages - 1);
     if (pages > 1) {
