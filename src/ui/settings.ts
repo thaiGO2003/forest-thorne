@@ -98,6 +98,7 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
         field("settings.volume", stepper([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.volumeLevel, (v) => `${v}/10`, (v) => store.save({ volumeLevel: v })));
         field("settings.narration", toggle(s.narrationEnabled, (v) => store.save({ narrationEnabled: v })));
         field("settings.musicVolume", stepper([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.musicVolume, (v) => `${v}/10`, (v) => store.save({ musicVolume: v })));
+        field("settings.sfxVolume", stepper([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.sfxVolume, (v) => `${v}/10`, (v) => store.save({ sfxVolume: v })));
         field("settings.musicSource", stepper(["local", "online"] as const, s.musicSource, (v) => t(v === "local" ? "settings.musicLocal" : "settings.musicOnline"), (v) => {
           const first = Object.values(MUSIC_TRACKS).find((track) => track.source === v)?.key ?? "";
           store.save({ musicSource: v, musicTrack: first });

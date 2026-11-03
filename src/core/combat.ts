@@ -6,6 +6,9 @@ import { FRENZY_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType,
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
+import {
+  EMPTY_EQUIPMENT_LOGIC, logicDamageMultiplier, resolveEquipmentLogic, rollSkillProc, type ResolvedEquipmentLogic,
+} from "./equipmentLogic";
 import type { EquipmentBonuses } from "./itemRegistry";
 import { sumVariantBonuses, type VariantBonuses, type VariantTraitRef } from "./variants";
 import type { WeatherBlessingId } from "./blessings";
@@ -97,6 +100,8 @@ export interface Fighter {
   curse: CurseState | null;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
+  /** Authored equipment logic resolved from the equipped item ids (issue #31). */
+  logic: ResolvedEquipmentLogic;
 }
 
 /** A debuff suspended by the delayed curse: it has no effect and does not tick until it returns. */
@@ -132,6 +137,7 @@ export function cloneFighter(fighter: Fighter): Fighter {
         : { kind: "mod" as const, mod: { ...e.mod } }),
     } : null,
     env: { ...fighter.env },
+    logic: { ...fighter.logic },
   };
 }
 
@@ -328,6 +334,7 @@ function freshFighter(p: Placement, side: Side): Fighter {
     status: {}, mods: [], tauntBy: null, casting: false,
     reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, curse: null,
     env: environmentMods(undefined, u.element),
+    logic: { ...EMPTY_EQUIPMENT_LOGIC },
   };
 }
 
@@ -370,6 +377,13 @@ function applyEquipment(f: Fighter, b: EquipmentBonuses, opening: OpeningResourc
   const equipmentRage = Math.min(4, Math.max(0, Math.round(finite(b.startingRage))));
   f.rage = Math.min(f.rageMax, f.rage + equipmentRage);
   opening.shield += Math.max(0, finite(b.startingShield));
+}
+
+/** Issue #31: authored `logic` payloads are resolved from the equipped ids, so removing an item
+ * removes its effect and nothing is carried over between combats. */
+function applyEquipmentLogic(f: Fighter, equips: readonly string[], opening: OpeningResources) {
+  f.logic = resolveEquipmentLogic(equips);
+  opening.shield += f.logic.startShield;
 }
 
 function applyVariants(f: Fighter, b: VariantBonuses, opening: OpeningResources) {
@@ -434,6 +448,7 @@ export function materializeCombat(left: Placement[], right: Placement[], o: Comb
   for (const { fighter: f, placement, opening } of entries) {
     const u = getUnit(f.baseId);
     applyEquipment(f, sumEquipmentBonuses(placement.equips ?? [], f.star, slotCapForUnit(u, f.star)), opening);
+    applyEquipmentLogic(f, placement.equips ?? [], opening);
     applyVariants(f, sumVariantBonuses(f.role, placement.traits ?? []), opening);
   }
   for (const { fighter, opening } of entries) applyEnvironment(fighter, o.environment, opening);
@@ -897,6 +912,26 @@ function resolveBerserkKill(c: Ctx, src: Fighter) {
   }
 }
 
+/** Issue #31: authored on-hit / on-skill effects, applied only after damage has landed. */
+function applyEquipmentOnHit(c: Ctx, src: Fighter, skill: boolean) {
+  const logic = src.logic;
+  if (skill) {
+    if (logic.rageOnSkill > 0) addRage(src, logic.rageOnSkill);
+    const procRage = rollSkillProc(logic, c.rng);
+    if (procRage > 0) addRage(src, procRage);
+    return;
+  }
+  const stack = (stat: "atk" | "matk", pct: number, max: number) => {
+    if (pct <= 0 || max <= 0) return;
+    const key = `logic:${stat}:${src.uid}`;
+    const applied = src.mods.filter((m) => m.stackKey === key).length;
+    if (applied >= max) return;
+    applyMod(src, { stat, value: pct / 100, pct: true, turns: 0 }, key);
+  };
+  stack("atk", logic.atkStackPct, logic.atkStackMax);
+  stack("matk", logic.matkStackPct, logic.matkStackMax);
+}
+
 /** A12/A13 pipeline + A74/A120 aftermath. Returns HP damage dealt (0 on miss). */
 function strike(
   c: Ctx,
@@ -933,6 +968,8 @@ function strike(
   if (isCrit) dmg *= critMult;
   else if (type === "physical") dmg = (dmg * 100) / (100 + combatStat(dst, "def"));
   else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
+  // Authored on-hit logic (issue #31): low/high-HP bonuses and capped stack scaling.
+  dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
   dmg = Math.max(1, Math.round(dmg * c.globalMult));
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit }), true);
@@ -950,6 +987,8 @@ function strike(
     if (src.hp > 0 && dst.hp > 0 && (options.allowCounter ?? true)) resolveCounter(c, dst, src);
     const lifesteal = src.lifesteal + (activeBerserk(src)?.lifestealPct ?? 0);
     if (src.hp > 0 && lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
+    if (src.hp > 0 && src.logic.healOnDmgPct > 0) heal(c, src, src, resolved.hp * src.logic.healOnDmgPct);
+    if (src.hp > 0) applyEquipmentOnHit(c, src, skill);
   }
 
   resolveLethal(c, src, dst);
