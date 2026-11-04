@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -47,6 +47,8 @@ export interface SkillStatusSource {
 export interface TimedStatus {
   turns: number;
   value: number;
+  /** Damage-triggered thaw, not turn expiry (Sương Điệp 3★ only). */
+  permanent?: boolean;
   source?: SkillStatusSource;
 }
 
@@ -164,7 +166,7 @@ export type CombatEvent =
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
-  | { t: "status"; dst: string; kind: string; turns: number; source?: SkillStatusSource }
+  | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; source?: SkillStatusSource }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string }
@@ -728,24 +730,28 @@ function applyStatus(
   turns: number,
   value = 0,
   source?: SkillStatusOrigin,
+  permanent = false,
 ) {
   if (!dst.alive || turns <= 0) return;
   const cur = dst.status[kind];
   const nextTurns = Math.max(turns, cur?.turns ?? 0);
   const nextValue = Math.max(value, cur?.value ?? 0);
-  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue;
+  const nextPermanent = permanent || (cur?.permanent ?? false);
+  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue || (!!cur.permanent !== nextPermanent);
   // Never shorten; keep the stronger payload (A73). A89 source changes only when the merged state changes.
   if (!cur) {
     dst.status[kind] = source
-      ? { turns: nextTurns, value: nextValue, source: { ...source, turns: nextTurns, value: nextValue } }
-      : { turns: nextTurns, value: nextValue };
+      ? { turns: nextTurns, value: nextValue, ...(nextPermanent ? { permanent: true } : {}), source: { ...source, turns: nextTurns, value: nextValue } }
+      : { turns: nextTurns, value: nextValue, ...(nextPermanent ? { permanent: true } : {}) };
   } else if (changed) {
     cur.turns = nextTurns;
     cur.value = nextValue;
+    if (nextPermanent) cur.permanent = true;
     if (source) cur.source = { ...source, turns: nextTurns, value: nextValue };
     else delete cur.source;
   }
   const event: Extract<CombatEvent, { t: "status" }> = { t: "status", dst: dst.uid, kind, turns: nextTurns };
+  if (nextPermanent) event.permanent = true;
   if (dst.status[kind]?.source) event.source = dst.status[kind]!.source;
   c.events.push(event);
 }
@@ -828,6 +834,12 @@ function applyDamage(
   const toHp = Math.min(dst.hp, appliedDamage - absorbed);
   dst.hp -= toHp;
   c.events.push(event(absorbed, appliedDamage));
+  // Frost from 3★ Sương Điệp persists through turns but thaws on actual HP damage.
+  // Centralize here so basics, skills, DoTs and reflected damage all follow one rule.
+  if (toHp > 0 && dst.status.freeze?.permanent) {
+    delete dst.status.freeze;
+    c.events.push({ t: "status", dst: dst.uid, kind: "freeze", turns: 0 });
+  }
   const lethal = dst.hp <= 0 && dst.alive;
   let killed = false;
   if (lethal && !deferDeath) {
@@ -1082,6 +1094,23 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
   }
   const stableIndex = (x: Fighter) => stable.indexOf(x);
   switch (selector) {
+    case "frost_role_column": {
+      // Select the strongest role represented in each column first; only columns
+      // with equal role priority compete by total ATK (stable column fallback).
+      const columns = [...new Set(stable.map((target) => target.col))].map((col) => {
+        const members = stable.filter((target) => target.col === col);
+        return {
+          col,
+          priority: Math.min(...members.map((target) => AI_CLASS_PRIORITY[target.role])),
+          totalAtk: members.reduce((sum, target) => sum + combatStat(target, "atk"), 0),
+        };
+      });
+      columns.sort((a, b) => a.priority - b.priority || b.totalAtk - a.totalAtk || a.col - b.col);
+      return take(stable.filter((target) => target.col === columns[0]!.col)
+        .sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+          || dist(f, a) - dist(f, b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+          || a.uid.localeCompare(b.uid)));
+    }
     case "role_priority":
       return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
         || dist(f, a) - dist(f, b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
@@ -1181,7 +1210,10 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter, su
   const p = ordered[0];
   if (!p) return supportSelfFallback ? [f] : [];
   if (sp.area === "row") return pool.filter((x) => x.row === p.row);
-  if (sp.area === "column") return pool.filter((x) => x.col === p.col);
+  if (sp.area === "column") {
+    const column = pool.filter((x) => x.col === p.col);
+    return sp.selector === "frost_role_column" ? [p, ...column.filter((x) => x !== p)] : column;
+  }
   if (sp.area === "square") return pool.filter((x) => Math.abs(x.row - p.row) <= 1 && Math.abs(x.col - p.col) <= 1);
   return ordered;
 }
@@ -1733,6 +1765,11 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const starSkill = STAR_SKILL[f.star] ?? 1;
     const starChance = STAR_EFFECT_CHANCE[f.star] ?? 1;
     const enemyHit = new Set<string>();
+    // Consume exactly one seeded freeze roll for every unique cast victim, even if
+    // the corresponding impact is lethal. Crit rolls are separate strike RNG.
+    const frostRolls = family === FROST_STORM_FAMILY
+      ? new Map<string, number>([...new Set(targets.map((target) => target.uid))].map((uid): [string, number] => [uid, c.rng()]))
+      : null;
     const enemies = sp.side === "enemy" && !fallbackSelfTarget ? targets : [];
     const allies = sp.side === "enemy" ? [f] : targets;
     if (sp.damage) {
@@ -1751,6 +1788,11 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (!t.alive) continue;
       for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult), statusSource);
       for (const k of sp.controls) {
+        if (family === FROST_STORM_FAMILY && k.kind === "freeze") {
+          if ((frostRolls?.get(t.uid) ?? 1) >= k.chance) continue;
+          applyStatus(c, t, "freeze", 1, 0, statusSource, f.star === 3);
+          continue;
+        }
         if (k.kind === "stun" && c.rng() >= Math.min(1, k.chance * starChance)) continue;
         applyStatus(c, t, k.kind, k.turns, 0, statusSource);
         if (k.kind === "taunt") t.tauntBy = f.uid;
@@ -1880,7 +1922,7 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
     if (k === "hardBeakVulnerability") continue;
-    if (k === "hot") continue;
+    if (k === "hot" || s.permanent) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
       delete f.status[k];
