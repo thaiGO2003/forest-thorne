@@ -33,8 +33,8 @@ export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; a
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
 const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
 const PROJECTILE_COLOR = 0xffd36a;
-/** Billboard badge while a delayed curse holds debuffs (ICONS.lock); negative group, it is a curse. */
-const CURSE_LOCK_STATUS: BillboardStatus = { key: "lock", positive: false };
+/** Action-only Giơ Kiếm Lên Trời guard; not an actual permanent immunity status. */
+const OATH_GUARD_STATUS: BillboardStatus = { key: "immune", positive: true };
 /** Sương Độc presentation: purple pool landing, lime detonation (matches the concept VFX). */
 const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
 const PRESENTATION_ONLY = () => {};
@@ -45,7 +45,7 @@ export function playCombat(o: {
   inspectionFrames?: CombatInspectionFrame[];
 }): CombatPlayer {
   const { board, fx } = o;
-  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], locks: 0, spores: 0 }]));
+  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], oathActive: false, suppressed: [] as string[], spores: 0 }]));
   // Active Sương Độc pools per owner (cell keys), mirrored onto the board as hazard tiles.
   const hazards = new Map<string, Map<number, SporeCell>>();
   const hazardKey = (cell: SporeCell) => cell.row * 100 + cell.col;
@@ -75,7 +75,7 @@ export function playCombat(o: {
   let inspectionIndex = 0;
   let cycle = 1;
   let disposed = false;
-  let skillImpact: { src: string; fired: boolean; pending: (() => void)[]; targets: readonly string[] } | null = null;
+  let skillImpact: { src: string; fired: boolean; pending: (() => void)[]; onDone: (() => void)[]; targets: readonly string[] } | null = null;
   let complete = false;
   const { promise, resolve } = Promise.withResolvers<void>();
   const after = (ms: number, run: () => void) => { if (ms <= 0) run(); else timers.push({ remaining: ms, run }); };
@@ -96,7 +96,9 @@ export function playCombat(o: {
     const unit = units.get(uid);
     if (unit) board.setLive(uid, {
       hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax,
-      statuses: unit.locks > 0 ? [...unit.statuses, CURSE_LOCK_STATUS] : unit.statuses,
+      statuses: unit.oathActive
+        ? [...unit.statuses.filter((status) => !unit.suppressed.includes(status.key)), OATH_GUARD_STATUS]
+        : unit.statuses,
       counter: unit.spores > 0 ? { icon: ICONS.poison, value: unit.spores, max: SPORE_BURST_POINTS } : undefined,
     });
   };
@@ -308,7 +310,7 @@ export function playCombat(o: {
         if (!visual) break;
         focusActor(event.src);
         board.setCombatBorder?.(event.src, "skill");
-        const window = { src: event.src, fired: false, pending: [] as (() => void)[], targets: event.targets };
+        const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
         const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
           / getGameSpeedDisplayMultiplier(speedLevel);
@@ -320,6 +322,7 @@ export function playCombat(o: {
             for (const impact of window.pending.splice(0)) impact();
           },
           onDone: () => {
+            for (const finish of window.onDone.splice(0)) finish();
             if (skillImpact === window) skillImpact = null;
             if (!disposed) clearActorFocus(event.src);
           },
@@ -368,14 +371,23 @@ export function playCombat(o: {
       case "skip":
         fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? ICONS.sleep, "status");
         break;
-      case "curse": {
+      case "oath": {
         const unit = units.get(event.dst);
-        if (unit) { unit.locks = event.locked; push(event.dst); }
-        if (!event.released.length) {
-          if (event.locked > 0) fx.float(position(event.dst), `${ICONS.lock}${event.locked}`, "status");
+        if (!unit) break;
+        if (event.active) {
+          unit.oathActive = true;
+          unit.suppressed = event.suppressed;
+          push(event.dst);
+          fx.burst(position(event.dst), 0xff3048);
+          fx.float(position(event.dst), `${ICONS.immune}${event.suppressed.length}`, "status");
         } else {
-          const icons = event.released.map((key) => ICONS[key as keyof typeof ICONS] ?? ICONS.question).join("");
-          fx.float(position(event.dst), `${ICONS.unlock}${icons}`, "status");
+          const finish = () => {
+            unit.oathActive = false;
+            unit.suppressed = [];
+            push(event.dst);
+          };
+          if (skillImpact?.src === event.dst) skillImpact.onDone.push(finish);
+          else finish();
         }
         break;
       }

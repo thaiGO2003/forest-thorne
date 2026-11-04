@@ -121,6 +121,21 @@ describe("Huyết Thố rig contract", () => {
     expect(r.part("eyes").scale.x).toBeGreaterThan(calm + 0.6);
   });
 
+  it("raises the visible blood sword over the head exactly at the skill impact beat", () => {
+    const r = rig();
+    expect(rabbit.impact?.skill).toBe(0.5);
+    const tip = () => r.part("bloodSword").localToWorld(new THREE.Vector3(0, -3.1, 0)).y;
+    r.pose(r.ctx("skill", 0.05, 0.1));
+    const lowered = tip();
+    r.pose(r.ctx("skill", 0.5, 0.8));
+    const raised = tip();
+    const crownY = r.part("head").getWorldPosition(new THREE.Vector3()).y;
+    expect(raised).toBeGreaterThan(lowered + 3);
+    expect(raised).toBeGreaterThan(crownY);
+    r.pose(r.ctx("skill", 1, 1.6));
+    expect(tip()).toBeLessThan(raised - 3);
+  });
+
   it("trails the scarf and ear tips behind their roots (follow-through)", () => {
     const r = rig();
     const root: number[] = [], tail: number[] = [];

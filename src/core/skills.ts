@@ -283,8 +283,8 @@ function reactionSpec(text: string, family: string): SkillReactionSpec {
   return out;
 }
 
-/** Huyết Thỏ "Huyết Nộ Bộc Phá": burst hit + self frenzy + delayed curse, resolved by the combat engine. */
-export const FRENZY_FAMILY = "blood_moon_frenzy";
+/** Huyết Thố: action-scoped debuff suppression and next-round recovery, resolved in combat.ts. */
+export const BLOOD_SWORD_OATH_FAMILY = "blood_sword_oath";
 
 /**
  * Cóc Độc "Sương Độc": pooled area denial resolved by the combat engine (combat.ts, spore pools).
@@ -306,8 +306,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
   s.reaction = reactionSpec(detail, u.skill.family);
-  if (u.skill.family === FRENZY_FAMILY) {
-    // The burst and the frenzy numbers live in the engine; the prose must not hit the generic cast path.
+  if (u.skill.family === BLOOD_SWORD_OATH_FAMILY) {
+    // The authored physical burst is retained; recovery and debuff suppression are combat-owned.
     Object.assign(s, {
       side: "enemy", area: "single", count: 1, dots: [], controls: [], heal: null, hot: null,
       selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
@@ -337,7 +337,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   if (!u.boss) {
     // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
     s.selector = u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
-      : u.skill.family === FRENZY_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
+      : u.skill.family === BLOOD_SWORD_OATH_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 

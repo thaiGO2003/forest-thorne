@@ -14,10 +14,13 @@ function harness(events: CombatEvent[]) {
     { uid: "rabbit", baseId: "rabbit_blood", star: 1, side: "L", hp: 100, maxHp: 100, rage: 0, rageMax: 2, shield: 0 },
     { uid: "foe", baseId: "ant_guard", star: 1, side: "R", hp: 100, maxHp: 100, rage: 0, rageMax: 2, shield: 0 },
   ];
+  const skillWindows: Array<{ onImpact?: () => void; onDone?: () => void }> = [];
   const visuals = new Map(roster.map((u) => {
     const visual: UnitVisual = {
       id: u.baseId, star: 1, root: new THREE.Group(), anchor: new THREE.Object3D(),
-      play: vi.fn(), state: () => "idle", setCombat: vi.fn(), setFacing: vi.fn(), setHpRatio: vi.fn(), revive: vi.fn(), die: vi.fn(),
+      play: vi.fn((state, opts?: { onImpact?: () => void; onDone?: () => void }) => {
+        if (state === "skill" && opts) skillWindows.push(opts);
+      }), state: () => "idle", setCombat: vi.fn(), setFacing: vi.fn(), setHpRatio: vi.fn(), revive: vi.fn(), die: vi.fn(),
       update() {}, dispose: vi.fn(),
     };
     return [u.uid, visual] as const;
@@ -33,23 +36,31 @@ function harness(events: CombatEvent[]) {
   let frame: (dt: number) => void = () => {};
   const player = playCombat({ board, fx, roster, events, onFrame: (cb) => { frame = cb; return () => {}; }, onTick() {} });
   frame(0);
-  for (let t = 0; t < 6000; t += 5) frame(0.005);
+  for (let t = 0; t < 6000; t += 5) {
+    frame(0.005);
+    if (t === 1100) for (const window of skillWindows) window.onImpact?.();
+    if (t === 1600) for (const window of skillWindows) window.onDone?.();
+  }
   return { player, statuses, floats: vi.mocked(fx.float).mock.calls.map(([, text]) => text) };
 }
 
-describe("Huyết Thố delayed-curse playback", () => {
-  it("shows a lock badge while debuffs are held and floats the ones that come back", () => {
+describe("Huyết Thố oath playback", () => {
+  it.each([
+    [["poison"], ["burn", "immune"], 1],
+    [["poison", "burn"], ["immune"], 2],
+  ] as const)("shows and removes transient debuff suppression (case %i)", (suppressed, activeKeys, count) => {
     const h = harness([
       { t: "status", dst: "rabbit", kind: "poison", turns: 3 },
-      { t: "status", dst: "rabbit", kind: "poison", turns: 0 },
-      { t: "curse", dst: "rabbit", locked: 2, released: [] },
-      { t: "status", dst: "rabbit", kind: "poison", turns: 2 },
-      { t: "curse", dst: "rabbit", locked: 1, released: ["poison"] },
-      { t: "curse", dst: "rabbit", locked: 0, released: ["defDown"] },
+      { t: "status", dst: "rabbit", kind: "burn", turns: 3 },
+      { t: "cast", src: "rabbit", targets: ["foe"] },
+      { t: "oath", dst: "rabbit", suppressed: [...suppressed], active: true },
+      { t: "skill", src: "rabbit", dst: "foe", dmg: 10, absorbed: 0, crit: false },
+      { t: "oath", dst: "rabbit", suppressed: [...suppressed], active: false },
     ]);
-    const keys = h.statuses.map((s) => s.map((x) => x.key).join(","));
-    expect(keys).toEqual(["poison", "", "lock", "poison,lock", "poison,lock", "poison"]);
-    expect(h.floats).toEqual([`${ICONS.lock}2`, `${ICONS.unlock}${ICONS.poison}`, `${ICONS.unlock}${ICONS.defDown}`]);
+    const keys = h.statuses.map((statuses) => statuses.map((status) => status.key).sort().join(","));
+    expect(keys).toContain([...activeKeys].sort().join(","));
+    expect(keys.at(-1)).toBe("burn,poison");
+    expect(h.floats).toContain(`${ICONS.immune}${count}`);
     h.player.dispose();
   });
 });

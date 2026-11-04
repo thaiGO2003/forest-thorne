@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { FRENZY_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -96,25 +96,15 @@ export interface Fighter {
   counterTurns: number;
   phoenix: PhoenixReactionState;
   berserk: BerserkReactionState | null;
-  /** Huyết Thố delayed curse: debuffs suspended by the frenzy, returned one per basic attack. */
-  curse: CurseState | null;
+  /** Oath resolves at the next shared cycle, not at cast impact. */
+  oath: { cycle: number; star: number } | null;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
   /** Authored equipment logic resolved from the equipped item ids (issue #31). */
   logic: ResolvedEquipmentLogic;
 }
 
-/** A debuff suspended by the delayed curse: it has no effect and does not tick until it returns. */
-export type LockedEffect =
-  | { kind: "status"; key: string; status: TimedStatus }
-  | { kind: "mod"; mod: StatMod & { stackKey?: string } };
-
-export interface CurseState {
-  /** Own turns left before every remaining locked effect returns at once. */
-  turns: number;
-  /** Oldest first: each basic attack returns the head of the queue. */
-  locked: LockedEffect[];
-}
+/** Snapshot the one-round recovery contract when cloning fighters. */
 export function cloneFighter(fighter: Fighter): Fighter {
   return {
     ...fighter,
@@ -130,12 +120,7 @@ export function cloneFighter(fighter: Fighter): Fighter {
     } : null,
     phoenix: { ...fighter.phoenix },
     berserk: fighter.berserk ? { ...fighter.berserk } : null,
-    curse: fighter.curse ? {
-      turns: fighter.curse.turns,
-      locked: fighter.curse.locked.map((e) => e.kind === "status"
-        ? { kind: "status" as const, key: e.key, status: { ...e.status, source: e.status.source ? { ...e.status.source } : undefined } }
-        : { kind: "mod" as const, mod: { ...e.mod } }),
-    } : null,
+    oath: fighter.oath ? { ...fighter.oath } : null,
     env: { ...fighter.env },
     logic: { ...fighter.logic },
   };
@@ -179,8 +164,8 @@ export type CombatEvent =
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string }
-  /** Delayed curse: locked debuffs are suspended on dst; released names the ones that just returned. */
-  | { t: "curse"; dst: string; locked: number; released: string[] }
+  /** Sword oath: transient debuff suppression begins/ends within one cast animation. */
+  | { t: "oath"; dst: string; suppressed: string[]; active: boolean }
   /** Spore mist cast: pools land on these enemy-half cells (presented at the skill impact). */
   | { t: "sporeThrow"; src: string; cells: SporeCell[]; cycles: number }
   /** Cycle start: an enemy standing on owner's pool gave it a point; points is the new total. */
@@ -332,7 +317,7 @@ function freshFighter(p: Placement, side: Side): Fighter {
     evade: Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (star - 1) * 0.05),
     lifesteal: 0, rageGainPct: 0, healPct: 0, onHitBurn: 0, onHitPoison: 0,
     status: {}, mods: [], tauntBy: null, casting: false,
-    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, curse: null,
+    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, oath: null,
     env: environmentMods(undefined, u.element),
     logic: { ...EMPTY_EQUIPMENT_LOGIC },
   };
@@ -990,6 +975,10 @@ function strike(
     const reflected = applyReflect(c, dst, src, type, resolved.hp);
     if (reflected && src.hp > 0) applyReflectOffenseDebuff(dst, src, resolved.hp);
     if (src.hp > 0 && dst.hp > 0 && (options.allowCounter ?? true)) resolveCounter(c, dst, src);
+    // The oath restores HP only from actual HP damage during the next entire cycle.
+    if (src.hp > 0 && src.oath?.cycle === c.cycle) {
+      heal(c, src, src, resolved.hp * (src.oath.star === 1 ? 0.5 : src.oath.star === 2 ? 1 : 2));
+    }
     const lifesteal = src.lifesteal + (activeBerserk(src)?.lifestealPct ?? 0);
     if (src.hp > 0 && lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
     if (src.hp > 0 && src.logic.healOnDmgPct > 0) heal(c, src, src, resolved.hp * src.logic.healOnDmgPct);
@@ -1343,93 +1332,69 @@ interface CastSkillOptions {
   trigger?: AutoCastRole;
 }
 
-// ---------- Huyết Nộ Bộc Phá (blood_moon_frenzy) ----------
+// ---------- Giơ Kiếm Lên Trời (blood_sword_oath) ----------
 
-/** Frenzy length in own turns, by star (same counting as other "N lượt" self buffs). */
-export const FRENZY_TURNS: readonly number[] = [0, 2, 2, 3];
-/** Lifesteal on every hit while frenzied, by star. */
-export const FRENZY_LIFESTEAL: readonly number[] = [0, 0.6, 0.8, 1];
-/** Sacrificed defences and gained attack, percent. */
-export const FRENZY_DEF_PCT = -30, FRENZY_MDEF_PCT = -30, FRENZY_ATK_PCT = 40;
-
-/** Every timed status except healing-over-time is harmful to its bearer. */
-const isHarmfulStatus = (key: string) => key !== "hot";
-
-/**
- * Suspend every debuff on `f` (harmful statuses and negative stat mods) into its curse queue. Locked
- * statuses are removed from `f.status`, so they neither apply nor tick; the billboard is told they ended.
- */
-function lockCurse(c: Ctx, f: Fighter, turns: number) {
-  const curse: CurseState = f.curse ?? { turns, locked: [] };
-  curse.turns = Math.max(curse.turns, turns);
+/** Every debuff remains stored with its original duration during this action-only suppression. */
+function withOathDebuffsSuppressed(c: Ctx, f: Fighter, action: () => void) {
+  const candidates: Array<{ kind: "status"; key: string; status: TimedStatus }
+    | { kind: "mod"; mod: Mod }> = [];
   for (const [key, status] of Object.entries(f.status)) {
-    if (!isHarmfulStatus(key) || !(status.turns > 0)) continue;
-    curse.locked.push({ kind: "status", key, status });
-    delete f.status[key];
-    c.events.push({ t: "status", dst: f.uid, kind: key, turns: 0 });
+    if (status.turns > 0 && CLEANSEABLE_STATUSES.has(key)) candidates.push({ kind: "status", key, status });
   }
-  const kept: Mod[] = [];
-  for (const mod of f.mods) (mod.value < 0 ? curse.locked.push({ kind: "mod", mod }) : kept.push(mod));
-  f.mods = kept;
-  f.curse = curse;
-  c.events.push({ t: "curse", dst: f.uid, locked: curse.locked.length, released: [] });
-}
-
-/** Return up to `n` locked debuffs, oldest first. A returning status never shortens a newer one. */
-function releaseCurse(c: Ctx, f: Fighter, n: number) {
-  const curse = f.curse;
-  if (!curse?.locked.length || !f.alive) return;
-  const released: string[] = [];
-  for (let i = 0; i < n && curse.locked.length; i++) {
-    const e = curse.locked.shift()!;
-    if (e.kind === "status") {
-      const cur = f.status[e.key];
-      const status = cur && cur.turns >= e.status.turns ? cur : e.status;
-      f.status[e.key] = status;
-      const ev: Extract<CombatEvent, { t: "status" }> = { t: "status", dst: f.uid, kind: e.key, turns: status.turns };
-      if (status.source) ev.source = status.source;
-      c.events.push(ev);
-      released.push(e.key);
+  for (const mod of f.mods) {
+    if (mod.turns > 0 && mod.value < 0) candidates.push({ kind: "mod", mod });
+  }
+  const suppressed = f.star === 1 && candidates.length
+    ? [candidates[Math.floor(c.rng() * candidates.length)]!]
+    : candidates;
+  const removedMods = new Set<Mod>();
+  const previousTaunt = f.tauntBy;
+  const labels: string[] = [];
+  for (const effect of suppressed) {
+    if (effect.kind === "status") {
+      delete f.status[effect.key];
+      if (effect.key === "taunt") f.tauntBy = null;
+      labels.push(effect.key);
     } else {
-      f.mods.push(e.mod);
-      released.push(`${e.mod.stat}Down`);
+      removedMods.add(effect.mod);
+      labels.push(`${effect.mod.stat}Down`);
     }
   }
-  c.events.push({ t: "curse", dst: f.uid, locked: curse.locked.length, released });
+  if (removedMods.size) f.mods = f.mods.filter((mod) => !removedMods.has(mod));
+  c.events.push({ t: "oath", dst: f.uid, suppressed: labels, active: true });
+  try {
+    action();
+  } finally {
+    for (const effect of suppressed) {
+      if (effect.kind !== "status") continue;
+      const now = f.status[effect.key];
+      if (!now) f.status[effect.key] = effect.status;
+      else {
+        now.turns = Math.max(now.turns, effect.status.turns);
+        now.value = Math.max(now.value, effect.status.value);
+      }
+    }
+    if (removedMods.size) f.mods.push(...removedMods);
+    if (suppressed.some((effect) => effect.kind === "status" && effect.key === "taunt")
+      && f.status.taunt?.turns && !f.tauntBy) f.tauntBy = previousTaunt;
+    c.events.push({ t: "oath", dst: f.uid, suppressed: labels, active: false });
+  }
 }
 
-/**
- * Burst the current basic target with the authored formula, then frenzy: −30% DEF/MDEF, +40% ATK and
- * star-scaled lifesteal on every hit for FRENZY_TURNS, while the delayed curse suspends current debuffs.
- */
-function castFrenzy(c: Ctx, f: Fighter, preferred: Fighter | undefined, trigger?: AutoCastRole) {
+/** Physical burst is unchanged; suppression surrounds impact and recovery starts next cycle. */
+function castBloodSwordOath(c: Ctx, f: Fighter, preferred: Fighter | undefined, trigger?: AutoCastRole) {
   const target = preferred?.alive && preferred.side !== f.side ? preferred : basicTarget(c, f);
   const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
   if (trigger) castEvent.trigger = trigger;
   c.events.push(castEvent);
-  const d = f.skill.damage;
-  if (target && d) {
-    const raw = Math.round((d.base + statValue(f, d.stat) * d.scale) * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  withOathDebuffsSuppressed(c, f, () => {
+    const d = f.skill.damage;
+    if (!target || !d) return;
+    const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+      * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
     strike(c, f, target, raw, d.type, true);
-  }
-  if (!f.alive) return;
-  const turns = FRENZY_TURNS[f.star] ?? 2;
-  // Lock first: the frenzy's own defence sacrifice is a cost, not a curse.
-  lockCurse(c, f, turns);
-  const key = (stat: string) => `${FRENZY_FAMILY}:${stat}`;
-  applyMod(f, { stat: "def", value: FRENZY_DEF_PCT, pct: true, turns }, key("def"));
-  applyMod(f, { stat: "mdef", value: FRENZY_MDEF_PCT, pct: true, turns }, key("mdef"));
-  applyMod(f, { stat: "atk", value: FRENZY_ATK_PCT, pct: true, turns }, key("atk"));
-  f.berserk = {
-    turns,
-    lifestealPct: FRENZY_LIFESTEAL[f.star] ?? 0.6,
-    firstBasicMultiplier: 1,
-    firstBasicPending: false,
-    rageOnKill: 0,
-    extendTurnsOnKill: 0,
-    chainedBasicsOnKill: 0,
-    atkBuffStackKey: key("atk"),
-  };
+  });
+  if (f.alive) f.oath = { cycle: c.cycle + 1, star: f.star };
 }
 
 /** One kiss per selected foe; the second landed kiss on a given foe spawns unique batlings at that impact. */
@@ -1484,8 +1449,8 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
-    if (family === FRENZY_FAMILY) {
-      castFrenzy(c, f, preferred, options.trigger);
+    if (family === BLOOD_SWORD_OATH_FAMILY) {
+      castBloodSwordOath(c, f, preferred, options.trigger);
       return;
     }
     if (family === SPORE_FAMILY) {
@@ -1551,7 +1516,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (dead) {
         dead.alive = true;
         dead.hp = Math.max(1, Math.round(dead.maxHp * sp.revivePct));
-        dead.status = {}; dead.mods = []; dead.rage = 0; dead.curse = null;
+        dead.status = {}; dead.mods = []; dead.rage = 0; dead.oath = null;
         c.events.push({ t: "revive", src: f.uid, dst: dead.uid, hp: dead.hp });
       }
     }
@@ -1604,6 +1569,12 @@ interface TurnGate {
 /** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
  * New statuses applied during that cycle cannot tick until the next boundary. */
 function startCycle(c: Ctx) {
+  // The 3★ immediate heal happens before DoTs at the start of the following cycle.
+  for (const f of c.all) {
+    if (f.alive && f.oath?.cycle === c.cycle && f.oath.star === 3) {
+      heal(c, f, f, combatStat(f, "atk"));
+    }
+  }
   // Snapshot active effects before any disease spread applies new ones to other fighters.
   const activeDots = c.all.map((f) => DOTS.map((kind) => f.status[kind] ?? null));
   for (let i = 0; i < c.all.length; i++) {
@@ -1637,11 +1608,6 @@ function startCycle(c: Ctx) {
 
 /** A79: capture control state first, then resolve timed triggers and one canonical duration tick. */
 function startTurn(c: Ctx, f: Fighter): TurnGate {
-  // Delayed curse expiry: everything still locked comes back before control state is read.
-  if (f.curse && --f.curse.turns <= 0) {
-    releaseCurse(c, f, Infinity);
-    f.curse = null;
-  }
   const skip = CONTROL_PRIORITY.find((k) => (f.status[k]?.turns ?? 0) > 0) ?? null;
   const silenced = (f.status.silence?.turns ?? 0) > 0;
   const disarmed = (f.status.disarm?.turns ?? 0) > 0;
@@ -1690,8 +1656,7 @@ function act(c: Ctx, f: Fighter) {
     return;
   }
   basicAttack(c, f, target);
-  // Delayed curse: each basic attack the frenzied unit makes returns its oldest locked debuff.
-  if (f.curse) releaseCurse(c, f, 1);
+  // Oath recovery is cycle-scoped, independent of the number of actions or hits.
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
 }
 
@@ -1840,6 +1805,12 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     if (burstSporePools(c)) {
       flushDeferredAutoCasts(c);
       inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
+    }
+    // Oath expires at this exact round boundary; 3★ cleanses one uniformly chosen debuff.
+    for (const f of all) {
+      if (f.oath?.cycle !== c.cycle) continue;
+      if (f.alive && f.oath.star === 3) cleanseRandomDebuffs(c, f, 1);
+      f.oath = null;
     }
   }
   const alive = { L: count("L"), R: count("R") };

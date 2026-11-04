@@ -4458,29 +4458,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Đấu sĩ bộc phát: hy sinh thế thủ đổi lấy sát thương, hút máu bằng đòn đánh và trì hoãn lời nguyền.",
+  "pitchVi": "Đấu sĩ giơ kiếm tuyên thệ: vô hiệu hóa lời nguyền khi ra chiêu, rồi hồi máu từ sát thương ở vòng kế tiếp.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Huyết Nộ Bộc Phá",
-   "family": "blood_moon_frenzy",
+   "nameVi": "Giơ Kiếm Lên Trời",
+   "family": "blood_sword_oath",
    "rageCost": [
     2,
     3,
     4
    ],
    "targetVi": "mục tiêu đánh thường hiện tại + bản thân",
-   "shapeVi": "1 mục tiêu trước mặt; cuồng nộ trên bản thân",
-   "selectionVi": "Bùng nổ vào mục tiêu đánh thường hiện tại, rồi tự cường hóa.",
+   "shapeVi": "1 mục tiêu trước mặt; giơ kiếm lên trời khi tuyên thệ",
+   "selectionVi": "Đánh vào mục tiêu đánh thường hiện tại; vô hiệu hóa debuff chỉ trong action hiện tại.",
    "countVi": "1 mục tiêu",
-   "durationVi": "cuồng nộ 2 lượt (3 lượt ở 3★)",
+   "durationVi": "vô hiệu hóa debuff khi tung chiêu; hồi máu trong vòng kế tiếp",
    "starDetailVi": [
-    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 60% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.",
-    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 2 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 80% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết.",
-    "Huyết nộ bộc phá: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Sau đó hy sinh thế thủ trong 3 lượt: tự giảm 30% DEF và 30% MDEF, tăng 40% ATK, mọi đòn đánh hút 100% sát thương thành máu. Lời nguyền trì hoãn: mọi hiệu ứng bất lợi đang có trên Huyết Thố bị khóa (không tác dụng, không trừ lượt); sau mỗi đòn đánh thường, hiệu ứng bị khóa lâu nhất quay lại, hết thời gian thì mọi hiệu ứng còn khóa quay lại hết."
+    "Giơ Kiếm Lên Trời: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Trong action tung chiêu, tạm vô hiệu hóa ngẫu nhiên đều 1 debuff đang có (không xóa, không dừng thời gian). Vòng kế tiếp, mỗi đòn gây sát thương hồi máu bằng 50% sát thương HP thực tế gây ra sau giảm trừ; chịu hệ số hồi máu và giới hạn HP tối đa. Hiệu ứng chỉ kéo dài một vòng, tái dùng sẽ làm mới.",
+    "Giơ Kiếm Lên Trời: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Trong action tung chiêu, tạm vô hiệu hóa toàn bộ debuff đang có (không xóa, không dừng thời gian). Vòng kế tiếp, mỗi đòn gây sát thương hồi máu bằng 100% sát thương HP thực tế gây ra sau giảm trừ; chịu hệ số hồi máu và giới hạn HP tối đa. Hiệu ứng chỉ kéo dài một vòng, tái dùng sẽ làm mới.",
+    "Giơ Kiếm Lên Trời: gây (20 + 100% ATK) sát thương vật lý lên mục tiêu đánh thường hiện tại. Trong action tung chiêu, tạm vô hiệu hóa toàn bộ debuff đang có (không xóa, không dừng thời gian). Đầu vòng kế tiếp hồi ngay HP bằng ATK vật lý hiện tại; trong vòng đó mỗi đòn gây sát thương hồi máu bằng 200% sát thương HP thực tế gây ra sau giảm trừ. Mọi hồi máu chịu hệ số hồi máu và giới hạn HP tối đa. Cuối vòng đó xóa vĩnh viễn ngẫu nhiên đều 1 debuff còn tồn tại; hiệu ứng chỉ kéo dài một vòng, tái dùng sẽ làm mới."
    ]
   },
   "skin": {
