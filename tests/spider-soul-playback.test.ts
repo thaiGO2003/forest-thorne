@@ -86,7 +86,7 @@ describe("Nhện Linh projectile replay timing", () => {
     expect(replayed.shots).toHaveLength(1);
     replayed.shots[0]!.arrive();
     replayed.step(); // reflect
-    replayed.step(); // second soul (not in the first pending batch)
+    for (let i = 0; i < 6; i++) replayed.step();
     expect(replayed.shots).toHaveLength(2);
     expect(replayed.observed.filter((event) => event.t === "skill")).toEqual([soul1]);
     replayed.shots[1]!.arrive();

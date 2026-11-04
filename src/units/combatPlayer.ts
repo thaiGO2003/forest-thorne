@@ -152,6 +152,15 @@ export function playCombat(o: {
     fx.burst(position(dst), 0xffc36a); push(dst); tick();
     log.push(`${name(src)} → ${name(dst)} -${hpDamage}`); if (log.length > 12) log.shift();
   };
+  const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => exactImpact(() => {
+    const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
+    const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
+    board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
+    if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
+    if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
+    o.onEvent?.(damageEvent);
+    land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
+  });
   const move = (root: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, duration: number) => {
     if (duration <= 0) root.position.copy(to);
     else moves.push({ root, from: from.clone(), to: to.clone(), elapsed: 0, duration });
@@ -282,15 +291,6 @@ export function playCombat(o: {
       return timing.approachMs + attackMs + timing.retreatMs;
     }
     if (event.t === "skill") {
-      const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => exactImpact(() => {
-        const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
-        const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
-        board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
-        if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
-        if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
-        o.onEvent?.(damageEvent);
-        land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
-      });
       const window = skillImpact?.src === event.src ? skillImpact : null;
       const semanticImpact = queueSkillDamage(event);
       if (window && !window.fired) {
@@ -324,6 +324,16 @@ export function playCombat(o: {
         board.setCombatBorder?.(event.src, "skill");
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
+        // Souls launch from the impact pose: queue the contiguous soul hits now so the
+        // cast impact can fire one projectile per queued damage event.
+        if (units.get(event.src)?.baseId === "spider_venom") {
+          while (index < o.events.length) {
+            const next = o.events[index];
+            if (next?.t !== "skill" || next.src !== event.src || next.kind !== "soul") break;
+            window.pending.push(queueSkillDamage(next));
+            index++;
+          }
+        }
         const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
           / getGameSpeedDisplayMultiplier(speedLevel);
         if (units.get(event.src)?.baseId === "weasel_quick" && event.targets[0]) {
