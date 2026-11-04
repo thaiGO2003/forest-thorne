@@ -3,9 +3,10 @@
 // big pink eyes, tiny fangs, blush cheeks and a gold heart pendant. Hovers (motion "fly").
 // Idle: gentle flap → happy wave → playful tilt → lazy hover · Combat idle: watch / rhythm bob / ready,
 // picked per beat by a deterministic hash · Move: slow flap blending into a fast swept-wing dash ·
-// Attack: charge → heart shot at impact → settle · Skill (Ma Lực Tình Yêu): gather → heart beam →
-// burst (impact) → hold → settle · Hit: flinch → recoil → recover · Death: drops to the ground, wings
-// fold flat, lies still, vanishes. 2★ gold wing bones + ear tips; 3★ heart crown + gold wing edges.
+// Attack: charge → heart shot at impact → settle · Skill (Hôn & Dơi Con): draw heart magic into
+// the mouth → release 1/2/3 kisses at impact .55 → hold / settle. Combat damage events distinguish
+// kisses from second-hit batlings; the same impact launches each projectile. 2★ golden wing bones;
+// 3★ heart crown + gold wing edges.
 //
 // Wings flap with an inner → outer segment lag; the pendant swings as a lagged pendulum. Flying units
 // never touch the ground in life; death lands the body on it (verified by tests/bat-love-rig.test.ts).
@@ -33,7 +34,7 @@ const EAR_SPLAY = 0.28;
 interface Wing { inner: Part; outer: Part; side: 1 | -1 }
 interface BatParts {
   body: Part; head: Part; lids: Part; mouth: Part; earL: Part; earR: Part;
-  pendant: Part; feet: Part; wings: Wing[];
+  pendant: Part; feet: Part; wings: Wing[]; kisses: Part[];
 }
 
 // ---------- allocation-free pose helpers ----------
@@ -137,6 +138,14 @@ export default defineUnit<BatParts>({
     mouth.box([0, -0.17, 0], [1.4, 0.35, 0.1], C.mouth)
       .box([0, -0.25, 0.03], [0.7, 0.18, 0.06], C.pink) // tongue
       .pair([0.45, -0.42, 0.05], [0.22, 0.35, 0.1], C.white); // tiny fangs
+    // A separate glowing heart for each star's kiss, all anchored at the mouth, never the pendant.
+    const kisses: Part[] = [];
+    for (let i = 0; i < star; i++) {
+      const heart = k.part(`kiss${i + 1}`, mouth, [0, 0, 0.32]);
+      heart.pair([0.17, 0.14, 0], [0.32, 0.3, 0.12], C.pinkL, { mat: "glow" })
+        .box([0, -0.08, 0], [0.34, 0.34, 0.13], C.heart, { mat: "glow", rot: [0, 0, Math.PI / 4] });
+      kisses.push(heart);
+    }
 
     // Ears: pink-lined, each its own pivot so twitches are independent.
     const ear = (side: 1 | -1) => {
@@ -186,13 +195,15 @@ export default defineUnit<BatParts>({
       head.box([0, 2.6, 1.32], [0.6, 0.6, 0.12], C.heart, { mat: "glow" });
     }
 
-    return { body, head, lids, mouth, earL, earR, pendant, feet, wings };
+    return { body, head, lids, mouth, earL, earR, pendant, feet, wings, kisses };
   },
 
   pose(r, c) {
     const { body, head, lids, mouth, feet } = r;
     const T = c.time;
     let lid = blinkAt(T, c.sig);
+    // Outside the skill window, projectile meshes never remain visible after a pose transition.
+    for (const heart of r.kisses) heart.group.scale.setScalar(0);
 
     switch (c.state) {
       case "idle": {
@@ -273,8 +284,8 @@ export default defineUnit<BatParts>({
         break;
       }
       case "skill": {
-        // Ma Lực Tình Yêu: tụ ma lực (0–.25) → bắn tia tim (.25–.45) → nổ phép (.45–.62, impact .55) →
-        // gây sát thương (hold .55–.75) → kết thúc (.75–1).
+        // Hearts and eventual batlings originate at the mouth; all skill damage lands at p=.55.
+        // Gather (0–.3), mouth launch (.35–.55), impact (.55), settle (.75–1).
         const p = c.p;
         const gather = win(p, 0, 0.3, 0.06);
         const beam = win(p, 0.25, 0.47, 0.04);
@@ -293,6 +304,15 @@ export default defineUnit<BatParts>({
         ears(r, T, c.sig, -0.3 * beam + 0.15 * burst);
         swingPendant(r, T, rate, 0.12 + 0.1 * burst, body.group.rotation.x);
         feet.group.rotation.x = 0.4 * burst;
+        const flight = ramp(p, 0.36, 0.55);
+        const visibility = ramp(p, 0.34, 0.43) * (1 - ramp(p, 0.59, 0.76));
+        for (let i = 0; i < r.kisses.length; i++) {
+          const heart = r.kisses[i]!;
+          heart.group.position.x = (i - (r.kisses.length - 1) / 2) * (0.38 + 0.7 * flight);
+          heart.group.position.z = 0.32 + 3.4 * flight;
+          heart.group.rotation.z = Math.sin(p * 18 + i) * 0.2;
+          heart.group.scale.setScalar(visibility * (0.8 + 0.3 * burst));
+        }
         break;
       }
       case "hit": {

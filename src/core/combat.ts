@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { FRENZY_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { FRENZY_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -168,7 +168,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -554,6 +554,8 @@ interface Ctx {
   /** 1-based cycle currently resolving (0 before the first cycle, e.g. in previews). */
   cycle: number;
   spores: SporeState;
+  /** Kiss counts are per caster and victim for this simulation only; batlings never update them. */
+  kissHits: Map<string, Map<string, number>>;
 }
 
 // ---------- Sương Độc spore pools (toad_spore_mist) ----------
@@ -878,6 +880,8 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 
 interface StrikeOptions {
   allowCounter?: boolean;
+  /** Presentation distinguishes mouth-fired kisses from the spawned batling strikes. */
+  kind?: "kiss" | "batling";
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -972,7 +976,8 @@ function strike(
   dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
   dmg = Math.max(1, Math.round(dmg * c.globalMult));
   const resolved = applyDamage(c, dst, dmg, src,
-    (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit }), true);
+    (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
+      ...(options.kind ? { kind: options.kind } : {}) }), true);
 
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
@@ -1076,6 +1081,9 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
   }
   const stableIndex = (x: Fighter) => stable.indexOf(x);
   switch (selector) {
+    case "highest_current_hp_role":
+      return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+        || b.hp - a.hp || stableIndex(a) - stableIndex(b)));
     case "self": return [f];
     case "lowest_hp_pct":
     case "lowest_hp_pct_ally":
@@ -1219,6 +1227,7 @@ export function combatTargetPreview(
     autoCastInFlight: new Set(),
     cycle: 0,
     spores: newSporeState(),
+    kissHits: new Map(),
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1423,6 +1432,45 @@ function castFrenzy(c: Ctx, f: Fighter, preferred: Fighter | undefined, trigger?
   };
 }
 
+/** One kiss per selected foe; the second landed kiss on a given foe spawns unique batlings at that impact. */
+function castLoveKiss(c: Ctx, f: Fighter, preferred?: Fighter, trigger?: AutoCastRole) {
+  const sp = f.skill;
+  const targets = skillTargets(c, f, sp, preferred);
+  const event: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((t) => t.uid) };
+  if (trigger) event.trigger = trigger;
+  c.events.push(event);
+  if (!sp.damage) return;
+  const d = sp.damage;
+  const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  let counts = c.kissHits.get(f.uid);
+  if (!counts) { counts = new Map(); c.kissHits.set(f.uid, counts); }
+  let landed = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i]!;
+    if (!target.alive) continue;
+    const kissRaw = i === 0 ? raw : Math.round(raw * (i === 1 ? 1 / 2 : 2 / 3));
+    const hit = strike(c, f, target, kissRaw, d.type, true, { kind: "kiss" });
+    if (!hit.landed) continue;
+    landed++;
+    if (target.alive) applyStatus(c, target, "stun", 1, 0, {
+      skillId: LOVE_KISS_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+    });
+    const next = (counts.get(target.uid) ?? 0) + 1;
+    counts.set(target.uid, next);
+    if (next !== 2) continue;
+    // Uniform sampling without replacement; never kiss-count, stun, or recursively spawn from a batling.
+    const available = foes(c, f).filter((other) => other !== target);
+    const batRaw = Math.round(raw / 3);
+    for (let n = 0; n < 5 && available.length; n++) {
+      const index = Math.floor(c.rng() * available.length);
+      const batTarget = available.splice(index, 1)[0]!;
+      if (batTarget.alive) strike(c, f, batTarget, batRaw, d.type, true, { kind: "batling" });
+    }
+  }
+  if (f.role === "MAGE") addRage(f, landed);
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1442,6 +1490,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     }
     if (family === SPORE_FAMILY) {
       castSporePools(c, f, options.trigger);
+      return;
+    }
+    if (family === LOVE_KISS_FAMILY) {
+      castLoveKiss(c, f, preferred, options.trigger);
       return;
     }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
@@ -1754,6 +1806,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     autoCastInFlight: new Set<Fighter>(),
     cycle: 0,
     spores: newSporeState(),
+    kissHits: new Map(),
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;

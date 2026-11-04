@@ -16,7 +16,7 @@ export type SkillSelector =
   | "lowest_mdef_backline" | "highest_atk_backline" | "isolated_backline" | "backline_caster"
   | "most_clustered_row" | "most_clustered_col" | "highest_total_atk_row" | "highest_total_atk_col"
   | "random" | "random_unique" | "same_row" | "same_row_carry" | "same_column" | "front_cone"
-  | "self" | "frontline_default" | "backline_jump" | "primary_target";
+  | "highest_current_hp_role" | "self" | "frontline_default" | "backline_jump" | "primary_target";
 
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
@@ -291,6 +291,9 @@ export const FRENZY_FAMILY = "blood_moon_frenzy";
  * Its authored text describes the mechanic for players only; numbers live in the engine constants.
  */
 export const SPORE_FAMILY = "toad_spore_mist";
+/** Dơi Tình Yêu's hit tracking and batling retaliation are resolved once per kiss in combat.ts. */
+export const LOVE_KISS_FAMILY = "love_kiss_batlings";
+
 
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
@@ -317,6 +320,13 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === LOVE_KISS_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: resolvedStar, selector: "highest_current_hp_role",
+      dots: [], controls: [{ kind: "stun", turns: 1, chance: 1 }],
+      debuffs: [], selfHealPctMaxHp: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -326,7 +336,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
     // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
-    s.selector = u.skill.family === FRENZY_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
+    s.selector = u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
+      : u.skill.family === FRENZY_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
