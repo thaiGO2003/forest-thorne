@@ -6378,7 +6378,7 @@
   "id": "weasel_quick",
   "species": "chon",
   "nameVi": "Phong Liêm Dứu",
-  "tier": 2,
+  "tier": 3,
   "role": "TANKER",
   "faction": "BEAST",
   "element": "WIND",
@@ -6396,29 +6396,29 @@
    "evade": 0.15,
    "accuracy": 0.95
   },
-  "pitchVi": "Đâm chớp nhoáng từ cột cuối cùng phía địch để rút nộ và bẻ độ chính xác carry.",
+  "pitchVi": "Liềm gió móc mục tiêu về hàng mình, suy yếu đòn đánh của hàng địch và phòng thủ trong vòng hiện tại.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Đâm Nhanh",
-   "family": "quick_strike_rage",
+   "nameVi": "Liềm Móc",
+   "family": "wind_sickle_hook",
    "rageCost": [
     1,
     2,
     3
    ],
-   "targetVi": "1 kẻ địch ở cột cuối cùng phía địch bị nhắm",
-   "shapeVi": "1 ô ở cột cuối cùng phía địch bị khóa",
-   "selectionVi": "Ưu tiên kẻ địch đứng ở cột cuối cùng phía địch.",
+   "targetVi": "1 kẻ địch ưu tiên theo vai trò",
+   "shapeVi": "Móc 1 mục tiêu về hàng của bản thân, chọn ô trống từ cột địch gần mình nhất",
+   "selectionVi": "Ưu tiên vai trò rồi chọn mục tiêu hợp lệ theo thứ tự ổn định.",
    "countVi": "1 mục tiêu",
-   "durationVi": "giảm chính xác 2 lượt; cộng nộ tức thì",
+   "durationVi": "giảm sát thương gây ra và chặn sát thương nhận vào đến hết vòng hiện tại",
    "starDetailVi": [
-    "Lao vào 1 kẻ địch ở cột cuối cùng phía địch bị nhắm, gây (15 + 0.6 x ATK) x Hệ số sao (1) = (15 + 0.6 x 73) x 1 = 59 (ATK), hồi 5 nộ cho bản thân, và giảm 15% chính xác của mục tiêu trong 2 lượt.",
-    "Lao vào 1 kẻ địch ở cột cuối cùng phía địch bị nhắm, gây (15 + 0.6 x ATK) x Hệ số sao (1.2) = (15 + 0.6 x 117) x 1.2 = 102 (ATK), hồi 5 nộ cho bản thân, và giảm 25% chính xác của mục tiêu trong 2 lượt. Nếu mục tiêu còn dưới 60% máu, Chồn Nhanh rút thêm 1 nộ từ mục tiêu.",
-    "Lao vào 1 kẻ địch ở cột cuối cùng phía địch bị nhắm, gây (15 + 0.6 x ATK) x Hệ số sao (1.4) = (15 + 0.6 x 183) x 1.4 = 175 (ATK), hồi 5 nộ cho bản thân, và giảm 35% chính xác của mục tiêu trong 2 lượt. Nếu mục tiêu còn dưới 60% máu, Chồn Nhanh rút thêm 1 nộ từ mục tiêu. Nếu mục tiêu chết vì cú lao, lập tức lao sang 1 kẻ địch khác ở cột cuối cùng phía địch gần nhất và gây [(15 + 0.6 x ATK) x Hệ số sao (1.4)] x Hệ số Truy Kích (0.5) = [(15 + 0.6 x 183) x 1.4] x 0.5 = 88 (ATK)."
+    "Móc 1 kẻ địch theo ưu tiên vai trò, gây (15 + 0.6 x ATK) x Hệ số sao (1) sát thương vật lý tại lúc liềm trúng, rồi kéo mục tiêu về hàng bản thân: thử cột địch gần mình nhất, lần lượt sang cột kế tiếp cho đến khi gặp ô trống.",
+    "Móc 1 kẻ địch theo ưu tiên vai trò, gây (15 + 0.6 x ATK) x Hệ số sao (1.2) sát thương vật lý tại lúc liềm trúng, rồi kéo về hàng bản thân qua cột trống đầu tiên. Sau khi kéo, giảm 1/3 sát thương gây ra của toàn bộ địch cùng hàng với bản thân đến hết vòng hiện tại.",
+    "Móc 1 kẻ địch theo ưu tiên vai trò, gây (15 + 0.6 x ATK) x Hệ số sao (1.4) sát thương vật lý tại lúc liềm trúng, rồi kéo về hàng bản thân qua cột trống đầu tiên. Sau khi kéo, giảm 1/2 sát thương gây ra của toàn bộ địch cùng hàng với bản thân đến hết vòng hiện tại. Bản thân giảm thêm 10 sát thương nhận vào mỗi lần trúng đòn sau giảm trừ phần trăm cho đến hết vòng hiện tại."
    ]
   },
   "skin": {
