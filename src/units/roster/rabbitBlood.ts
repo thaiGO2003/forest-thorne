@@ -2,11 +2,9 @@
 // Bipedal crimson brawler rabbit: very long pink-lined ears (two segments each), glowing red eyes,
 // fangs, heart mark on the chest, leather belt, gauntlets with claws, big hind feet, a three-segment
 // red scarf that trails with inertia, and a white tail puff.
-// Idle: knee bounce → fist clench → ear shake → small growl · Combat idle: watch / light step / ready,
-// picked per beat by a deterministic hash · Move: heavy steps blending into a dash with bounding hops ·
-// Attack: wind up → crescent claw swipe on impact → recover · Skill (Huyết Nộ Bộc Phá): gather →
-// eyes ignite → burst (impact) → curse seal (chained shiver) → settle · Hit: flinch → stagger back →
-// recover · Death: knees buckle, falls face down, lies still, vanishes.
+// Idle: knee bounce → fist clench → ear shake → small growl · Combat idle: watch / light step / ready.
+// Attack: claw sweep · Skill: draw a crimson sword and hold it aloft at the impact beat.
+// Recovery, death and scarf follow-through stay grounded for every star level.
 // 2★ adds glowing ear tips and a blood-moon aura ring; 3★ adds a horned crown and shoulder guards.
 //
 // Legs use a planted two-link solve with a level foot, so a lowered or shifted pelvis never sinks or
@@ -34,7 +32,7 @@ interface Arm { shoulder: Part; elbow: Part; side: 1 | -1 }
 interface Ear { base: Part; tip: Part; side: 1 | -1 }
 interface RabbitParts {
   hips: Part; torso: Part; head: Part; jaw: Part; eyes: Part; tail: Part;
-  ears: Ear[]; arms: Arm[]; legs: Leg[]; scarf: Part[]; aura: Part | null;
+  ears: Ear[]; arms: Arm[]; legs: Leg[]; scarf: Part[]; aura: Part | null; sword: Part;
 }
 
 // ---------- allocation-free pose helpers ----------
@@ -183,6 +181,13 @@ export default defineUnit<RabbitParts>({
       for (const dz of [-0.3, 0, 0.3]) elbow.box([side * 0.1, -1.6, 0.25 + dz], [0.22, 0.45, 0.22], C.claw);
       return { shoulder, elbow, side };
     });
+    // Sword follows the gauntlet: the oath raises its ruby-glowing blade overhead.
+    const sword = k.part("bloodSword", arms[0]!.elbow, [0, -1.7, 0.3]);
+    sword.box([0, -0.1, 0], [0.36, 0.9, 0.34], C.leather)
+      .box([0, -0.5, 0], [1.4, 0.24, 0.4], C.gold)
+      .box([0, -1.75, 0], [0.65, 2.3, 0.22], C.steel)
+      .box([0, -1.75, 0.13], [0.25, 2.2, 0.07], C.heart, { mat: "glow" })
+      .box([0, -3.08, 0], [0.42, 0.5, 0.16], C.scarf, { mat: "glow" });
 
     // Legs: thigh → knee (shin) → foot (big rabbit foot, kept level by the solver).
     const legs: Leg[] = ([1, -1] as const).map((side) => {
@@ -225,7 +230,7 @@ export default defineUnit<RabbitParts>({
       for (const a of arms) a.shoulder.box([0, 0.05, 0], [1.3, 0.6, 1.3], C.steel).box([0, -0.3, 0], [1.4, 0.15, 1.4], C.gold);
     }
 
-    return { hips, torso, head, jaw, eyes, tail, ears, arms, legs, scarf, aura };
+    return { hips, torso, head, jaw, eyes, tail, ears, arms, legs, scarf, aura, sword };
   },
 
   pose(r, c) {
@@ -345,38 +350,28 @@ export default defineUnit<RabbitParts>({
         break;
       }
       case "skill": {
-        // Huyết Nộ Bộc Phá: tụ ma lực (0–.22) → đỏ mắt (.2–.4) → bùng nổ (.4–.6, impact .5) →
-        // dấu ấn trì hoãn (curse seal, .58–.8) → kết thúc (.8–1).
+        // Giơ Kiếm Lên Trời: plant feet, raise the sword above the head, swear the oath at impact .5.
+        // Crimson sword core + bright eyes + star aura read as debuff protection during the action.
         const p = c.p;
-        const gather = win(p, 0, 0.42, 0.08);
-        const glare = win(p, 0.2, 0.62, 0.05);
-        const burst = win(p, 0.42, 0.62, 0.04);
-        const seal = win(p, 0.58, 0.82, 0.04);
-        const end = bell(p, 0.8, 1);
-        const jump = bell(p, 0.42, 0.6) * 1.2;
-        const dy = -0.9 * gather + jump - 0.3 * seal;
+        const raise = ramp(p, 0.07, 0.42) * (1 - ramp(p, 0.72, 0.95));
+        const oath = win(p, 0.35, 0.78, 0.04);
+        const brace = ramp(p, 0.12, 0.38) * (1 - ramp(p, 0.7, 0.95));
+        const dy = -0.35 * brace + 0.12 * bell(p, 0.7, 1);
         hips.group.position.y += dy;
-        torso.group.rotation.x = 0.25 * gather - 0.2 * burst + 0.1 * seal;
-        if (jump > 0.05) {
-          // Airborne burst: legs tuck, nothing is planted.
-          for (let i = 0; i < legs.length; i++) poseLeg(legs[i]!, 0, -0.2, 0.9 * clamp01(jump / 1.2), 0);
-        } else {
-          plantLegs(legs, dy, 0, 0);
-        }
-        // Gather: fists crossed at the chest · burst: arms flung wide · seal: arms pinned down, shaking.
-        const shiver = seal * Math.sin(c.t * 40) * 0.06;
-        poseArm(armR, -1.2 * gather - 0.3 * burst + 0.2 * seal, -0.5 * gather + 1.3 * burst + 0.1 * seal + shiver, 1.2 * gather + 0.2 * seal);
-        poseArm(armL, -1.2 * gather - 0.3 * burst + 0.2 * seal, -0.5 * gather + 1.3 * burst + 0.1 * seal - shiver, 1.2 * gather + 0.2 * seal);
-        clench(armR, 0.6 + 0.4 * (gather + seal)); clench(armL, 0.6 + 0.4 * (gather + seal));
-        head.group.rotation.x = 0.2 * gather - 0.25 * burst + 0.1 * seal;
-        head.group.rotation.y = shiver * 2;
-        jaw.group.rotation.x = 0.1 * gather + 0.5 * burst + 0.15 * seal;
-        eyes.group.scale.setScalar(1 + 0.9 * glare + 0.3 * seal);
-        lid = Math.max(lid * (1 - glare), 0.35 * gather * (1 - glare));
-        poseEars(r, T, c.sig, -0.3 * gather - 0.5 * burst + 0.2 * seal, 0.3 * burst, 0.1 + 0.3 * seal, 0.4 * seal);
-        poseScarf(scarf, T, 0.2 + 1.0 * burst + 0.3 * gather, 6 + 10 * burst, 0.3 * burst);
-        if (aura) aura.group.scale.multiplyScalar(1 + 0.25 * burst);
-        tail.group.rotation.x = 0.3 * burst;
+        plantLegs(legs, dy, 0, 0);
+        torso.group.rotation.x = 0.1 * brace - 0.16 * oath;
+        poseArm(armR, -0.6 - 2.3 * raise, 0.22 * oath, 0.15 * raise);
+        poseArm(armL, -0.8 * brace, 0.35 * brace, 1.1 * brace);
+        clench(armR, 0.8 + 0.2 * oath);
+        clench(armL, 0.4 + 0.6 * brace);
+        head.group.rotation.x = -0.18 * raise;
+        jaw.group.rotation.x = 0.24 * oath;
+        eyes.group.scale.setScalar(1 + 0.75 * oath);
+        lid = Math.max(lid * (1 - oath), 0.15 * brace * (1 - oath));
+        poseEars(r, T, c.sig, -0.4 * raise, 0.15 * oath, 0.12, 0.2 * oath);
+        poseScarf(scarf, T, 0.2 + 0.55 * oath, 5 + 7 * oath, 0.2 * oath);
+        if (aura) aura.group.scale.multiplyScalar(1 + 0.22 * oath);
+        tail.group.rotation.x = 0.15 * oath;
         break;
       }
       case "hit": {
@@ -411,7 +406,7 @@ export default defineUnit<RabbitParts>({
     seconds: 1.2,
     vanishAt: 0.7,
     pose(r: RabbitParts, c: DeathCtx) {
-      const { hips, torso, head, jaw, eyes, legs, arms, scarf } = r;
+      const { hips, torso, head, jaw, eyes, legs, arms, scarf, sword } = r;
       const p = c.p;
       const kneel = ramp(p, 0, 0.3), fall = ramp(p, 0.2, 0.5), twitch = bell(p, 0.5, 0.62);
       const pitch = (Math.PI / 2) * fall; // the whole body tips forward onto its face
@@ -441,6 +436,8 @@ export default defineUnit<RabbitParts>({
       // Face down, "down" in body space is +z: arms reach overhead (they end up stretched forward along
       // the ground) and ears/tips curl toward −z (up in world) so nothing digs into the tile.
       for (let i = 0; i < arms.length; i++) poseArm(arms[i]!, -2.7 * fall, 0.35 * fall, 0.1 * fall);
+      // The oath blade dissolves as the rabbit collapses; it cannot clip below the board.
+      sword.group.scale.multiplyScalar(1 - ramp(p, 0.1, 0.21));
       head.group.rotation.x = 0.2 * kneel - 0.6 * fall;
       head.group.rotation.y = 0.25 * fall;
       jaw.group.rotation.x = 0.15 * fall;
