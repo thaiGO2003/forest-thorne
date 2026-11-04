@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, HARD_BEAK_DIVE_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -811,7 +811,9 @@ function applyDamage(
   const reduction = dst.status.damageReduction?.turns > 0
     ? Math.min(0.9, Math.max(0, dst.status.damageReduction.value))
     : 0;
-  const appliedDamage = Math.max(1, Math.round(dmg * (1 - reduction)));
+  // Hard-beak vulnerability is incoming damage from every source, after mitigation and before shields.
+  const vulnerability = dst.status.hardBeakVulnerability?.value ?? 0;
+  const appliedDamage = Math.max(1, Math.round(dmg * (1 - reduction) * (1 + vulnerability)));
   const absorbed = Math.min(dst.shield, appliedDamage);
   dst.shield -= absorbed;
   const toHp = Math.min(dst.hp, appliedDamage - absorbed);
@@ -1436,6 +1438,39 @@ function castLoveKiss(c: Ctx, f: Fighter, preferred?: Fighter, trigger?: AutoCas
   if (f.role === "MAGE") addRage(f, landed);
 }
 
+/** Single airborne dive impact; the first hit establishes vulnerability for subsequent damage only. */
+function castHardBeakDive(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const targets = foes(c, f).sort((a, b) =>
+    AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+    || dist(f, a) - dist(f, b)
+    || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+    || a.uid.localeCompare(b.uid));
+  const target = targets[0];
+  const event: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
+  if (trigger) event.trigger = trigger;
+  c.events.push(event);
+  if (!target) return;
+  const damage = f.skill.damage!;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  strike(c, f, target, raw, damage.type, true, { allowCounter: false });
+  if (target.alive) {
+    const source: SkillStatusOrigin = {
+      skillId: HARD_BEAK_DIVE_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+    };
+    applyStatus(c, target, "stun", 1, 0, source);
+    applyStatus(c, target, "hardBeakVulnerability", f.star === 1 ? 1 : 999999,
+      f.star === 1 ? 1 / 3 : 2 / 3, source);
+  }
+  if (f.star === 3 && f.alive) {
+    // Reuse this skill's catalog damage formula and canonical star multiplier for absorption.
+    const amount = Math.max(1, Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+      * (STAR_SKILL[f.star] ?? 1)));
+    f.shield += amount;
+    c.events.push({ t: "shield", src: f.uid, dst: f.uid, amount });
+  }
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1459,6 +1494,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     }
     if (family === LOVE_KISS_FAMILY) {
       castLoveKiss(c, f, preferred, options.trigger);
+      return;
+    }
+    if (family === HARD_BEAK_DIVE_FAMILY) {
+      castHardBeakDive(c, f, options.trigger);
       return;
     }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
@@ -1627,6 +1666,7 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   if (f.berserk && --f.berserk.turns <= 0) f.berserk = null;
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
+    if (k === "hardBeakVulnerability") continue;
     if (k === "hot") continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
@@ -1811,6 +1851,10 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
       if (f.oath?.cycle !== c.cycle) continue;
       if (f.alive && f.oath.star === 3) cleanseRandomDebuffs(c, f, 1);
       f.oath = null;
+    }
+    // 1★ vulnerability lasts through the current shared round, not the target's action.
+    for (const f of all) {
+      if ((f.status.hardBeakVulnerability?.value ?? 0) <= 1 / 3) delete f.status.hardBeakVulnerability;
     }
   }
   const alive = { L: count("L"), R: count("R") };
