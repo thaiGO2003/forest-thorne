@@ -314,6 +314,11 @@ export function playCombat(o: {
         skillImpact = window;
         const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
           / getGameSpeedDisplayMultiplier(speedLevel);
+        if (units.get(event.src)?.baseId === "weasel_quick" && event.targets[0]) {
+          const origin = position(event.src);
+          origin.y += 0.6;
+          fx.shot(origin, position(event.targets[0]), 0x8bdfcf, skillSeconds * 0.55, PRESENTATION_ONLY, 0.15);
+        }
         visual.play("skill", {
           duration: skillSeconds,
           onImpact: () => {
@@ -327,6 +332,21 @@ export function playCombat(o: {
             if (!disposed) clearActorFocus(event.src);
           },
         });
+        break;
+      }
+      case "hookPull": {
+        const pull = exactImpact(() => {
+          const visual = board.visual(event.dst);
+          if (!visual) return;
+          const from = visual.root.position.clone();
+          const cell = board.cellCenter(event.col, event.row);
+          const to = new THREE.Vector3(cell.x, from.y, cell.z);
+          fx.burst(position(event.dst), 0x8bdfcf);
+          board.flashCell?.(event.col, event.row, "direct");
+          move(visual.root, from, to, scaleCombatPresentationMs(300, speedLevel));
+        });
+        if (skillImpact?.src === event.src && !skillImpact.fired) skillImpact.pending.push(pull);
+        else pull();
         break;
       }
       case "dot": {
