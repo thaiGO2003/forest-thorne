@@ -18,6 +18,8 @@ export interface UnitSkill {
   rageCost: [number, number, number];
   targetVi?: string; shapeVi?: string; selectionVi?: string; countVi?: string; durationVi?: string;
   detailVi?: string;
+  /** Optional authored chance for Bướm Cỏ's fourth-target bonus (0–1); absent means no proc. */
+  fourthTargetBonusChance?: number;
   starDetailVi: string[];
 }
 

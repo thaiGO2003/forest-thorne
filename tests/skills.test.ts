@@ -49,8 +49,8 @@ describe("skill parser", () => {
       pctByDamageType: { physical: 0.35 }, turns: 3,
       offenseDebuff: { value: 20, turns: 2, mode: "autoByRole" },
     });
-    expect(skillSpec("butterfly_mirror", 3).reaction.reflect).toEqual({
-      pctByDamageType: { magic: 0.45 }, turns: 3,
+    expect(skillSpec("butterfly_mirror", 3)).toMatchObject({
+      side: "enemy", selector: "grass_row", damage: { base: 0, scale: 1, stat: "matk", type: "magic" }, reaction: {},
     });
     expect(skillSpec("pangolin_plate", 2).reaction.reflect).toEqual({
       pctByDamageType: { physical: 1.15 }, turns: 3,

@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, GRASS_STORM_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -153,7 +153,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -866,7 +866,7 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 interface StrikeOptions {
   allowCounter?: boolean;
   /** Presentation distinguishes mouth-fired kisses from the spawned batling strikes. */
-  kind?: "kiss" | "batling";
+  kind?: "kiss" | "batling" | "grass";
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -1119,6 +1119,10 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
     }
     case "random":
       return Array.from({ length: max }, () => pool[Math.floor(c.rng() * pool.length)]!);
+    case "grass_row":
+      return take([...pool].filter((x) => x.row === f.row)
+        .sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+          || dist(f, a) - dist(f, b) || a.uid.localeCompare(b.uid)));
     case "same_row":
     case "same_row_carry": {
       const row = stable.filter((x) => x.row === f.row);
@@ -1436,6 +1440,29 @@ function castLoveKiss(c: Ctx, f: Fighter, preferred?: Fighter, trigger?: AutoCas
   if (f.role === "MAGE") addRage(f, landed);
 }
 
+/** A single immutable row order drives both the cast target list and sequential damage events. */
+function castGrassStorm(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const sp = f.skill;
+  const targets = skillTargets(c, f, sp);
+  const cast: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = sp.damage;
+  if (!damage) return;
+  const raw = (damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]);
+  for (let i = 0; i < targets.length; i++) {
+    const dst = targets[i]!;
+    if (!dst.alive || !f.alive) continue;
+    const multiplier = f.star === 3 ? Math.max(0.25, 1 - 0.15 * i)
+      : [1, 0.8, 0.6, 0.4][i] ?? 0.4;
+    const chance = sp.fourthTargetBonusChance;
+    const bonus = f.star === 2 && i === 3 && chance != null && chance > 0
+      && c.rng() < Math.min(1, Math.max(0, chance)) ? 0.2 : 0;
+    strike(c, f, dst, Math.round(raw * (multiplier + bonus)), "magic", true, { kind: "grass" });
+  }
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1459,6 +1486,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     }
     if (family === LOVE_KISS_FAMILY) {
       castLoveKiss(c, f, preferred, options.trigger);
+      return;
+    }
+    if (family === GRASS_STORM_FAMILY) {
+      castGrassStorm(c, f, options.trigger);
       return;
     }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";

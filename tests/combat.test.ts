@@ -730,10 +730,11 @@ describe("combat", () => {
     const mage = physicalOnly.survivors.find((f) => f.uid === "mage");
     expect(mage?.mods.some((m) => (m.stat === "atk" || m.stat === "matk") && m.value === -20)).toBe(false);
 
-    const magicOnly = battle([{ uid: "butterfly", baseId: "butterfly_mirror", star: 1, row: 0, col: 4 }],
+    const grass = battle([{ uid: "butterfly", baseId: "butterfly_mirror", star: 1, row: 0, col: 4 }],
     [{ uid: "mage", baseId: "firefly_light", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 2 }, R: { matkPct: 1_000, hpPct: 500 } } },);
-    expect(magicOnly.events.some((e) => e.t === "reflect" && e.src === "butterfly" && e.dst === "mage")).toBe(true);
+    expect(grass.events.some((e) => e.t === "reflect" && e.src === "butterfly")).toBe(false);
+    expect(grass.events.some((e) => e.t === "skill" && e.src === "butterfly" && e.kind === "grass")).toBe(true);
   });
 
   it("does not let lifesteal rescue an attacker made lethal by reflect", () => {

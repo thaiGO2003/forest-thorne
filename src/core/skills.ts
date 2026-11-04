@@ -15,7 +15,7 @@ export type SkillSelector =
   | "highest_matk" | "highest_atk" | "highest_max_hp_front" | "lowest_def_front"
   | "lowest_mdef_backline" | "highest_atk_backline" | "isolated_backline" | "backline_caster"
   | "most_clustered_row" | "most_clustered_col" | "highest_total_atk_row" | "highest_total_atk_col"
-  | "random" | "random_unique" | "same_row" | "same_row_carry" | "same_column" | "front_cone"
+  | "random" | "random_unique" | "same_row" | "same_row_carry" | "grass_row" | "same_column" | "front_cone"
   | "highest_current_hp_role" | "self" | "frontline_default" | "backline_jump" | "primary_target";
 
 export interface Formula { base: number; scale: number; stat: Stat }
@@ -45,6 +45,9 @@ export interface SkillReactionSpec {
   berserk?: BerserkReactionSpec;
 }
 
+/** Bướm Cỏ: sequential same-row magic impacts, with no persistent status. */
+export const GRASS_STORM_FAMILY = "grass_row_storm";
+
 export interface SkillSpec {
   /** Who the primary effect lands on. */
   side: "enemy" | "ally" | "self";
@@ -72,6 +75,8 @@ export interface SkillSpec {
   rageGrant: number;
   revivePct: number;
   reaction: SkillReactionSpec;
+  /** Only the fourth hit of the 2★ grass storm may proc; null when not configured. */
+  fourthTargetBonusChance?: number | null;
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
@@ -327,6 +332,14 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       debuffs: [], selfHealPctMaxHp: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === GRASS_STORM_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: resolvedStar === 1 ? 3 : resolvedStar === 2 ? 4 : Number.MAX_SAFE_INTEGER,
+      selector: "same_row", damage: { base: 0, scale: 1, stat: "matk", type: "magic" },
+      dots: [], controls: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [],
+      reaction: {}, fourthTargetBonusChance: u.skill.fourthTargetBonusChance ?? null,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -336,7 +349,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
     // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
-    s.selector = u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
+    s.selector = u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
+      : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }

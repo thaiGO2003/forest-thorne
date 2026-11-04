@@ -12,6 +12,7 @@ import antGuard from "./roster/antGuard";
 import rabbitBlood from "./roster/rabbitBlood";
 import roosterRapper from "./roster/roosterRapper";
 import butterflyFrost from "./roster/butterflyFrost";
+import butterflyGrass from "./roster/butterflyGrass";
 import woodpeckerShield from "./roster/woodpeckerShield";
 import kirinVolt from "./roster/kirinVolt";
 import spiderSpirit from "./roster/spiderSpirit";
@@ -30,6 +31,7 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   rabbit_blood: rabbitBlood,
   crane_blessing: roosterRapper,
   ice_mage: butterflyFrost,
+  butterfly_mirror: butterflyGrass,
   woodpecker_drill: woodpeckerShield,
   kirin_thunder: kirinVolt,
   spider_venom: spiderSpirit,

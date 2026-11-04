@@ -686,8 +686,8 @@
  {
   "id": "butterfly_mirror",
   "species": "buom",
-  "nameVi": "Bướm Kính",
-  "tier": 2,
+  "nameVi": "Bướm Cỏ",
+  "tier": 4,
   "role": "SUPPORT",
   "faction": "INSECT",
   "element": "SPIRIT",
@@ -705,29 +705,25 @@
    "evade": 0.07,
    "accuracy": 0.95
   },
-  "pitchVi": "Dựng khiên phản phép rồi san sẻ lá chắn cho đồng minh.",
+  "pitchVi": "Triệu hồi bão cỏ xuyên hàng, mỗi mục tiêu tiếp theo chịu sát thương phép giảm dần.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "projectile, magic, 1×MATK, 1 kẻ địch gần nhất, single ×1."
   },
   "skill": {
-   "nameVi": "Vảy Gương",
-   "family": "mirror_reflect",
-   "rageCost": [
-    2,
-    3,
-    4
-   ],
-   "targetVi": "bản thân + 1 đồng minh gần nhất",
-   "shapeVi": "tự thân rồi lan khiên sang đồng minh",
-   "selectionVi": "Tự nhận khiên trước, rồi chọn 1 đồng minh gần nhất.",
-   "countVi": "1 bản thân + 1 đồng minh",
-   "durationVi": "phản phép 2 lượt",
+   "nameVi": "Bão Cỏ Xuyên Hàng",
+   "family": "grass_row_storm",
+   "rageCost": [2, 3, 4],
+   "targetVi": "kẻ địch cùng hàng với Bướm Cỏ",
+   "shapeVi": "luồng bão cỏ xuyên tuần tự qua hàng",
+   "selectionVi": "Ưu tiên role, sau đó khoảng cách gần đến xa trong cùng hàng; không đổi thứ tự khi gây sát thương.",
+   "countVi": "1★ tối đa 3; 2★ tối đa 4; 3★ toàn bộ cùng hàng",
+   "durationVi": "gây sát thương lần lượt ngay khi bão cỏ chạm mục tiêu",
    "starDetailVi": [
-    "Tự tạo khiên bằng (40 + 20% MATK), phản 25% sát thương phép nhận vào trong 2 lượt, rồi chia 30% lượng khiên đó cho 1 đồng minh gần nhất.",
-    "Tự tạo khiên bằng (60 + 30% MATK), phản 35% sát thương phép nhận vào trong 2 lượt, rồi chia 35% lượng khiên đó cho 1 đồng minh có % máu thấp nhất.",
-    "Tự tạo khiên bằng (80 + 40% MATK), phản 45% sát thương phép nhận vào trong 3 lượt, rồi chia 40% lượng khiên đó cho tối đa 2 đồng minh cùng hàng."
+    "Bão cỏ xuyên tối đa 3 kẻ địch cùng hàng theo role và khoảng cách, gây sát thương phép lần lượt bằng 100%, 80%, 60% sát thương gốc (1 × MATK).",
+    "Bão cỏ xuyên tối đa 4 kẻ địch cùng hàng theo role và khoảng cách; ba mục tiêu đầu nhận 100%, 80%, 60% sát thương phép gốc (1 × MATK); mục tiêu thứ tư có xác suất theo cấu hình nhận thêm 20% sát thương.",
+    "Bão cỏ xuyên toàn bộ kẻ địch cùng hàng theo role và khoảng cách, gây sát thương phép gốc (1 × MATK) giảm 15% tích lũy mỗi mục tiêu, tối đa giảm 75% (ít nhất 25%)."
    ]
   },
   "skin": {
