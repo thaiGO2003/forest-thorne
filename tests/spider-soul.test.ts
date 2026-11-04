@@ -186,7 +186,7 @@ describe("Nhện Linh soul volley — issue #96", () => {
       const { fighters } = setup(1, 1, { paralyze: 0.2 });
       const { events, hits } = firstVolley(fighters, seed);
       expect(hits).toHaveLength(1);
-      const status = events.filter((event) => event.t === "status" && event.kind === "paralyze");
+      const status = events.filter((event): event is Extract<CombatEvent, { t: "status" }> => event.t === "status" && event.kind === "paralyze");
       // A paralyze apply and its expiry are two status events for one victim; count applications only.
       const applications = status.filter((event) => event.turns > 0);
       expect(applications.length).toBeLessThanOrEqual(1);
