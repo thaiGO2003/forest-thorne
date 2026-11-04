@@ -2,10 +2,10 @@
 // approved "Gõ Kiến Mỏ Cứng" sheet. Stout black-and-white woodpecker with a tall red crest, a long steel
 // beak, thin grey legs and a round log shield on the left wing.
 // Idle: stand → look → light peck → alert · Combat idle: brace / guard / ready (deterministic beats) ·
-// Move: steps blending into a run · Attack: rear back → peck on impact → recover · Skill: shield up →
-// charge → lunge → rapid pecks (impact) → stun hold → settle · Hit: shield block → pushed back →
-// steady · Death: legs fold → slump → vanish. 2★ gold shield rim + chest band; 3★ gold helm, glowing
-// amber shield core and wing plates.
+// Move: steps blending into a run · Attack: rear back → peck on impact → recover · Skill: wings
+// launch into the air → single descending beak impact at p=.55 → stun hold → shield brace.
+// Hit: shield block → pushed back → steady · Death: legs fold → slump → vanish.
+// 2★ gold shield rim + chest band; 3★ gold helm, glowing amber shield core and wing plates.
 import type { Part } from "../kit";
 import { bell, defineUnit, ramp, type DeathCtx } from "../rig";
 
@@ -189,20 +189,22 @@ export default defineUnit<Parts>({
         break;
       }
       case "skill": {
-        // shield up (0–.2) → charge (.18–.38) → lunge (.36–.5) → rapid pecks (impact .55) → stun hold → settle.
+        // Lift through p=.38, dive to contact at p=.55, hold the beak planted, then recover.
         const p = c.p;
-        const shieldK = win(p, 0, 0.42, 0.08), charge = win(p, 0.18, 0.4, 0.06);
-        const lunge = ramp(p, 0.36, 0.5) * (1 - ramp(p, 0.75, 0.95)), peck = win(p, 0.46, 0.72, 0.03);
-        const hold = win(p, 0.7, 0.88, 0.04);
-        dy = -0.5 * shieldK - 0.2 * lunge;
-        dz = -0.3 * charge + 1.6 * lunge;
-        th = -0.1 * charge + 0.15 * lunge;
-        guard(r, shieldK + 0.4 * hold);
-        head.group.rotation.x = -0.5 * charge + peck * (0.3 + Math.max(0, Math.sin(c.t * 30)) * 0.35);
-        crest.group.rotation.x = -0.5 * (charge + hold);
-        wingR.group.rotation.x = 0.6 * charge;
-        wingR.group.rotation.z = 0.3 * hold;
-        lid = Math.max(lid, 0.3 * charge);
+        const lift = ramp(p, 0.08, 0.32) * (1 - ramp(p, 0.38, 0.55));
+        const dive = ramp(p, 0.38, 0.55) * (1 - ramp(p, 0.65, 0.86));
+        const hold = win(p, 0.55, 0.84, 0.04);
+        dy = 2.1 * lift;
+        dz = -0.25 * lift + 1.5 * dive;
+        th = -0.28 * lift + 0.5 * dive;
+        guard(r, c.star === 3 ? 0.85 * hold : 0.2 * hold);
+        head.group.rotation.x = -0.4 * lift + 0.85 * dive;
+        crest.group.rotation.x = -0.25 * lift + 0.4 * dive;
+        wingL.group.rotation.z = -0.7 * lift;
+        wingR.group.rotation.z = 0.7 * lift;
+        wingL.group.rotation.x = 0.45 * lift;
+        wingR.group.rotation.x = 0.45 * lift;
+        lid = Math.max(lid, 0.45 * dive);
         break;
       }
       case "hit": {

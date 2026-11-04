@@ -6677,29 +6677,29 @@
    "evade": 0.1,
    "accuracy": 0.95
   },
-  "pitchVi": "Khoan thủng tanker tuyến trước rồi tán áp lực sang cụm địch gần đó.",
+  "pitchVi": "Bay lên lao mỏ, choáng địch và khiến mục tiêu chịu thêm sát thương; cấp sao cao tạo khiên tự bảo vệ.",
   "basic": {
    "delivery": "projectile",
    "damageType": "physical",
    "textVi": "tầm xa/projectile, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Khoan Liên Tục",
-   "family": "rapid_fire",
+   "nameVi": "Lao Mỏ",
+   "family": "hard_beak_dive",
    "rageCost": [
     1,
     2,
     3
    ],
-   "targetVi": "1 tanker địch ở cột đầu tiên phía địch; nếu không có thì 1 kẻ địch ở cột đó có HP tối đa cao nhất",
-   "shapeVi": "3 phát liên tiếp vào cùng 1 mục tiêu",
-   "selectionVi": "Ưu tiên tanker ở cột đầu tiên phía địch; nếu không có thì khóa kẻ địch ở cột đó có HP tối đa cao nhất.",
-   "countVi": "1 mục tiêu chính, 3 phát",
-   "durationVi": "giảm 18 DEF trong 2 lượt",
+   "targetVi": "1 kẻ địch gần nhất theo ưu tiên vai trò",
+   "shapeVi": "Bay lên rồi lao mỏ trúng một mục tiêu tại thời điểm va chạm",
+   "selectionVi": "Ưu tiên vai trò địch, sau đó chọn mục tiêu gần nhất; hòa thì theo vị trí và UID.",
+   "countVi": "1 mục tiêu, 1 lần sát thương vật lý",
+   "durationVi": "Choáng 1 lượt; 1★ dễ tổn thương đến hết vòng, 2★/3★ duy trì đến hết trận",
    "starDetailVi": [
-    "Bắn liên tiếp 3 phát vào 1 tanker địch ở cột đầu tiên phía địch; nếu không có thì khóa 1 kẻ địch ở cột đó có HP tối đa cao nhất. Mỗi phát gây (10 + 0.45 x ATK) x Hệ số sao (1) = (10 + 0.45 x 74) x 1 = 43 (ATK). Phát 2 làm mục tiêu giảm 18 DEF trong 2 lượt. Phát 3 gây [(10 + 0.45 x ATK) x Hệ số sao (1)] x Hệ số Khoan Sâu (1.4) = [(10 + 0.45 x 74) x 1] x 1.4 = 60 (ATK). Nếu mục tiêu đang bị giảm DEF bởi chuỗi này, phát 3 bỏ qua 25% DEF còn lại.",
-    "Bắn liên tiếp 4 phát vào 1 tanker địch ở cột đầu tiên phía địch; nếu không có thì khóa 1 kẻ địch ở cột đó có HP tối đa cao nhất. Mỗi phát gây (10 + 0.45 x ATK) x Hệ số sao (1.2) = (10 + 0.45 x 118) x 1.2 = 76 (ATK). Nếu mục tiêu ngã trước khi hết chuỗi, các phát còn lại tự chuyển sang kẻ địch gần nhất và vẫn giữ mốc phát hiện tại. Phát 2 làm mục tiêu giảm 18 DEF trong 2 lượt. Phát 3 gây [(10 + 0.45 x ATK) x Hệ số sao (1.2)] x Hệ số Khoan Sâu (1.4) = [(10 + 0.45 x 118) x 1.2] x 1.4 = 106 (ATK). Nếu mục tiêu đang bị giảm DEF bởi chuỗi này, phát 3 bỏ qua 25% DEF còn lại. Phát 4 làm văng mảnh giáp sang 2 kẻ địch gần nhất, mỗi mục tiêu chịu [(10 + 0.45 x ATK) x Hệ số sao (1.2)] x Hệ số Văng (0.5) = [(10 + 0.45 x 118) x 1.2] x 0.5 = 38 (ATK) và giảm 10 DEF trong 2 lượt.",
-    "Bắn liên tiếp 5 phát vào 1 tanker địch ở cột đầu tiên phía địch; nếu không có thì khóa 1 kẻ địch ở cột đó có HP tối đa cao nhất. Mỗi phát gây (10 + 0.45 x ATK) x Hệ số sao (1.4) = (10 + 0.45 x 185) x 1.4 = 131 (ATK). Nếu mục tiêu ngã trước khi hết chuỗi, các phát còn lại tự chuyển sang kẻ địch gần nhất và vẫn giữ mốc phát hiện tại. Phát 2 làm mục tiêu giảm 18 DEF trong 2 lượt. Phát 3 gây [(10 + 0.45 x ATK) x Hệ số sao (1.4)] x Hệ số Khoan Sâu (1.4) = [(10 + 0.45 x 185) x 1.4] x 1.4 = 183 (ATK). Nếu mục tiêu đang bị giảm DEF bởi chuỗi này, phát 3 bỏ qua 25% DEF còn lại. Phát 4 làm văng mảnh giáp sang 2 kẻ địch gần nhất, mỗi mục tiêu chịu [(10 + 0.45 x ATK) x Hệ số sao (1.4)] x Hệ số Văng (0.5) = [(10 + 0.45 x 185) x 1.4] x 0.5 = 66 (ATK) và giảm 10 DEF trong 2 lượt. Phát 5 bắn tách 3 mũi khoan vào tối đa 3 kẻ địch gần nhất quanh mục tiêu hiện tại, mỗi mũi gây [(10 + 0.45 x ATK) x Hệ số sao (1.4)] x Hệ số Tán (1) = [(10 + 0.45 x 185) x 1.4] x 1 = 131 (ATK), ưu tiên mục tiêu chưa bị chuỗi này chạm tới."
+    "Bay lên rồi lao mỏ trúng 1 kẻ địch gần nhất theo ưu tiên vai trò, gây (10 + 0.45 x ATK) sát thương vật lý tại va chạm và choáng 1 lượt. Mục tiêu nhận thêm 1/3 sát thương từ mọi nguồn đến hết vòng hiện tại; tái áp dụng chỉ làm mới thời hạn.",
+    "Bay lên rồi lao mỏ trúng 1 kẻ địch gần nhất theo ưu tiên vai trò, gây (10 + 0.45 x ATK) sát thương vật lý tại va chạm và choáng 1 lượt. Mục tiêu nhận thêm 2/3 sát thương từ mọi nguồn tới hết trận; tái áp dụng giữ mức mạnh nhất, không cộng dồn.",
+    "Bay lên rồi lao mỏ trúng 1 kẻ địch gần nhất theo ưu tiên vai trò, gây (10 + 0.45 x ATK) sát thương vật lý tại va chạm và choáng 1 lượt. Mục tiêu nhận thêm 2/3 sát thương từ mọi nguồn tới hết trận; tái áp dụng giữ mức mạnh nhất, không cộng dồn. Bản thân nhận khiên bằng (10 + 0.45 x ATK) sau va chạm, hấp thụ sát thương cho tới khi bị phá."
    ]
   },
   "skin": {
