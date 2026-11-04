@@ -28,6 +28,12 @@ export const VISUAL_UNIT_IDS: readonly string[] = [
   "fox_flame",
   "worm_ice",
   "bear_ancient",
+  "wisp_light",
+  "hippo_maul",
+  "yak_highland",
+  "cat_goldbow",
+  "swan_grace",
+  "dryad_tree",
 ];
 
 const VISUAL_UNITS = new Set<string>(VISUAL_UNIT_IDS);

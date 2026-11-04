@@ -30,6 +30,12 @@ import oxMountain from "./roster/oxMountain";
 import foxSlingshot from "./roster/foxSlingshot";
 import saolaFrost from "./roster/saolaFrost";
 import boarGlutton from "./roster/boarGlutton";
+import timeCloth from "./roster/timeCloth";
+import pigCharm from "./roster/pigCharm";
+import bullRage from "./roster/bullRage";
+import hedgehogSun from "./roster/hedgehogSun";
+import duckKing from "./roster/duckKing";
+import elfSheep from "./roster/elfSheep";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -60,6 +66,12 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   fox_flame: foxSlingshot,
   worm_ice: saolaFrost,
   bear_ancient: boarGlutton,
+  wisp_light: timeCloth,
+  hippo_maul: pigCharm,
+  yak_highland: bullRage,
+  cat_goldbow: hedgehogSun,
+  swan_grace: duckKing,
+  dryad_tree: elfSheep,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];
