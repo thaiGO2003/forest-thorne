@@ -37,6 +37,8 @@ const PROJECTILE_COLOR = 0xffd36a;
 const OATH_GUARD_STATUS: BillboardStatus = { key: "immune", positive: true };
 /** Sương Độc presentation: purple pool landing, lime detonation (matches the concept VFX). */
 const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
+/** Bướm Cỏ: bright green storm particles follow the same target sequence as damage events. */
+const GRASS_STORM_COLOR = 0x85df63;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -282,6 +284,7 @@ export function playCombat(o: {
         const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
         const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
         board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
+        if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
         o.onEvent?.(damageEvent);
         land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
       });
@@ -324,7 +327,22 @@ export function playCombat(o: {
           onImpact: () => {
             if (disposed || window.fired) return;
             window.fired = true;
-            for (const impact of window.pending.splice(0)) impact();
+            if (units.get(event.src)?.baseId === "butterfly_mirror" && window.pending.length) {
+              const impacts = window.pending.splice(0);
+              let from = position(event.src);
+              const next = (i: number) => {
+                if (disposed || i >= impacts.length) return;
+                const to = position(window.targets[i]!);
+                fx.shot(from, to, GRASS_STORM_COLOR, 0.12 / getGameSpeedDisplayMultiplier(speedLevel), () => {
+                  impacts[i]!();
+                  from = to;
+                  next(i + 1);
+                }, 0.08);
+              };
+              next(0);
+            } else {
+              for (const impact of window.pending.splice(0)) impact();
+            }
           },
           onDone: () => {
             for (const finish of window.onDone.splice(0)) finish();
