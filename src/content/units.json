@@ -288,7 +288,7 @@
   "id": "bat_blood",
   "species": "doi",
   "nameVi": "Dơi Tình Yêu",
-  "tier": 3,
+  "tier": 1,
   "role": "MAGE",
   "faction": "BEAST",
   "element": "NIGHT",
@@ -306,29 +306,29 @@
    "evade": 0.1,
    "accuracy": 0.95
   },
-  "pitchVi": "Pháp sư bóng đêm bắn tia tim vào mục tiêu yếu máu rồi nổ ma lực vùng 3x3 quanh nó.",
+  "pitchVi": "Hôn tim từ miệng, làm choáng mục tiêu; nụ hôn thứ hai gọi bầy dơi con truy kích.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, bắn trái tim vào mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Ma Lực Tình Yêu",
-   "family": "heart_burst_square",
+   "nameVi": "Hôn & Dơi Con",
+   "family": "love_kiss_batlings",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "kẻ địch % máu thấp nhất và vùng 3x3 quanh nó",
-   "shapeVi": "vùng 3x3 quanh mục tiêu",
-   "selectionVi": "địch % máu thấp nhất làm tâm nổ",
-   "countVi": "mọi kẻ địch trong vùng 3x3",
-   "durationVi": "tức thì; giảm MDEF 2 lượt từ 2★",
+   "targetVi": "ưu tiên kẻ địch theo vai trò, rồi HP hiện tại cao nhất trong vai trò đó",
+   "shapeVi": "1/2/3 nụ hôn độc lập theo sao; tối đa 5 dơi con khi cùng mục tiêu nhận nụ hôn thứ hai",
+   "selectionVi": "chọn kẻ địch còn sống theo độ ưu tiên vai trò, HP hiện tại giảm dần; các mục tiêu hôn không trùng nhau",
+   "countVi": "1★: 1 hôn; 2★: 2 hôn; 3★: 3 hôn",
+   "durationVi": "choáng 1 lượt hành động của từng mục tiêu hôn; dơi con gây sát thương ngay khi nụ hôn thứ hai trúng",
    "starDetailVi": [
-    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng.",
-    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng. Kẻ địch trúng đòn bị giảm 15 MDEF trong 2 lượt.",
-    "Bắn tia tim vào kẻ địch có % máu thấp nhất rồi nổ ma lực vùng 3x3 quanh mục tiêu, gây (18 + 75% MATK) sát thương phép lên mọi kẻ địch trong vùng. Kẻ địch trúng đòn bị giảm 15 MDEF trong 2 lượt. Tự hồi 10% HP tối đa."
+    "Bắn nụ hôn từ miệng vào kẻ địch ưu tiên theo vai trò, HP hiện tại cao nhất, gây (18 + 75% MATK) sát thương phép và choáng trong 1 lượt. Khi cùng mục tiêu nhận nụ hôn từ skill này lần thứ hai trong giao tranh, triệu hồi tối đa 5 dơi con, mỗi con tấn công một kẻ địch khác nhau, gây 1/3 sát thương phép gốc; dơi con không choáng và không kích hoạt thêm dơi con.",
+    "Như 1★, bắn thêm một nụ hôn vào kẻ địch khác, gây (18 + 75% MATK) sát thương phép gốc cho nụ hôn đầu; nụ hôn phụ gây 1/2 sát thương gốc. Mỗi nụ hôn gây choáng trong 1 lượt và được theo dõi riêng để triệu hồi tối đa 5 dơi con ở lần hôn thứ hai lên cùng mục tiêu.",
+    "Như 2★, bắn thêm nụ hôn thứ ba vào kẻ địch khác, gây (18 + 75% MATK) sát thương phép gốc cho nụ hôn đầu; nụ hôn thứ hai gây 1/2, thứ ba gây 2/3 sát thương gốc. Mỗi nụ hôn gây choáng trong 1 lượt và được theo dõi riêng để triệu hồi tối đa 5 dơi con ở lần hôn thứ hai lên cùng mục tiêu."
    ]
   },
   "skin": {
