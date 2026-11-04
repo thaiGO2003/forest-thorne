@@ -50,6 +50,9 @@ export const GRASS_STORM_FAMILY = "grass_row_storm";
 /** Điện Linh Dương: alternate horn impacts with an optional adjacent foe and per-hit paralyze. */
 export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
 
+/** Nhện Linh: one canonical magic impact per launched soul. */
+export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
+
 export interface SkillSpec {
   /** Who the primary effect lands on. */
   side: "enemy" | "ally" | "self";
@@ -89,7 +92,7 @@ const FORMULA = new RegExp(String.raw`\(${NUM}\s*\+\s*(?:${NUM}\s*x\s*|${NUM}%\s
 const STAT_KEY: Record<string, Stat> = { ATK: "atk", MATK: "matk", DEF: "def", MDEF: "mdef", HP: "hp", "HP tối đa": "hp" };
 const DOT_WORD: Record<string, DotKind> = { "chảy máu": "bleed", "thiêu đốt": "burn", "nhiễm độc": "poison", "độc": "poison", "mắc bệnh": "disease" };
 const CONTROL_WORD: Record<string, ControlKind> = {
-  "choáng": "stun", "đóng băng": "freeze", "ngủ": "sleep", "câm lặng": "silence", "tước vũ khí": "disarm", "khiêu khích": "taunt",
+  "choáng": "stun", "đóng băng": "freeze", "ngủ": "sleep", "câm lặng": "silence", "tước vũ khí": "disarm", "khiêu khích": "taunt", "tê liệt": "paralyze",
 };
 const BUFF_WORD: Record<string, BuffStat> = { ATK: "atk", MATK: "matk", DEF: "def", MDEF: "mdef", "né tránh": "evade" };
 
@@ -180,7 +183,7 @@ export function parseSkill(text: string): SkillSpec {
     dots.push({ kind: DOT_WORD[m[1]!]!, value: Number(m[2]), turns: m[3] ? Number(m[3]) : turnsAfter(t, m.index!) });
   }
   const controls: SkillSpec["controls"] = [];
-  for (const m of t.matchAll(/(choáng|đóng băng|câm lặng|tước vũ khí|khiêu khích|(?<![a-zà-ỹ])ngủ(?![a-zà-ỹ]))/g)) {
+  for (const m of t.matchAll(/(choáng|đóng băng|câm lặng|tước vũ khí|khiêu khích|tê liệt|(?<![a-zà-ỹ])ngủ(?![a-zà-ỹ]))/g)) {
     const kind = CONTROL_WORD[m[1]!]!;
     if (!controls.some((c) => c.kind === kind)) {
       controls.push({ kind, turns: turnsAfter(t, m.index!), chance: controlChance(t, m.index!, m[0]!.length) });
@@ -348,6 +351,13 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       reaction: {}, fourthTargetBonusChance: u.skill.fourthTargetBonusChance ?? null,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === SPIDER_SOUL_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "same_row",
+      damage: { base: 18, scale: 0.7, stat: "atk", type: "magic" },
+      dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === HARD_BEAK_DIVE_FAMILY) {
     Object.assign(s, {
       side: "enemy", area: "single", count: 1, selector: "frontline_default",
@@ -379,6 +389,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   if (!u.boss) {
     // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
     s.selector = u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
+      : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
       : u.skill.family === KIRIN_HORNS_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY

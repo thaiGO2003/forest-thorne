@@ -5122,7 +5122,7 @@
   "id": "spider_venom",
   "species": "nhen-doc",
   "nameVi": "Nhện Linh",
-  "tier": 1,
+  "tier": 5,
   "role": "MAGE",
   "faction": "INSECT",
   "element": "SWARM",
@@ -5140,29 +5140,29 @@
    "evade": 0.15,
    "accuracy": 0.95
   },
-  "pitchVi": "Lao vào hậu tuyến, trói tơ và tăng sát thương theo số Trùng.",
+  "pitchVi": "Bắn linh hồn theo số địch cùng hàng; linh hồn gây sát thương phép từng đòn.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Mạng Tơ Bẫy",
-   "family": "web_trap_slow",
+   "nameVi": "Bắn Linh Hồn",
+   "family": "spider_soul_volley",
    "rageCost": [
     1,
     2,
     3
    ],
-   "targetVi": "1 kẻ địch hậu tuyến bị nhắm",
-   "shapeVi": "lao vào 1 ô hậu tuyến",
-   "selectionVi": "Ưu tiên kẻ địch hậu tuyến đang bị nhắm.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "giảm ATK 2 lượt",
+   "targetVi": "kẻ địch cùng hàng, ưu tiên theo vai trò",
+   "shapeVi": "linh hồn phóng theo hàng, mỗi linh hồn là một đòn riêng",
+   "selectionVi": "Đếm địch cùng hàng; phân phối linh hồn vào mục tiêu hợp lệ theo ưu tiên vai trò.",
+   "countVi": "1★/2★: 1 linh hồn mỗi địch cùng hàng lúc cast; 3★: gấp đôi số địch cùng hàng đầu vòng",
+   "durationVi": "20% tê liệt 1 lượt mỗi linh hồn trúng; hết ở lượt hành động kế tiếp",
    "starDetailVi": [
-    "Lao vào 1 kẻ địch hậu tuyến bị nhắm, gây (18 + 70% ATK) sát thương vật lý. Mỗi đồng minh Trùng đang sống tăng thêm 5% sát thương cú lao. Mục tiêu bị giảm 20% ATK trong 2 lượt.",
-    "Lao vào 1 kẻ địch hậu tuyến bị nhắm, gây (18 + 70% ATK) sát thương vật lý. Mỗi đồng minh Trùng đang sống tăng thêm 8% sát thương cú lao. Mục tiêu bị giảm 20% ATK trong 2 lượt.",
-    "Lao vào 1 kẻ địch hậu tuyến bị nhắm, gây (18 + 70% ATK) sát thương vật lý. Mỗi đồng minh Trùng đang sống tăng thêm 10% sát thương cú lao. Mục tiêu bị giảm 20% ATK trong 2 lượt."
+    "Bắn 1 linh hồn cho mỗi kẻ địch đang cùng hàng tại lúc cast. Mỗi linh hồn gây (18 + 70% ATK) sát thương phép riêng biệt, không thể chí mạng. Mỗi đòn trúng có 20% gây tê liệt 1 lượt.",
+    "Bắn 1 linh hồn cho mỗi kẻ địch đang cùng hàng tại lúc cast. Mỗi linh hồn gây (18 + 70% ATK) sát thương phép riêng biệt, có thể chí mạng. Mỗi đòn trúng có 20% gây tê liệt 1 lượt.",
+    "Bắn 2 lần số linh hồn bằng số kẻ địch cùng hàng đã ghi nhận đầu vòng. Mỗi linh hồn gây (18 + 70% ATK) sát thương phép riêng biệt, có thể chí mạng. Mỗi đòn trúng có 20% gây tê liệt 1 lượt."
    ]
   },
   "skin": {
