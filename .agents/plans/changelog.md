@@ -103,3 +103,9 @@
 - Exported canonical `FLOW_SPEED`, guarded repeated `arena.dispose()` calls, and documented stable mesh names for structural consumers without changing visual runtime behavior.
 - Reproduced a failing double GPU resource disposal before the fix. Verified `pnpm exec vitest --run tests/arena-mapping.test.ts` (13/13 passed), `pnpm typecheck` (passed), `pnpm build` (passed), and direct Bun runtime smoke with actual Three.js scene, occupancy, flow, foreign ownership, and repeated teardown (passed).
 - Independent PR #57 review caught two lost regression contracts: the river mesh was no longer checked for x-axis centering, and the flow speed assertion depended on the production constant under test. Restored `water.position.x === 0` for every arena profile and an independent 0.31 world-unit advance after `update(0.5)` (0.62 units/s). Targeted arena tests remain 13/13 PASS; production implementation unchanged.
+
+## 2026-11-04 — Issue #97 Điện Linh Dương horn barrage
+
+- Replaced `kirin_thunder`'s global-stun skill with `kirin_volt_horns`: 2/4/6 separate magic hits at 1★/2★/3★, alternating a role-priority primary target with one uniformly RNG-selected adjacent foe. Catalog ID, existing total damage formulas and combat modifiers remain intact.
+- Added independent 40% (2★) / 95% (3★) Paralyze rolls on eligible landed hits; 1★ has no Paralyze. The rig animates alternating horn thrusts, playback aligns each damage/aftermath event to its own impact, and blue electrical VFX appears only on a successful Paralyze status.
+- Verified `pnpm typecheck` and focused Kirin Vitest coverage (3 files / 18 tests) PASS. Production build PASS (137 modules; pre-existing chunk-size warning). Playwright Chromium fallback captured Library and detail screenshots; in-app 1DevTool BrowserPanel was unavailable because 1DevTool was not running. The detail screenshot clips part of the skill description at 1280×800.

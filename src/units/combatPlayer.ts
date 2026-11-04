@@ -39,6 +39,8 @@ const OATH_GUARD_STATUS: BillboardStatus = { key: "immune", positive: true };
 const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
 /** Bướm Cỏ: bright green storm particles follow the same target sequence as damage events. */
 const GRASS_STORM_COLOR = 0x85df63;
+/** Existing hit sparks fire per horn impact; blue electricity appears only for a paralyze proc. */
+const KIRIN_PARALYZE_COLOR = 0x63d6ff;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -292,16 +294,18 @@ export function playCombat(o: {
       const semanticImpact = queueSkillDamage(event);
       if (window && !window.fired) {
         window.pending.push(semanticImpact);
-        while (index < o.events.length) {
-          const next = o.events[index];
-          if (next?.t !== "skill" || next.src !== event.src) break;
-          index++;
-          window.pending.push(queueSkillDamage(next));
+        if (event.kind !== "horn") {
+          while (index < o.events.length) {
+            const next = o.events[index];
+            if (next?.t !== "skill" || next.src !== event.src) break;
+            index++;
+            window.pending.push(queueSkillDamage(next));
+          }
         }
       } else {
         semanticImpact();
       }
-      return scaleCombatPresentationMs(100, speedLevel);
+      return scaleCombatPresentationMs(event.kind === "horn" ? 65 : 100, speedLevel);
     }
     o.onEvent?.(event);
     switch (event.t) {
@@ -313,6 +317,26 @@ export function playCombat(o: {
         if (!visual) break;
         focusActor(event.src);
         board.setCombatBorder?.(event.src, "skill");
+        // Preserve each Kirin impact/status event and replay it at an individual horn thrust.
+        // The canonical events remain separate; this batch controls presentation timing only.
+        const kirinHits: { hit: Extract<CombatEvent, { t: "basic" | "skill" }>; follows: CombatEvent[] }[] = [];
+        if (units.get(event.src)?.baseId === "kirin_thunder") {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if (next.t === "skill" && next.kind === "horn" && next.src === event.src) {
+              kirinHits.push({ hit: next, follows: [] });
+            } else if (kirinHits.length && (
+              next.t === "reflect" || next.t === "heal" || next.t === "shield"
+              || next.t === "status" || next.t === "death" || next.t === "revive"
+            )) {
+              // Keep all immediate strike aftermath (reflect, on-hit effects and deaths)
+              // attached to its horn beat instead of replaying it after the barrage.
+              kirinHits[kirinHits.length - 1]!.follows.push(next);
+            } else break;
+            index++;
+          }
+        }
+        if (kirinHits.length) pendingActions++;
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
         const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
@@ -327,7 +351,20 @@ export function playCombat(o: {
           onImpact: () => {
             if (disposed || window.fired) return;
             window.fired = true;
-            if (units.get(event.src)?.baseId === "butterfly_mirror" && window.pending.length) {
+            if (kirinHits.length) {
+              // The rig alternates left/right horn strikes over the p=.6–.93 window.
+              const spacingMs = (skillSeconds * 330) / Math.max(1, kirinHits.length - 1);
+              for (let i = 0; i < kirinHits.length; i++) {
+                const entry = kirinHits[i]!;
+                const hit = exactImpact(() => {
+                  board.flashTile?.(entry.hit.dst, i % 2 ? "splash" : "direct");
+                  o.onEvent?.(entry.hit);
+                  land(entry.hit.src, entry.hit.dst, entry.hit.dmg, entry.hit.absorbed, entry.hit.crit);
+                  for (const follow of entry.follows) present(follow);
+                });
+                after(i * spacingMs, hit);
+              }
+            } else if (units.get(event.src)?.baseId === "butterfly_mirror" && window.pending.length) {
               const impacts = window.pending.splice(0);
               let from = position(event.src);
               const next = (i: number) => {
@@ -345,6 +382,7 @@ export function playCombat(o: {
             }
           },
           onDone: () => {
+            if (kirinHits.length) pendingActions--;
             for (const finish of window.onDone.splice(0)) finish();
             if (skillImpact === window) skillImpact = null;
             if (!disposed) clearActorFocus(event.src);
@@ -384,6 +422,10 @@ export function playCombat(o: {
       case "status": {
         const unit = units.get(event.dst);
         if (unit) { unit.statuses = unit.statuses.filter((status) => status.key !== event.kind); if (event.turns > 0) unit.statuses.push({ key: event.kind, positive: POSITIVE.has(event.kind) }); push(event.dst); }
+        if (event.kind === "paralyze" && event.turns > 0 && event.source?.skillId === "kirin_volt_horns") {
+          fx.burst(position(event.dst), KIRIN_PARALYZE_COLOR);
+          fx.float(position(event.dst), "Tê liệt", "status");
+        }
         break;
       }
       case "revive": {
