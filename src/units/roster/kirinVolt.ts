@@ -3,9 +3,9 @@
 // lightning crest, and tall branching gold antlers wreathed in glowing blue lightning.
 // Idle: stand → raise head → spark → breathe in · Combat idle: guard / charge / ready (deterministic
 // beats) · Move: step → run → sprint · Attack: head-butt → antler sweep on impact → recover · Skill:
-// charge → lower head → burst forward → horn ram (impact) → discharge · Hit: struck → back step →
-// steady · Death: falls → lies down → dissolves. 2★ larger glowing antlers; 3★ gold crown plate and
-// lightning anklets.
+// alternating left/right horn thrusts (2/4/6 at 1★/2★/3★, first contact p=.6), gold hit sparks;
+// blue paralysis FX belongs to the combat status event only · Hit: struck → back step → steady ·
+// Death: falls → lies down → dissolves. 2★ larger glowing antlers; 3★ crown and anklets.
 import type { Part } from "../kit";
 import { bell, defineUnit, ramp, type DeathCtx } from "../rig";
 
@@ -155,17 +155,27 @@ export default defineUnit<Parts>({
         break;
       }
       case "skill": {
-        // charge (0–.25) → lower head (.2–.4) → burst forward (.38–.55) → horn ram (impact .6) → discharge.
+        // A separate thrust at each replayed damage impact: first p=.6, last p=.93.
+        // Visual-only horn offsets follow the per-star 2/4/6 hit count.
         const p = c.p;
-        const charge = win(p, 0, 0.45, 0.08), lower = win(p, 0.2, 0.75, 0.05);
-        const dash = ramp(p, 0.38, 0.6) * (1 - ramp(p, 0.75, 0.98)), dis = bell(p, 0.6, 0.9);
-        dy = -0.5 * charge - 0.2 * lower;
-        dz = 2.6 * dash;
-        th = 0.1 * lower;
-        neck.group.rotation.x = 0.7 * lower - 0.3 * dis;
-        antlers.group.scale.setScalar(1 + 0.2 * charge + 0.35 * dis + Math.sin(c.t * 40) * 0.04 * (charge + dis));
-        lf[0] = Math.max(0, Math.sin(c.t * 18)) * 0.5 * charge;
-        lid = Math.max(lid, 0.3 * lower);
+        const hits = c.star * 2;
+        const windup = win(p, 0, 0.59, 0.08);
+        const beat = (p - 0.6) / 0.33 * (hits - 1);
+        const nearest = Math.max(0, Math.min(hits - 1, Math.round(beat)));
+        const thrust = p >= 0.6 && p <= 0.98
+          ? Math.max(0, 1 - Math.abs(beat - nearest) * 2.8) * (1 - ramp(p, 0.93, 0.98))
+          : 0;
+        const side = nearest % 2 === 0 ? 1 : -1;
+        dy = -0.4 * windup - 0.16 * thrust;
+        dz = 0.65 * thrust;
+        th = 0.08 * windup;
+        neck.group.rotation.x = 0.46 * windup + 0.32 * thrust;
+        neck.group.rotation.z = side * 0.32 * thrust;
+        head.group.rotation.z = side * 0.54 * thrust;
+        antlers.group.rotation.z = side * 0.22 * thrust;
+        antlers.group.scale.setScalar(1 + 0.16 * windup + 0.12 * thrust);
+        lf[0] = Math.max(0, Math.sin(c.t * 18)) * 0.4 * windup;
+        lid = Math.max(lid, 0.25 * windup);
         break;
       }
       case "hit": {

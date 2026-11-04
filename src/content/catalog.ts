@@ -20,6 +20,9 @@ export interface UnitSkill {
   detailVi?: string;
   /** Optional authored chance for Bướm Cỏ's fourth-target bonus (0–1); absent means no proc. */
   fourthTargetBonusChance?: number;
+  /** Kirin horn-strike impacts and independent per-landed-hit paralyze rolls by star. */
+  hitCountByStar?: [number, number, number];
+  paralyzeChanceByStar?: [number, number, number];
   starDetailVi: string[];
 }
 

@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -27,7 +27,7 @@ export function reflectOffenseStat(role: Role): BuffStat {
   return REFLECT_OFFENSE_STAT[role];
 }
 const STAR_DOT = [0, 1, 1.3, 1.6];
-const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
+const CONTROL_PRIORITY = ["freeze", "stun", "sleep", "paralyze"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSEABLE_STATUSES = new Set<string>([
   ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
@@ -156,7 +156,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "horn" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -874,8 +874,8 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 
 interface StrikeOptions {
   allowCounter?: boolean;
-  /** Presentation distinguishes mouth-fired kisses from the spawned batling strikes. */
-  kind?: "kiss" | "batling" | "grass";
+  /** Distinct presentation for authored skill impact families. */
+  kind?: "kiss" | "batling" | "grass" | "horn";
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -1079,6 +1079,10 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
   }
   const stableIndex = (x: Fighter) => stable.indexOf(x);
   switch (selector) {
+    case "role_priority":
+      return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+        || dist(f, a) - dist(f, b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+        || a.uid.localeCompare(b.uid)));
     case "highest_current_hp_role":
       return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
         || b.hp - a.hp || stableIndex(a) - stableIndex(b)));
@@ -1197,6 +1201,13 @@ function previewSeed(all: readonly Fighter[], sourceUid: string): number {
   return hash | 0;
 }
 
+/** Candidate splash victims are adjacent to the chosen role-priority target, not to the caster.
+ * Return all living eligible neighbors; casting samples exactly one via gameplay RNG. */
+function kirinAdjacentTargets(c: Ctx, f: Fighter, primary: Fighter): Fighter[] {
+  return stableTargets(f, foes(c, f).filter((target) => target !== primary
+    && Math.max(Math.abs(target.row - primary.row), Math.abs(target.col - primary.col)) === 1));
+}
+
 export interface CombatTargetPreviewOptions {
   /** Planning hover shows the unit's full kit (basic + authored skill) regardless of current rage. */
   kitPreview?: boolean;
@@ -1288,6 +1299,25 @@ export function combatTargetPreview(
       tags: options.kitPreview ? [...sporeTags, { uid: basic.uid, effect: "damage", kind: "basic", primary: true }] : sporeTags,
       actorRole: source.role,
       areaCells: cells.map(({ col, row }) => ({ col, row, effect: "damage" })),
+    };
+  }
+
+  if (source.skillFamily === KIRIN_HORNS_FAMILY) {
+    const [primary] = skillTargets(c, source, source.skill);
+    const adjacent = primary ? kirinAdjacentTargets(c, source, primary) : [];
+    const effect = skillPreviewEffect(source.skill);
+    const tags: CombatPreviewTag[] = [
+      ...(primary ? [{ uid: primary.uid, effect, kind: "skill" as const, primary: true }] : []),
+      ...adjacent.map((target) => ({ uid: target.uid, effect, kind: "skill" as const, primary: false })),
+    ];
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells,
+      directUids: primary ? [primary.uid] : [],
+      splashUids: adjacent.map((target) => target.uid),
+      skillCasterUid: source.uid,
+      tags,
+      actorRole: source.role,
     };
   }
 
@@ -1471,6 +1501,42 @@ function castGrassStorm(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   }
 }
 
+/** Single role-priority target; one uniformly picked enemy in its eight neighboring cells.
+ * Damage is the unchanged authored total, split into separate mitigated/crit-eligible impacts. */
+function castKirinHorns(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const sp = f.skill;
+  const primary = skillTargets(c, f, sp)[0];
+  const neighbors = primary ? kirinAdjacentTargets(c, f, primary) : [];
+  const neighbor = neighbors.length ? neighbors[Math.floor(c.rng() * neighbors.length)]! : null;
+  const event: Extract<CombatEvent, { t: "cast" }> = {
+    t: "cast", src: f.uid, targets: primary ? [primary.uid, ...(neighbor ? [neighbor.uid] : [])] : [],
+  };
+  if (trigger) event.trigger = trigger;
+  c.events.push(event);
+  if (!primary || !sp.damage || !sp.hitCount) return;
+  const d = sp.damage;
+  const total = Math.round((d.base + statValue(f, d.stat) * d.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const base = Math.floor(total / sp.hitCount);
+  const remainder = total % sp.hitCount;
+  const chance = sp.controls.find((control) => control.kind === "paralyze")?.chance ?? 0;
+  const source: SkillStatusOrigin = {
+    skillId: KIRIN_HORNS_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  for (let i = 0; i < sp.hitCount && f.alive; i++) {
+    // If the intended opponent died on an earlier impact, keep attacking a living enemy.
+    const intended = i % 2 ? neighbor : primary;
+    const dst = intended?.alive ? intended : primary.alive ? primary
+      : neighbor?.alive ? neighbor : skillTargets(c, f, sp)[0];
+    if (!dst) break;
+    const hit = strike(c, f, dst, base + Number(i < remainder), d.type, true,
+      { kind: "horn", allowCounter: false });
+    if (hit.landed && dst.alive && chance > 0 && c.rng() < chance) {
+      applyStatus(c, dst, "paralyze", 1, 0, source);
+    }
+  }
+}
+
 function castHardBeakDive(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   const targets = foes(c, f).sort((a, b) =>
     AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
@@ -1572,6 +1638,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     }
     if (family === HARD_BEAK_DIVE_FAMILY) {
       castHardBeakDive(c, f, options.trigger);
+      return;
+    }
+    if (family === KIRIN_HORNS_FAMILY) {
+      castKirinHorns(c, f, options.trigger);
       return;
     }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
@@ -1746,6 +1816,7 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
     if (--s.turns <= 0) {
       delete f.status[k];
       if (k === "taunt") f.tauntBy = null;
+      if (k === "paralyze") c.events.push({ t: "status", dst: f.uid, kind: k, turns: 0 });
     }
   }
   if (skip) c.events.push({ t: "skip", src: f.uid, reason: skip });
