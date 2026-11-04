@@ -1466,6 +1466,8 @@ function castGrassStorm(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
       && c.rng() < Math.min(1, Math.max(0, chance)) ? 0.2 : 0;
     strike(c, f, dst, Math.round(raw * (multiplier + bonus)), "magic", true, { kind: "grass" });
   }
+}
+
 /** Hook impacts once before moving a living target; enemy-half occupancy is never overwritten. */
 function castWindSickleHook(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   const target = selectorTargets(c, f, foes(c, f), "highest_current_hp_role", 1)[0];
