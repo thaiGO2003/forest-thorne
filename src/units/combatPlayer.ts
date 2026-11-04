@@ -39,6 +39,8 @@ const OATH_GUARD_STATUS: BillboardStatus = { key: "immune", positive: true };
 const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
 /** Bướm Cỏ: bright green storm particles follow the same target sequence as damage events. */
 const GRASS_STORM_COLOR = 0x85df63;
+/** Each spider soul projectile corresponds to exactly one canonical skill impact. */
+const SPIDER_SOUL_COLOR = 0x9ee4ff;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -284,6 +286,7 @@ export function playCombat(o: {
         const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
         const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
         board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
+        if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
         if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
         o.onEvent?.(damageEvent);
         land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
@@ -298,6 +301,12 @@ export function playCombat(o: {
           index++;
           window.pending.push(queueSkillDamage(next));
         }
+      } else if (event.kind === "soul" && board.visual(event.src) && board.visual(event.dst)) {
+        // Reflections/statuses may separate canonical soul hits; every impact still gets its shot.
+        const origin = position(event.src);
+        origin.y += 0.35;
+        fx.shot(origin, position(event.dst), SPIDER_SOUL_COLOR,
+          0.24 / getGameSpeedDisplayMultiplier(speedLevel), semanticImpact, 0.35);
       } else {
         semanticImpact();
       }
@@ -340,6 +349,15 @@ export function playCombat(o: {
                 }, 0.08);
               };
               next(0);
+            } else if (units.get(event.src)?.baseId === "spider_venom" && window.pending.length) {
+              const impacts = window.pending.splice(0);
+              const origin = position(event.src);
+              origin.y += 0.35;
+              const flight = 0.24 / getGameSpeedDisplayMultiplier(speedLevel);
+              for (let i = 0; i < impacts.length; i++) {
+                // No decorative-only shots: every launch completes one queued damage event at arrival.
+                fx.shot(origin, position(window.targets[i]!), SPIDER_SOUL_COLOR, flight, impacts[i]!, 0.35);
+              }
             } else {
               for (const impact of window.pending.splice(0)) impact();
             }

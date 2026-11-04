@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, LOVE_KISS_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -27,7 +27,7 @@ export function reflectOffenseStat(role: Role): BuffStat {
   return REFLECT_OFFENSE_STAT[role];
 }
 const STAR_DOT = [0, 1, 1.3, 1.6];
-const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
+const CONTROL_PRIORITY = ["freeze", "stun", "sleep", "paralyze"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSEABLE_STATUSES = new Set<string>([
   ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
@@ -156,7 +156,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -545,6 +545,8 @@ interface Ctx {
   spores: SporeState;
   /** Kiss counts are per caster and victim for this simulation only; batlings never update them. */
   kissHits: Map<string, Map<string, number>>;
+  /** 3★ soul count is fixed before any round-start damage, per caster. */
+  spiderRowCounts: Map<string, number>;
 }
 
 // ---------- Sương Độc spore pools (toad_spore_mist) ----------
@@ -875,7 +877,8 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 interface StrikeOptions {
   allowCounter?: boolean;
   /** Presentation distinguishes mouth-fired kisses from the spawned batling strikes. */
-  kind?: "kiss" | "batling" | "grass";
+  kind?: "kiss" | "batling" | "grass" | "soul";
+  canCrit?: boolean;
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -962,7 +965,7 @@ function strike(
   if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
   if (src.element === "FIRE") dmg *= dst.env.fireVuln;
   if (CLASS_COUNTER[src.role]?.includes(dst.role)) dmg *= 1 + COUNTER_BONUS;
-  const isCrit = type !== "true" && c.rng() < crit;
+  const isCrit = (options.canCrit ?? true) && type !== "true" && c.rng() < crit;
   if (isCrit) dmg *= critMult;
   else if (type === "physical") dmg = (dmg * 100) / (100 + combatStat(dst, "def"));
   else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
@@ -1230,6 +1233,7 @@ export function combatTargetPreview(
     cycle: 0,
     spores: newSporeState(),
     kissHits: new Map(),
+    spiderRowCounts: new Map(),
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1288,6 +1292,22 @@ export function combatTargetPreview(
       tags: options.kitPreview ? [...sporeTags, { uid: basic.uid, effect: "damage", kind: "basic", primary: true }] : sporeTags,
       actorRole: source.role,
       areaCells: cells.map(({ col, row }) => ({ col, row, effect: "damage" })),
+    };
+  }
+
+  if (source.skillFamily === SPIDER_SOUL_FAMILY) {
+    const row = foes(c, source).filter((target) => target.row === source.row)
+      .sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+        || dist(source, a) - dist(source, b) || a.uid.localeCompare(b.uid));
+    const first = row[0];
+    const tags: CombatPreviewTag[] = row.map((target, index) => ({
+      uid: target.uid, effect: "damage", kind: "skill", primary: index === 0,
+    }));
+    return {
+      scanCells, directUids: first ? [first.uid] : [],
+      splashUids: row.slice(1).map((target) => target.uid),
+      skillCasterUid: source.uid, actorRole: source.role,
+      tags: options.kitPreview ? [...tags, { uid: basic.uid, effect: "damage", kind: "basic", primary: false }] : tags,
     };
   }
 
@@ -1471,6 +1491,49 @@ function castGrassStorm(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   }
 }
 
+/** Each soul owns one impact; the role tier is selected before uniformly choosing adjacent ties. */
+function castSpiderSouls(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const rowAtCast = foes(c, f).filter((enemy) => enemy.row === f.row).length;
+  const count = f.star === 3 ? 2 * (c.spiderRowCounts.get(f.uid) ?? rowAtCast) : rowAtCast;
+  const cast: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [] };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = f.skill.damage;
+  if (!damage || count === 0) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const paralyze = f.skill.controls.find((effect) => effect.kind === "paralyze");
+  const paralyzed = new Set<Fighter>();
+  const source: SkillStatusOrigin = {
+    skillId: SPIDER_SOUL_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  let previous: Fighter | null = null;
+  let hitCount = 0;
+  for (let i = 0; i < count; i++) {
+    const enemies = foes(c, f);
+    // The volley count is fixed; surviving off-row targets keep snapshots from becoming fake shots.
+    const row = enemies.filter((enemy) => enemy.row === f.row);
+    const eligible = row.length ? row : enemies;
+    if (!eligible.length) break;
+    const priority = Math.min(...eligible.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+    const ranked = eligible.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+    const adjacent: Fighter[] = previous
+      ? ranked.filter((enemy) => Math.abs(enemy.row - previous!.row) <= 1 && Math.abs(enemy.col - previous!.col) <= 1)
+      : [];
+    const candidates: Fighter[] = adjacent.length ? adjacent : ranked;
+    const target: Fighter = i === 0 ? stableTargets(f, candidates)[0]! : candidates[Math.floor(c.rng() * candidates.length)]!;
+    previous = target;
+    cast.targets.push(target.uid);
+    const hit = strike(c, f, target, raw, "magic", true, { kind: "soul", canCrit: f.star >= 2 });
+    if (hit.landed) {
+      hitCount++;
+      if (target.alive && paralyze && c.rng() < paralyze.chance) paralyzed.add(target);
+    }
+  }
+  for (const target of paralyzed) if (target.alive) applyStatus(c, target, "paralyze", paralyze!.turns, 0, source);
+  if (f.role === "MAGE") addRage(f, hitCount);
+}
+
 function castHardBeakDive(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   const targets = foes(c, f).sort((a, b) =>
     AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
@@ -1568,6 +1631,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     }
     if (family === GRASS_STORM_FAMILY) {
       castGrassStorm(c, f, options.trigger);
+      return;
+    }
+    if (family === SPIDER_SOUL_FAMILY) {
+      castSpiderSouls(c, f, options.trigger);
       return;
     }
     if (family === HARD_BEAK_DIVE_FAMILY) {
@@ -1682,6 +1749,12 @@ interface TurnGate {
 /** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
  * New statuses applied during that cycle cannot tick until the next boundary. */
 function startCycle(c: Ctx) {
+  c.spiderRowCounts.clear();
+  for (const f of c.all) {
+    if (f.alive && f.skillFamily === SPIDER_SOUL_FAMILY && f.star === 3) {
+      c.spiderRowCounts.set(f.uid, c.all.filter((enemy) => enemy.alive && enemy.side !== f.side && enemy.row === f.row).length);
+    }
+  }
   // The 3★ immediate heal happens before DoTs at the start of the following cycle.
   for (const f of c.all) {
     if (f.alive && f.oath?.cycle === c.cycle && f.oath.star === 3) {
@@ -1886,6 +1959,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     cycle: 0,
     spores: newSporeState(),
     kissHits: new Map(),
+    spiderRowCounts: new Map(),
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
