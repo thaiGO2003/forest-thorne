@@ -98,6 +98,9 @@ export interface Fighter {
   berserk: BerserkReactionState | null;
   /** Oath resolves at the next shared cycle, not at cast impact. */
   oath: { cycle: number; star: number } | null;
+  /** Wind hook effects are scoped to the current shared combat cycle. */
+  hookOffense?: { cycle: number; multiplier: number };
+  hookGuardCycle?: number;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
   /** Authored equipment logic resolved from the equipped item ids (issue #31). */
@@ -157,6 +160,7 @@ export type CombatEvent =
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
+  | { t: "hookPull"; src: string; dst: string; row: number; col: number }
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
@@ -811,7 +815,8 @@ function applyDamage(
   const reduction = dst.status.damageReduction?.turns > 0
     ? Math.min(0.9, Math.max(0, dst.status.damageReduction.value))
     : 0;
-  const appliedDamage = Math.max(1, Math.round(dmg * (1 - reduction)));
+  const guarding = dst.hookGuardCycle === c.cycle;
+  const appliedDamage = Math.max(guarding ? 0 : 1, Math.round(dmg * (1 - reduction)) - (guarding ? 10 : 0));
   const absorbed = Math.min(dst.shield, appliedDamage);
   dst.shield -= absorbed;
   const toHp = Math.min(dst.hp, appliedDamage - absorbed);
@@ -959,7 +964,7 @@ function strike(
   else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
   // Authored on-hit logic (issue #31): low/high-HP bonuses and capped stack scaling.
   dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
-  dmg = Math.max(1, Math.round(dmg * c.globalMult));
+  dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1)));
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
       ...(options.kind ? { kind: options.kind } : {}) }), true);
@@ -1461,6 +1466,38 @@ function castGrassStorm(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
       && c.rng() < Math.min(1, Math.max(0, chance)) ? 0.2 : 0;
     strike(c, f, dst, Math.round(raw * (multiplier + bonus)), "magic", true, { kind: "grass" });
   }
+/** Hook impacts once before moving a living target; enemy-half occupancy is never overwritten. */
+function castWindSickleHook(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const target = selectorTargets(c, f, foes(c, f), "highest_current_hp_role", 1)[0];
+  const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
+  if (trigger) castEvent.trigger = trigger;
+  c.events.push(castEvent);
+  if (target && f.skill.damage) {
+    const d = f.skill.damage;
+    const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+      * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+    strike(c, f, target, raw, d.type, true);
+    if (target.alive) {
+      const first = f.side === "L" ? COLS / 2 : COLS / 2 - 1;
+      const step = f.side === "L" ? 1 : -1;
+      for (let col = first; col >= 0 && col < COLS; col += step) {
+        if (c.all.some((other) => other !== target && other.alive && other.side === target.side && other.row === f.row && other.col === col)) continue;
+        target.row = f.row;
+        target.col = col;
+        c.events.push({ t: "hookPull", src: f.uid, dst: target.uid, row: f.row, col });
+        break;
+      }
+    }
+  }
+  if (f.star >= 2) {
+    const multiplier = f.star === 2 ? 2 / 3 : 1 / 2;
+    for (const enemy of foes(c, f)) {
+      if (enemy.row !== f.row) continue;
+      const previous = enemy.hookOffense?.cycle === c.cycle ? enemy.hookOffense.multiplier : 1;
+      enemy.hookOffense = { cycle: c.cycle, multiplier: Math.min(previous, multiplier) };
+    }
+  }
+  if (f.star === 3) f.hookGuardCycle = c.cycle;
 }
 
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
@@ -1476,6 +1513,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === "wind_sickle_hook") {
+      castWindSickleHook(c, f, options.trigger);
+      return;
+    }
     if (family === BLOOD_SWORD_OATH_FAMILY) {
       castBloodSwordOath(c, f, preferred, options.trigger);
       return;

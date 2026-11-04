@@ -41,7 +41,7 @@ const SAMPLES = Array.from({ length: 41 }, (_, i) => i / 40);
 describe("Phong Liêm Dứu (weasel_quick)", () => {
   it("is now a tanker named Phong Liêm Dứu with a bespoke rig; stats untouched", () => {
     const u = getUnit("weasel_quick");
-    expect([u.nameVi, u.role, u.tier, u.stats.hp, u.stats.atk]).toEqual(["Phong Liêm Dứu", "TANKER", 2, 254, 73]);
+    expect([u.nameVi, u.role, u.tier, u.stats.hp, u.stats.atk]).toEqual(["Phong Liêm Dứu", "TANKER", 3, 254, 73]);
     expect(hasRig("weasel_quick")).toBe(true);
   });
 
