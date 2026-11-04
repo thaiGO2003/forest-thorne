@@ -2630,7 +2630,7 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Gọi bão tuyết quét cột địch nguy hiểm nhất để hạ nhịp xả sát thương.",
+  "pitchVi": "Gọi bão tuyết quét mục tiêu ưu tiên theo vai trò cùng toàn bộ kẻ địch trong cột, có thể đóng băng.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
@@ -2644,15 +2644,15 @@
     4,
     5
    ],
-   "targetVi": "cột địch có tổng ATK cao nhất",
-   "shapeVi": "quét toàn bộ một cột địch",
-   "selectionVi": "Ưu tiên cột địch có tổng ATK cao nhất.",
-   "countVi": "1 cột",
-   "durationVi": "giảm 15 ATK/MATK theo vai trò trong 2 lượt",
+   "targetVi": "cột địch theo ưu tiên vai trò, hòa thì lấy tổng ATK cao nhất",
+   "shapeVi": "mục tiêu chính và toàn bộ kẻ địch cùng cột",
+   "selectionVi": "Ưu tiên vai trò mục tiêu trước; nếu bằng nhau, chọn cột có tổng ATK cao nhất.",
+   "countVi": "1 cột (mỗi nạn nhân nhận 1 đòn)",
+   "durationVi": "1★/2★: đóng băng 1 lượt; 3★: đóng băng đến khi nạn nhân nhận sát thương",
    "starDetailVi": [
-    "Gọi bão tuyết quét 1 cột địch có tổng ATK cao nhất, gây (22 + 80% MATK) sát thương phép. Mục tiêu trong cột bị giảm 15 ATK hoặc MATK theo vai trò trong 2 lượt.",
-    "Gọi bão tuyết quét 1 cột địch có tổng ATK cao nhất, gây (22 + 80% MATK) sát thương phép. Mục tiêu trong cột bị giảm 18 ATK hoặc MATK theo vai trò trong 2 lượt.",
-    "Gọi bão tuyết quét 1 cột địch có tổng ATK cao nhất, gây (22 + 80% MATK) sát thương phép. Mục tiêu trong cột bị giảm 18 ATK hoặc MATK theo vai trò trong 2 lượt. Nếu cột có ít nhất 2 tướng đánh xa, 1 mục tiêu trong cột bị đóng băng 1 lượt."
+    "Gọi bão tuyết gây (22 + 80% MATK) sát thương phép lên mục tiêu chính và mọi kẻ địch cùng cột. Ưu tiên vai trò trước, rồi cột có tổng ATK cao nhất. Mỗi nạn nhân có 50% xác suất bị đóng băng 1 lượt.",
+    "Gọi bão tuyết gây (22 + 80% MATK) sát thương phép lên mục tiêu chính và mọi kẻ địch cùng cột. Ưu tiên vai trò trước, rồi cột có tổng ATK cao nhất. Mỗi nạn nhân có 75% xác suất bị đóng băng 1 lượt.",
+    "Gọi bão tuyết gây (22 + 80% MATK) sát thương phép lên mục tiêu chính và mọi kẻ địch cùng cột. Ưu tiên vai trò trước, rồi cột có tổng ATK cao nhất. Mỗi nạn nhân chắc chắn bị đóng băng (100%); đóng băng không hết hạn theo lượt, chỉ tan khi chính nạn nhân nhận sát thương."
    ]
   },
   "skin": {
