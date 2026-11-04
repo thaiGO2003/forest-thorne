@@ -16,7 +16,7 @@ export type SkillSelector =
   | "lowest_mdef_backline" | "highest_atk_backline" | "isolated_backline" | "backline_caster"
   | "most_clustered_row" | "most_clustered_col" | "highest_total_atk_row" | "highest_total_atk_col"
   | "random" | "random_unique" | "same_row" | "same_row_carry" | "grass_row" | "same_column" | "front_cone"
-  | "highest_current_hp_role" | "self" | "frontline_default" | "backline_jump" | "primary_target";
+  | "highest_current_hp_role" | "role_priority" | "self" | "frontline_default" | "backline_jump" | "primary_target";
 
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
@@ -47,6 +47,8 @@ export interface SkillReactionSpec {
 
 /** Bướm Cỏ: sequential same-row magic impacts, with no persistent status. */
 export const GRASS_STORM_FAMILY = "grass_row_storm";
+/** Điện Linh Dương: alternate horn impacts with an optional adjacent foe and per-hit paralyze. */
+export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
 
 /** Nhện Linh: one canonical magic impact per launched soul. */
 export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
@@ -80,6 +82,8 @@ export interface SkillSpec {
   reaction: SkillReactionSpec;
   /** Only the fourth hit of the 2★ grass storm may proc; null when not configured. */
   fourthTargetBonusChance?: number | null;
+  /** Authored Kirin total number of individual damage events per cast. */
+  hitCount?: number;
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
@@ -363,6 +367,18 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === KIRIN_HORNS_FAMILY) {
+    if (!u.skill.hitCountByStar || !u.skill.paralyzeChanceByStar || !s.damage) {
+      throw new Error("kirin_volt_horns requires authored hits, chance and damage");
+    }
+    const chance = u.skill.paralyzeChanceByStar[resolvedStar - 1]!;
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      hitCount: u.skill.hitCountByStar[resolvedStar - 1]!,
+      controls: chance > 0 ? [{ kind: "paralyze", turns: 1, chance }] : [],
+      dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -374,6 +390,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
     // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
     s.selector = u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
       : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
+      : u.skill.family === KIRIN_HORNS_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
         ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);

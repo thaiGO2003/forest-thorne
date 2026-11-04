@@ -187,10 +187,12 @@ describe("Nhện Linh soul volley — issue #96", () => {
       const { events, hits } = firstVolley(fighters, seed);
       expect(hits).toHaveLength(1);
       const status = events.filter((event) => event.t === "status" && event.kind === "paralyze");
-      expect(status.length).toBeLessThanOrEqual(1);
+      // A paralyze apply and its expiry are two status events for one victim; count applications only.
+      const applications = status.filter((event) => event.turns > 0);
+      expect(applications.length).toBeLessThanOrEqual(1);
       expect(events.filter((event) => event.t === "skill" && event.src === "spider")).toHaveLength(1);
-      applied += status.length;
-      if (status.length) {
+      applied += applications.length;
+      if (applications.length) {
         const result = simulate(fighters, { seed, rageGain: { L: 0, R: 0 } });
         expect(result.events.some((event) => event.t === "skip" && event.src === "foe0" && event.reason === "paralyze")).toBe(true);
         expect(result.survivors.find((survivor) => survivor.uid === "foe0")?.status.paralyze).toBeUndefined();

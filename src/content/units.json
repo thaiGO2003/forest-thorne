@@ -2840,7 +2840,7 @@
   "id": "kirin_thunder",
   "species": "ky-lan",
   "nameVi": "Điện Linh Dương",
-  "tier": 5,
+  "tier": 1,
   "role": "FIGHTER",
   "faction": "MYTHICAL",
   "element": "WIND",
@@ -2858,29 +2858,31 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Triệu hồi sét trời toàn bàn để khống chế địch nhiều nộ.",
+  "pitchVi": "Dùng song giác liên kích xen kẽ, điện tê liệt chỉ bùng lên khi trúng hiệu ứng.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Phán Quyết Kỳ Lân",
-   "family": "global_stun",
+   "nameVi": "Cặp Sừng Chọt Liên Hoàn",
+   "family": "kirin_volt_horns",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "toàn bộ kẻ địch; choáng tối đa 2 kẻ địch nhiều nộ nhất",
-   "shapeVi": "toàn bộ bàn địch",
-   "selectionVi": "Gây sát thương toàn bàn trước, rồi chọn các kẻ địch nhiều nộ nhất để choáng.",
-   "countVi": "toàn bộ kẻ địch / choáng tối đa 2",
-   "durationVi": "choáng 1 lượt (40%)",
+   "hitCountByStar": [2, 4, 6],
+   "paralyzeChanceByStar": [0, 0.4, 0.95],
+   "targetVi": "mục tiêu chính theo ưu tiên vai trò, thêm một kẻ địch ngẫu nhiên ở ô kề mục tiêu chính",
+   "shapeVi": "mục tiêu chính và ô kề (8 hướng) quanh mục tiêu chính",
+   "selectionVi": "Ưu tiên vai trò cho mục tiêu chính; chọn đều bằng RNG gameplay một địch khác ở ô kề, thiếu địch kề thì dồn đòn lên mục tiêu chính. Mỗi đòn là một sự kiện sát thương riêng.",
+   "countVi": "2 / 4 / 6 đòn liên hoàn theo cấp sao",
+   "durationVi": "tê liệt 1 lượt khi kích hoạt; không cộng dồn, làm mới thời lượng",
    "starDetailVi": [
-    "Triệu hồi sét trời lên toàn bộ kẻ địch, gây (45 + 110% MATK) sát thương phép. Có 40% làm choáng tối đa 2 kẻ địch nhiều nộ nhất trong 1 lượt.",
-    "Triệu hồi sét trời lên toàn bộ kẻ địch, gây (54 + 132% MATK) sát thương phép. Có 40% làm choáng tối đa 3 kẻ địch nhiều nộ nhất trong 1 lượt.",
-    "Triệu hồi sét trời lên toàn bộ kẻ địch, gây (65 + 159.5% MATK) sát thương phép. Có 95% làm choáng tối đa 3 kẻ địch nhiều nộ nhất trong 1 lượt."
+    "Song giác chọt liên hoàn 2 hit, luân phiên mục tiêu chính theo ưu tiên vai trò và một kẻ địch ngẫu nhiên ở ô kề mục tiêu chính. Tổng gây (45 + 110% MATK) sát thương phép, chia đều cho 2 hit riêng; không gây tê liệt.",
+    "Song giác chọt liên hoàn 4 hit, luân phiên mục tiêu chính theo ưu tiên vai trò và một kẻ địch ngẫu nhiên ở ô kề mục tiêu chính. Tổng gây (54 + 132% MATK) sát thương phép, chia đều cho 4 hit riêng. Mỗi hit trúng có 40% gây tê liệt 1 lượt.",
+    "Song giác chọt liên hoàn 6 hit, luân phiên mục tiêu chính theo ưu tiên vai trò và một kẻ địch ngẫu nhiên ở ô kề mục tiêu chính. Tổng gây (65 + 159.5% MATK) sát thương phép, chia đều cho 6 hit riêng. Mỗi hit trúng có 95% gây tê liệt 1 lượt."
    ]
   },
   "skin": {
