@@ -294,6 +294,10 @@ export const SPORE_FAMILY = "toad_spore_mist";
 /** Dơi Tình Yêu's hit tracking and batling retaliation are resolved once per kiss in combat.ts. */
 export const LOVE_KISS_FAMILY = "love_kiss_batlings";
 
+/** Gõ Kiến Mỏ Cứng: single impact, stun, incoming-damage vulnerability and 3★ self shield. */
+export const HARD_BEAK_DIVE_FAMILY = "hard_beak_dive";
+
+
 
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
@@ -327,6 +331,15 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       debuffs: [], selfHealPctMaxHp: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === HARD_BEAK_DIVE_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "frontline_default",
+      damage: { base: 10, scale: 0.45, stat: "atk", type: "physical" },
+      controls: [{ kind: "stun", turns: 1, chance: 1 }],
+      dots: [], debuffs: [], buffs: [], shield: null, heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -337,7 +350,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   if (!u.boss) {
     // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
     s.selector = u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
-      : u.skill.family === BLOOD_SWORD_OATH_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
+      : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
+        ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
