@@ -24,6 +24,12 @@ import monkeySage from "./roster/monkeySage";
 import pumpkinKing from "./roster/pumpkinKing";
 import deerNurse from "./roster/deerNurse";
 import squirrelMonk from "./roster/squirrelMonk";
+import ferretBlades from "./roster/ferretBlades";
+import sharkOctopus from "./roster/sharkOctopus";
+import oxMountain from "./roster/oxMountain";
+import foxSlingshot from "./roster/foxSlingshot";
+import saolaFrost from "./roster/saolaFrost";
+import boarGlutton from "./roster/boarGlutton";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -48,6 +54,12 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   wolf_alpha: pumpkinKing,
   deer_song: deerNurse,
   fairy_forest: squirrelMonk,
+  ferret_shadow: ferretBlades,
+  octopus_mind: sharkOctopus,
+  ox_mountain: oxMountain,
+  fox_flame: foxSlingshot,
+  worm_ice: saolaFrost,
+  bear_ancient: boarGlutton,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

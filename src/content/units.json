@@ -344,7 +344,7 @@
  {
   "id": "bear_ancient",
   "species": "gau",
-  "nameVi": "Gấu Cổ Thụ",
+  "nameVi": "Lợn Háu Ăn",
   "tier": 2,
   "role": "TANKER",
   "faction": "BEAST",
@@ -1760,7 +1760,7 @@
  {
   "id": "ferret_shadow",
   "species": "chon-huong",
-  "nameVi": "Chồn Hương Bóng",
+  "nameVi": "Song Đao Chồn Sóc",
   "tier": 3,
   "role": "ASSASSIN",
   "faction": "BEAST",
@@ -1988,9 +1988,9 @@
  {
   "id": "fox_flame",
   "species": "cao",
-  "nameVi": "Cáo Hỏa",
+  "nameVi": "Cáo Ná Thun",
   "tier": 1,
-  "role": "ASSASSIN",
+  "role": "ARCHER",
   "faction": "BEAST",
   "element": "FIRE",
   "boss": false,
@@ -3755,9 +3755,9 @@
  {
   "id": "octopus_mind",
   "species": "bach-tuoc-tam",
-  "nameVi": "Bạch Tuộc Tâm",
+  "nameVi": "Bạch Tuộc Đầu Cá Mập",
   "tier": 2,
-  "role": "MAGE",
+  "role": "TANKER",
   "faction": "AQUATIC",
   "element": "TIDE",
   "boss": false,
@@ -3983,7 +3983,7 @@
  {
   "id": "ox_mountain",
   "species": "bo",
-  "nameVi": "Bò Núi",
+  "nameVi": "Ngọn Núi Đầu Bò",
   "tier": 2,
   "role": "TANKER",
   "faction": "BEAST",
@@ -6719,7 +6719,7 @@
  {
   "id": "worm_ice",
   "species": "coc",
-  "nameVi": "Cóc Băng",
+  "nameVi": "Sao La Làng",
   "tier": 2,
   "role": "MAGE",
   "faction": "REPTILE",

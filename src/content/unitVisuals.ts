@@ -22,6 +22,12 @@ export const VISUAL_UNIT_IDS: readonly string[] = [
   "wolf_alpha",
   "deer_song",
   "fairy_forest",
+  "ferret_shadow",
+  "octopus_mind",
+  "ox_mountain",
+  "fox_flame",
+  "worm_ice",
+  "bear_ancient",
 ];
 
 const VISUAL_UNITS = new Set<string>(VISUAL_UNIT_IDS);

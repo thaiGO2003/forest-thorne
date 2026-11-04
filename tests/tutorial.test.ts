@@ -57,7 +57,7 @@ describe("tutorial A94/A108", () => {
     expect(s.shop.slice(0, 5)).toEqual(["deer_song", "ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing"]);
     incrementTutorialShopVariant(s);
     expect(tutorialShop(2, s.tutorial.shopVariant, 5)).toEqual([
-      "deer_song", "ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing",
+      "fox_flame", "deer_song", "ant_guard", "jaguar_hunt", "toad_poison",
     ]);
   });
 
