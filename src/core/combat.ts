@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GOLD_THROW_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -158,7 +158,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "gold" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -889,7 +889,7 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 interface StrikeOptions {
   allowCounter?: boolean;
   /** Distinct presentation for authored skill impact families. */
-  kind?: "kiss" | "batling" | "grass" | "soul" | "horn";
+  kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "gold";
   canCrit?: boolean;
 }
 
@@ -1372,6 +1372,20 @@ if (source.skillFamily === KIRIN_HORNS_FAMILY) {
     };
   }
 
+  if (source.skillFamily === GOLD_THROW_FAMILY) {
+    const [primary] = skillTargets(c, source, source.skill);
+    const adjacent = primary && source.star >= 2 ? kirinAdjacentTargets(c, source, primary) : [];
+    const targets = primary ? [primary, ...adjacent] : [];
+    const tags: CombatPreviewTag[] = targets.map((target, index) => ({
+      uid: target.uid, effect: "damage", kind: "skill", primary: index === 0,
+    }));
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells, directUids: primary ? [primary.uid] : [],
+      splashUids: adjacent.map((target) => target.uid),
+      skillCasterUid: source.uid, tags, actorRole: source.role,
+    };
+  }
   const skillTargetsResolved = skillTargets(c, source, source.skill, basic);
   const skillPrimary = skillTargetsResolved[0];
   const directUids = skillPrimary ? [skillPrimary.uid] : [];
@@ -1628,6 +1642,37 @@ function castKirinHorns(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   }
 }
 
+/** One gold projectile lands once per victim; 3★ launches a second independent throw. */
+function castGoldThrow(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const damage = f.skill.damage;
+  if (!damage) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const statusSource: SkillStatusOrigin = {
+    skillId: GOLD_THROW_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  for (let throwIndex = 0; throwIndex < (f.star === 3 ? 2 : 1) && f.alive; throwIndex++) {
+    const primary = skillTargets(c, f, f.skill)[0];
+    if (!primary) break;
+    // Neighbors are selected from the occupied eight surrounding cells at each throw,
+    // never a square centered on the caster and never including the primary twice.
+    const adjacent = f.star >= 2 ? kirinAdjacentTargets(c, f, primary) : [];
+    const cast: Extract<CombatEvent, { t: "cast" }> = {
+      t: "cast", src: f.uid, targets: [primary.uid, ...adjacent.map((enemy) => enemy.uid)],
+    };
+    if (trigger && throwIndex === 0) cast.trigger = trigger;
+    c.events.push(cast);
+    const primaryHit = strike(c, f, primary, raw, damage.type, true,
+      { kind: "gold", allowCounter: false });
+    for (const enemy of adjacent) {
+      if (enemy.alive && f.alive) strike(c, f, enemy, raw, damage.type, true,
+        { kind: "gold", allowCounter: false });
+    }
+    // Stun is a one-action non-stacking control; the second throw refreshes it, not doubles it.
+    if (primaryHit.landed && primary.alive) applyStatus(c, primary, "stun", 1, 0, statusSource);
+  }
+}
+
 function castHardBeakDive(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   const targets = foes(c, f).sort((a, b) =>
     AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
@@ -1737,6 +1782,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     }
     if (family === KIRIN_HORNS_FAMILY) {
       castKirinHorns(c, f, options.trigger);
+      return;
+    }
+    if (family === GOLD_THROW_FAMILY) {
+      castGoldThrow(c, f, options.trigger);
       return;
     }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";

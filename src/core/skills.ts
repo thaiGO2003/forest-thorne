@@ -49,6 +49,8 @@ export interface SkillReactionSpec {
 export const GRASS_STORM_FAMILY = "grass_row_storm";
 /** Điện Linh Dương: alternate horn impacts with an optional adjacent foe and per-hit paralyze. */
 export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
+/** Thiên Nga Trắng: role-first gold throw, adjacent splash and a second cast at 3★. */
+export const GOLD_THROW_FAMILY = "gold_throw_stun";
 
 /** Nhện Linh: one canonical magic impact per launched soul. */
 export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
@@ -390,6 +392,17 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === GOLD_THROW_FAMILY) {
+    // The prior shield-only skill has no damage formula. Reuse this unit's existing
+    // 1×MATK magic basic-attack coefficient rather than inventing a flat damage value.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      damage: { base: 0, scale: 1, stat: "matk", type: "magic" },
+      controls: [{ kind: "stun", turns: 1, chance: 1 }],
+      dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -402,7 +415,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
     s.selector = u.skill.family === FROST_STORM_FAMILY ? "frost_role_column"
       : u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
       : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
-      : u.skill.family === KIRIN_HORNS_FAMILY ? "role_priority"
+      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === GOLD_THROW_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
         ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
