@@ -54,7 +54,8 @@ describe("tutorial A94/A108", () => {
     s.gold = 100;
     expect(refresh(s)).toBe(true);
     expect(s.tutorial.shopVariant).toBe(1);
-    expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing", "rabbit_blood"]);
+    // Authored variant 1 includes owl_nightshot (Cú Đêm), visible now that its rig exists.
+    expect(s.shop.slice(0, 5)).toEqual(["owl_nightshot", "ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing"]);
     incrementTutorialShopVariant(s);
     expect(tutorialShop(2, s.tutorial.shopVariant, 5)).toEqual([
       "ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing", "rabbit_blood",
