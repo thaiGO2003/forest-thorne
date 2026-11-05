@@ -6907,29 +6907,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Gào thét tăng sức đánh cho cả đội rồi dựng giáp cho bản thân.",
+  "pitchVi": "Gầm vang, chuẩn bị đòn đánh làm choáng ở chu kỳ sau; từ 2 sao có thể làm choáng kẻ tấn công, 3 sao hồi máu mỗi lần gây choáng.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Tiếng Thét Chiến",
-   "family": "warcry_atk_def",
+   "nameVi": "Tiếng Gầm Viking",
+   "family": "viking_bull_stun",
    "rageCost": [
     2,
     3,
     4
    ],
-   "targetVi": "toàn bộ đồng minh + bản thân",
-   "shapeVi": "toàn đội",
-   "selectionVi": "Lan buff ATK cho toàn đội, đồng thời tự nhận DEF.",
-   "countVi": "toàn đội",
-   "durationVi": "ATK 2 lượt; DEF 3 lượt",
+   "targetVi": "bản thân chuẩn bị đòn đánh; kẻ địch trúng đòn đánh thường; kẻ tấn công (2★+)",
+   "shapeVi": "một đòn đánh vòng sau và phản ứng khi bị tấn công",
+   "selectionVi": "Đòn đánh thường chọn mục tiêu theo ưu tiên vai trò; mỗi đòn đánh nhận vào có 1/3 tỉ lệ gây choáng kẻ tấn công từ 2★.",
+   "countVi": "một kẻ địch mỗi đòn; từng kẻ tấn công",
+   "durationVi": "Đòn đánh được chuẩn bị cho chu kỳ kế tiếp; choáng đòn đánh 1 lượt, choáng phản ứng đến hết chu kỳ sau",
    "starDetailVi": [
-    "Gào thét, tăng 15% ATK cho toàn bộ đồng minh trong 2 lượt và tăng 20 DEF cho bản thân trong 3 lượt.",
-    "Gào thét, tăng 20% ATK cho toàn bộ đồng minh trong 3 lượt và tăng 30 DEF cho bản thân trong 3 lượt.",
-    "Gào thét, tăng 25% ATK cho toàn bộ đồng minh trong 3 lượt, tăng 40 DEF cho bản thân trong 3 lượt, đồng thời cho toàn bộ đồng minh 5 nộ."
+    "Gầm lên, chuẩn bị đòn đánh thường trong chu kỳ tiếp theo: nếu trúng sẽ chắc chắn gây choáng mục tiêu 1 lượt; không gây thêm sát thương.",
+    "Như 1★. Mỗi đòn đánh trúng bản thân có 1/3 tỉ lệ gây choáng kẻ tấn công đến hết chu kỳ tiếp theo.",
+    "Như 2★. Mỗi lần gây choáng bằng đòn đánh hoặc phản ứng, bản thân hồi máu bằng 1×ATK hiện tại (tối đa HP tối đa)."
    ]
   },
   "skin": {
