@@ -5083,29 +5083,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Rút vào vỏ để dựng khiên, miễn khống chế và che chắn cả hàng.",
+  "pitchVi": "Pháo Thân bắn một phát lớn vào mục tiêu ưu tiên theo vai trò, sóng nổ lan chỉ tới hai ô sát trên và dưới cùng cột.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "melee, physical, 1×ATK, 1 kẻ địch gần nhất, single ×1."
   },
   "skill": {
-   "nameVi": "Pháo Đài Di Động",
-   "family": "self_shield_immune",
+   "nameVi": "Pháo Thân",
+   "family": "cannon_column_blast",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "bản thân",
-   "shapeVi": "tự thân",
-   "selectionVi": "Tự kích hoạt lên bản thân.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "khiên tức thì; miễn khống chế 2 lượt",
+   "targetVi": "kẻ địch ưu tiên theo vai trò",
+   "shapeVi": "mục tiêu chính và hai ô cùng cột kề trên/dưới",
+   "selectionVi": "Ưu tiên vai trò, sau đó khoảng cách; chỉ lan cùng cột.",
+   "countVi": "tối đa 3 mục tiêu, mỗi mục tiêu một lần",
+   "durationVi": "sát thương tức thì khi đạn chạm; không tạo trạng thái hay hiệu ứng kéo dài",
    "starDetailVi": [
-    "Tự tạo khiên bằng (40 + 0.3 x DEF) và miễn nhiễm khống chế trong 2 lượt.",
-    "Tự tạo khiên bằng (60 + 0.4 x DEF) và miễn nhiễm khống chế trong 2 lượt.",
-    "Tự tạo khiên bằng (80 + 0.5 x DEF), miễn nhiễm khống chế trong 3 lượt, và chia 25% giá trị khiên cho đồng minh cùng hàng."
+    "Pháo Thân bắn vào kẻ địch ưu tiên theo vai trò, gây (15 + 40% DEF) sát thương vật lý ở thời điểm va chạm. Hai kẻ địch ở ô liền kề trên và dưới cùng cột với mục tiêu chính, nếu có, mỗi kẻ chịu 1/3 sát thương sau các hệ số. Không tạo trạng thái, không cộng dồn hay làm mới.",
+    "Pháo Thân bắn vào kẻ địch ưu tiên theo vai trò, gây (15 + 40% DEF) sát thương vật lý ở thời điểm va chạm. Hai kẻ địch ở ô liền kề trên và dưới cùng cột với mục tiêu chính, nếu có, mỗi kẻ chịu 2/3 sát thương sau các hệ số. Không tạo trạng thái, không cộng dồn hay làm mới.",
+    "Pháo Thân bắn vào kẻ địch ưu tiên theo vai trò, gây (15 + 40% DEF) sát thương vật lý ở thời điểm va chạm. Hai kẻ địch ở ô liền kề trên và dưới cùng cột với mục tiêu chính, nếu có, mỗi kẻ chịu toàn bộ sát thương sau các hệ số. Không tạo trạng thái, không cộng dồn hay làm mới."
    ]
   },
   "skin": {

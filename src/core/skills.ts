@@ -56,6 +56,8 @@ export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
 export const FROST_STORM_FAMILY = "frost_storm";
 /** Tượng Đại Thủy: position-scoped, role-prioritized shield and full debuff cleanse. */
 export const ELEPHANT_TIDE_FAMILY = "elephant_tide_guard";
+/** Pháo Thân: one primary shell with adjacent same-column splash and no statuses. */
+export const CANNON_COLUMN_BLAST_FAMILY = "cannon_column_blast";
 
 export interface SkillSpec {
   /** Who the primary effect lands on. */
@@ -371,6 +373,15 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === CANNON_COLUMN_BLAST_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      dots: [], controls: [], heal: null, hot: null, shield: null,
+      buffs: [], debuffs: [], reaction: {}, selfHealPctMaxHp: 0,
+      damageReductionPct: 0, damageReductionTurns: 0, cleanseCount: 0,
+      lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === HARD_BEAK_DIVE_FAMILY) {
     Object.assign(s, {
       side: "enemy", area: "single", count: 1, selector: "frontline_default",
@@ -412,7 +423,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
     s.selector = u.skill.family === FROST_STORM_FAMILY ? "frost_role_column"
       : u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
       : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
-      : u.skill.family === KIRIN_HORNS_FAMILY ? "role_priority"
+      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === CANNON_COLUMN_BLAST_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
