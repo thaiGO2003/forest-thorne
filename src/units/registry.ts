@@ -36,6 +36,10 @@ import bullRage from "./roster/bullRage";
 import hedgehogSun from "./roster/hedgehogSun";
 import duckKing from "./roster/duckKing";
 import elfSheep from "./roster/elfSheep";
+import frostButterfly from "./roster/frostButterfly";
+import vikingBison from "./roster/vikingBison";
+import butterflyAssassin from "./roster/butterflyAssassin";
+import coconutCannon from "./roster/coconutCannon";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -72,6 +76,10 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   cat_goldbow: hedgehogSun,
   swan_grace: duckKing,
   dryad_tree: elfSheep,
+  moth_dust: frostButterfly,
+  buffalo_mist: vikingBison,
+  mosquito_toxic: butterflyAssassin,
+  pelican_bomb: coconutCannon,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];
