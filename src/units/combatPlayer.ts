@@ -1,6 +1,7 @@
 // Replay the canonical event stream; combatStaging/gameSpeed own basic movement timing.
 import * as THREE from "three";
 import { getUnit } from "../content/catalog";
+import { VIKING_BULL_FAMILY } from "../core/skills";
 import {
   SPORE_BURST_POINTS,
   type CombatEvent,
@@ -43,6 +44,8 @@ const GRASS_STORM_COLOR = 0x85df63;
 const SPIDER_SOUL_COLOR = 0x9ee4ff;
 /** Existing hit sparks fire per horn impact; blue electricity appears only for a paralyze proc. */
 const KIRIN_PARALYZE_COLOR = 0x63d6ff;
+const VIKING_ROAR_COLOR = 0xe59d46;
+const VIKING_STUN_COLOR = 0x6daeff;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -154,15 +157,40 @@ export function playCombat(o: {
     fx.burst(position(dst), 0xffc36a); push(dst); tick();
     log.push(`${name(src)} → ${name(dst)} -${hpDamage}`); if (log.length > 12) log.shift();
   };
-  const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => exactImpact(() => {
-    const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
-    const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
-    board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
-    if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
-    if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
-    o.onEvent?.(damageEvent);
-    land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
-  });
+  // The simulator emits Viking control and the optional heal directly after a
+  // landed strike. Consume that contiguous aftermath without merging hits.
+  const takeVikingAftermath = (src: string, dst: string): CombatEvent[] | null => {
+    let follows: CombatEvent[] | null = null;
+    let stunHealer: string | null = null;
+    while (index < o.events.length) {
+      const next = o.events[index]!;
+      if (next.t === "status" && next.kind === "stun" && next.turns > 0
+        && next.source?.skillId === VIKING_BULL_FAMILY
+        && ((next.dst === dst && next.source.unitUid === src)
+          || (next.dst === src && next.source.unitUid === dst))) {
+        (follows ??= []).push(next);
+        stunHealer = next.source.unitUid;
+      } else if (next.t === "heal" && stunHealer && next.src === stunHealer && next.dst === stunHealer) {
+        (follows ??= []).push(next);
+        stunHealer = null;
+      } else break;
+      index++;
+    }
+    return follows;
+  };
+  const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => {
+    const vikingFollows = takeVikingAftermath(damageEvent.src, damageEvent.dst);
+    return exactImpact(() => {
+      const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
+      const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
+      board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
+      if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
+      if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
+      o.onEvent?.(damageEvent);
+      land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
+      if (vikingFollows) for (const follow of vikingFollows) present(follow);
+    });
+  };
   const move = (root: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, duration: number) => {
     if (duration <= 0) root.position.copy(to);
     else moves.push({ root, from: from.clone(), to: to.clone(), elapsed: 0, duration });
@@ -197,11 +225,14 @@ export function playCombat(o: {
     }
     if (event.t === "basic" || event.t === "miss") {
       const actor = units.get(event.src), visual = board.visual(event.src);
+      // Replay Viking stun and healing at this same basic impact frame.
+      const vikingFollows = takeVikingAftermath(event.src, event.dst);
       const semanticImpact = exactImpact(() => {
         board.flashTile?.(event.dst, "direct");
         o.onEvent?.(event);
         if (event.t === "basic") land(event.src, event.dst, event.dmg, event.absorbed, event.crit);
         else fx.float(position(event.dst), "MISS", "miss");
+        if (vikingFollows) for (const follow of vikingFollows) present(follow);
       });
       if (!actor || !visual) {
         semanticImpact();
@@ -370,6 +401,10 @@ export function playCombat(o: {
           onImpact: () => {
             if (disposed || window.fired) return;
             window.fired = true;
+            if (units.get(event.src)?.baseId === "yak_highland") {
+              fx.burst(position(event.src), VIKING_ROAR_COLOR);
+              fx.float(position(event.src), "Gầm Viking", "status");
+            }
             if (kirinHits.length) {
               // The rig alternates left/right horn strikes over the p=.6–.93 window.
               const spacingMs = (skillSeconds * 330) / Math.max(1, kirinHits.length - 1);
@@ -453,6 +488,10 @@ export function playCombat(o: {
         if (event.kind === "paralyze" && event.turns > 0 && event.source?.skillId === "kirin_volt_horns") {
           fx.burst(position(event.dst), KIRIN_PARALYZE_COLOR);
           fx.float(position(event.dst), "Tê liệt", "status");
+        }
+        if (event.kind === "stun" && event.turns > 0 && event.source?.skillId === VIKING_BULL_FAMILY) {
+          fx.burst(position(event.dst), VIKING_STUN_COLOR);
+          fx.float(position(event.dst), "Choáng", "status");
         }
         break;
       }

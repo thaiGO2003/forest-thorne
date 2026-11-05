@@ -54,6 +54,8 @@ export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
 export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
 /** Sương Điệp: a role-prioritized column burst with one freeze roll per victim. */
 export const FROST_STORM_FAMILY = "frost_storm";
+/** Bò Viking: next-cycle basic stun, reactive stun and heal only on successful stun application. */
+export const VIKING_BULL_FAMILY = "viking_bull_stun";
 
 export interface SkillSpec {
   /** Who the primary effect lands on. */
@@ -86,6 +88,12 @@ export interface SkillSpec {
   fourthTargetBonusChance?: number | null;
   /** Authored Kirin total number of individual damage events per cast. */
   hitCount?: number;
+  /** Viking roar is a self-buff; only the following basic hit applies its control. */
+  viking?: {
+    nextBasicStunTurns: number;
+    retaliationChance: number;
+    healOnStun: Formula | null;
+  };
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
@@ -367,6 +375,20 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       controls: [{ kind: "freeze", turns: 1, chance: [0.5, 0.75, 1][resolvedStar - 1]! }],
       dots: [], buffs: [], debuffs: [], heal: null, hot: null, shield: null,
       selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === VIKING_BULL_FAMILY) {
+    Object.assign(s, {
+      side: "self", area: "single", count: 1, selector: "self",
+      damage: null, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, damageReductionPct: 0, damageReductionTurns: 0,
+      cleanseCount: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [],
+      rageGrant: 0, revivePct: 0, reaction: {},
+      viking: {
+        nextBasicStunTurns: 1,
+        retaliationChance: resolvedStar >= 2 ? 1 / 3 : 0,
+        healOnStun: resolvedStar === 3 ? { base: 0, scale: 1, stat: "atk" } : null,
+      },
     } satisfies Partial<SkillSpec>);
   }
   if (u.skill.family === HARD_BEAK_DIVE_FAMILY) {

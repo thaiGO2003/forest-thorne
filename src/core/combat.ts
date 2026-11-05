@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, VIKING_BULL_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -49,6 +49,8 @@ export interface TimedStatus {
   value: number;
   /** Damage-triggered thaw, not turn expiry (Sương Điệp 3★ only). */
   permanent?: boolean;
+  /** Viking retaliation lasts through the end of the following shared cycle. */
+  expiresAfterCycle?: number;
   source?: SkillStatusSource;
 }
 
@@ -100,6 +102,8 @@ export interface Fighter {
   berserk: BerserkReactionState | null;
   /** Oath resolves at the next shared cycle, not at cast impact. */
   oath: { cycle: number; star: number } | null;
+  /** A roar arms exactly one ordinary basic in the following shared cycle. */
+  vikingNextBasicCycle?: number;
   /** Wind hook effects are scoped to the current shared combat cycle. */
   hookOffense?: { cycle: number; multiplier: number };
   hookGuardCycle?: number;
@@ -166,7 +170,7 @@ export type CombatEvent =
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
-  | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; source?: SkillStatusSource }
+  | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; expiresAfterCycle?: number; source?: SkillStatusSource }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string }
@@ -731,29 +735,51 @@ function applyStatus(
   value = 0,
   source?: SkillStatusOrigin,
   permanent = false,
+  expiresAfterCycle?: number,
 ) {
   if (!dst.alive || turns <= 0) return;
   const cur = dst.status[kind];
   const nextTurns = Math.max(turns, cur?.turns ?? 0);
   const nextValue = Math.max(value, cur?.value ?? 0);
   const nextPermanent = permanent || (cur?.permanent ?? false);
-  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue || (!!cur.permanent !== nextPermanent);
+  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue || (!!cur.permanent !== nextPermanent)
+    || (expiresAfterCycle !== undefined && (cur.expiresAfterCycle ?? 0) < expiresAfterCycle);
   // Never shorten; keep the stronger payload (A73). A89 source changes only when the merged state changes.
   if (!cur) {
-    dst.status[kind] = source
-      ? { turns: nextTurns, value: nextValue, ...(nextPermanent ? { permanent: true } : {}), source: { ...source, turns: nextTurns, value: nextValue } }
-      : { turns: nextTurns, value: nextValue, ...(nextPermanent ? { permanent: true } : {}) };
+    dst.status[kind] = {
+      turns: nextTurns, value: nextValue, ...(nextPermanent ? { permanent: true } : {}),
+      ...(expiresAfterCycle !== undefined ? { expiresAfterCycle } : {}),
+      ...(source ? { source: { ...source, turns: nextTurns, value: nextValue } } : {}),
+    };
   } else if (changed) {
     cur.turns = nextTurns;
     cur.value = nextValue;
     if (nextPermanent) cur.permanent = true;
+    if (expiresAfterCycle !== undefined) cur.expiresAfterCycle = Math.max(cur.expiresAfterCycle ?? 0, expiresAfterCycle);
     if (source) cur.source = { ...source, turns: nextTurns, value: nextValue };
     else delete cur.source;
   }
   const event: Extract<CombatEvent, { t: "status" }> = { t: "status", dst: dst.uid, kind, turns: nextTurns };
   if (nextPermanent) event.permanent = true;
+  if (dst.status[kind]?.expiresAfterCycle !== undefined) event.expiresAfterCycle = dst.status[kind]!.expiresAfterCycle;
   if (dst.status[kind]?.source) event.source = dst.status[kind]!.source;
   c.events.push(event);
+}
+
+/** 1★ controls one action; 2★ retaliations control through the following cycle.
+ * Only a new or extended stun is an application eligible for 3★ healing. */
+function applyVikingStun(c: Ctx, bull: Fighter, victim: Fighter, retaliation: boolean) {
+  if (!bull.alive || bull.hp <= 0 || !victim.alive || victim.hp <= 0) return;
+  const existing = victim.status.stun;
+  const expiry = retaliation ? c.cycle + 1 : undefined;
+  if (existing && (existing.permanent || (!retaliation && existing.turns > 0)
+    || (retaliation && existing.expiresAfterCycle !== undefined && existing.expiresAfterCycle >= expiry!)
+    || (retaliation && existing.turns > 1 && existing.expiresAfterCycle === undefined))) return;
+  applyStatus(c, victim, "stun", bull.skill.viking?.nextBasicStunTurns ?? 1, 0, {
+    skillId: VIKING_BULL_FAMILY, unitUid: bull.uid, unitBaseId: bull.baseId, unitStar: bull.star,
+  }, false, expiry);
+  const formula = bull.skill.viking?.healOnStun;
+  if (formula) heal(c, bull, bull, formula.base + statValue(bull, formula.stat) * formula.scale);
 }
 
 function cleanseRandomDebuffs(c: Ctx, fighter: Fighter, count: number) {
@@ -891,6 +917,8 @@ interface StrikeOptions {
   /** Distinct presentation for authored skill impact families. */
   kind?: "kiss" | "batling" | "grass" | "soul" | "horn";
   canCrit?: boolean;
+  /** Charged normal basic only, never a counterattack or chained skill impact. */
+  vikingStun?: boolean;
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -987,6 +1015,10 @@ function strike(
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
       ...(options.kind ? { kind: options.kind } : {}) }), true);
+  if (options.vikingStun && !skill) applyVikingStun(c, src, dst, false);
+  const retaliationChance = dst.skill.viking?.retaliationChance ?? 0;
+  if (dst.alive && dst.hp > 0 && src.alive && src.hp > 0 && retaliationChance > 0
+    && c.rng() < retaliationChance) applyVikingStun(c, dst, src, true);
 
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
@@ -1707,6 +1739,13 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === VIKING_BULL_FAMILY) {
+      const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [f.uid] };
+      if (options.trigger) castEvent.trigger = options.trigger;
+      c.events.push(castEvent);
+      f.vikingNextBasicCycle = c.cycle + 1;
+      return;
+    }
     if (family === "wind_sickle_hook") {
       castWindSickleHook(c, f, options.trigger);
       return;
@@ -1923,11 +1962,14 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
     if (k === "hardBeakVulnerability") continue;
     if (k === "hot" || s.permanent) continue;
+    if (s.expiresAfterCycle !== undefined) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
       delete f.status[k];
       if (k === "taunt") f.tauntBy = null;
-      if (k === "paralyze") c.events.push({ t: "status", dst: f.uid, kind: k, turns: 0 });
+      if (k === "paralyze" || (k === "stun" && s.source?.skillId === VIKING_BULL_FAMILY)) {
+        c.events.push({ t: "status", dst: f.uid, kind: k, turns: 0 });
+      }
     }
   }
   if (skip) c.events.push({ t: "skip", src: f.uid, reason: skip });
@@ -1938,20 +1980,24 @@ function act(c: Ctx, f: Fighter) {
   if (!f.alive) return;
   const gate = startTurn(c, f);
   if (!gate.canAct) return;
-  const target = basicTarget(c, f);
-  if (!target) {
+  const charged = f.vikingNextBasicCycle === c.cycle;
+  const ordinaryTarget = basicTarget(c, f);
+  if (!ordinaryTarget) {
     c.events.push({ t: "skip", src: f.uid, reason: "no-target" });
     return;
   }
-  if (f.rage >= f.rageMax && !gate.silenced && f.skillFamily) {
-    castSkill(c, f, target);
+  if (!charged && f.rage >= f.rageMax && !gate.silenced && f.skillFamily) {
+    castSkill(c, f, ordinaryTarget);
     return;
   }
   if (gate.disarmed) {
     c.events.push({ t: "skip", src: f.uid, reason: "disarm" });
     return;
   }
-  basicAttack(c, f, target);
+  const target = charged && !f.status.taunt?.turns
+    ? selectorTargets(c, f, foes(c, f), "role_priority", 1)[0] ?? ordinaryTarget : ordinaryTarget;
+  if (charged) f.vikingNextBasicCycle = undefined;
+  basicAttack(c, f, target, { vikingStun: charged });
   // Oath recovery is cycle-scoped, independent of the number of actions or hits.
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
 }
@@ -2112,6 +2158,17 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     // 1★ vulnerability lasts through the current shared round, not the target's action.
     for (const f of all) {
       if ((f.status.hardBeakVulnerability?.value ?? 0) <= 1 / 3) delete f.status.hardBeakVulnerability;
+    }
+    // Cycle-scoped retaliation does not tick on individual actions; expire only
+    // after every actor has had its turn in the following shared cycle.
+    for (const f of all) {
+      if (f.vikingNextBasicCycle !== undefined && f.vikingNextBasicCycle <= c.cycle) {
+        f.vikingNextBasicCycle = undefined;
+      }
+      if (f.status.stun?.expiresAfterCycle === c.cycle) {
+        delete f.status.stun;
+        c.events.push({ t: "status", dst: f.uid, kind: "stun", turns: 0 });
+      }
     }
   }
   const alive = { L: count("L"), R: count("R") };
