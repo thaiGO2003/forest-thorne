@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -158,7 +158,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "cannon" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -889,8 +889,10 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 interface StrikeOptions {
   allowCounter?: boolean;
   /** Distinct presentation for authored skill impact families. */
-  kind?: "kiss" | "batling" | "grass" | "soul" | "horn";
+  kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "cannon";
   canCrit?: boolean;
+  /** Applied once after offense, defense, elemental, critical and global modifiers. */
+  falloff?: number;
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -983,7 +985,7 @@ function strike(
   else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
   // Authored on-hit logic (issue #31): low/high-HP bonuses and capped stack scaling.
   dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
-  dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1)));
+  dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1) * (options.falloff ?? 1)));
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
       ...(options.kind ? { kind: options.kind } : {}) }), true);
@@ -1372,6 +1374,20 @@ if (source.skillFamily === KIRIN_HORNS_FAMILY) {
     };
   }
 
+  if (source.skillFamily === CANNON_COLUMN_BLAST_FAMILY) {
+    const [primary, ...splash] = cannonColumnTargets(c, source);
+    const tags: CombatPreviewTag[] = [
+      ...(primary ? [{ uid: primary.uid, effect: "damage" as const, kind: "skill" as const, primary: true }] : []),
+      ...splash.map((target) => ({ uid: target.uid, effect: "damage" as const, kind: "skill" as const, primary: false })),
+    ];
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells, directUids: primary ? [primary.uid] : [],
+      splashUids: splash.map((target) => target.uid),
+      skillCasterUid: source.uid, tags, actorRole: source.role,
+    };
+  }
+
   const skillTargetsResolved = skillTargets(c, source, source.skill, basic);
   const skillPrimary = skillTargetsResolved[0];
   const directUids = skillPrimary ? [skillPrimary.uid] : [];
@@ -1694,6 +1710,35 @@ function castWindSickleHook(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   if (f.star === 3) f.hookGuardCycle = c.cycle;
 }
 
+/** A primary shell hit plus living neighbors exactly one row above and below its column. */
+function cannonColumnTargets(c: Ctx, f: Fighter): Fighter[] {
+  const pool = foes(c, f);
+  const primary = selectorTargets(c, f, pool, "role_priority", 1)[0];
+  return primary ? [primary, ...pool.filter((enemy) =>
+    enemy.col === primary.col && Math.abs(enemy.row - primary.row) === 1)
+    .sort((a, b) => a.row - b.row)] : [];
+}
+
+function castCannonColumnBlast(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const targets = cannonColumnTargets(c, f);
+  const primary = targets[0];
+  const cast: Extract<CombatEvent, { t: "cast" }> = {
+    t: "cast", src: f.uid, targets: targets.map((target) => target.uid),
+  };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = f.skill.damage;
+  if (!damage || !primary) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const splash = f.star === 1 ? 1 / 3 : f.star === 2 ? 2 / 3 : 1;
+  for (const target of targets) {
+    if (!target.alive || !f.alive) continue;
+    strike(c, f, target, raw, damage.type, true,
+      { allowCounter: false, kind: "cannon", falloff: target === primary ? 1 : splash });
+  }
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1707,6 +1752,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === CANNON_COLUMN_BLAST_FAMILY) {
+      castCannonColumnBlast(c, f, options.trigger);
+      return;
+    }
     if (family === "wind_sickle_hook") {
       castWindSickleHook(c, f, options.trigger);
       return;
