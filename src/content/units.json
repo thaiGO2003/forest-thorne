@@ -6280,7 +6280,7 @@
    "evade": 0.15,
    "accuracy": 0.95
   },
-  "pitchVi": "Đâm hậu tuyến đã nhiễm độc để xuyên giáp, rút nộ và truy sát mục tiêu mỏng.",
+  "pitchVi": "Đâm hậu tuyến và đánh dấu con mồi gần nhất sau khi hạ gục; đồng đội dồn đòn vào dấu ấn để nhận hồi phục và nộ.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
@@ -6298,11 +6298,11 @@
    "shapeVi": "1 đòn đâm hậu tuyến",
    "selectionVi": "Ưu tiên kẻ địch ở cột cuối cùng phía địch.",
    "countVi": "1",
-   "durationVi": "tức thì",
+   "durationVi": "Đòn đâm tức thì; dấu ấn tồn tại đến hết lượt kế tiếp (tối đa 2 lượt tính cả lượt đặt), được làm mới khi đánh dấu lại, không cộng dồn.",
    "starDetailVi": [
-    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 5% sát thương cú đâm.",
-    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 8% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ.",
-    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 10% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ. Nếu mục tiêu chết hoặc còn dưới 40% máu sau cú đâm, mũi đâm phụ chuyển sang tối đa 2 kẻ địch hậu tuyến gần nhất với 70% sát thương."
+    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 5% sát thương cú đâm. Khi đòn đánh của bản thân hạ gục kẻ địch, đánh dấu 1 kẻ địch còn sống (ưu tiên vai trò, rồi gần nhất; hòa chọn đều ngẫu nhiên) trong 2 lượt tính cả lượt này; đồng minh ưu tiên đánh mục tiêu có dấu ấn.",
+    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 8% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ. Có dấu ấn như 1★; khi mục tiêu có dấu ấn chết, mỗi đồng minh từng đánh trúng nó khi còn dấu ấn hồi lượng HP bằng sát thương HP mà bản thân đã gây cho nó; kích hoạt một lần, không cộng dồn.",
+    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 10% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ. Nếu mục tiêu chết hoặc còn dưới 40% máu sau cú đâm, mũi đâm phụ chuyển sang tối đa 2 kẻ địch hậu tuyến gần nhất với 70% sát thương. Có dấu ấn như 2★; người đã đánh trúng mục tiêu có dấu ấn còn nhận thêm 1 nộ khi nó chết."
    ]
   },
   "skin": {

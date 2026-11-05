@@ -511,10 +511,21 @@ export function playCombat(o: {
       case "status": {
         const unit = units.get(event.dst);
         if (unit) { unit.statuses = unit.statuses.filter((status) => status.key !== event.kind); if (event.turns > 0) unit.statuses.push({ key: event.kind, positive: POSITIVE.has(event.kind) }); push(event.dst); }
+        if (event.kind === "waspMark" && event.turns > 0) {
+          const star = event.source?.unitStar ?? 1;
+          fx.burst(position(event.dst), star === 3 ? 0xff3868 : star === 2 ? 0xff7c5c : 0xe3a154);
+          fx.float(position(event.dst), `Dấu ấn ${star}★`, "status");
+        }
         if (event.kind === "paralyze" && event.turns > 0 && event.source?.skillId === "kirin_volt_horns") {
           fx.burst(position(event.dst), KIRIN_PARALYZE_COLOR);
           fx.float(position(event.dst), "Tê liệt", "status");
         }
+        break;
+      }
+      case "rage": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.rage = Math.min(unit.rageMax, unit.rage + event.amount); push(event.dst); }
+        fx.float(position(event.dst), `+${event.amount} nộ`, "status");
         break;
       }
       case "revive": {

@@ -54,6 +54,8 @@ export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
 export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
 /** Sương Điệp: a role-prioritized column burst with one freeze roll per victim. */
 export const FROST_STORM_FAMILY = "frost_storm";
+/** Dao Ong Sát Thủ: a kill applies a shared focus mark; the stab's authored damage is unchanged. */
+export const WASP_ASSASSIN_FAMILY = "single_burst_armor_pen";
 /** Tượng Đại Thủy: position-scoped, role-prioritized shield and full debuff cleanse. */
 export const ELEPHANT_TIDE_FAMILY = "elephant_tide_guard";
 /** Pháo Thân: one primary shell with adjacent same-column splash and no statuses. */
@@ -327,6 +329,14 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const u = getUnit(baseId);
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
+  if (baseId === "wasp_assassin") {
+    // Parse the existing (40 + 1.5 × ATK) physical strike unchanged. Recovery
+    // belongs to marked-target death, not the generic skill's cast effect.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      heal: null, hot: null, rageGrant: 0, buffs: [], debuffs: [],
+    } satisfies Partial<SkillSpec>);
+  }
   s.reaction = reactionSpec(detail, u.skill.family);
   if (u.skill.family === BLOOD_SWORD_OATH_FAMILY) {
     // The authored physical burst is retained; recovery and debuff suppression are combat-owned.
@@ -427,7 +437,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
-        ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
+        ? "frontline_default" : baseId === "wasp_assassin"
+          ? "role_priority" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
