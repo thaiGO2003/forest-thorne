@@ -1,7 +1,7 @@
 // Replay the canonical event stream; combatStaging/gameSpeed own basic movement timing.
 import * as THREE from "three";
 import { getUnit } from "../content/catalog";
-import { VIKING_BULL_FAMILY } from "../core/skills";
+import { TIME_SAND_FAMILY, VIKING_BULL_FAMILY } from "../core/skills";
 import {
   SPORE_BURST_POINTS,
   type CombatEvent,
@@ -44,6 +44,8 @@ const GRASS_STORM_COLOR = 0x85df63;
 const SPIDER_SOUL_COLOR = 0x9ee4ff;
 /** Existing hit sparks fire per horn impact; blue electricity appears only for a paralyze proc. */
 const KIRIN_PARALYZE_COLOR = 0x63d6ff;
+/** Sand leaves the caster on the next valid tile and impacts at projectile arrival. */
+const TIME_SAND_COLOR = 0xd8c28b;
 const VIKING_ROAR_COLOR = 0xe59d46;
 const VIKING_STUN_COLOR = 0x6daeff;
 /** Pháo Thân: one cannonball explosion, with individual splash damage at arrival. */
@@ -60,6 +62,7 @@ export function playCombat(o: {
   const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], oathActive: false, suppressed: [] as string[], spores: 0 }]));
   // Active Sương Độc pools per owner (cell keys), mirrored onto the board as hazard tiles.
   const hazards = new Map<string, Map<number, SporeCell>>();
+  const relocated = new Map<string, { kind: "board" | "enemy" | "bench"; col: number; row: number }>();
   const hazardKey = (cell: SporeCell) => cell.row * 100 + cell.col;
   const syncHazards = () => {
     const cells = new Map<number, SporeCell>();
@@ -294,7 +297,8 @@ export function playCombat(o: {
       }
 
       const home = visual.root.position.clone();
-      const actorSlot = board.slot(event.src), targetSlot = board.slot(event.dst);
+      const actorSlot = relocated.get(event.src) ?? board.slot(event.src);
+      const targetSlot = relocated.get(event.dst) ?? board.slot(event.dst);
       const contact = actorSlot && targetSlot && actorSlot.kind !== "bench" && targetSlot.kind !== "bench"
         ? (() => {
             // Old_src: melee front-line contact lands on the river seam, not the attacker's edge tile.
@@ -402,6 +406,38 @@ export function playCombat(o: {
             index++;
           }
         }
+        // Sand hits may have per-hit deaths, reflection and on-hit statuses between damage
+        // events. Bind each aftermath to its projectile instead of letting it race ahead.
+        const sandHits: typeof kirinHits = [];
+        const sandAfter: CombatEvent[] = [];
+        if (units.get(event.src)?.baseId === "wisp_light") {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if (next.t === "skill" && next.kind === "sand" && next.src === event.src) {
+              sandHits.push({ hit: next, follows: [] });
+            } else if (sandHits.length && (
+              next.t === "reflect" || next.t === "heal" || next.t === "shield"
+              || next.t === "death" || next.t === "revive"
+              || (next.t === "status" && next.kind !== "knockup" && next.kind !== "petrify")
+            )) {
+              sandHits[sandHits.length - 1]!.follows.push(next);
+            } else break;
+            index++;
+          }
+        }
+        // Knock-up, petrify and relocation resolve only after the full volley.
+        if (sandHits.length) {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if ((next.t === "status" && next.source?.skillId === TIME_SAND_FAMILY
+              && (next.kind === "knockup" || next.kind === "petrify"))
+              || (next.t === "teleport" && next.src === event.src)) {
+              sandAfter.push(next);
+              index++;
+            } else break;
+          }
+        }
+        if (sandHits.length) pendingActions++;
         if (kirinHits.length) pendingActions++;
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
@@ -457,7 +493,30 @@ export function playCombat(o: {
               fx.burst(position(event.src), VIKING_ROAR_COLOR);
               fx.float(position(event.src), "Gầm Viking", "status");
             }
-            if (kirinHits.length) {
+            if (sandHits.length) {
+              const flight = 0.14 / getGameSpeedDisplayMultiplier(speedLevel);
+              const launch = (i: number) => {
+                if (disposed) return;
+                if (i >= sandHits.length) {
+                  for (const aftermath of sandAfter) present(aftermath);
+                  pendingActions--;
+                  return;
+                }
+                const entry = sandHits[i]!;
+                const from = position(entry.hit.from ?? event.src);
+                from.y += 0.5;
+                const to = position(entry.hit.dst);
+                to.y += 0.22;
+                const impact = queueSkillDamage(entry.hit);
+                fx.shot(from, to, TIME_SAND_COLOR, flight, () => {
+                  if (disposed) return;
+                  impact();
+                  for (const follow of entry.follows) present(follow);
+                  launch(i + 1);
+                }, 0.15);
+              };
+              launch(0);
+            } else if (kirinHits.length) {
               // The rig alternates left/right horn strikes over the p=.6–.93 window.
               const spacingMs = (skillSeconds * 330) / Math.max(1, kirinHits.length - 1);
               for (let i = 0; i < kirinHits.length; i++) {
@@ -512,6 +571,18 @@ export function playCombat(o: {
             if (!disposed) clearActorFocus(event.src);
           },
         });
+        break;
+      }
+      case "teleport": {
+        const visual = board.visual(event.src);
+        const slot = board.slot(event.src);
+        if (!visual || !slot) break;
+        fx.burst(position(event.src), TIME_SAND_COLOR);
+        const cell = board.cellCenter(event.col, event.row);
+        visual.root.position.set(cell.x, visual.root.position.y, cell.z);
+        relocated.set(event.src, { kind: slot.kind, col: event.col, row: event.row });
+        board.flashCell?.(event.col, event.row, "direct");
+        fx.burst(position(event.src), TIME_SAND_COLOR);
         break;
       }
       case "hookPull": {

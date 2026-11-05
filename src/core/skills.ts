@@ -54,6 +54,8 @@ export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
 export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
 /** Sương Điệp: a role-prioritized column burst with one freeze roll per victim. */
 export const FROST_STORM_FAMILY = "frost_storm";
+/** Ma Vải Thời Gian: role-first seeded sand jumps and relocation. */
+export const TIME_SAND_FAMILY = "time_sand_chain";
 /** Bò Viking: next-cycle basic stun, reactive stun and heal only on successful stun application. */
 export const VIKING_BULL_FAMILY = "viking_bull_stun";
 /** Dao Ong Sát Thủ: a kill applies a shared focus mark; the stab's authored damage is unchanged. */
@@ -353,6 +355,14 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === TIME_SAND_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      damage: { base: 18, scale: 0.55, stat: "matk", type: "magic" },
+      dots: [], controls: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0, reaction: {},
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === SPORE_FAMILY) {
     // The prose mentions a damage formula and a heal; none of it may run through the generic cast path.
     Object.assign(s, {
@@ -455,7 +465,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
     s.selector = u.skill.family === FROST_STORM_FAMILY ? "frost_role_column"
       : u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
       : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
-      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === CANNON_COLUMN_BLAST_FAMILY ? "role_priority"
+      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === TIME_SAND_FAMILY || u.skill.family === CANNON_COLUMN_BLAST_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY

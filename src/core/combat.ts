@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, ELEPHANT_TIDE_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, VIKING_BULL_FAMILY, WASP_ASSASSIN_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, ELEPHANT_TIDE_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, TIME_SAND_FAMILY, VIKING_BULL_FAMILY, WASP_ASSASSIN_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -27,7 +27,7 @@ export function reflectOffenseStat(role: Role): BuffStat {
   return REFLECT_OFFENSE_STAT[role];
 }
 const STAR_DOT = [0, 1, 1.3, 1.6];
-const CONTROL_PRIORITY = ["freeze", "stun", "sleep", "paralyze"] as const;
+const CONTROL_PRIORITY = ["freeze", "stun", "sleep", "paralyze", "knockup", "petrify"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSEABLE_STATUSES = new Set<string>([
   ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
@@ -165,11 +165,12 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "cannon" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "sand" | "cannon"; from?: string }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
   | { t: "hookPull"; src: string; dst: string; row: number; col: number }
+  | { t: "teleport"; src: string; row: number; col: number }
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
@@ -1048,7 +1049,8 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 interface StrikeOptions {
   allowCounter?: boolean;
   /** Distinct presentation for authored skill impact families. */
-  kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "cannon";
+  kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "sand" | "cannon";
+  from?: string;
   canCrit?: boolean;
   /** Charged normal basic only, never a counterattack or chained skill impact. */
   vikingStun?: boolean;
@@ -1149,7 +1151,7 @@ function strike(
   dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1) * (options.falloff ?? 1)));
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
-      ...(options.kind ? { kind: options.kind } : {}) }), true);
+      ...(options.kind ? { kind: options.kind } : {}), ...(options.from ? { from: options.from } : {}) }), true);
   if (options.vikingStun && !skill) applyVikingStun(c, src, dst, false);
   const retaliationChance = dst.skill.viking?.retaliationChance ?? 0;
   if (dst.alive && dst.hp > 0 && src.alive && src.hp > 0 && retaliationChance > 0
@@ -1939,6 +1941,84 @@ function castWindSickleHook(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   if (f.star === 3) f.hookGuardCycle = c.cycle;
 }
 
+/** Orthogonal links never wrap rows or cross halves; only living victims can continue a chain. */
+function sandNeighbors(c: Ctx, origin: Fighter, side: Side): Fighter[] {
+  return c.all.filter((other) => other.alive && other.side === side && other !== origin
+    && Math.abs(other.row - origin.row) + Math.abs(other.col - origin.col) === 1);
+}
+
+function castTimeSand(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const foesNow = foes(c, f);
+  const priority = Math.min(...foesNow.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+  const preferred = foesNow.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+  const primary = preferred.length ? preferred[Math.floor(c.rng() * preferred.length)]! : null;
+  const cast: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [] };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  if (!primary || !f.skill.damage) return;
+
+  const d = f.skill.damage;
+  const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const hits = new Map<Fighter, number>();
+  const hit = (target: Fighter, from: Fighter) => {
+    if (!f.alive || !target.alive) return;
+    const outcome = strike(c, f, target, raw, d.type, true, { kind: "sand", from: from.uid, allowCounter: false });
+    if (outcome.landed) {
+      hits.set(target, (hits.get(target) ?? 0) + 1);
+      cast.targets.push(target.uid);
+    }
+  };
+  hit(primary, f);
+  if (f.star >= 2) {
+    // Splash is simultaneous by contract: snapshot the four adjacent cells before any deaths.
+    const splash = sandNeighbors(c, primary, primary.side);
+    for (const target of splash) hit(target, primary);
+    // The chain continues from the final living splash impact, not from the
+    // original target; each subsequent hop is orthogonally adjacent.
+    let previous = primary;
+    for (let i = splash.length - 1; i >= 0; i--) {
+      if (splash[i]!.alive) { previous = splash[i]!; break; }
+    }
+    for (let step = 0; step < 5 && f.alive; step++) {
+      const neighbors = sandNeighbors(c, previous, primary.side);
+      if (!neighbors.length) break;
+      const best = Math.min(...neighbors.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+      const eligible = neighbors.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === best);
+      const next = eligible[Math.floor(c.rng() * eligible.length)]!;
+      hit(next, previous);
+      previous = next;
+    }
+  }
+
+  const source: SkillStatusOrigin = {
+    skillId: TIME_SAND_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  if (f.star === 3) {
+    for (const [target, count] of hits) {
+      if (count >= 2 && target.alive) applyStatus(c, target, "petrify", 1, 0, source);
+    }
+  }
+  if (primary.alive) applyStatus(c, primary, "knockup", 1, 0, source);
+  if (f.alive && f.role === "MAGE") addRage(f, hits.size);
+  if (!f.alive) return;
+  const halfStart = f.side === "L" ? 0 : COLS / 2;
+  const free: SporeCell[] = [];
+  for (let col = halfStart; col < halfStart + COLS / 2; col++) {
+    for (let row = 0; row < ROWS; row++) {
+      if (col === f.col && row === f.row) continue;
+      if (!c.all.some((other) => other !== f && other.alive && other.side === f.side && other.col === col && other.row === row)) {
+        free.push({ col, row });
+      }
+    }
+  }
+  if (!free.length) return;
+  const destination = free[Math.floor(c.rng() * free.length)]!;
+  f.col = destination.col;
+  f.row = destination.row;
+  c.events.push({ t: "teleport", src: f.uid, ...destination });
+}
+
 /** A primary shell hit plus living neighbors exactly one row above and below its column. */
 function cannonColumnTargets(c: Ctx, f: Fighter): Fighter[] {
   const pool = foes(c, f);
@@ -1981,6 +2061,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === TIME_SAND_FAMILY) {
+      castTimeSand(c, f, options.trigger);
+      return;
+    }
     if (family === VIKING_BULL_FAMILY) {
       const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [f.uid] };
       if (options.trigger) castEvent.trigger = options.trigger;
@@ -2224,11 +2308,14 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
     if (k.startsWith(TIDE_SHIELD_PREFIX)) continue;
     if (k === "hot" || s.permanent) continue;
     if (s.expiresAfterCycle !== undefined) continue;
-    if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
+    // Sand knock-up and petrify consume a single victim action when combined.
+    if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip
+      && !((skip === "knockup" || skip === "petrify") && (k === "knockup" || k === "petrify"))) continue;
     if (--s.turns <= 0) {
       delete f.status[k];
       if (k === "taunt") f.tauntBy = null;
-      if (k === "paralyze" || (k === "stun" && s.source?.skillId === VIKING_BULL_FAMILY)) {
+      if (k === "paralyze" || k === "knockup" || k === "petrify"
+        || (k === "stun" && s.source?.skillId === VIKING_BULL_FAMILY)) {
         c.events.push({ t: "status", dst: f.uid, kind: k, turns: 0 });
       }
     }
