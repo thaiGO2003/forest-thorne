@@ -1480,7 +1480,7 @@
  {
   "id": "dryad_tree",
   "species": "yeu-tinh",
-  "nameVi": "Yêu Tinh Cây",
+  "nameVi": "Elf Lùn Cừu",
   "tier": 2,
   "role": "SUPPORT",
   "faction": "MYTHICAL",
@@ -1499,29 +1499,29 @@
    "evade": 0.07,
    "accuracy": 0.95
   },
-  "pitchVi": "Trói pháp sư tuyến sau rồi hồi máu cho phe mình.",
+  "pitchVi": "Che chắn cho 8 ô kề; khiên còn sẽ cường hóa sát thương phép và xuyên kháng phép theo cấp sao.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "projectile, magic, 1×MATK, 1 kẻ địch gần nhất, single ×1."
   },
   "skill": {
-   "nameVi": "Rễ Cây Ràng Buộc",
-   "family": "root_snare_debuff",
+   "nameVi": "Lá Chắn Cừu Rừng",
+   "family": "sheep_elf_guard",
    "rageCost": [
     2,
     3,
     4
    ],
-   "targetVi": "1-2 pháp sư hoặc hỗ trợ có MATK cao nhất (theo sao)",
-   "shapeVi": "1-2 mục tiêu gần điểm va chạm",
-   "selectionVi": "địch có MATK cao nhất",
-   "countVi": "1",
-   "durationVi": "1 lượt",
+   "targetVi": "Các đồng minh còn sống ở 8 ô kề xung quanh, không gồm bản thân",
+   "shapeVi": "8 ô kề (bao gồm chéo), tâm tại Elf Lùn Cừu",
+   "selectionVi": "Chỉ đồng minh trong bán kính 1 ô theo hàng và cột; không chọn địch, không ngẫu nhiên.",
+   "countVi": "Tối đa 8 đồng minh",
+   "durationVi": "2 lượt (tính theo chu kỳ giao tranh); giáp vỡ thì mất hiệu ứng ngay",
    "starDetailVi": [
-    "Trói 1 pháp sư hoặc hỗ trợ có MATK cao nhất, gây (18 + 60% MATK) sát thương phép và làm câm lặng 1 lượt. Đồng thời hồi 10% HP tối đa cho bản thân.",
-    "Trói 1 pháp sư hoặc hỗ trợ có MATK cao nhất, gây (22 + 72% MATK) sát thương phép và làm câm lặng 2 lượt. Đồng thời hồi 15% HP tối đa cho bản thân và 15% HP tối đa cho 1 đồng minh có % máu thấp nhất.",
-    "Trói 2 pháp sư hoặc hỗ trợ có MATK cao nhất, mỗi mục tiêu chịu (25 + 84% MATK) sát thương phép và câm lặng 2 lượt. Đồng thời hồi 20% HP tối đa cho bản thân và 15% HP tối đa cho 1 đồng minh có % máu thấp nhất."
+    "Tạo khiên bằng (35 + 30% MATK) cho mọi đồng minh ở 8 ô kề trong 2 lượt. Khiên hấp thụ sát thương trước HP, không cộng dồn; tái thi triển làm mới khiên và thời hạn.",
+    "Tạo khiên bằng (35 + 30% MATK) cho mọi đồng minh ở 8 ô kề trong 2 lượt. Khi khiên này còn hiệu lực, mục tiêu tăng 10% sát thương phép; hiệu ứng không cộng dồn và mất ngay khi khiên vỡ hoặc hết hạn.",
+    "Tạo khiên bằng (35 + 30% MATK) cho mọi đồng minh ở 8 ô kề trong 2 lượt. Khi khiên này còn hiệu lực, mục tiêu tăng 10% sát thương phép và xuyên 15% kháng phép; cả hai không cộng dồn và mất ngay khi khiên vỡ hoặc hết hạn."
    ]
   },
   "skin": {

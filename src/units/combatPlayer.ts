@@ -32,7 +32,8 @@ import { RIG_DEFAULT_DURATIONS, RIG_DEFAULT_IMPACT } from "./rig";
 export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; inspection?: CombatUnitSnapshot }
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
-const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
+const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect",
+  "sheepElfShield", "sheepElfMagicDamage", "sheepElfMagicPen"]);
 const PROJECTILE_COLOR = 0xffd36a;
 /** Action-only Giơ Kiếm Lên Trời guard; not an actual permanent immunity status. */
 const OATH_GUARD_STATUS: BillboardStatus = { key: "immune", positive: true };
@@ -44,6 +45,8 @@ const GRASS_STORM_COLOR = 0x85df63;
 const SPIDER_SOUL_COLOR = 0x9ee4ff;
 /** Existing hit sparks fire per horn impact; blue electricity appears only for a paralyze proc. */
 const KIRIN_PARALYZE_COLOR = 0x63d6ff;
+/** Shield and attached bonuses glow together when the skill animation reaches impact. */
+const SHEEP_ELF_SHIELD_COLOR = 0x9bdf9b;
 /** Sand leaves the caster on the next valid tile and impacts at projectile arrival. */
 const TIME_SAND_COLOR = 0xd8c28b;
 const VIKING_ROAR_COLOR = 0xe59d46;
@@ -237,6 +240,15 @@ export function playCombat(o: {
     board.setCombatBorder?.(null);
   };
   const present = (event: CombatEvent): number => {
+    // The cast starts the animation; linked shield/status mutations wait for impact.
+    if (skillImpact && !skillImpact.fired
+      && ((event.t === "shield" && event.src === skillImpact.src
+        && units.get(event.src)?.baseId === "dryad_tree")
+        || (event.t === "status" && event.source?.skillId === "sheep_elf_guard"
+          && event.source.unitUid === skillImpact.src))) {
+      skillImpact.pending.push(() => { present(event); });
+      return 0;
+    }
     if (event.t === "cycle") {
       o.onEvent?.(event);
       cycle = event.cycle;
@@ -617,6 +629,9 @@ export function playCombat(o: {
       case "status": {
         const unit = units.get(event.dst);
         if (unit) { unit.statuses = unit.statuses.filter((status) => status.key !== event.kind); if (event.turns > 0) unit.statuses.push({ key: event.kind, positive: POSITIVE.has(event.kind) }); push(event.dst); }
+        if (event.kind === "sheepElfShield" && event.turns > 0) {
+          fx.burst(position(event.dst), SHEEP_ELF_SHIELD_COLOR);
+        }
         if (event.kind === "waspMark" && event.turns > 0) {
           const star = event.source?.unitStar ?? 1;
           fx.burst(position(event.dst), star === 3 ? 0xff3868 : star === 2 ? 0xff7c5c : 0xe3a154);

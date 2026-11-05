@@ -680,16 +680,16 @@ describe("combat", () => {
     expect(nextRight).not.toMatchObject({ t: "cast", trigger: "TANKER" });
   });
 
-  it("SUPPORT auto-casts only from a positive basic hit and self-falls back without self-harm", () => {
+  it("SUPPORT auto-casts only from a positive basic hit and respects adjacent-only ally targets", () => {
     const fallback = battle([{ uid: "support", baseId: "dryad_tree", star: 3, row: 0, col: 4 }],
     [{ uid: "fragile", baseId: "firefly_light", star: 1, row: 0, col: 5 }],
     { seed: 1, bonus: { L: { startRage: 3, matkPct: 10_000 } } },);
     const triggeredAt = fallback.events.findIndex((e) => e.t === "cast" && e.src === "support" && e.trigger === "SUPPORT");
     expect(triggeredAt).toBeGreaterThanOrEqual(0);
-    expect(fallback.events[triggeredAt]).toMatchObject({ targets: ["support"] });
+    expect(fallback.events[triggeredAt]).toMatchObject({ targets: [] });
     expect(fallback.events.slice(triggeredAt + 1).some((e) =>
-      (e.t === "skill" && e.src === "support" && e.dst === "support")
-      || (e.t === "status" && e.dst === "support" && e.kind === "silence"))).toBe(false);
+      (e.t === "shield" && e.src === "support" && e.dst === "support")
+      || (e.t === "status" && e.dst === "support" && e.kind === "sheepElfShield"))).toBe(false);
 
     const fullRage = battle([{ uid: "support", baseId: "dryad_tree", star: 3, row: 0, col: 4 }],
     [{ uid: "enemy", baseId: "titan_earth", star: 1, row: 0, col: 5 }],

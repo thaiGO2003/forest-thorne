@@ -16,7 +16,7 @@ export type SkillSelector =
   | "lowest_mdef_backline" | "highest_atk_backline" | "isolated_backline" | "backline_caster"
   | "most_clustered_row" | "most_clustered_col" | "highest_total_atk_row" | "highest_total_atk_col"
   | "random" | "random_unique" | "same_row" | "same_row_carry" | "grass_row" | "same_column" | "front_cone"
-  | "highest_current_hp_role" | "role_priority" | "frost_role_column" | "self" | "frontline_default" | "backline_jump" | "primary_target";
+  | "highest_current_hp_role" | "role_priority" | "frost_role_column" | "self" | "frontline_default" | "backline_jump" | "primary_target" | "adjacent_allies";
 
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
@@ -65,6 +65,9 @@ export const ELEPHANT_TIDE_FAMILY = "elephant_tide_guard";
 /** Pháo Thân: one primary shell with adjacent same-column splash and no statuses. */
 export const CANNON_COLUMN_BLAST_FAMILY = "cannon_column_blast";
 
+/** Elf Lùn Cừu: adjacent ally shields with strictly shield-linked magic bonuses. */
+export const SHEEP_ELF_GUARD_FAMILY = "sheep_elf_guard";
+
 export interface SkillSpec {
   /** Who the primary effect lands on. */
   side: "enemy" | "ally" | "self";
@@ -96,6 +99,8 @@ export interface SkillSpec {
   fourthTargetBonusChance?: number | null;
   /** Authored Kirin total number of individual damage events per cast. */
   hitCount?: number;
+  /** Bonus percentages exist only while this caster's adjacent shield has remaining strength. */
+  linkedShield?: { turns: number; magicDamagePct: number; magicPenPct: number };
   /** Viking roar is a self-buff; only the following basic hit applies its control. */
   viking?: {
     nextBasicStunTurns: number;
@@ -445,11 +450,24 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === SHEEP_ELF_GUARD_FAMILY) {
+    const turns = Number(/trong (\d+) lượt/.exec(detail)?.[1] ?? 0);
+    if (!s.shield || turns <= 0) throw new Error("sheep_elf_guard requires an authored shield formula and duration");
+    Object.assign(s, {
+      side: "ally", area: "single", count: 8, selector: "adjacent_allies",
+      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [], debuffs: [],
+      linkedShield: {
+        turns,
+        magicDamagePct: Number(/tăng (\d+)% sát thương phép/.exec(detail)?.[1] ?? 0),
+        magicPenPct: Number(/xuyên (\d+)% kháng phép/.exec(detail)?.[1] ?? 0),
+      },
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === ELEPHANT_TIDE_FAMILY) {
     // Preserve the authored 35/42/51 + ATK scalings as shields, never as a damage strike.
     Object.assign(s, {
       side: "ally", area: "single", count: 1, selector: "role_priority",
-      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [], debuffs: [],
+      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [],
       selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }
@@ -469,8 +487,9 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
       : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
-        ? "frontline_default" : baseId === "wasp_assassin"
-          ? "role_priority" : selectorFromText(authoredTargeting, s.side, u.skill.family);
+        ? "frontline_default" : u.skill.family === SHEEP_ELF_GUARD_FAMILY
+          ? "adjacent_allies" : baseId === "wasp_assassin"
+            ? "role_priority" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
