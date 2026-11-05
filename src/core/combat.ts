@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SHEEP_ELF_GUARD_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -32,6 +32,11 @@ const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSEABLE_STATUSES = new Set<string>([
   ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
 ]);
+
+const SHEEP_ELF_SHIELD = "sheepElfShield";
+const SHEEP_ELF_MAGIC_DAMAGE = "sheepElfMagicDamage";
+const SHEEP_ELF_MAGIC_PEN = "sheepElfMagicPen";
+const SHEEP_ELF_LINK_STATUSES = [SHEEP_ELF_SHIELD, SHEEP_ELF_MAGIC_DAMAGE, SHEEP_ELF_MAGIC_PEN] as const;
 
 interface Mod extends StatMod { stackKey?: string }
 
@@ -755,6 +760,39 @@ function applyStatus(
   if (dst.status[kind]?.source) event.source = dst.status[kind]!.source;
   c.events.push(event);
 }
+/** The linked shield is a tracked slice of the target's normal shield resource.
+ * Other shields remain intact when this slice expires or is refreshed. */
+function clearSheepElfLink(c: Ctx, dst: Fighter, expireShield: boolean) {
+  const link = dst.status[SHEEP_ELF_SHIELD];
+  if (!link) return;
+  if (expireShield && link.value > 0) {
+    dst.shield = Math.max(0, dst.shield - link.value);
+    c.events.push({ t: "shield", src: link.source?.unitUid ?? dst.uid, dst: dst.uid, amount: -link.value });
+  }
+  for (const kind of SHEEP_ELF_LINK_STATUSES) {
+    if (!dst.status[kind]) continue;
+    delete dst.status[kind];
+    c.events.push({ t: "status", dst: dst.uid, kind, turns: 0 });
+  }
+}
+
+/** Refresh a single linked shield, never stack the absorbed amount or magic bonuses. */
+function applySheepElfLink(c: Ctx, caster: Fighter, dst: Fighter, amount: number, source: SkillStatusOrigin) {
+  const spec = caster.skill.linkedShield;
+  if (!spec || !dst.alive) return;
+  const oldShield = dst.status[SHEEP_ELF_SHIELD]?.value ?? 0;
+  dst.shield = Math.max(0, dst.shield - oldShield) + amount;
+  if (amount !== oldShield) c.events.push({ t: "shield", src: caster.uid, dst: dst.uid, amount: amount - oldShield });
+  const oldMagic = Boolean(dst.status[SHEEP_ELF_MAGIC_DAMAGE]);
+  const oldPen = Boolean(dst.status[SHEEP_ELF_MAGIC_PEN]);
+  for (const kind of SHEEP_ELF_LINK_STATUSES) delete dst.status[kind];
+  applyStatus(c, dst, SHEEP_ELF_SHIELD, spec.turns, amount, source);
+  if (spec.magicDamagePct > 0) applyStatus(c, dst, SHEEP_ELF_MAGIC_DAMAGE, spec.turns, spec.magicDamagePct, source);
+  else if (oldMagic) c.events.push({ t: "status", dst: dst.uid, kind: SHEEP_ELF_MAGIC_DAMAGE, turns: 0 });
+  if (spec.magicPenPct > 0) applyStatus(c, dst, SHEEP_ELF_MAGIC_PEN, spec.turns, spec.magicPenPct, source);
+  else if (oldPen) c.events.push({ t: "status", dst: dst.uid, kind: SHEEP_ELF_MAGIC_PEN, turns: 0 });
+}
+
 
 function cleanseRandomDebuffs(c: Ctx, fighter: Fighter, count: number) {
   for (let removed = 0; removed < count; removed++) {
@@ -801,6 +839,7 @@ function heal(c: Ctx, src: Fighter, dst: Fighter, raw: number) {
 }
 
 function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
+  clearSheepElfLink(c, f, true);
   f.alive = false;
   f.shield = 0;
   f.hp = 0;
@@ -830,10 +869,18 @@ function applyDamage(
   const mitigated = Math.round(dmg * (1 - reduction) * (1 + vulnerability));
   const appliedDamage = Math.max(guarding ? 0 : 1, mitigated - (guarding ? 10 : 0));
   const absorbed = Math.min(dst.shield, appliedDamage);
+  const link = dst.status[SHEEP_ELF_SHIELD];
+  // Unlinked shields absorb first; the magic bonuses disappear only when their own shield breaks.
+  const otherShield = link ? Math.max(0, dst.shield - link.value) : 0;
   dst.shield -= absorbed;
+  if (link) {
+    link.value = Math.max(0, link.value - Math.max(0, absorbed - otherShield));
+    if (link.source) link.source.value = link.value;
+  }
   const toHp = Math.min(dst.hp, appliedDamage - absorbed);
   dst.hp -= toHp;
   c.events.push(event(absorbed, appliedDamage));
+  if (link && link.value <= 0) clearSheepElfLink(c, dst, false);
   // Frost from 3★ Sương Điệp persists through turns but thaws on actual HP damage.
   // Centralize here so basics, skills, DoTs and reflected damage all follow one rule.
   if (toHp > 0 && dst.status.freeze?.permanent) {
@@ -855,6 +902,7 @@ function resolveLethal(c: Ctx, f: Fighter, killer: Fighter | null): boolean {
     const pct = Math.min(1, Math.max(0.01, Number.isFinite(f.phoenix.revivePct) ? f.phoenix.revivePct : 0.3));
     f.phoenix.armed = false;
     f.phoenix.used = true;
+    clearSheepElfLink(c, f, true);
     f.shield = 0;
     f.hp = Math.max(1, Math.round(f.maxHp * pct));
     c.events.push({ t: "revive", src: f.uid, dst: f.uid, hp: f.hp });
@@ -975,12 +1023,20 @@ function strike(
   }
   let dmg = Math.max(1, adjustedRaw);
   if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
+  // A Sheep Elf's bonuses apply to magic impacts only while its own shield remains.
+  const linkedShieldActive = (src.status[SHEEP_ELF_SHIELD]?.value ?? 0) > 0;
+  if (type === "magic" && linkedShieldActive) {
+    dmg *= 1 + (src.status[SHEEP_ELF_MAGIC_DAMAGE]?.value ?? 0) / 100;
+  }
   if (src.element === "FIRE") dmg *= dst.env.fireVuln;
   if (CLASS_COUNTER[src.role]?.includes(dst.role)) dmg *= 1 + COUNTER_BONUS;
   const isCrit = (options.canCrit ?? true) && type !== "true" && c.rng() < crit;
   if (isCrit) dmg *= critMult;
   else if (type === "physical") dmg = (dmg * 100) / (100 + combatStat(dst, "def"));
-  else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
+  else if (type === "magic") {
+    const pen = linkedShieldActive ? Math.min(1, Math.max(0, (src.status[SHEEP_ELF_MAGIC_PEN]?.value ?? 0) / 100)) : 0;
+    dmg = (dmg * 100) / (100 + combatStat(dst, "mdef") * (1 - pen));
+  }
   // Authored on-hit logic (issue #31): low/high-HP bonuses and capped stack scaling.
   dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
   dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1)));
@@ -1118,6 +1174,9 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
     case "highest_current_hp_role":
       return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
         || b.hp - a.hp || stableIndex(a) - stableIndex(b)));
+    case "adjacent_allies":
+      return take(stable.filter((target) => target !== f
+        && Math.abs(target.row - f.row) <= 1 && Math.abs(target.col - f.col) <= 1));
     case "self": return [f];
     case "lowest_hp_pct":
     case "lowest_hp_pct_ally":
@@ -1823,8 +1882,11 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (!a.alive) continue;
       if (sp.shield) {
         const amount = Math.max(1, Math.round((sp.shield.base + statValue(f, sp.shield.stat) * sp.shield.scale) * starSkill));
-        a.shield += amount;
-        c.events.push({ t: "shield", src: f.uid, dst: a.uid, amount });
+        if (sp.linkedShield) applySheepElfLink(c, f, a, amount, statusSource);
+        else {
+          a.shield += amount;
+          c.events.push({ t: "shield", src: f.uid, dst: a.uid, amount });
+        }
       }
       if (!teamDefBuff) for (const m of sp.buffs) {
         const stackKey = a === f && m.stat === "atk" && sp.reaction.berserk ? f.berserk?.atkBuffStackKey : undefined;
@@ -1924,6 +1986,12 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
     if (k === "hardBeakVulnerability") continue;
     if (k === "hot" || s.permanent) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
+    // Expire the shield slice and both bonuses together, preserving unrelated shields.
+    if (!f.status[k]) continue;
+    if (k === SHEEP_ELF_SHIELD && s.turns <= 1) {
+      clearSheepElfLink(c, f, true);
+      continue;
+    }
     if (--s.turns <= 0) {
       delete f.status[k];
       if (k === "taunt") f.tauntBy = null;
