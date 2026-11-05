@@ -5482,29 +5482,29 @@
    "evade": 0.07,
    "accuracy": 0.95
   },
-  "pitchVi": "Ban khiên nước và thanh tẩy để vực dậy đồng minh đang nguy nan.",
+  "pitchVi": "Ném vàng theo ưu tiên vai trò, gây choáng và lan sát thương sang tám ô lân cận.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Khiên Tinh Khiết",
-   "family": "shield_cleanse",
+   "nameVi": "Ném Vàng Choáng",
+   "family": "gold_throw_stun",
    "rageCost": [
     2,
     3,
     4
    ],
-   "targetVi": "1 đồng minh có % máu thấp nhất",
-   "shapeVi": "1 ô đồng minh",
-   "selectionVi": "Chọn đồng minh có % máu thấp nhất.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "khiên tức thì; thanh tẩy tức thì",
+   "targetVi": "1 kẻ địch ưu tiên theo vai trò",
+   "shapeVi": "1 mục tiêu; từ 2★ lan ra 8 ô xung quanh mục tiêu",
+   "selectionVi": "Ưu tiên vai trò trước, sau đó khoảng cách; chỉ trúng kẻ địch trong ô lân cận.",
+   "countVi": "1 lần ném (1–2★), 2 lần ném liên tiếp trong cùng lượt (3★)",
+   "durationVi": "choáng 1 lượt hành động, hết khi mục tiêu bỏ qua lượt kế tiếp",
    "starDetailVi": [
-    "Tạo khiên (70 + 90% MATK) cho 1 đồng minh có % máu thấp nhất và thanh tẩy tối đa 1 hiệu ứng bất lợi.",
-    "Tạo khiên (95 + 110% MATK) cho 1 đồng minh có % máu thấp nhất và thanh tẩy tối đa 2 hiệu ứng bất lợi.",
-    "Tạo khiên (120 + 130% MATK) cho 2 đồng minh có % máu thấp nhất và thanh tẩy tối đa 2 hiệu ứng bất lợi."
+    "Ném 1 đồng vàng, gây (0 + 100% MATK) sát thương phép lên 1 kẻ địch theo ưu tiên vai trò và gây choáng 1 lượt. Sát thương dùng hệ số đánh thường phép hiện có.",
+    "Ném 1 đồng vàng, gây (0 + 100% MATK) sát thương phép lên 1 kẻ địch theo ưu tiên vai trò, gây choáng 1 lượt. Mỗi kẻ địch ở 8 ô xung quanh mục tiêu chịu 1 lần sát thương phép tương đương.",
+    "Ném 2 đồng vàng liên tiếp trong cùng lượt, mỗi lần gây (0 + 100% MATK) sát thương phép lên 1 kẻ địch theo ưu tiên vai trò và gây choáng 1 lượt. Mỗi lần ném lan 1 lần sát thương phép sang mỗi kẻ địch ở 8 ô xung quanh mục tiêu; không tiêu hao nộ lần hai."
    ]
   },
   "skin": {

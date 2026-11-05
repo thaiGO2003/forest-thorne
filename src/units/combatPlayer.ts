@@ -45,6 +45,8 @@ const GRASS_STORM_COLOR = 0x85df63;
 const SPIDER_SOUL_COLOR = 0x9ee4ff;
 /** Existing hit sparks fire per horn impact; blue electricity appears only for a paralyze proc. */
 const KIRIN_PARALYZE_COLOR = 0x63d6ff;
+/** Swan's new gold-throw impact arrives at the target, never at cast start. */
+const GOLD_THROW_COLOR = 0xffd443;
 /** Shield and attached bonuses glow together when the skill animation reaches impact. */
 const SHEEP_ELF_SHIELD_COLOR = 0x9bdf9b;
 /** Sand leaves the caster on the next valid tile and impacts at projectile arrival. */
@@ -402,6 +404,21 @@ export function playCombat(o: {
         // Preserve each Kirin impact/status event and replay it at an individual horn thrust.
         // The canonical events remain separate; this batch controls presentation timing only.
         const kirinHits: { hit: Extract<CombatEvent, { t: "basic" | "skill" }>; follows: CombatEvent[] }[] = [];
+        const goldEvents: CombatEvent[] = [];
+        if (units.get(event.src)?.baseId === "swan_grace") {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if (next.t === "skill" && next.src === event.src && next.kind === "gold") {
+              goldEvents.push(next);
+            } else if (goldEvents.length && (
+              next.t === "status" || next.t === "reflect" || next.t === "heal"
+              || next.t === "shield" || next.t === "death" || next.t === "revive"
+            )) {
+              goldEvents.push(next);
+            } else break;
+            index++;
+          }
+        }
         if (units.get(event.src)?.baseId === "kirin_thunder") {
           while (index < o.events.length) {
             const next = o.events[index]!;
@@ -450,7 +467,7 @@ export function playCombat(o: {
           }
         }
         if (sandHits.length) pendingActions++;
-        if (kirinHits.length) pendingActions++;
+        if (kirinHits.length || goldEvents.length) pendingActions++;
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
         if (units.get(event.src)?.baseId === "elephant_guard") {
@@ -541,6 +558,19 @@ export function playCombat(o: {
                 });
                 after(i * spacingMs, hit);
               }
+            } else if (goldEvents.length) {
+              // One projectile per cast; primary and eight-neighbor splash damage,
+              // followed by stun/aftermath, all commit at that projectile's landing.
+              const arrive = exactImpact(() => {
+                for (const goldEvent of goldEvents) present(goldEvent);
+              });
+              const primary = event.targets[0];
+              if (primary && board.visual(primary)) {
+                const origin = position(event.src);
+                origin.y += 0.5;
+                fx.shot(origin, position(primary), GOLD_THROW_COLOR,
+                  0.24 / getGameSpeedDisplayMultiplier(speedLevel), arrive, 0.3);
+              } else arrive();
             } else if (units.get(event.src)?.baseId === "butterfly_mirror" && window.pending.length) {
               const impacts = window.pending.splice(0);
               let from = position(event.src);
@@ -577,7 +607,7 @@ export function playCombat(o: {
             }
           },
           onDone: () => {
-            if (kirinHits.length) pendingActions--;
+            if (kirinHits.length || goldEvents.length) pendingActions--;
             for (const finish of window.onDone.splice(0)) finish();
             if (skillImpact === window) skillImpact = null;
             if (!disposed) clearActorFocus(event.src);
