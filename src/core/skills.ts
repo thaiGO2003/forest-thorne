@@ -54,6 +54,8 @@ export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
 export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
 /** Sương Điệp: a role-prioritized column burst with one freeze roll per victim. */
 export const FROST_STORM_FAMILY = "frost_storm";
+/** Tượng Đại Thủy: position-scoped, role-prioritized shield and full debuff cleanse. */
+export const ELEPHANT_TIDE_FAMILY = "elephant_tide_guard";
 /** Pháo Thân: one primary shell with adjacent same-column splash and no statuses. */
 export const CANNON_COLUMN_BLAST_FAMILY = "cannon_column_blast";
 
@@ -401,6 +403,14 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === ELEPHANT_TIDE_FAMILY) {
+    // Preserve the authored 35/42/51 + ATK scalings as shields, never as a damage strike.
+    Object.assign(s, {
+      side: "ally", area: "single", count: 1, selector: "role_priority",
+      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [], debuffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -415,6 +425,7 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
       : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === CANNON_COLUMN_BLAST_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
+      : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
         ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);

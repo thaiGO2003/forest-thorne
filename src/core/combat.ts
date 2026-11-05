@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, ELEPHANT_TIDE_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -32,6 +32,7 @@ const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSEABLE_STATUSES = new Set<string>([
   ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
 ]);
+const TIDE_SHIELD_PREFIX = "elephantTideShield:";
 
 interface Mod extends StatMod { stackKey?: string }
 
@@ -50,6 +51,8 @@ export interface TimedStatus {
   /** Damage-triggered thaw, not turn expiry (Sương Điệp 3★ only). */
   permanent?: boolean;
   source?: SkillStatusSource;
+  /** Next shared cycle that removes a one-round Elephant Tide shield. */
+  expiresCycle?: number;
 }
 
 export interface ReflectReactionState {
@@ -166,6 +169,8 @@ export type CombatEvent =
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
+  /** Elephant Tide shield replacement and one-time cleanse resolve together at visual impact. */
+  | { t: "tideGuard"; src: string; dst: string; delta: number; active: boolean; removed: string[] }
   | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; source?: SkillStatusSource }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
@@ -778,6 +783,41 @@ function cleanseRandomDebuffs(c: Ctx, fighter: Fighter, count: number) {
   }
 }
 
+/** Full cleanse is deterministic and consumes no RNG; positive effects never qualify. */
+function cleanseTideDebuffs(dst: Fighter): string[] {
+  const removed: string[] = [];
+  for (const [kind, status] of Object.entries(dst.status)) {
+    if (status.turns <= 0 || !CLEANSEABLE_STATUSES.has(kind)) continue;
+    delete dst.status[kind];
+    if (kind === "taunt") dst.tauntBy = null;
+    removed.push(kind);
+  }
+  dst.mods = dst.mods.filter((mod) => {
+    if (mod.turns <= 0 || mod.value >= 0) return true;
+    removed.push(`${mod.stat}Down`);
+    return false;
+  });
+  return removed;
+}
+
+/** Reconcile tracked Tide shield after normal mitigation, preserving unrelated shield sources. */
+function consumeTideShield(dst: Fighter, absorbed: number, preShield: number) {
+  let tideBalance = 0;
+  for (const kind in dst.status) {
+    if (kind.startsWith(TIDE_SHIELD_PREFIX)) tideBalance += Math.max(0, dst.status[kind]!.value);
+  }
+  let remaining = Math.max(0, absorbed - Math.max(0, preShield - tideBalance));
+  if (remaining === 0) return;
+  for (const kind in dst.status) {
+    if (!kind.startsWith(TIDE_SHIELD_PREFIX)) continue;
+    const status = dst.status[kind]!;
+    const consumed = Math.min(remaining, Math.max(0, status.value));
+    status.value -= consumed;
+    remaining -= consumed;
+    if (remaining === 0) break;
+  }
+}
+
 function applyMod(dst: Fighter, mod: StatMod, stackKey?: string) {
   if (!stackKey) {
     dst.mods.push({ ...mod });
@@ -830,7 +870,9 @@ function applyDamage(
   const mitigated = Math.round(dmg * (1 - reduction) * (1 + vulnerability));
   const appliedDamage = Math.max(guarding ? 0 : 1, mitigated - (guarding ? 10 : 0));
   const absorbed = Math.min(dst.shield, appliedDamage);
+  const preShield = dst.shield;
   dst.shield -= absorbed;
+  if (absorbed > 0) consumeTideShield(dst, absorbed, preShield);
   const toHp = Math.min(dst.hp, appliedDamage - absorbed);
   dst.hp -= toHp;
   c.events.push(event(absorbed, appliedDamage));
@@ -1220,6 +1262,53 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter, su
   return ordered;
 }
 
+/** Role priority applies within each positional zone; 2★ uniformly samples the adjacent column. */
+function elephantTideTargets(c: Ctx, caster: Fighter): Fighter[] {
+  const ally = friends(c, caster).filter((f) => f !== caster);
+  const priority = (f: Fighter) => f.role === "SUPPORT" || f.role === "TANKER" ? 0 : 1;
+  const ordered = (xs: Fighter[]) => xs.sort((a, b) => priority(a) - priority(b)
+    || dist(caster, a) - dist(caster, b) || a.row - b.row || a.col - b.col || a.uid.localeCompare(b.uid));
+  const behind = ordered(ally.filter((f) => caster.side === "L" ? f.col < caster.col : f.col > caster.col));
+  if (caster.star === 1) return behind;
+  const selected = new Set(behind.map((f) => f.uid));
+  const neighbors = ally.filter((f) => Math.abs(f.col - caster.col) === 1 && !selected.has(f.uid));
+  const extra: Fighter[] = [];
+  for (const tier of [0, 1]) {
+    const candidates = ordered(neighbors.filter((f) => priority(f) === tier));
+    for (let i = 0; i < candidates.length && extra.length < 2; i++) {
+      const j = i + Math.floor(c.rng() * (candidates.length - i));
+      [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
+      extra.push(candidates[i]!);
+    }
+    if (extra.length === 2) break;
+  }
+  for (const f of extra) selected.add(f.uid);
+  if (caster.star === 2) return [...behind, ...extra];
+  const adjacent = ordered(ally.filter((f) => !selected.has(f.uid)
+    && Math.abs(f.row - caster.row) <= 1 && Math.abs(f.col - caster.col) <= 1));
+  return [...behind, ...extra, ...adjacent];
+}
+
+/** Non-damaging cast: shields live through this shared cycle, then expire before next-cycle DoTs. */
+function castElephantTide(c: Ctx, caster: Fighter, trigger?: AutoCastRole) {
+  const targets = elephantTideTargets(c, caster);
+  c.events.push({ t: "cast", src: caster.uid, targets: targets.map((f) => f.uid), ...(trigger ? { trigger } : {}) });
+  const formula = caster.skill.shield;
+  if (!formula) throw new Error("Elephant Tide requires an authored shield formula");
+  const amount = Math.max(1, Math.round(formula.base + statValue(caster, formula.stat) * formula.scale));
+  const key = `${TIDE_SHIELD_PREFIX}${caster.uid}`;
+  for (const ally of targets) {
+    const removed = cleanseTideDebuffs(ally);
+    const previous = ally.status[key]?.value ?? 0;
+    const delta = amount - previous;
+    ally.shield += delta;
+    ally.status[key] = { turns: 1, value: amount, expiresCycle: c.cycle + 1,
+      source: { skillId: ELEPHANT_TIDE_FAMILY, unitUid: caster.uid,
+        unitBaseId: caster.baseId, unitStar: caster.star, turns: 1, value: amount } };
+    c.events.push({ t: "tideGuard", src: caster.uid, dst: ally.uid, delta, removed, active: true });
+  }
+}
+
 function previewSeed(all: readonly Fighter[], sourceUid: string): number {
   let hash = 0x811c9dc5;
   const mixText = (value: string) => {
@@ -1338,6 +1427,15 @@ export function combatTargetPreview(
       actorRole: source.role,
       areaCells: cells.map(({ col, row }) => ({ col, row, effect: "damage" })),
     };
+  }
+  if (source.skillFamily === ELEPHANT_TIDE_FAMILY) {
+    const targets = elephantTideTargets(c, source);
+    const tags: CombatPreviewTag[] = targets.map((fighter, i) =>
+      ({ uid: fighter.uid, effect: "shield", kind: "skill", primary: i === 0 }));
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return { scanCells, directUids: targets.slice(0, 1).map((f) => f.uid),
+      splashUids: targets.slice(1).map((f) => f.uid), skillCasterUid: source.uid,
+      tags, actorRole: source.role };
   }
 
 if (source.skillFamily === SPIDER_SOUL_FAMILY) {
@@ -1760,6 +1858,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       castWindSickleHook(c, f, options.trigger);
       return;
     }
+    if (family === ELEPHANT_TIDE_FAMILY) {
+      castElephantTide(c, f, options.trigger);
+      return;
+    }
     if (family === BLOOD_SWORD_OATH_FAMILY) {
       castBloodSwordOath(c, f, preferred, options.trigger);
       return;
@@ -1906,6 +2008,15 @@ interface TurnGate {
 /** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
  * New statuses applied during that cycle cannot tick until the next boundary. */
 function startCycle(c: Ctx) {
+  // One-cycle guard expires before any next-round DoT consumes a stale shield.
+  for (const f of c.all) for (const [kind, status] of Object.entries(f.status)) {
+    if (!kind.startsWith(TIDE_SHIELD_PREFIX) || (status.expiresCycle ?? Infinity) > c.cycle) continue;
+    const remaining = Math.max(0, status.value);
+    f.shield = Math.max(0, f.shield - remaining);
+    delete f.status[kind];
+    c.events.push({ t: "tideGuard", src: kind.slice(TIDE_SHIELD_PREFIX.length), dst: f.uid,
+      delta: -remaining, removed: [], active: false });
+  }
   c.spiderRowCounts.clear();
   for (const f of c.all) {
     if (f.alive && f.skillFamily === SPIDER_SOUL_FAMILY && f.star === 3) {
@@ -1971,6 +2082,7 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
     if (k === "hardBeakVulnerability") continue;
+    if (k.startsWith(TIDE_SHIELD_PREFIX)) continue;
     if (k === "hot" || s.permanent) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
