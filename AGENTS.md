@@ -46,3 +46,16 @@ Chi tiết: `.agents/rules/plans-workflow.md`.
 - Mỗi commit bắt buộc có body giải thích rõ nguyên nhân và lý do thay đổi, liệt kê file chỉnh sửa và bằng chứng kiểm thử; không commit message một dòng cụt ngủn.
 - Mỗi commit một mục tiêu duy nhất, không gom thay đổi không liên quan.
 - Commit và push thường xuyên theo `.agents/rules/commits.md`: nhóm nhỏ đã kiểm chứng, stage đúng phạm vi, giữ nguyên thay đổi không liên quan và tuân thủ human merge review.
+
+## Issue delivery (open issue → dev)
+
+- Quy trình đầy đủ: `.agents/rules/issue-delivery-workflow.md`.
+- Leader dùng skill `.agents/skills/github-issue-orchestrator/SKILL.md`.
+- 1 issue = 1 plan = 1 branch = 1 PR vào `dev`; Developer báo Leader, Verifier tạo
+  PR + ảnh evidence, Pull Verifier preview/duyệt, Verifier đóng issue khi PR còn mở,
+  rồi Pull Verifier merge theo uỷ quyền owner.
+- Issue có visual/effect cho thú hoặc UI/UX: Leader tạo visual plan theo
+  `.agents/skills/github-issue-orchestrator/references/visual-plan.md` và giao
+  Visual Developer trước khi khóa evidence.
+- Mọi PR phải có ít nhất một ảnh evidence trong body hoặc comment, pin theo
+  `Verified-Head`; thiếu ảnh = chưa đủ điều kiện review.
