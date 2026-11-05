@@ -56,6 +56,14 @@ export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
 export const FROST_STORM_FAMILY = "frost_storm";
 /** Ma Vải Thời Gian: role-first seeded sand jumps and relocation. */
 export const TIME_SAND_FAMILY = "time_sand_chain";
+/** Bò Viking: next-cycle basic stun, reactive stun and heal only on successful stun application. */
+export const VIKING_BULL_FAMILY = "viking_bull_stun";
+/** Dao Ong Sát Thủ: a kill applies a shared focus mark; the stab's authored damage is unchanged. */
+export const WASP_ASSASSIN_FAMILY = "single_burst_armor_pen";
+/** Tượng Đại Thủy: position-scoped, role-prioritized shield and full debuff cleanse. */
+export const ELEPHANT_TIDE_FAMILY = "elephant_tide_guard";
+/** Pháo Thân: one primary shell with adjacent same-column splash and no statuses. */
+export const CANNON_COLUMN_BLAST_FAMILY = "cannon_column_blast";
 
 export interface SkillSpec {
   /** Who the primary effect lands on. */
@@ -88,6 +96,12 @@ export interface SkillSpec {
   fourthTargetBonusChance?: number | null;
   /** Authored Kirin total number of individual damage events per cast. */
   hitCount?: number;
+  /** Viking roar is a self-buff; only the following basic hit applies its control. */
+  viking?: {
+    nextBasicStunTurns: number;
+    retaliationChance: number;
+    healOnStun: Formula | null;
+  };
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
@@ -325,6 +339,14 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const u = getUnit(baseId);
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
+  if (baseId === "wasp_assassin") {
+    // Parse the existing (40 + 1.5 × ATK) physical strike unchanged. Recovery
+    // belongs to marked-target death, not the generic skill's cast effect.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      heal: null, hot: null, rageGrant: 0, buffs: [], debuffs: [],
+    } satisfies Partial<SkillSpec>);
+  }
   s.reaction = reactionSpec(detail, u.skill.family);
   if (u.skill.family === BLOOD_SWORD_OATH_FAMILY) {
     // The authored physical burst is retained; recovery and debuff suppression are combat-owned.
@@ -379,6 +401,29 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === VIKING_BULL_FAMILY) {
+    Object.assign(s, {
+      side: "self", area: "single", count: 1, selector: "self",
+      damage: null, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, damageReductionPct: 0, damageReductionTurns: 0,
+      cleanseCount: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [],
+      rageGrant: 0, revivePct: 0, reaction: {},
+      viking: {
+        nextBasicStunTurns: 1,
+        retaliationChance: resolvedStar >= 2 ? 1 / 3 : 0,
+        healOnStun: resolvedStar === 3 ? { base: 0, scale: 1, stat: "atk" } : null,
+      },
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === CANNON_COLUMN_BLAST_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      dots: [], controls: [], heal: null, hot: null, shield: null,
+      buffs: [], debuffs: [], reaction: {}, selfHealPctMaxHp: 0,
+      damageReductionPct: 0, damageReductionTurns: 0, cleanseCount: 0,
+      lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === HARD_BEAK_DIVE_FAMILY) {
     Object.assign(s, {
       side: "enemy", area: "single", count: 1, selector: "frontline_default",
@@ -400,6 +445,14 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
       dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
     } satisfies Partial<SkillSpec>);
   }
+  if (u.skill.family === ELEPHANT_TIDE_FAMILY) {
+    // Preserve the authored 35/42/51 + ATK scalings as shields, never as a damage strike.
+    Object.assign(s, {
+      side: "ally", area: "single", count: 1, selector: "role_priority",
+      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [], debuffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -412,10 +465,12 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
     s.selector = u.skill.family === FROST_STORM_FAMILY ? "frost_role_column"
       : u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
       : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
-      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === TIME_SAND_FAMILY ? "role_priority"
+      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === TIME_SAND_FAMILY || u.skill.family === CANNON_COLUMN_BLAST_FAMILY ? "role_priority"
       : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
+      : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
       : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
-        ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
+        ? "frontline_default" : baseId === "wasp_assassin"
+          ? "role_priority" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 
