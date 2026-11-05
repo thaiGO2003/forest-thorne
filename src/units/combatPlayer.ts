@@ -1,6 +1,7 @@
 // Replay the canonical event stream; combatStaging/gameSpeed own basic movement timing.
 import * as THREE from "three";
 import { getUnit } from "../content/catalog";
+import { TIME_SAND_FAMILY, VIKING_BULL_FAMILY } from "../core/skills";
 import {
   SPORE_BURST_POINTS,
   type CombatEvent,
@@ -31,7 +32,8 @@ import { RIG_DEFAULT_DURATIONS, RIG_DEFAULT_IMPACT } from "./rig";
 export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; inspection?: CombatUnitSnapshot }
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
-const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
+const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect",
+  "sheepElfShield", "sheepElfMagicDamage", "sheepElfMagicPen"]);
 const PROJECTILE_COLOR = 0xffd36a;
 /** Action-only Giơ Kiếm Lên Trời guard; not an actual permanent immunity status. */
 const OATH_GUARD_STATUS: BillboardStatus = { key: "immune", positive: true };
@@ -45,6 +47,15 @@ const SPIDER_SOUL_COLOR = 0x9ee4ff;
 const KIRIN_PARALYZE_COLOR = 0x63d6ff;
 /** Swan's new gold-throw impact arrives at the target, never at cast start. */
 const GOLD_THROW_COLOR = 0xffd443;
+/** Shield and attached bonuses glow together when the skill animation reaches impact. */
+const SHEEP_ELF_SHIELD_COLOR = 0x9bdf9b;
+/** Sand leaves the caster on the next valid tile and impacts at projectile arrival. */
+const TIME_SAND_COLOR = 0xd8c28b;
+const VIKING_ROAR_COLOR = 0xe59d46;
+const VIKING_STUN_COLOR = 0x6daeff;
+/** Pháo Thân: one cannonball explosion, with individual splash damage at arrival. */
+const CANNON_BLAST_COLOR = 0xffa84d;
+const TIDE_GUARD_COLOR = 0x7ccff5;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -56,6 +67,7 @@ export function playCombat(o: {
   const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], oathActive: false, suppressed: [] as string[], spores: 0 }]));
   // Active Sương Độc pools per owner (cell keys), mirrored onto the board as hazard tiles.
   const hazards = new Map<string, Map<number, SporeCell>>();
+  const relocated = new Map<string, { kind: "board" | "enemy" | "bench"; col: number; row: number }>();
   const hazardKey = (cell: SporeCell) => cell.row * 100 + cell.col;
   const syncHazards = () => {
     const cells = new Map<number, SporeCell>();
@@ -133,7 +145,7 @@ export function playCombat(o: {
         unit.shield = snapshot.shield;
         unit.statuses = Object.entries(snapshot.status)
           .filter(([, status]) => status.turns > 0)
-          .map(([key]) => ({ key, positive: key === "hot" || POSITIVE.has(key) }));
+          .map(([key]) => ({ key, positive: key === "hot" || key.startsWith("elephantTideShield:") || POSITIVE.has(key) }));
         for (const mod of snapshot.mods) {
           unit.statuses.push({
             key: `${mod.stat}${mod.value >= 0 ? "Up" : "Down"}`,
@@ -156,14 +168,58 @@ export function playCombat(o: {
     fx.burst(position(dst), 0xffc36a); push(dst); tick();
     log.push(`${name(src)} → ${name(dst)} -${hpDamage}`); if (log.length > 12) log.shift();
   };
-  const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => exactImpact(() => {
-    const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
-    const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
-    board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
-    if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
-    if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
-    o.onEvent?.(damageEvent);
-    land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
+  // The simulator emits Viking control and the optional heal directly after a
+  // landed strike. Consume that contiguous aftermath without merging hits.
+  const takeVikingAftermath = (src: string, dst: string): CombatEvent[] | null => {
+    let follows: CombatEvent[] | null = null;
+    let stunHealer: string | null = null;
+    while (index < o.events.length) {
+      const next = o.events[index]!;
+      if (next.t === "status" && next.kind === "stun" && next.turns > 0
+        && next.source?.skillId === VIKING_BULL_FAMILY
+        && ((next.dst === dst && next.source.unitUid === src)
+          || (next.dst === src && next.source.unitUid === dst))) {
+        (follows ??= []).push(next);
+        stunHealer = next.source.unitUid;
+      } else if (next.t === "heal" && stunHealer && next.src === stunHealer && next.dst === stunHealer) {
+        (follows ??= []).push(next);
+        stunHealer = null;
+      } else break;
+      index++;
+    }
+    return follows;
+  };
+  const queueSkillDamage = (damageEvent: Extract<CombatEvent, { t: "basic" | "skill" }>) => {
+    const vikingFollows = takeVikingAftermath(damageEvent.src, damageEvent.dst);
+    return exactImpact(() => {
+      const window = skillImpact?.src === damageEvent.src ? skillImpact : null;
+      const targetIndex = window?.targets.indexOf(damageEvent.dst) ?? -1;
+      board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
+      if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
+      if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
+      if (damageEvent.kind === "cannon") fx.burst(position(damageEvent.dst), CANNON_BLAST_COLOR);
+      o.onEvent?.(damageEvent);
+      land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
+      if (vikingFollows) for (const follow of vikingFollows) present(follow);
+    });
+  };
+  const queueTideGuard = (event: Extract<CombatEvent, { t: "tideGuard" }>) => exactImpact(() => {
+    o.onEvent?.(event);
+    const target = units.get(event.dst);
+    if (target) {
+      target.shield = Math.max(0, target.shield + event.delta);
+      target.statuses = target.statuses.filter((status) =>
+        !event.removed.includes(status.key) && status.key !== `elephantTideShield:${event.src}`);
+      if (event.active) target.statuses.push({ key: `elephantTideShield:${event.src}`, positive: true });
+      push(event.dst);
+    }
+    if (event.active) {
+      board.flashTile?.(event.dst, "splash");
+      fx.burst(position(event.dst), TIDE_GUARD_COLOR);
+      if (event.delta > 0) fx.float(position(event.dst), `+${event.delta} khiên`, "heal");
+      if (event.removed.length) fx.float(position(event.dst), "Thanh tẩy", "status");
+    }
+    tick();
   });
   const move = (root: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, duration: number) => {
     if (duration <= 0) root.position.copy(to);
@@ -186,6 +242,15 @@ export function playCombat(o: {
     board.setCombatBorder?.(null);
   };
   const present = (event: CombatEvent): number => {
+    // The cast starts the animation; linked shield/status mutations wait for impact.
+    if (skillImpact && !skillImpact.fired
+      && ((event.t === "shield" && event.src === skillImpact.src
+        && units.get(event.src)?.baseId === "dryad_tree")
+        || (event.t === "status" && event.source?.skillId === "sheep_elf_guard"
+          && event.source.unitUid === skillImpact.src))) {
+      skillImpact.pending.push(() => { present(event); });
+      return 0;
+    }
     if (event.t === "cycle") {
       o.onEvent?.(event);
       cycle = event.cycle;
@@ -199,11 +264,14 @@ export function playCombat(o: {
     }
     if (event.t === "basic" || event.t === "miss") {
       const actor = units.get(event.src), visual = board.visual(event.src);
+      // Replay Viking stun and healing at this same basic impact frame.
+      const vikingFollows = takeVikingAftermath(event.src, event.dst);
       const semanticImpact = exactImpact(() => {
         board.flashTile?.(event.dst, "direct");
         o.onEvent?.(event);
         if (event.t === "basic") land(event.src, event.dst, event.dmg, event.absorbed, event.crit);
         else fx.float(position(event.dst), "MISS", "miss");
+        if (vikingFollows) for (const follow of vikingFollows) present(follow);
       });
       if (!actor || !visual) {
         semanticImpact();
@@ -243,7 +311,8 @@ export function playCombat(o: {
       }
 
       const home = visual.root.position.clone();
-      const actorSlot = board.slot(event.src), targetSlot = board.slot(event.dst);
+      const actorSlot = relocated.get(event.src) ?? board.slot(event.src);
+      const targetSlot = relocated.get(event.dst) ?? board.slot(event.dst);
       const contact = actorSlot && targetSlot && actorSlot.kind !== "bench" && targetSlot.kind !== "bench"
         ? (() => {
             // Old_src: melee front-line contact lands on the river seam, not the attacker's edge tile.
@@ -318,6 +387,10 @@ export function playCombat(o: {
       }
       return scaleCombatPresentationMs(event.kind === "horn" ? 65 : 100, speedLevel);
     }
+    if (event.t === "tideGuard") {
+      queueTideGuard(event)();
+      return scaleCombatPresentationMs(100, speedLevel);
+    }
     o.onEvent?.(event);
     switch (event.t) {
       case "reflect": land(event.src, event.dst, event.dmg, event.absorbed); break;
@@ -362,9 +435,50 @@ export function playCombat(o: {
             index++;
           }
         }
+        // Sand hits may have per-hit deaths, reflection and on-hit statuses between damage
+        // events. Bind each aftermath to its projectile instead of letting it race ahead.
+        const sandHits: typeof kirinHits = [];
+        const sandAfter: CombatEvent[] = [];
+        if (units.get(event.src)?.baseId === "wisp_light") {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if (next.t === "skill" && next.kind === "sand" && next.src === event.src) {
+              sandHits.push({ hit: next, follows: [] });
+            } else if (sandHits.length && (
+              next.t === "reflect" || next.t === "heal" || next.t === "shield"
+              || next.t === "death" || next.t === "revive"
+              || (next.t === "status" && next.kind !== "knockup" && next.kind !== "petrify")
+            )) {
+              sandHits[sandHits.length - 1]!.follows.push(next);
+            } else break;
+            index++;
+          }
+        }
+        // Knock-up, petrify and relocation resolve only after the full volley.
+        if (sandHits.length) {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if ((next.t === "status" && next.source?.skillId === TIME_SAND_FAMILY
+              && (next.kind === "knockup" || next.kind === "petrify"))
+              || (next.t === "teleport" && next.src === event.src)) {
+              sandAfter.push(next);
+              index++;
+            } else break;
+          }
+        }
+        if (sandHits.length) pendingActions++;
         if (kirinHits.length || goldEvents.length) pendingActions++;
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
+        if (units.get(event.src)?.baseId === "elephant_guard") {
+          // All targeted shields/cleanses land at the same rig impact, not sequential queue ticks.
+          while (index < o.events.length) {
+            const next = o.events[index];
+            if (next?.t !== "tideGuard" || !next.active || next.src !== event.src) break;
+            window.pending.push(queueTideGuard(next));
+            index++;
+          }
+        }
         // Souls launch from the impact pose: queue the contiguous soul hits now so the
         // cast impact can fire one projectile per queued damage event.
         if (units.get(event.src)?.baseId === "spider_venom") {
@@ -372,6 +486,23 @@ export function playCombat(o: {
             const next = o.events[index];
             if (next?.t !== "skill" || next.src !== event.src || next.kind !== "soul") break;
             window.pending.push(queueSkillDamage(next));
+            index++;
+          }
+        }
+        // Damage, reflection, status and deaths belong to the same shell landing.
+        // Consume only this authored blast, never the next combat action.
+        const cannonImpacts: (() => void)[] = [];
+        if (units.get(event.src)?.baseId === "snail_fortress") {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if (next.t === "skill" && next.src === event.src && next.kind === "cannon") {
+              cannonImpacts.push(queueSkillDamage(next));
+            } else if (cannonImpacts.length && (
+              next.t === "reflect" || next.t === "status" || next.t === "heal"
+              || next.t === "shield" || next.t === "death" || next.t === "revive"
+            )) {
+              cannonImpacts.push(() => { present(next); });
+            } else break;
             index++;
           }
         }
@@ -387,7 +518,34 @@ export function playCombat(o: {
           onImpact: () => {
             if (disposed || window.fired) return;
             window.fired = true;
-            if (kirinHits.length) {
+            if (units.get(event.src)?.baseId === "yak_highland") {
+              fx.burst(position(event.src), VIKING_ROAR_COLOR);
+              fx.float(position(event.src), "Gầm Viking", "status");
+            }
+            if (sandHits.length) {
+              const flight = 0.14 / getGameSpeedDisplayMultiplier(speedLevel);
+              const launch = (i: number) => {
+                if (disposed) return;
+                if (i >= sandHits.length) {
+                  for (const aftermath of sandAfter) present(aftermath);
+                  pendingActions--;
+                  return;
+                }
+                const entry = sandHits[i]!;
+                const from = position(entry.hit.from ?? event.src);
+                from.y += 0.5;
+                const to = position(entry.hit.dst);
+                to.y += 0.22;
+                const impact = queueSkillDamage(entry.hit);
+                fx.shot(from, to, TIME_SAND_COLOR, flight, () => {
+                  if (disposed) return;
+                  impact();
+                  for (const follow of entry.follows) present(follow);
+                  launch(i + 1);
+                }, 0.15);
+              };
+              launch(0);
+            } else if (kirinHits.length) {
               // The rig alternates left/right horn strikes over the p=.6–.93 window.
               const spacingMs = (skillSeconds * 330) / Math.max(1, kirinHits.length - 1);
               for (let i = 0; i < kirinHits.length; i++) {
@@ -426,6 +584,15 @@ export function playCombat(o: {
                 }, 0.08);
               };
               next(0);
+            } else if (cannonImpacts.length && window.targets[0]) {
+              const origin = position(event.src);
+              const destination = position(window.targets[0]);
+              origin.addScaledVector(destination.clone().sub(origin).setY(0).normalize(), 0.35);
+              origin.y += 0.55;
+              fx.shot(origin, destination, CANNON_BLAST_COLOR,
+                0.24 / getGameSpeedDisplayMultiplier(speedLevel), exactImpact(() => {
+                  for (const impact of cannonImpacts) impact();
+                }), 0.3);
             } else if (units.get(event.src)?.baseId === "spider_venom" && window.pending.length) {
               const impacts = window.pending.splice(0);
               const origin = position(event.src);
@@ -446,6 +613,18 @@ export function playCombat(o: {
             if (!disposed) clearActorFocus(event.src);
           },
         });
+        break;
+      }
+      case "teleport": {
+        const visual = board.visual(event.src);
+        const slot = board.slot(event.src);
+        if (!visual || !slot) break;
+        fx.burst(position(event.src), TIME_SAND_COLOR);
+        const cell = board.cellCenter(event.col, event.row);
+        visual.root.position.set(cell.x, visual.root.position.y, cell.z);
+        relocated.set(event.src, { kind: slot.kind, col: event.col, row: event.row });
+        board.flashCell?.(event.col, event.row, "direct");
+        fx.burst(position(event.src), TIME_SAND_COLOR);
         break;
       }
       case "hookPull": {
@@ -480,10 +659,28 @@ export function playCombat(o: {
       case "status": {
         const unit = units.get(event.dst);
         if (unit) { unit.statuses = unit.statuses.filter((status) => status.key !== event.kind); if (event.turns > 0) unit.statuses.push({ key: event.kind, positive: POSITIVE.has(event.kind) }); push(event.dst); }
+        if (event.kind === "sheepElfShield" && event.turns > 0) {
+          fx.burst(position(event.dst), SHEEP_ELF_SHIELD_COLOR);
+        }
+        if (event.kind === "waspMark" && event.turns > 0) {
+          const star = event.source?.unitStar ?? 1;
+          fx.burst(position(event.dst), star === 3 ? 0xff3868 : star === 2 ? 0xff7c5c : 0xe3a154);
+          fx.float(position(event.dst), `Dấu ấn ${star}★`, "status");
+        }
         if (event.kind === "paralyze" && event.turns > 0 && event.source?.skillId === "kirin_volt_horns") {
           fx.burst(position(event.dst), KIRIN_PARALYZE_COLOR);
           fx.float(position(event.dst), "Tê liệt", "status");
         }
+        if (event.kind === "stun" && event.turns > 0 && event.source?.skillId === VIKING_BULL_FAMILY) {
+          fx.burst(position(event.dst), VIKING_STUN_COLOR);
+          fx.float(position(event.dst), "Choáng", "status");
+        }
+        break;
+      }
+      case "rage": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.rage = Math.min(unit.rageMax, unit.rage + event.amount); push(event.dst); }
+        fx.float(position(event.dst), `+${event.amount} nộ`, "status");
         break;
       }
       case "revive": {
