@@ -79,6 +79,7 @@ test("parseHeader rejects missing or duplicate snapshots", () => {
     "Closes #126",
     "Verification: x",
     `Verified-Head: ${HEAD}`,
+    "---",
   ].join("\n"));
   assert.equal(missing.ok, false);
   assert.ok(missing.errors.some((error) => error.includes("missing Issue-Snapshot")));
@@ -89,9 +90,126 @@ test("parseHeader rejects missing or duplicate snapshots", () => {
     "Issue-Snapshot: #126 sha256:" + "c".repeat(64),
     "Verification: x",
     `Verified-Head: ${HEAD}`,
+    "---",
   ].join("\n"));
   assert.equal(duplicate.ok, false);
   assert.ok(duplicate.errors.some((error) => error.includes("duplicate Issue-Snapshot")));
+});
+
+test("parseHeader requires an exact --- delimiter", () => {
+  const noDelimiter = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Verification: targeted tests PASS",
+    `Verified-Head: ${HEAD}`,
+  ].join("\n"));
+  assert.equal(noDelimiter.ok, false);
+  assert.ok(noDelimiter.errors.some((error) => error.includes("delimiter")));
+
+  const fourDashes = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Verification: targeted tests PASS",
+    `Verified-Head: ${HEAD}`,
+    "----",
+  ].join("\n"));
+  assert.equal(fourDashes.ok, false);
+  assert.ok(fourDashes.errors.some((error) => error.includes("delimiter")));
+});
+
+test("parseHeader rejects a header starting with Verification before Closes", () => {
+  const parsed = parseHeader([
+    "Verification: targeted tests PASS",
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    `Verified-Head: ${HEAD}`,
+    "---",
+  ].join("\n"));
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.errors.some((error) =>
+    error.includes("first line") || error.includes("expected Issue-Snapshot")));
+});
+
+test("parseHeader rejects a leading blank line", () => {
+  const parsed = parseHeader([
+    "",
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Verification: targeted tests PASS",
+    `Verified-Head: ${HEAD}`,
+    "---",
+  ].join("\n"));
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.errors.some((error) => error.toLowerCase().includes("blank")));
+});
+
+test("parseHeader rejects missing Verification or Verified-Head", () => {
+  const noVerification = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    `Verified-Head: ${HEAD}`,
+    "---",
+  ].join("\n"));
+  assert.equal(noVerification.ok, false);
+  assert.ok(noVerification.errors.some((error) => error.includes("Verification")));
+
+  const noHead = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Verification: x",
+    "---",
+  ].join("\n"));
+  assert.equal(noHead.ok, false);
+  assert.ok(noHead.errors.some((error) => error.includes("Verified-Head")));
+});
+
+test("parseHeader rejects duplicate Verification or Verified-Head", () => {
+  const duplicateVerification = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Verification: first",
+    "Verification: second",
+    `Verified-Head: ${HEAD}`,
+    "---",
+  ].join("\n"));
+  assert.equal(duplicateVerification.ok, false);
+
+  const duplicateHead = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Verification: x",
+    `Verified-Head: ${HEAD}`,
+    `Verified-Head: ${HEAD}`,
+    "---",
+  ].join("\n"));
+  assert.equal(duplicateHead.ok, false);
+});
+
+test("parseHeader rejects snapshots for undeclared issues", () => {
+  const parsed = parseHeader([
+    "Closes #126",
+    "Issue-Snapshot: #126 sha256:" + "b".repeat(64),
+    "Issue-Snapshot: #127 sha256:" + "c".repeat(64),
+    "Verification: x",
+    `Verified-Head: ${HEAD}`,
+    "---",
+  ].join("\n"));
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.errors.some((error) => error.includes("without declaration")));
+});
+
+test("parseHeader accepts multiple issues in canonical order", () => {
+  const header = buildHeader({
+    issues: [
+      { number: 126, title: "Fix tooltip", body: "Body" },
+      { number: 127, title: "Creative mode", body: "Body" },
+    ],
+    head: HEAD,
+    verification: "targeted tests PASS",
+  });
+  const parsed = parseHeader(`${header}\n---\n## Notes\nAnything after the delimiter.`);
+  assert.equal(parsed.ok, true, parsed.errors.join("; "));
+  assert.deepEqual(parsed.issues, [126, 127]);
 });
 
 test("rawUrl pins the full head and encodes path segments", () => {

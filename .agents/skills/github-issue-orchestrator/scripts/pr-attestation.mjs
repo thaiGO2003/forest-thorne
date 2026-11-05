@@ -30,46 +30,85 @@ export function issueSnapshotHash(issue) {
 }
 
 export function parseHeader(body) {
-  const lines = [];
-  for (const line of String(body ?? "").split(/\r?\n/)) {
-    if (line === "---") break;
-    if (!line.trim()) continue;
-    lines.push(line);
-  }
-
+  const lines = String(body ?? "").split(/\r?\n/);
   const errors = [];
   const declared = [];
   const snapshots = new Map();
   let head = null;
   let verification = null;
 
-  for (const line of lines) {
-    let match;
-    if ((match = /^(?:Closes|Fixes|Resolves) #([1-9]\d*)$/i.exec(line))) {
-      declared.push(Number(match[1]));
-    } else if ((match = /^Verified-Head: ([a-f0-9]{40})$/i.exec(line))) {
-      if (head) errors.push("duplicate Verified-Head");
-      head = match[1].toLowerCase();
-    } else if ((match = /^Verification: (\S.*)$/i.exec(line))) {
-      if (verification) errors.push("duplicate Verification");
+  const delimiterIndex = lines.indexOf("---");
+  if (delimiterIndex === -1) {
+    errors.push("missing exact --- delimiter");
+  }
+  const rawHeader = delimiterIndex === -1 ? lines : lines.slice(0, delimiterIndex);
+  if (!rawHeader.length) {
+    errors.push("empty attestation header");
+  } else if (rawHeader[0].trim() === "") {
+    errors.push("leading blank line is not allowed");
+  }
+  const header = rawHeader.filter((line) => line.trim() !== "");
+
+  let index = 0;
+  while (index < header.length) {
+    const match = /^(?:Closes|Fixes|Resolves) #([1-9]\d*)$/i.exec(header[index]);
+    if (!match) break;
+    declared.push(Number(match[1]));
+    index += 1;
+  }
+  if (!declared.length) {
+    errors.push("first line must be a Closes/Fixes/Resolves #N declaration");
+  }
+  if (new Set(declared).size !== declared.length) {
+    errors.push("duplicate issue declaration");
+  }
+
+  const snapshotStart = index;
+  while (index < header.length) {
+    const match = /^Issue-Snapshot: #([1-9]\d*) sha256:([a-f0-9]{64})$/i.exec(header[index]);
+    if (!match) break;
+    const number = Number(match[1]);
+    if (snapshots.has(number)) errors.push(`duplicate Issue-Snapshot for #${number}`);
+    snapshots.set(number, match[2].toLowerCase());
+    index += 1;
+  }
+  if (index === snapshotStart) {
+    errors.push("missing Issue-Snapshot after issue declarations");
+  }
+
+  if (index >= header.length) {
+    errors.push("missing Verification");
+  } else {
+    const match = /^Verification: (\S.*)$/i.exec(header[index]);
+    if (!match) {
+      errors.push(`expected Verification at header line ${index + 1}: ${header[index].slice(0, 80)}`);
+    } else {
       if (match[1].length > MAX_VERIFICATION) {
         errors.push(`Verification exceeds ${MAX_VERIFICATION} characters`);
       }
       verification = match[1];
-    } else if ((match = /^Issue-Snapshot: #([1-9]\d*) sha256:([a-f0-9]{64})$/i.exec(line))) {
-      const number = Number(match[1]);
-      if (snapshots.has(number)) errors.push(`duplicate Issue-Snapshot for #${number}`);
-      snapshots.set(number, match[2].toLowerCase());
-    } else {
-      errors.push(`invalid header line: ${line.slice(0, 80)}`);
+      index += 1;
     }
   }
 
+  if (index >= header.length) {
+    errors.push("missing Verified-Head");
+  } else {
+    const match = /^Verified-Head: ([a-f0-9]{40})$/i.exec(header[index]);
+    if (!match) {
+      errors.push(`expected Verified-Head at header line ${index + 1}: ${header[index].slice(0, 80)}`);
+    } else {
+      head = match[1].toLowerCase();
+      index += 1;
+    }
+  }
+
+  while (index < header.length) {
+    errors.push(`invalid header line: ${header[index].slice(0, 80)}`);
+    index += 1;
+  }
+
   const issues = [...new Set(declared)];
-  if (issues.length !== declared.length) errors.push("duplicate issue declaration");
-  if (!issues.length) errors.push("no Closes/Fixes/Resolves declaration");
-  if (!head) errors.push("missing Verified-Head");
-  if (!verification) errors.push("missing Verification");
   if (snapshots.size !== issues.length) {
     errors.push("Issue-Snapshot count must equal declared issue count");
   }
