@@ -3,6 +3,7 @@
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
 import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { WASP_ASSASSIN_FAMILY } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -167,6 +168,7 @@ export type CombatEvent =
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
   | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; source?: SkillStatusSource }
+  | { t: "rage"; src: string; dst: string; amount: number }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string }
@@ -528,6 +530,13 @@ interface DeferredAutoCast {
   role: AutoCastRole;
   preferred?: Fighter;
 }
+/** One non-stacking focus mark per team; contributors accrue only actual HP damage. */
+interface WaspMark {
+  owner: string;
+  target: string;
+  star: number;
+  contributors: Map<string, number>;
+}
 
 interface Ctx {
   all: Fighter[];
@@ -549,6 +558,7 @@ interface Ctx {
   kissHits: Map<string, Map<string, number>>;
   /** 3★ soul count is fixed before any round-start damage, per caster. */
   spiderRowCounts: Map<string, number>;
+  waspMarks: Record<Side, WaspMark | null>;
 }
 
 // ---------- Sương Độc spore pools (toad_spore_mist) ----------
@@ -680,11 +690,92 @@ const AI_CLASS_PRIORITY: Record<Role, number> = {
   MAGE: 0, ARCHER: 1, SUPPORT: 2, FIGHTER: 3, TANKER: 4, ASSASSIN: 5,
 };
 
+/** A focus mark is shared by every living ally, with taunt still taking precedence. */
+function focusedTarget(c: Ctx, f: Fighter, pool: Fighter[]): Fighter | undefined {
+  const mark = c.waspMarks[f.side];
+  if (mark) return pool.find((enemy) => enemy.uid === mark.target);
+  // Planning preview has no live simulation context; read the canonical mark provenance.
+  return pool.find((enemy) => (enemy.status.waspMark?.turns ?? 0) > 0
+    && c.all.some((owner) => owner.uid === enemy.status.waspMark?.source?.unitUid && owner.side === f.side));
+}
+
+function clearWaspMark(c: Ctx, side: Side) {
+  const mark = c.waspMarks[side];
+  if (!mark) return;
+  const target = c.all.find((fighter) => fighter.uid === mark.target);
+  if (target) {
+    delete target.status.waspMark;
+    c.events.push({ t: "status", dst: target.uid, kind: "waspMark", turns: 0 });
+  }
+  c.waspMarks[side] = null;
+}
+
+/** Select by role first, then Manhattan distance; exact ties use uniform gameplay RNG. */
+function applyWaspKillMark(c: Ctx, killer: Fighter) {
+  const enemies = foes(c, killer);
+  if (!enemies.length) return;
+  const priority = Math.min(...enemies.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+  const candidates = enemies.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+  const nearest = Math.min(...candidates.map((enemy) => dist(killer, enemy)));
+  const tied = candidates.filter((enemy) => dist(killer, enemy) === nearest)
+    .sort((a, b) => a.uid.localeCompare(b.uid));
+  const target = tied.length === 1 ? tied[0]! : tied[Math.floor(c.rng() * tied.length)]!;
+  const previous = c.waspMarks[killer.side];
+  const same = previous?.target === target.uid;
+  if (previous && !same) clearWaspMark(c, killer.side);
+  const star = Math.max(killer.star, same ? previous!.star : 0);
+  c.waspMarks[killer.side] = {
+    owner: killer.uid, target: target.uid, star,
+    contributors: same ? previous!.contributors : new Map<string, number>(),
+  };
+  const source: SkillStatusSource = {
+    skillId: WASP_ASSASSIN_FAMILY, unitUid: killer.uid, unitBaseId: killer.baseId,
+    unitStar: star, turns: 2, value: star,
+  };
+  target.status.waspMark = { turns: 2, value: star, source };
+  c.events.push({ t: "status", dst: target.uid, kind: "waspMark", turns: 2, source });
+}
+
+/** Mark payout is once per target death, never an attack or a chain-trigger. */
+function settleWaspMark(c: Ctx, dead: Fighter) {
+  const side: Side = dead.side === "L" ? "R" : "L";
+  const mark = c.waspMarks[side];
+  if (!mark || mark.target !== dead.uid) return;
+  clearWaspMark(c, side);
+  if (mark.star < 2) return;
+  for (const [uid, damage] of mark.contributors) {
+    const attacker = c.all.find((fighter) => fighter.uid === uid && fighter.alive && fighter.side === side);
+    if (!attacker) continue;
+    if (damage > 0) heal(c, attacker, attacker, damage);
+    if (mark.star >= 3) {
+      const before = attacker.rage;
+      addRage(attacker, 1);
+      if (attacker.rage > before) c.events.push({ t: "rage", src: mark.owner, dst: attacker.uid, amount: attacker.rage - before });
+    }
+  }
+}
+
+/** Created during cycle N: active through N+1; removed at the shared round end. */
+function expireWaspMarks(c: Ctx) {
+  for (const side of ["L", "R"] as const) {
+    const mark = c.waspMarks[side];
+    if (!mark) continue;
+    const target = c.all.find((fighter) => fighter.uid === mark.target);
+    if (!target?.alive || !target.status.waspMark || --target.status.waspMark.turns <= 0) {
+      clearWaspMark(c, side);
+    } else if (target.status.waspMark.source) {
+      target.status.waspMark.source.turns = target.status.waspMark.turns;
+    }
+  }
+}
+
 /** A102 basic target: taunt first; RIGHT uses authored melee/ranged/Assassin scoring. */
 function basicTarget(c: Ctx, f: Fighter): Fighter | null {
   const list = foes(c, f);
   const taunter = f.status.taunt?.turns ? list.find((x) => x.uid === f.tauntBy) : undefined;
   if (taunter) return taunter;
+  const focused = focusedTarget(c, f, list);
+  if (focused) return focused;
   if (!list.length) return null;
 
   if (f.side === "R") {
@@ -805,6 +896,7 @@ function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
   f.shield = 0;
   f.hp = 0;
   c.events.push({ t: "death", dst: f.uid });
+  settleWaspMark(c, f);
   if (killer?.role === "ASSASSIN" && killer.alive && killer.side !== f.side) {
     c.bounty[killer.side] += killer.star;
     c.bountyKills[killer.side] += 1;
@@ -987,6 +1079,10 @@ function strike(
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
       ...(options.kind ? { kind: options.kind } : {}) }), true);
+  const activeMark = c.waspMarks[src.side];
+  if (activeMark?.target === dst.uid && (resolved.hp > 0 || resolved.absorbed > 0)) {
+    activeMark.contributors.set(src.uid, (activeMark.contributors.get(src.uid) ?? 0) + resolved.hp);
+  }
 
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
@@ -1011,6 +1107,7 @@ function strike(
 
   resolveLethal(c, src, dst);
   const killed = resolveLethal(c, dst, src);
+  if (killed && src.alive && src.baseId === "wasp_assassin") applyWaspKillMark(c, src);
   if (!skill && killed && src.alive) resolveBerserkKill(c, src);
   return { hp: resolved.hp, absorbed: resolved.absorbed, killed, landed: true };
 }
@@ -1087,6 +1184,8 @@ function clustered(pool: Fighter[], axis: "row" | "col", score: (xs: Fighter[]) 
 function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSelector, count: number, preferred?: Fighter): Fighter[] {
   if (!pool.length) return [];
   const stable = stableTargets(f, pool);
+  const focused = focusedTarget(c, f, pool);
+  if (focused) return [focused, ...stableTargets(f, pool).filter((target) => target !== focused)].slice(0, Math.max(1, count));
   const max = Math.max(1, count);
   const take = (xs: Fighter[]) => xs.slice(0, max);
   if (preferred?.alive && pool.includes(preferred) && (selector === "frontline_default" || selector === "primary_target")) {
@@ -1277,6 +1376,7 @@ export function combatTargetPreview(
     spores: newSporeState(),
     kissHits: new Map(),
     spiderRowCounts: new Map(),
+    waspMarks: { L: null, R: null },
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1922,6 +2022,7 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
     if (k === "hardBeakVulnerability") continue;
+    if (k === "waspMark") continue;
     if (k === "hot" || s.permanent) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
     if (--s.turns <= 0) {
@@ -2069,6 +2170,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     spores: newSporeState(),
     kissHits: new Map(),
     spiderRowCounts: new Map(),
+    waspMarks: { L: null, R: null },
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
@@ -2113,6 +2215,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     for (const f of all) {
       if ((f.status.hardBeakVulnerability?.value ?? 0) <= 1 / 3) delete f.status.hardBeakVulnerability;
     }
+    expireWaspMarks(c);
   }
   const alive = { L: count("L"), R: count("R") };
   return {
