@@ -46,6 +46,9 @@ const SPIDER_SOUL_COLOR = 0x9ee4ff;
 const KIRIN_PARALYZE_COLOR = 0x63d6ff;
 const VIKING_ROAR_COLOR = 0xe59d46;
 const VIKING_STUN_COLOR = 0x6daeff;
+/** Pháo Thân: one cannonball explosion, with individual splash damage at arrival. */
+const CANNON_BLAST_COLOR = 0xffa84d;
+const TIDE_GUARD_COLOR = 0x7ccff5;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -134,7 +137,7 @@ export function playCombat(o: {
         unit.shield = snapshot.shield;
         unit.statuses = Object.entries(snapshot.status)
           .filter(([, status]) => status.turns > 0)
-          .map(([key]) => ({ key, positive: key === "hot" || POSITIVE.has(key) }));
+          .map(([key]) => ({ key, positive: key === "hot" || key.startsWith("elephantTideShield:") || POSITIVE.has(key) }));
         for (const mod of snapshot.mods) {
           unit.statuses.push({
             key: `${mod.stat}${mod.value >= 0 ? "Up" : "Down"}`,
@@ -186,11 +189,30 @@ export function playCombat(o: {
       board.flashTile?.(damageEvent.dst, targetIndex > 0 ? "splash" : "direct");
       if (damageEvent.kind === "soul") fx.burst(position(damageEvent.dst), SPIDER_SOUL_COLOR);
       if (damageEvent.kind === "grass") fx.burst(position(damageEvent.dst), GRASS_STORM_COLOR);
+      if (damageEvent.kind === "cannon") fx.burst(position(damageEvent.dst), CANNON_BLAST_COLOR);
       o.onEvent?.(damageEvent);
       land(damageEvent.src, damageEvent.dst, damageEvent.dmg, damageEvent.absorbed, damageEvent.crit);
       if (vikingFollows) for (const follow of vikingFollows) present(follow);
     });
   };
+  const queueTideGuard = (event: Extract<CombatEvent, { t: "tideGuard" }>) => exactImpact(() => {
+    o.onEvent?.(event);
+    const target = units.get(event.dst);
+    if (target) {
+      target.shield = Math.max(0, target.shield + event.delta);
+      target.statuses = target.statuses.filter((status) =>
+        !event.removed.includes(status.key) && status.key !== `elephantTideShield:${event.src}`);
+      if (event.active) target.statuses.push({ key: `elephantTideShield:${event.src}`, positive: true });
+      push(event.dst);
+    }
+    if (event.active) {
+      board.flashTile?.(event.dst, "splash");
+      fx.burst(position(event.dst), TIDE_GUARD_COLOR);
+      if (event.delta > 0) fx.float(position(event.dst), `+${event.delta} khiên`, "heal");
+      if (event.removed.length) fx.float(position(event.dst), "Thanh tẩy", "status");
+    }
+    tick();
+  });
   const move = (root: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, duration: number) => {
     if (duration <= 0) root.position.copy(to);
     else moves.push({ root, from: from.clone(), to: to.clone(), elapsed: 0, duration });
@@ -347,6 +369,10 @@ export function playCombat(o: {
       }
       return scaleCombatPresentationMs(event.kind === "horn" ? 65 : 100, speedLevel);
     }
+    if (event.t === "tideGuard") {
+      queueTideGuard(event)();
+      return scaleCombatPresentationMs(100, speedLevel);
+    }
     o.onEvent?.(event);
     switch (event.t) {
       case "reflect": land(event.src, event.dst, event.dmg, event.absorbed); break;
@@ -379,6 +405,15 @@ export function playCombat(o: {
         if (kirinHits.length) pendingActions++;
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], onDone: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
+        if (units.get(event.src)?.baseId === "elephant_guard") {
+          // All targeted shields/cleanses land at the same rig impact, not sequential queue ticks.
+          while (index < o.events.length) {
+            const next = o.events[index];
+            if (next?.t !== "tideGuard" || !next.active || next.src !== event.src) break;
+            window.pending.push(queueTideGuard(next));
+            index++;
+          }
+        }
         // Souls launch from the impact pose: queue the contiguous soul hits now so the
         // cast impact can fire one projectile per queued damage event.
         if (units.get(event.src)?.baseId === "spider_venom") {
@@ -386,6 +421,23 @@ export function playCombat(o: {
             const next = o.events[index];
             if (next?.t !== "skill" || next.src !== event.src || next.kind !== "soul") break;
             window.pending.push(queueSkillDamage(next));
+            index++;
+          }
+        }
+        // Damage, reflection, status and deaths belong to the same shell landing.
+        // Consume only this authored blast, never the next combat action.
+        const cannonImpacts: (() => void)[] = [];
+        if (units.get(event.src)?.baseId === "snail_fortress") {
+          while (index < o.events.length) {
+            const next = o.events[index]!;
+            if (next.t === "skill" && next.src === event.src && next.kind === "cannon") {
+              cannonImpacts.push(queueSkillDamage(next));
+            } else if (cannonImpacts.length && (
+              next.t === "reflect" || next.t === "status" || next.t === "heal"
+              || next.t === "shield" || next.t === "death" || next.t === "revive"
+            )) {
+              cannonImpacts.push(() => { present(next); });
+            } else break;
             index++;
           }
         }
@@ -431,6 +483,15 @@ export function playCombat(o: {
                 }, 0.08);
               };
               next(0);
+            } else if (cannonImpacts.length && window.targets[0]) {
+              const origin = position(event.src);
+              const destination = position(window.targets[0]);
+              origin.addScaledVector(destination.clone().sub(origin).setY(0).normalize(), 0.35);
+              origin.y += 0.55;
+              fx.shot(origin, destination, CANNON_BLAST_COLOR,
+                0.24 / getGameSpeedDisplayMultiplier(speedLevel), exactImpact(() => {
+                  for (const impact of cannonImpacts) impact();
+                }), 0.3);
             } else if (units.get(event.src)?.baseId === "spider_venom" && window.pending.length) {
               const impacts = window.pending.splice(0);
               const origin = position(event.src);
@@ -485,6 +546,11 @@ export function playCombat(o: {
       case "status": {
         const unit = units.get(event.dst);
         if (unit) { unit.statuses = unit.statuses.filter((status) => status.key !== event.kind); if (event.turns > 0) unit.statuses.push({ key: event.kind, positive: POSITIVE.has(event.kind) }); push(event.dst); }
+        if (event.kind === "waspMark" && event.turns > 0) {
+          const star = event.source?.unitStar ?? 1;
+          fx.burst(position(event.dst), star === 3 ? 0xff3868 : star === 2 ? 0xff7c5c : 0xe3a154);
+          fx.float(position(event.dst), `Dấu ấn ${star}★`, "status");
+        }
         if (event.kind === "paralyze" && event.turns > 0 && event.source?.skillId === "kirin_volt_horns") {
           fx.burst(position(event.dst), KIRIN_PARALYZE_COLOR);
           fx.float(position(event.dst), "Tê liệt", "status");
@@ -493,6 +559,12 @@ export function playCombat(o: {
           fx.burst(position(event.dst), VIKING_STUN_COLOR);
           fx.float(position(event.dst), "Choáng", "status");
         }
+        break;
+      }
+      case "rage": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.rage = Math.min(unit.rageMax, unit.rage + event.amount); push(event.dst); }
+        fx.float(position(event.dst), `+${event.amount} nộ`, "status");
         break;
       }
       case "revive": {

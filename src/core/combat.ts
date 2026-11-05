@@ -2,7 +2,7 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { BLOOD_SWORD_OATH_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, VIKING_BULL_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, ELEPHANT_TIDE_FAMILY, FROST_STORM_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, VIKING_BULL_FAMILY, WASP_ASSASSIN_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
 import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
@@ -32,6 +32,7 @@ const DOTS = ["burn", "poison", "bleed", "disease"] as const;
 const CLEANSEABLE_STATUSES = new Set<string>([
   ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
 ]);
+const TIDE_SHIELD_PREFIX = "elephantTideShield:";
 
 interface Mod extends StatMod { stackKey?: string }
 
@@ -52,6 +53,8 @@ export interface TimedStatus {
   /** Viking retaliation lasts through the end of the following shared cycle. */
   expiresAfterCycle?: number;
   source?: SkillStatusSource;
+  /** Next shared cycle that removes a one-round Elephant Tide shield. */
+  expiresCycle?: number;
 }
 
 export interface ReflectReactionState {
@@ -162,7 +165,7 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "cannon" }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
@@ -170,7 +173,10 @@ export type CombatEvent =
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
+  /** Elephant Tide shield replacement and one-time cleanse resolve together at visual impact. */
+  | { t: "tideGuard"; src: string; dst: string; delta: number; active: boolean; removed: string[] }
   | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; expiresAfterCycle?: number; source?: SkillStatusSource }
+  | { t: "rage"; src: string; dst: string; amount: number }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
   | { t: "death"; dst: string }
@@ -532,6 +538,13 @@ interface DeferredAutoCast {
   role: AutoCastRole;
   preferred?: Fighter;
 }
+/** One non-stacking focus mark per team; contributors accrue only actual HP damage. */
+interface WaspMark {
+  owner: string;
+  target: string;
+  star: number;
+  contributors: Map<string, number>;
+}
 
 interface Ctx {
   all: Fighter[];
@@ -553,6 +566,7 @@ interface Ctx {
   kissHits: Map<string, Map<string, number>>;
   /** 3★ soul count is fixed before any round-start damage, per caster. */
   spiderRowCounts: Map<string, number>;
+  waspMarks: Record<Side, WaspMark | null>;
 }
 
 // ---------- Sương Độc spore pools (toad_spore_mist) ----------
@@ -684,11 +698,92 @@ const AI_CLASS_PRIORITY: Record<Role, number> = {
   MAGE: 0, ARCHER: 1, SUPPORT: 2, FIGHTER: 3, TANKER: 4, ASSASSIN: 5,
 };
 
+/** A focus mark is shared by every living ally, with taunt still taking precedence. */
+function focusedTarget(c: Ctx, f: Fighter, pool: Fighter[]): Fighter | undefined {
+  const mark = c.waspMarks[f.side];
+  if (mark) return pool.find((enemy) => enemy.uid === mark.target);
+  // Planning preview has no live simulation context; read the canonical mark provenance.
+  return pool.find((enemy) => (enemy.status.waspMark?.turns ?? 0) > 0
+    && c.all.some((owner) => owner.uid === enemy.status.waspMark?.source?.unitUid && owner.side === f.side));
+}
+
+function clearWaspMark(c: Ctx, side: Side) {
+  const mark = c.waspMarks[side];
+  if (!mark) return;
+  const target = c.all.find((fighter) => fighter.uid === mark.target);
+  if (target) {
+    delete target.status.waspMark;
+    c.events.push({ t: "status", dst: target.uid, kind: "waspMark", turns: 0 });
+  }
+  c.waspMarks[side] = null;
+}
+
+/** Select by role first, then Manhattan distance; exact ties use uniform gameplay RNG. */
+function applyWaspKillMark(c: Ctx, killer: Fighter) {
+  const enemies = foes(c, killer);
+  if (!enemies.length) return;
+  const priority = Math.min(...enemies.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+  const candidates = enemies.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+  const nearest = Math.min(...candidates.map((enemy) => dist(killer, enemy)));
+  const tied = candidates.filter((enemy) => dist(killer, enemy) === nearest)
+    .sort((a, b) => a.uid.localeCompare(b.uid));
+  const target = tied.length === 1 ? tied[0]! : tied[Math.floor(c.rng() * tied.length)]!;
+  const previous = c.waspMarks[killer.side];
+  const same = previous?.target === target.uid;
+  if (previous && !same) clearWaspMark(c, killer.side);
+  const star = Math.max(killer.star, same ? previous!.star : 0);
+  c.waspMarks[killer.side] = {
+    owner: killer.uid, target: target.uid, star,
+    contributors: same ? previous!.contributors : new Map<string, number>(),
+  };
+  const source: SkillStatusSource = {
+    skillId: WASP_ASSASSIN_FAMILY, unitUid: killer.uid, unitBaseId: killer.baseId,
+    unitStar: star, turns: 2, value: star,
+  };
+  target.status.waspMark = { turns: 2, value: star, source };
+  c.events.push({ t: "status", dst: target.uid, kind: "waspMark", turns: 2, source });
+}
+
+/** Mark payout is once per target death, never an attack or a chain-trigger. */
+function settleWaspMark(c: Ctx, dead: Fighter) {
+  const side: Side = dead.side === "L" ? "R" : "L";
+  const mark = c.waspMarks[side];
+  if (!mark || mark.target !== dead.uid) return;
+  clearWaspMark(c, side);
+  if (mark.star < 2) return;
+  for (const [uid, damage] of mark.contributors) {
+    const attacker = c.all.find((fighter) => fighter.uid === uid && fighter.alive && fighter.side === side);
+    if (!attacker) continue;
+    if (damage > 0) heal(c, attacker, attacker, damage);
+    if (mark.star >= 3) {
+      const before = attacker.rage;
+      addRage(attacker, 1);
+      if (attacker.rage > before) c.events.push({ t: "rage", src: mark.owner, dst: attacker.uid, amount: attacker.rage - before });
+    }
+  }
+}
+
+/** Created during cycle N: active through N+1; removed at the shared round end. */
+function expireWaspMarks(c: Ctx) {
+  for (const side of ["L", "R"] as const) {
+    const mark = c.waspMarks[side];
+    if (!mark) continue;
+    const target = c.all.find((fighter) => fighter.uid === mark.target);
+    if (!target?.alive || !target.status.waspMark || --target.status.waspMark.turns <= 0) {
+      clearWaspMark(c, side);
+    } else if (target.status.waspMark.source) {
+      target.status.waspMark.source.turns = target.status.waspMark.turns;
+    }
+  }
+}
+
 /** A102 basic target: taunt first; RIGHT uses authored melee/ranged/Assassin scoring. */
 function basicTarget(c: Ctx, f: Fighter): Fighter | null {
   const list = foes(c, f);
   const taunter = f.status.taunt?.turns ? list.find((x) => x.uid === f.tauntBy) : undefined;
   if (taunter) return taunter;
+  const focused = focusedTarget(c, f, list);
+  if (focused) return focused;
   if (!list.length) return null;
 
   if (f.side === "R") {
@@ -804,6 +899,41 @@ function cleanseRandomDebuffs(c: Ctx, fighter: Fighter, count: number) {
   }
 }
 
+/** Full cleanse is deterministic and consumes no RNG; positive effects never qualify. */
+function cleanseTideDebuffs(dst: Fighter): string[] {
+  const removed: string[] = [];
+  for (const [kind, status] of Object.entries(dst.status)) {
+    if (status.turns <= 0 || !CLEANSEABLE_STATUSES.has(kind)) continue;
+    delete dst.status[kind];
+    if (kind === "taunt") dst.tauntBy = null;
+    removed.push(kind);
+  }
+  dst.mods = dst.mods.filter((mod) => {
+    if (mod.turns <= 0 || mod.value >= 0) return true;
+    removed.push(`${mod.stat}Down`);
+    return false;
+  });
+  return removed;
+}
+
+/** Reconcile tracked Tide shield after normal mitigation, preserving unrelated shield sources. */
+function consumeTideShield(dst: Fighter, absorbed: number, preShield: number) {
+  let tideBalance = 0;
+  for (const kind in dst.status) {
+    if (kind.startsWith(TIDE_SHIELD_PREFIX)) tideBalance += Math.max(0, dst.status[kind]!.value);
+  }
+  let remaining = Math.max(0, absorbed - Math.max(0, preShield - tideBalance));
+  if (remaining === 0) return;
+  for (const kind in dst.status) {
+    if (!kind.startsWith(TIDE_SHIELD_PREFIX)) continue;
+    const status = dst.status[kind]!;
+    const consumed = Math.min(remaining, Math.max(0, status.value));
+    status.value -= consumed;
+    remaining -= consumed;
+    if (remaining === 0) break;
+  }
+}
+
 function applyMod(dst: Fighter, mod: StatMod, stackKey?: string) {
   if (!stackKey) {
     dst.mods.push({ ...mod });
@@ -831,6 +961,7 @@ function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
   f.shield = 0;
   f.hp = 0;
   c.events.push({ t: "death", dst: f.uid });
+  settleWaspMark(c, f);
   if (killer?.role === "ASSASSIN" && killer.alive && killer.side !== f.side) {
     c.bounty[killer.side] += killer.star;
     c.bountyKills[killer.side] += 1;
@@ -856,7 +987,9 @@ function applyDamage(
   const mitigated = Math.round(dmg * (1 - reduction) * (1 + vulnerability));
   const appliedDamage = Math.max(guarding ? 0 : 1, mitigated - (guarding ? 10 : 0));
   const absorbed = Math.min(dst.shield, appliedDamage);
+  const preShield = dst.shield;
   dst.shield -= absorbed;
+  if (absorbed > 0) consumeTideShield(dst, absorbed, preShield);
   const toHp = Math.min(dst.hp, appliedDamage - absorbed);
   dst.hp -= toHp;
   c.events.push(event(absorbed, appliedDamage));
@@ -915,10 +1048,12 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 interface StrikeOptions {
   allowCounter?: boolean;
   /** Distinct presentation for authored skill impact families. */
-  kind?: "kiss" | "batling" | "grass" | "soul" | "horn";
+  kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "cannon";
   canCrit?: boolean;
   /** Charged normal basic only, never a counterattack or chained skill impact. */
   vikingStun?: boolean;
+  /** Applied once after offense, defense, elemental, critical and global modifiers. */
+  falloff?: number;
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -1011,7 +1146,7 @@ function strike(
   else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
   // Authored on-hit logic (issue #31): low/high-HP bonuses and capped stack scaling.
   dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
-  dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1)));
+  dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1) * (options.falloff ?? 1)));
   const resolved = applyDamage(c, dst, dmg, src,
     (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
       ...(options.kind ? { kind: options.kind } : {}) }), true);
@@ -1019,6 +1154,10 @@ function strike(
   const retaliationChance = dst.skill.viking?.retaliationChance ?? 0;
   if (dst.alive && dst.hp > 0 && src.alive && src.hp > 0 && retaliationChance > 0
     && c.rng() < retaliationChance) applyVikingStun(c, dst, src, true);
+  const activeMark = c.waspMarks[src.side];
+  if (activeMark?.target === dst.uid && (resolved.hp > 0 || resolved.absorbed > 0)) {
+    activeMark.contributors.set(src.uid, (activeMark.contributors.get(src.uid) ?? 0) + resolved.hp);
+  }
 
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
@@ -1043,6 +1182,7 @@ function strike(
 
   resolveLethal(c, src, dst);
   const killed = resolveLethal(c, dst, src);
+  if (killed && src.alive && src.baseId === "wasp_assassin") applyWaspKillMark(c, src);
   if (!skill && killed && src.alive) resolveBerserkKill(c, src);
   return { hp: resolved.hp, absorbed: resolved.absorbed, killed, landed: true };
 }
@@ -1119,6 +1259,8 @@ function clustered(pool: Fighter[], axis: "row" | "col", score: (xs: Fighter[]) 
 function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSelector, count: number, preferred?: Fighter): Fighter[] {
   if (!pool.length) return [];
   const stable = stableTargets(f, pool);
+  const focused = focusedTarget(c, f, pool);
+  if (focused) return [focused, ...stableTargets(f, pool).filter((target) => target !== focused)].slice(0, Math.max(1, count));
   const max = Math.max(1, count);
   const take = (xs: Fighter[]) => xs.slice(0, max);
   if (preferred?.alive && pool.includes(preferred) && (selector === "frontline_default" || selector === "primary_target")) {
@@ -1250,6 +1392,53 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter, su
   return ordered;
 }
 
+/** Role priority applies within each positional zone; 2★ uniformly samples the adjacent column. */
+function elephantTideTargets(c: Ctx, caster: Fighter): Fighter[] {
+  const ally = friends(c, caster).filter((f) => f !== caster);
+  const priority = (f: Fighter) => f.role === "SUPPORT" || f.role === "TANKER" ? 0 : 1;
+  const ordered = (xs: Fighter[]) => xs.sort((a, b) => priority(a) - priority(b)
+    || dist(caster, a) - dist(caster, b) || a.row - b.row || a.col - b.col || a.uid.localeCompare(b.uid));
+  const behind = ordered(ally.filter((f) => caster.side === "L" ? f.col < caster.col : f.col > caster.col));
+  if (caster.star === 1) return behind;
+  const selected = new Set(behind.map((f) => f.uid));
+  const neighbors = ally.filter((f) => Math.abs(f.col - caster.col) === 1 && !selected.has(f.uid));
+  const extra: Fighter[] = [];
+  for (const tier of [0, 1]) {
+    const candidates = ordered(neighbors.filter((f) => priority(f) === tier));
+    for (let i = 0; i < candidates.length && extra.length < 2; i++) {
+      const j = i + Math.floor(c.rng() * (candidates.length - i));
+      [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
+      extra.push(candidates[i]!);
+    }
+    if (extra.length === 2) break;
+  }
+  for (const f of extra) selected.add(f.uid);
+  if (caster.star === 2) return [...behind, ...extra];
+  const adjacent = ordered(ally.filter((f) => !selected.has(f.uid)
+    && Math.abs(f.row - caster.row) <= 1 && Math.abs(f.col - caster.col) <= 1));
+  return [...behind, ...extra, ...adjacent];
+}
+
+/** Non-damaging cast: shields live through this shared cycle, then expire before next-cycle DoTs. */
+function castElephantTide(c: Ctx, caster: Fighter, trigger?: AutoCastRole) {
+  const targets = elephantTideTargets(c, caster);
+  c.events.push({ t: "cast", src: caster.uid, targets: targets.map((f) => f.uid), ...(trigger ? { trigger } : {}) });
+  const formula = caster.skill.shield;
+  if (!formula) throw new Error("Elephant Tide requires an authored shield formula");
+  const amount = Math.max(1, Math.round(formula.base + statValue(caster, formula.stat) * formula.scale));
+  const key = `${TIDE_SHIELD_PREFIX}${caster.uid}`;
+  for (const ally of targets) {
+    const removed = cleanseTideDebuffs(ally);
+    const previous = ally.status[key]?.value ?? 0;
+    const delta = amount - previous;
+    ally.shield += delta;
+    ally.status[key] = { turns: 1, value: amount, expiresCycle: c.cycle + 1,
+      source: { skillId: ELEPHANT_TIDE_FAMILY, unitUid: caster.uid,
+        unitBaseId: caster.baseId, unitStar: caster.star, turns: 1, value: amount } };
+    c.events.push({ t: "tideGuard", src: caster.uid, dst: ally.uid, delta, removed, active: true });
+  }
+}
+
 function previewSeed(all: readonly Fighter[], sourceUid: string): number {
   let hash = 0x811c9dc5;
   const mixText = (value: string) => {
@@ -1309,6 +1498,7 @@ export function combatTargetPreview(
     spores: newSporeState(),
     kissHits: new Map(),
     spiderRowCounts: new Map(),
+    waspMarks: { L: null, R: null },
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1369,6 +1559,15 @@ export function combatTargetPreview(
       areaCells: cells.map(({ col, row }) => ({ col, row, effect: "damage" })),
     };
   }
+  if (source.skillFamily === ELEPHANT_TIDE_FAMILY) {
+    const targets = elephantTideTargets(c, source);
+    const tags: CombatPreviewTag[] = targets.map((fighter, i) =>
+      ({ uid: fighter.uid, effect: "shield", kind: "skill", primary: i === 0 }));
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return { scanCells, directUids: targets.slice(0, 1).map((f) => f.uid),
+      splashUids: targets.slice(1).map((f) => f.uid), skillCasterUid: source.uid,
+      tags, actorRole: source.role };
+  }
 
 if (source.skillFamily === SPIDER_SOUL_FAMILY) {
     const row = foes(c, source).filter((target) => target.row === source.row)
@@ -1401,6 +1600,20 @@ if (source.skillFamily === KIRIN_HORNS_FAMILY) {
       skillCasterUid: source.uid,
       tags,
       actorRole: source.role,
+    };
+  }
+
+  if (source.skillFamily === CANNON_COLUMN_BLAST_FAMILY) {
+    const [primary, ...splash] = cannonColumnTargets(c, source);
+    const tags: CombatPreviewTag[] = [
+      ...(primary ? [{ uid: primary.uid, effect: "damage" as const, kind: "skill" as const, primary: true }] : []),
+      ...splash.map((target) => ({ uid: target.uid, effect: "damage" as const, kind: "skill" as const, primary: false })),
+    ];
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells, directUids: primary ? [primary.uid] : [],
+      splashUids: splash.map((target) => target.uid),
+      skillCasterUid: source.uid, tags, actorRole: source.role,
     };
   }
 
@@ -1726,6 +1939,35 @@ function castWindSickleHook(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
   if (f.star === 3) f.hookGuardCycle = c.cycle;
 }
 
+/** A primary shell hit plus living neighbors exactly one row above and below its column. */
+function cannonColumnTargets(c: Ctx, f: Fighter): Fighter[] {
+  const pool = foes(c, f);
+  const primary = selectorTargets(c, f, pool, "role_priority", 1)[0];
+  return primary ? [primary, ...pool.filter((enemy) =>
+    enemy.col === primary.col && Math.abs(enemy.row - primary.row) === 1)
+    .sort((a, b) => a.row - b.row)] : [];
+}
+
+function castCannonColumnBlast(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const targets = cannonColumnTargets(c, f);
+  const primary = targets[0];
+  const cast: Extract<CombatEvent, { t: "cast" }> = {
+    t: "cast", src: f.uid, targets: targets.map((target) => target.uid),
+  };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = f.skill.damage;
+  if (!damage || !primary) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const splash = f.star === 1 ? 1 / 3 : f.star === 2 ? 2 / 3 : 1;
+  for (const target of targets) {
+    if (!target.alive || !f.alive) continue;
+    strike(c, f, target, raw, damage.type, true,
+      { allowCounter: false, kind: "cannon", falloff: target === primary ? 1 : splash });
+  }
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1746,8 +1988,16 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       f.vikingNextBasicCycle = c.cycle + 1;
       return;
     }
+    if (family === CANNON_COLUMN_BLAST_FAMILY) {
+      castCannonColumnBlast(c, f, options.trigger);
+      return;
+    }
     if (family === "wind_sickle_hook") {
       castWindSickleHook(c, f, options.trigger);
+      return;
+    }
+    if (family === ELEPHANT_TIDE_FAMILY) {
+      castElephantTide(c, f, options.trigger);
       return;
     }
     if (family === BLOOD_SWORD_OATH_FAMILY) {
@@ -1896,6 +2146,15 @@ interface TurnGate {
 /** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
  * New statuses applied during that cycle cannot tick until the next boundary. */
 function startCycle(c: Ctx) {
+  // One-cycle guard expires before any next-round DoT consumes a stale shield.
+  for (const f of c.all) for (const [kind, status] of Object.entries(f.status)) {
+    if (!kind.startsWith(TIDE_SHIELD_PREFIX) || (status.expiresCycle ?? Infinity) > c.cycle) continue;
+    const remaining = Math.max(0, status.value);
+    f.shield = Math.max(0, f.shield - remaining);
+    delete f.status[kind];
+    c.events.push({ t: "tideGuard", src: kind.slice(TIDE_SHIELD_PREFIX.length), dst: f.uid,
+      delta: -remaining, removed: [], active: false });
+  }
   c.spiderRowCounts.clear();
   for (const f of c.all) {
     if (f.alive && f.skillFamily === SPIDER_SOUL_FAMILY && f.star === 3) {
@@ -1961,6 +2220,8 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
     if (k === "hardBeakVulnerability") continue;
+    if (k === "waspMark") continue;
+    if (k.startsWith(TIDE_SHIELD_PREFIX)) continue;
     if (k === "hot" || s.permanent) continue;
     if (s.expiresAfterCycle !== undefined) continue;
     if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
@@ -2115,6 +2376,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     spores: newSporeState(),
     kissHits: new Map(),
     spiderRowCounts: new Map(),
+    waspMarks: { L: null, R: null },
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
@@ -2170,6 +2432,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
         c.events.push({ t: "status", dst: f.uid, kind: "stun", turns: 0 });
       }
     }
+    expireWaspMarks(c);
   }
   const alive = { L: count("L"), R: count("R") };
   return {
