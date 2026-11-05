@@ -1613,29 +1613,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Giẫm tạo chấn động 3x3 để giữ tuyến trước và khóa cứng nhiều mục tiêu.",
+  "pitchVi": "Dựng lá chắn thủy triều và thanh tẩy bất lợi cho đồng minh phía sau; phạm vi bảo hộ mở rộng theo sao.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Voi Giẫm Đạp",
-   "family": "aoe_circle_stun",
+   "nameVi": "Thủy Triều Hộ Vệ",
+   "family": "elephant_tide_guard",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "1 kẻ địch trong hàng địch đông nhất làm tâm chấn",
-   "shapeVi": "vùng vuông 3x3 quanh tâm",
-   "selectionVi": "Ưu tiên hàng địch có nhiều mục tiêu nhất.",
-   "countVi": "vùng 3x3",
-   "durationVi": "choáng 1 lượt (35%)",
+   "targetVi": "Đồng minh phía sau voi; ưu tiên SUPPORT/TANKER trong từng vùng hợp lệ",
+   "shapeVi": "1★ phía sau; 2★ thêm tối đa 2 đồng minh ở cột kề; 3★ thêm tất cả đồng minh ở ô kề",
+   "selectionVi": "Chọn SUPPORT/TANKER trước, sau đó theo khoảng cách và vị trí ổn định; không chọn kẻ địch hay lặp mục tiêu.",
+   "countVi": "Theo vị trí và cấp sao",
+   "durationVi": "Khiên tạm thời 1 lượt, làm mới không cộng dồn; thanh tẩy một lần khi thi triển",
    "starDetailVi": [
-    "Giẫm mạnh vào 1 kẻ địch trong hàng địch đông nhất, gây (35 + 100% ATK) sát thương vật lý trong vùng vuông 3x3 quanh mục tiêu làm tâm chấn. Tối đa 1 kẻ địch trong vùng bị choáng 1 lượt với 35% tỉ lệ.",
-    "Giẫm mạnh vào 1 kẻ địch trong hàng địch đông nhất, gây (42 + 120% ATK) sát thương vật lý trong vùng vuông 3x3 quanh mục tiêu làm tâm chấn. Tối đa 2 kẻ địch trong vùng bị choáng 1 lượt với 35% tỉ lệ.",
-    "Giẫm mạnh vào 1 kẻ địch trong hàng địch đông nhất, gây (51 + 145% ATK) sát thương vật lý trong vùng vuông 3x3 quanh mục tiêu làm tâm chấn. Tối đa 3 kẻ địch trong vùng bị choáng 1 lượt với 35% tỉ lệ."
+    "Tạo khiên (35 + 100% ATK) cho đồng minh đứng sau voi trong 1 lượt, xóa tất cả debuff một lần trên từng người được bảo hộ. Không gây sát thương, không chí mạng; khiên cùng nguồn làm mới thay vì cộng dồn.",
+    "Tạo khiên (42 + 120% ATK) cho đồng minh đứng sau voi và tối đa 2 đồng minh ở cột kề trong 1 lượt; mỗi người được xóa tất cả debuff một lần. Không gây sát thương, không chí mạng; khiên cùng nguồn làm mới.",
+    "Tạo khiên (51 + 145% ATK) cho đồng minh đứng sau voi, tối đa 2 đồng minh ở cột kề và đồng minh ở các ô kề trong 1 lượt; mỗi người được xóa tất cả debuff một lần. Không gây sát thương, không chí mạng; khiên cùng nguồn làm mới."
    ]
   },
   "skin": {
@@ -5083,29 +5083,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Rút vào vỏ để dựng khiên, miễn khống chế và che chắn cả hàng.",
+  "pitchVi": "Pháo Thân bắn một phát lớn vào mục tiêu ưu tiên theo vai trò, sóng nổ lan chỉ tới hai ô sát trên và dưới cùng cột.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "melee, physical, 1×ATK, 1 kẻ địch gần nhất, single ×1."
   },
   "skill": {
-   "nameVi": "Pháo Đài Di Động",
-   "family": "self_shield_immune",
+   "nameVi": "Pháo Thân",
+   "family": "cannon_column_blast",
    "rageCost": [
     3,
     4,
     5
    ],
-   "targetVi": "bản thân",
-   "shapeVi": "tự thân",
-   "selectionVi": "Tự kích hoạt lên bản thân.",
-   "countVi": "1 mục tiêu",
-   "durationVi": "khiên tức thì; miễn khống chế 2 lượt",
+   "targetVi": "kẻ địch ưu tiên theo vai trò",
+   "shapeVi": "mục tiêu chính và hai ô cùng cột kề trên/dưới",
+   "selectionVi": "Ưu tiên vai trò, sau đó khoảng cách; chỉ lan cùng cột.",
+   "countVi": "tối đa 3 mục tiêu, mỗi mục tiêu một lần",
+   "durationVi": "sát thương tức thì khi đạn chạm; không tạo trạng thái hay hiệu ứng kéo dài",
    "starDetailVi": [
-    "Tự tạo khiên bằng (40 + 0.3 x DEF) và miễn nhiễm khống chế trong 2 lượt.",
-    "Tự tạo khiên bằng (60 + 0.4 x DEF) và miễn nhiễm khống chế trong 2 lượt.",
-    "Tự tạo khiên bằng (80 + 0.5 x DEF), miễn nhiễm khống chế trong 3 lượt, và chia 25% giá trị khiên cho đồng minh cùng hàng."
+    "Pháo Thân bắn vào kẻ địch ưu tiên theo vai trò, gây (15 + 40% DEF) sát thương vật lý ở thời điểm va chạm. Hai kẻ địch ở ô liền kề trên và dưới cùng cột với mục tiêu chính, nếu có, mỗi kẻ chịu 1/3 sát thương sau các hệ số. Không tạo trạng thái, không cộng dồn hay làm mới.",
+    "Pháo Thân bắn vào kẻ địch ưu tiên theo vai trò, gây (15 + 40% DEF) sát thương vật lý ở thời điểm va chạm. Hai kẻ địch ở ô liền kề trên và dưới cùng cột với mục tiêu chính, nếu có, mỗi kẻ chịu 2/3 sát thương sau các hệ số. Không tạo trạng thái, không cộng dồn hay làm mới.",
+    "Pháo Thân bắn vào kẻ địch ưu tiên theo vai trò, gây (15 + 40% DEF) sát thương vật lý ở thời điểm va chạm. Hai kẻ địch ở ô liền kề trên và dưới cùng cột với mục tiêu chính, nếu có, mỗi kẻ chịu toàn bộ sát thương sau các hệ số. Không tạo trạng thái, không cộng dồn hay làm mới."
    ]
   },
   "skin": {
@@ -6280,7 +6280,7 @@
    "evade": 0.15,
    "accuracy": 0.95
   },
-  "pitchVi": "Đâm hậu tuyến đã nhiễm độc để xuyên giáp, rút nộ và truy sát mục tiêu mỏng.",
+  "pitchVi": "Đâm hậu tuyến và đánh dấu con mồi gần nhất sau khi hạ gục; đồng đội dồn đòn vào dấu ấn để nhận hồi phục và nộ.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
@@ -6298,11 +6298,11 @@
    "shapeVi": "1 đòn đâm hậu tuyến",
    "selectionVi": "Ưu tiên kẻ địch ở cột cuối cùng phía địch.",
    "countVi": "1",
-   "durationVi": "tức thì",
+   "durationVi": "Đòn đâm tức thì; dấu ấn tồn tại đến hết lượt kế tiếp (tối đa 2 lượt tính cả lượt đặt), được làm mới khi đánh dấu lại, không cộng dồn.",
    "starDetailVi": [
-    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 5% sát thương cú đâm.",
-    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 8% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ.",
-    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 10% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ. Nếu mục tiêu chết hoặc còn dưới 40% máu sau cú đâm, mũi đâm phụ chuyển sang tối đa 2 kẻ địch hậu tuyến gần nhất với 70% sát thương."
+    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 5% sát thương cú đâm. Khi đòn đánh của bản thân hạ gục kẻ địch, đánh dấu 1 kẻ địch còn sống (ưu tiên vai trò, rồi gần nhất; hòa chọn đều ngẫu nhiên) trong 2 lượt tính cả lượt này; đồng minh ưu tiên đánh mục tiêu có dấu ấn.",
+    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 8% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ. Có dấu ấn như 1★; khi mục tiêu có dấu ấn chết, mỗi đồng minh từng đánh trúng nó khi còn dấu ấn hồi lượng HP bằng sát thương HP mà bản thân đã gây cho nó; kích hoạt một lần, không cộng dồn.",
+    "Đâm 1 kẻ địch hậu tuyến, gây (40 + 1.5 x ATK) sát thương vật lý, bỏ qua 40% giáp, và mỗi đồng minh Trùng đang sống tăng thêm 10% sát thương cú đâm; nếu mục tiêu đã nhiễm độc, bỏ qua thêm 15% giáp và mục tiêu mất 1 nộ. Nếu mục tiêu chết hoặc còn dưới 40% máu sau cú đâm, mũi đâm phụ chuyển sang tối đa 2 kẻ địch hậu tuyến gần nhất với 70% sát thương. Có dấu ấn như 2★; người đã đánh trúng mục tiêu có dấu ấn còn nhận thêm 1 nộ khi nó chết."
    ]
   },
   "skin": {
@@ -6489,9 +6489,9 @@
  {
   "id": "wisp_light",
   "species": "hon-ma",
-  "nameVi": "Hồn Ma Sáng",
+  "nameVi": "Ma Vải Thời Gian",
   "tier": 3,
-  "role": "SUPPORT",
+  "role": "MAGE",
   "faction": "MYTHICAL",
   "element": "SPIRIT",
   "boss": false,
@@ -6508,29 +6508,29 @@
    "evade": 0.07,
    "accuracy": 0.95
   },
-  "pitchVi": "Dồn hồi phục của bản thân thành cứu nguy cho đồng minh thấp máu.",
+  "pitchVi": "Ném cát thời gian, dội đòn theo bốn hướng, hất tung mục tiêu rồi dịch chuyển đến ô trống ngẫu nhiên.",
   "basic": {
    "delivery": "projectile",
    "damageType": "magic",
    "textVi": "tầm xa/projectile, magic từ MATK, 1×MATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Hồn Hộ Mệnh",
-   "family": "soul_link_heal",
+   "nameVi": "Ném Cát Thời Gian",
+   "family": "time_sand_chain",
    "rageCost": [
     2,
     3,
     4
    ],
-   "targetVi": "1 đồng minh có % máu thấp nhất",
-   "shapeVi": "tự thân",
-   "selectionVi": "Tự kích hoạt lên bản thân.",
-   "countVi": "1 đồng minh",
-   "durationVi": "2 lượt",
+   "targetVi": "1 kẻ địch ngẫu nhiên trong nhóm ưu tiên vai trò",
+   "shapeVi": "1★ một đòn; 2★/3★ lan bốn hướng trực giao, sau đó tối đa 5 bước dây chuyền (được trùng mục tiêu)",
+   "selectionVi": "Ưu tiên vai trò MAGE > ARCHER > SUPPORT > FIGHTER > TANKER > ASSASSIN; chọn đều bằng RNG gameplay giữa kẻ địch cùng ưu tiên. Dây chuyền chọn đều kẻ địch sống kề trực giao; dịch chuyển bản thân đến ô trống bất kỳ trên nửa sân đồng minh.",
+   "countVi": "1★: 1 hit; 2★/3★: hit chính, mỗi địch kề bốn hướng, rồi tối đa 5 hit dây chuyền",
+   "durationVi": "Hất tung mục tiêu chính sau chuỗi: mất 1 lượt hành động; 3★ hóa đá kẻ chịu ít nhất 2 hit cùng lần tung chiêu trong 1 lượt; làm mới, không cộng dồn; hết ở lượt hành động kế tiếp.",
    "starDetailVi": [
-    "Liên kết linh hồn với 1 đồng minh có % máu thấp nhất trong 2 lượt. Mọi hồi phục mà Hồn Ma nhận được sẽ chuyển thành hồi máu cho mục tiêu.",
-    "Liên kết linh hồn với 1 đồng minh có % máu thấp nhất trong 2 lượt. Mọi hồi phục mà Hồn Ma nhận được sẽ chuyển thành hồi máu cho mục tiêu với 120% hiệu lực. Nếu Hồn Ma được hồi máu từ trên 50% HP, mục tiêu nhận thêm 1 lớp khiên nhỏ và thanh tẩy 1 hiệu ứng xấu.",
-    "Liên kết linh hồn với 2 đồng minh có % máu thấp nhất trong 3 lượt. Đồng minh chính nhận 150% hồi phục mà Hồn Ma nhận được, đồng minh phụ nhận 90%. Nếu Hồn Ma được hồi máu từ trên 50% HP, cả hai mục tiêu nhận thêm 1 lớp khiên nhỏ; đồng minh chính còn được thanh tẩy 1 hiệu ứng xấu và hồi 1 nộ."
+    "Ném cát thời gian vào 1 kẻ địch ngẫu nhiên theo ưu tiên vai trò, gây (18 + 55% MATK) sát thương phép tại va chạm, được chí mạng. Sau khi gây sát thương, hất tung mục tiêu chính 1 lượt, rồi bản thân dịch chuyển ngẫu nhiên đều đến 1 ô trống nửa sân đồng minh.",
+    "Ném cát thời gian gây (18 + 55% MATK) sát thương phép lên mục tiêu chính, lan sang mọi địch còn sống kề trên/dưới/trái/phải, rồi dây chuyền tối đa 5 lần sang một địch sống kề trực giao với nạn nhân trước (được trùng mục tiêu), mỗi hit là một đòn phép độc lập, được chí mạng. Sau toàn bộ hit mới hất tung mục tiêu chính 1 lượt và dịch chuyển bản thân ngẫu nhiên đều đến ô trống nửa sân đồng minh.",
+    "Như 2★: gây (18 + 55% MATK) sát thương phép mỗi hit, lan kề bốn hướng rồi dây chuyền tối đa 5 lần, được trùng mục tiêu và chí mạng riêng từng hit. Sau chuỗi, mọi địch còn sống chịu ít nhất 2 hit trong cùng lần tung chiêu bị hóa đá 1 lượt (làm mới không cộng dồn); hất tung mục tiêu chính 1 lượt rồi dịch chuyển bản thân ngẫu nhiên đều đến ô trống nửa sân đồng minh."
    ]
   },
   "skin": {
@@ -6907,29 +6907,29 @@
    "evade": 0.05,
    "accuracy": 0.95
   },
-  "pitchVi": "Gào thét tăng sức đánh cho cả đội rồi dựng giáp cho bản thân.",
+  "pitchVi": "Gầm vang, chuẩn bị đòn đánh làm choáng ở chu kỳ sau; từ 2 sao có thể làm choáng kẻ tấn công, 3 sao hồi máu mỗi lần gây choáng.",
   "basic": {
    "delivery": "melee",
    "damageType": "physical",
    "textVi": "cận chiến/contact, physical từ ATK, 1×ATK, ưu tiên mục tiêu hợp lệ gần nhất."
   },
   "skill": {
-   "nameVi": "Tiếng Thét Chiến",
-   "family": "warcry_atk_def",
+   "nameVi": "Tiếng Gầm Viking",
+   "family": "viking_bull_stun",
    "rageCost": [
     2,
     3,
     4
    ],
-   "targetVi": "toàn bộ đồng minh + bản thân",
-   "shapeVi": "toàn đội",
-   "selectionVi": "Lan buff ATK cho toàn đội, đồng thời tự nhận DEF.",
-   "countVi": "toàn đội",
-   "durationVi": "ATK 2 lượt; DEF 3 lượt",
+   "targetVi": "bản thân chuẩn bị đòn đánh; kẻ địch trúng đòn đánh thường; kẻ tấn công (2★+)",
+   "shapeVi": "một đòn đánh vòng sau và phản ứng khi bị tấn công",
+   "selectionVi": "Đòn đánh thường chọn mục tiêu theo ưu tiên vai trò; mỗi đòn đánh nhận vào có 1/3 tỉ lệ gây choáng kẻ tấn công từ 2★.",
+   "countVi": "một kẻ địch mỗi đòn; từng kẻ tấn công",
+   "durationVi": "Đòn đánh được chuẩn bị cho chu kỳ kế tiếp; choáng đòn đánh 1 lượt, choáng phản ứng đến hết chu kỳ sau",
    "starDetailVi": [
-    "Gào thét, tăng 15% ATK cho toàn bộ đồng minh trong 2 lượt và tăng 20 DEF cho bản thân trong 3 lượt.",
-    "Gào thét, tăng 20% ATK cho toàn bộ đồng minh trong 3 lượt và tăng 30 DEF cho bản thân trong 3 lượt.",
-    "Gào thét, tăng 25% ATK cho toàn bộ đồng minh trong 3 lượt, tăng 40 DEF cho bản thân trong 3 lượt, đồng thời cho toàn bộ đồng minh 5 nộ."
+    "Gầm lên, chuẩn bị đòn đánh thường trong chu kỳ tiếp theo: nếu trúng sẽ chắc chắn gây choáng mục tiêu 1 lượt; không gây thêm sát thương.",
+    "Như 1★. Mỗi đòn đánh trúng bản thân có 1/3 tỉ lệ gây choáng kẻ tấn công đến hết chu kỳ tiếp theo.",
+    "Như 2★. Mỗi lần gây choáng bằng đòn đánh hoặc phản ứng, bản thân hồi máu bằng 1×ATK hiện tại (tối đa HP tối đa)."
    ]
   },
   "skin": {
