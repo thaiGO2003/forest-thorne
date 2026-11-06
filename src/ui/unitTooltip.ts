@@ -114,7 +114,6 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
   const effects = diagnostics?.effects ?? [];
   const variants = diagnostics?.traits ?? [];
   const equips = diagnostics?.equips ?? [];
-  const spec = skillSpec(unit.id, star);
   // Skills carry their authored role marker (dagger for ASSASSIN, axe for FIGHTER) so two physical
   // skill lines never read as the same action; basic attacks always use the shared fist.
   const skillIcon = SKILL_ICONS[unit.role];
@@ -226,21 +225,31 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
     `${ICONS.crit} ${t("inventory.basicDamage")}: ${basicDamage}`,
   ];
 
-  const skillLines: string[] = [
-    `${skillIcon} ${skill.nameVi} (${t("unit.rage", { cost: rageCost })})`,
-    detail,
-  ];
+  const skillStars = ([1, 2, 3] as const).map((milestone) => {
+    const damage = skillSpec(unit.id, milestone).damage;
+    const formula = damage
+      ? `${ICONS.crit} ${t("tooltip.formula", {
+        value: `${damage.base} + ${Math.round(damage.scale * 100)}% ${damage.stat.toUpperCase()}`,
+      })}`
+      : null;
+    return {
+      star: milestone,
+      current: milestone === star,
+      label: `${milestone === star ? "▶ " : ""}${ICONS.star.repeat(milestone)} ${t("unit.star", { star: milestone })} · ${t("unit.rage", { cost: skill.rageCost[milestone - 1] })}${milestone === star ? ` · ${t("tooltip.currentStar")}` : ""}`,
+      lines: [skill.starDetailVi[milestone - 1] ?? skill.detailVi ?? "", ...(formula ? [formula] : [])],
+    };
+  });
   const skillMeta: string[] = [];
   if (skill.targetVi) skillMeta.push(`${ICONS.range} ${t("library.target")}: ${skill.targetVi}`);
   if (skill.shapeVi) skillMeta.push(`${ICONS.synergy} ${t("library.shape")}: ${skill.shapeVi}`);
   if (skill.countVi) skillMeta.push(`${ICONS.range} ${t("library.targets")}: ${skill.countVi}`);
   if (skill.durationVi) skillMeta.push(`${ICONS.hourglass} ${t("library.duration")}: ${skill.durationVi}`);
-  if (spec.damage) {
-    skillMeta.push(`${ICONS.crit} ${t("tooltip.formula", {
-      value: `${spec.damage.base} + ${Math.round(spec.damage.scale * 100)}% ${spec.damage.stat.toUpperCase()}`,
-    })}`);
-  }
-  if (skillMeta.length) skillLines.push("", ...skillMeta);
+  const skillSection: TooltipSection = {
+    title: t("tooltip.section.skill"),
+    lines: [`${skillIcon} ${skill.nameVi}`],
+    stars: skillStars,
+    metadata: skillMeta,
+  };
 
   const columns: TooltipSection[][] = [
     [{ title: t("tooltip.section.basicInfo"), lines: basicInfo }],
@@ -253,7 +262,7 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
       { title: t("tooltip.section.passive"), lines: passiveLines },
       { title: t("tooltip.section.basicAttack"), lines: basicLines },
     ],
-    [{ title: t("tooltip.section.skill"), lines: skillLines }],
+    [skillSection],
   ];
 
   return {
@@ -268,5 +277,6 @@ export function unitTooltipContent(unit: UnitDef, options: UnitTooltipOptions = 
     meters,
     sections: summarySections,
     columns,
+    expandedSections: [...summarySections.slice(0, -1), skillSection],
   };
 }

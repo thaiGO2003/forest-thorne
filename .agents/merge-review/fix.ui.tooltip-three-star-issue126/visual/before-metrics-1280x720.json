@@ -1,0 +1,128 @@
+[
+  {
+    "file": "before-expanded-ant_guard-1280x720.png",
+    "unit": "ant_guard",
+    "mode": "expanded",
+    "rect": {
+      "x": 8,
+      "y": 196,
+      "w": 1256,
+      "h": 516
+    },
+    "viewport": {
+      "w": 1280,
+      "h": 720
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": true,
+    "sectionTitles": [
+      " Thông tin cơ bản",
+      " Chỉ số hiện tại",
+      " Trang bị",
+      " Nội tại",
+      " Đánh thường",
+      " Chiêu thức"
+    ],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 959
+  },
+  {
+    "file": "before-expanded-rabbit_blood-1280x720.png",
+    "unit": "rabbit_blood",
+    "mode": "expanded",
+    "rect": {
+      "x": 8,
+      "y": 8,
+      "w": 1256,
+      "h": 788
+    },
+    "viewport": {
+      "w": 1280,
+      "h": 720
+    },
+    "clippedBottomPx": 76,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": true,
+    "sectionTitles": [
+      " Thông tin cơ bản",
+      " Chỉ số hiện tại",
+      " Trang bị",
+      " Nội tại",
+      " Đánh thường",
+      " Chiêu thức"
+    ],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 1354
+  },
+  {
+    "file": "before-compact-ant_guard-1280x720.png",
+    "unit": "ant_guard",
+    "mode": "compact",
+    "rect": {
+      "x": 194,
+      "y": 132,
+      "w": 417,
+      "h": 356
+    },
+    "viewport": {
+      "w": 1280,
+      "h": 720
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": false,
+    "sectionTitles": [],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 168
+  },
+  {
+    "file": "before-compact-rabbit_blood-1280x720.png",
+    "unit": "rabbit_blood",
+    "mode": "compact",
+    "rect": {
+      "x": 194,
+      "y": 132,
+      "w": 409,
+      "h": 356
+    },
+    "viewport": {
+      "w": 1280,
+      "h": 720
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": false,
+    "sectionTitles": [],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 161
+  }
+]

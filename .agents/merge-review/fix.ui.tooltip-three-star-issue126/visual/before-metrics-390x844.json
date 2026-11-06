@@ -1,0 +1,120 @@
+[
+  {
+    "file": "before-expanded-ant_guard-390x844.png",
+    "unit": "ant_guard",
+    "mode": "expanded",
+    "rect": {
+      "x": 8,
+      "y": 300,
+      "w": 374,
+      "h": 536
+    },
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": false,
+    "sectionTitles": [
+      " Đặc tính",
+      " Kỹ hiện tại"
+    ],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 276
+  },
+  {
+    "file": "before-expanded-rabbit_blood-390x844.png",
+    "unit": "rabbit_blood",
+    "mode": "expanded",
+    "rect": {
+      "x": 8,
+      "y": 275,
+      "w": 374,
+      "h": 561
+    },
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": false,
+    "sectionTitles": [
+      " Đặc tính",
+      " Kỹ hiện tại"
+    ],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 347
+  },
+  {
+    "file": "before-compact-ant_guard-390x844.png",
+    "unit": "ant_guard",
+    "mode": "compact",
+    "rect": {
+      "x": 8,
+      "y": 354,
+      "w": 374,
+      "h": 417
+    },
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": false,
+    "sectionTitles": [],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 168
+  },
+  {
+    "file": "before-compact-rabbit_blood-390x844.png",
+    "unit": "rabbit_blood",
+    "mode": "compact",
+    "rect": {
+      "x": 8,
+      "y": 354,
+      "w": 374,
+      "h": 417
+    },
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "clippedBottomPx": 0,
+    "clippedRightPx": 0,
+    "overflowY": "visible",
+    "maxHeight": "none",
+    "pointerEvents": "none/none",
+    "columnGrid": false,
+    "sectionTitles": [],
+    "starDetailHits": [
+      true,
+      false,
+      false
+    ],
+    "textLength": 161
+  }
+]

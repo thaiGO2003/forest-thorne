@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getUnit } from "../src/content/catalog";
+import { BOSSES, getUnit, UNITS } from "../src/content/catalog";
 import { unitDiagnostics } from "../src/core/inspection";
+import { skillSpec } from "../src/core/skills";
 import { unitTooltipContent } from "../src/ui/unitTooltip";
 
 describe("A96 rich unit tooltip model", () => {
@@ -61,5 +62,48 @@ describe("A96 rich unit tooltip model", () => {
     expect(content.statuses?.[1]?.text).toContain("-20%");
     expect(content.statuses?.[1]?.text).toContain("3");
     expect(content.sections?.some((section) => section.title === "Hiệu ứng đang dính")).toBe(true);
+  });
+  it("exposes complete ordered skill milestones with star-specific rage, formula and current marker for all 127 units", () => {
+    expect(UNITS).toHaveLength(127);
+    for (const def of UNITS) for (const active of [1, 2, 3] as const) {
+      const content = unitTooltipContent(def, { star: active });
+      const wide = content.columns?.[3]?.[0];
+      const narrow = content.expandedSections?.at(-1);
+      expect(wide, `${def.id} skill column`).toBeDefined();
+      expect(narrow, `${def.id} mobile skill`).toBe(wide);
+      expect(wide?.stars?.map((entry) => entry.star)).toEqual([1, 2, 3]);
+      expect(wide?.stars?.filter((entry) => entry.current).map((entry) => entry.star)).toEqual([active]);
+      expect(wide?.stars?.filter((entry) => entry.label.includes("(hiện tại)"))
+        .map((entry) => entry.star)).toEqual([active]);
+      for (const milestone of [1, 2, 3] as const) {
+        const entry = wide?.stars?.[milestone - 1];
+        expect(entry?.lines[0], `${def.id} ${milestone}★ source text`).toBe(def.skill.starDetailVi[milestone - 1]);
+        expect(entry?.label, `${def.id} ${milestone}★ rage`).toContain(`Nộ ${def.skill.rageCost[milestone - 1]}`);
+        const damage = skillSpec(def.id, milestone).damage;
+        if (damage) {
+          expect(entry?.lines[1]).toContain(`${damage.base} + ${Math.round(damage.scale * 100)}% ${damage.stat.toUpperCase()}`);
+        } else {
+          expect(entry?.lines).toHaveLength(1);
+        }
+      }
+      expect(wide?.lines).toHaveLength(1);
+      expect(wide?.metadata?.length).toBe([
+        def.skill.targetVi, def.skill.shapeVi, def.skill.countVi, def.skill.durationVi,
+      ].filter(Boolean).length);
+      expect(content.sections?.at(-1)?.title).toBe("Kỹ hiện tại");
+      expect(content.sections?.at(-1)?.lines[1]).toBeTruthy();
+      expect(content.lines?.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("preserves repeated authored boss milestones separately with independent rage cost", () => {
+    expect(BOSSES).toHaveLength(5);
+    for (const boss of BOSSES) {
+      const stars = unitTooltipContent(boss).columns?.[3]?.[0]?.stars;
+      expect(stars?.map((entry) => entry.lines[0])).toEqual(boss.skill.starDetailVi);
+      // Each boss has two distinct authored strings across three levels; render duplicates faithfully.
+      expect(new Set(stars?.map((entry) => entry.lines[0])).size).toBe(2);
+      expect(new Set(stars?.map((entry) => entry.label.match(/Nộ \d+/)?.[0])).size).toBe(3);
+    }
   });
 });

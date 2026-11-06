@@ -25,9 +25,18 @@ export interface TooltipMeter {
   shield?: number;
 }
 
+export interface TooltipStarBlock {
+  star: 1 | 2 | 3;
+  label: string;
+  current: boolean;
+  lines: string[];
+}
+
 export interface TooltipSection {
   title?: string;
   lines: string[];
+  stars?: TooltipStarBlock[];
+  metadata?: string[];
 }
 
 export interface TooltipLine {
@@ -56,6 +65,8 @@ export interface TooltipContent {
   sections?: TooltipSection[];
   /** Full multi-column blocks for expanded mode. */
   columns?: TooltipSection[][];
+  /** Expanded-only stacked blocks for narrow viewports; summary mode remains unchanged. */
+  expandedSections?: TooltipSection[];
 }
 
 export type TooltipMode = "off" | "compact" | "summary" | "expanded";
@@ -169,10 +180,29 @@ export function createTooltip(layer: HTMLElement): Tooltip {
   const sectionBlock = (s: TooltipSection) => {
     const block = h("section", "tt-sec");
     if (s.title) block.append(h("h4", "tt-sec-title", `🔹 ${s.title}`));
-    for (const line of s.lines) if (line.trim()) {
+    const addLine = (parent: HTMLElement, line: string) => {
+      if (!line.trim()) return;
       const row = h("p", "tt-sec-line");
       row.append(decorateDescription(line, inferRichTone(line)));
-      block.append(row);
+      parent.append(row);
+    };
+    for (const line of s.lines) addLine(block, line);
+    if (s.stars?.length) {
+      const stars = h("div", "tt-stars");
+      for (const milestone of s.stars) {
+        const star = h("section", "tt-star");
+        star.dataset.star = String(milestone.star);
+        if (milestone.current) star.setAttribute("aria-current", "true");
+        star.append(h("h5", "tt-star-label", milestone.label));
+        for (const line of milestone.lines) addLine(star, line);
+        stars.append(star);
+      }
+      block.append(stars);
+    }
+    if (s.metadata?.length) {
+      const metadata = h("div", "tt-sec-meta");
+      for (const line of s.metadata) addLine(metadata, line);
+      block.append(metadata);
     }
     return block;
   };
@@ -271,9 +301,10 @@ export function createTooltip(layer: HTMLElement): Tooltip {
       inner.append(desc);
     }
     if (mode === "expanded") {
-      // The four-column surface needs the wide breakpoint; narrower windows use the summary blocks
-      // instead of stacking a 1,500px-tall column grid over the board.
+      // Narrow viewports preserve the summary facts but replace the condensed skill
+      // with the complete per-star section; actual summary mode is unchanged.
       if (c.columns?.length && innerWidth >= 1100) renderColumns(c.columns);
+      else if (c.expandedSections?.length) renderSections(c.expandedSections);
       else if (c.sections?.length) renderSections(c.sections);
       else if (c.columns?.length) renderColumns(c.columns);
       else if (c.lines?.length) renderLines(c.lines);
@@ -315,70 +346,183 @@ export function createTooltip(layer: HTMLElement): Tooltip {
     el.style.left = `${Math.round(clampX(x))}px`;
     el.style.top = `${Math.round(clampY(y))}px`;
   };
+  let activeTarget: HTMLElement | null = null;
+  let pinned = false;
+  let hideTimer = 0;
+  let listening = false;
+  const cancelHide = () => { clearTimeout(hideTimer); hideTimer = 0; };
+  const scheduleHide = () => {
+    if (mode !== "expanded" || pinned) return;
+    cancelHide();
+    hideTimer = window.setTimeout(() => {
+      if (!el.matches(":hover") && !activeTarget?.matches(":hover")
+        && !activeTarget?.contains(document.activeElement)
+        && !el.contains(document.activeElement)) api.hide();
+    }, 180);
+  };
+  const onDocumentPointerDown = (event: PointerEvent) => {
+    const node = event.target as Node;
+    if (!el.contains(node) && !activeTarget?.contains(node)) api.hide();
+  };
+  const onDocumentKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      api.hide();
+      return;
+    }
+    if (event.target !== activeTarget && !el.contains(event.target as Node)) return;
+    const amount = inner.clientHeight * 0.8;
+    const movement: Record<string, number> = {
+      ArrowDown: 48, ArrowUp: -48, PageDown: amount, PageUp: -amount,
+    };
+    if (event.key in movement) {
+      event.preventDefault();
+      inner.scrollBy({ top: movement[event.key], behavior: "instant" });
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      inner.scrollTop = event.key === "Home" ? 0 : inner.scrollHeight;
+    }
+  };
+  const updateListeners = () => {
+    const shouldListen = mode === "expanded" && el.dataset.open === "true";
+    if (listening === shouldListen) return;
+    listening = shouldListen;
+    if (shouldListen) {
+      document.addEventListener("pointerdown", onDocumentPointerDown, true);
+      document.addEventListener("keydown", onDocumentKeyDown, true);
+    } else {
+      document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+      document.removeEventListener("keydown", onDocumentKeyDown, true);
+    }
+  };
+  el.addEventListener("pointerenter", cancelHide);
+  el.addEventListener("pointerleave", scheduleHide);
+  el.addEventListener("wheel", (event) => {
+    if (mode !== "expanded" || event.ctrlKey || inner.scrollHeight <= inner.clientHeight) return;
+    event.preventDefault();
+    inner.scrollTop += event.deltaY;
+  }, { passive: false });
+
 
   const api: Tooltip = {
     show(a, c) {
       if (mode === "off") return;
+      cancelHide();
+      pinned = false;
+      activeTarget = null;
       current = c;
       anchor = a instanceof HTMLElement ? a.getBoundingClientRect() : a;
       render(c);
+      inner.scrollTop = 0;
+      inner.tabIndex = mode === "expanded" ? 0 : -1;
+      if (mode === "expanded") {
+        inner.setAttribute("role", "region");
+        inner.setAttribute("aria-label", "Chi tiết kỹ năng");
+      } else {
+        inner.removeAttribute("role");
+        inner.removeAttribute("aria-label");
+      }
       el.dataset.open = "true";
       place(anchor);
+      updateListeners();
     },
-    hide() { el.dataset.open = "false"; },
+    hide() {
+      cancelHide();
+      pinned = false;
+      activeTarget = null;
+      el.dataset.open = "false";
+      updateListeners();
+    },
     bind(target, get) {
       let timer = 0;
       let longPressOpened = false;
+      let pressX = 0, pressY = 0;
       const open = () => {
         const c = get();
-        if (c && mode !== "off") { api.show(target, c); return true; }
-        return false;
+        if (!c || mode === "off") return false;
+        api.show(target, c);
+        activeTarget = target;
+        return true;
       };
       const enter = (e: PointerEvent) => { if (e.pointerType === "mouse") open(); };
       const down = (e: PointerEvent) => {
         if (e.pointerType === "mouse") return;
         clearTimeout(timer);
         longPressOpened = false;
-        timer = window.setTimeout(() => { longPressOpened = open(); }, LONG_PRESS_MS);
+        pressX = e.clientX;
+        pressY = e.clientY;
+        timer = window.setTimeout(() => {
+          longPressOpened = open();
+          if (longPressOpened && mode === "expanded") pinned = true;
+        }, LONG_PRESS_MS);
+      };
+      const move = (e: PointerEvent) => {
+        if (e.pointerType !== "mouse"
+          && Math.hypot(e.clientX - pressX, e.clientY - pressY) > 12) clearTimeout(timer);
       };
       const up = () => clearTimeout(timer);
-      const leave = () => { clearTimeout(timer); api.hide(); };
-      const cancel = () => { longPressOpened = false; leave(); };
+      const leave = () => {
+        clearTimeout(timer);
+        if (mode === "expanded") scheduleHide();
+        else api.hide();
+      };
+      const cancel = () => {
+        clearTimeout(timer);
+        longPressOpened = false;
+        if (activeTarget === target && !pinned) api.hide();
+      };
+      const blur = () => { if (mode === "expanded") scheduleHide(); else api.hide(); };
+      const focus = () => { if (!pinned) open(); };
       const click = (e: MouseEvent) => {
         if (!longPressOpened || e.detail === 0) return;
         longPressOpened = false;
         e.preventDefault();
         e.stopImmediatePropagation();
-        api.hide();
+        if (mode !== "expanded") api.hide();
       };
       target.addEventListener("click", click, true);
       target.addEventListener("pointerenter", enter);
       target.addEventListener("pointerdown", down);
+      target.addEventListener("pointermove", move);
       target.addEventListener("pointerup", up);
       target.addEventListener("pointerleave", leave);
       target.addEventListener("pointercancel", cancel);
-      target.addEventListener("focus", open);
-      target.addEventListener("blur", leave);
+      target.addEventListener("focus", focus);
+      target.addEventListener("blur", blur);
       return () => {
-        cancel();
+        clearTimeout(timer);
+        if (activeTarget === target) api.hide();
         target.removeEventListener("click", click, true);
         target.removeEventListener("pointerenter", enter);
         target.removeEventListener("pointerdown", down);
+        target.removeEventListener("pointermove", move);
         target.removeEventListener("pointerup", up);
         target.removeEventListener("pointerleave", leave);
         target.removeEventListener("pointercancel", cancel);
-        target.removeEventListener("focus", open);
-        target.removeEventListener("blur", leave);
+        target.removeEventListener("focus", focus);
+        target.removeEventListener("blur", blur);
       };
     },
     setMode(m) {
       if (m === mode) return;
       mode = m;
+      pinned = false;
       if (m === "off") { api.hide(); return; }
       if (el.dataset.open === "true" && current && anchor) {
         render(current);
+        inner.scrollTop = 0;
+        inner.tabIndex = m === "expanded" ? 0 : -1;
+        if (m === "expanded") {
+          inner.setAttribute("role", "region");
+          inner.setAttribute("aria-label", "Chi tiết kỹ năng");
+        } else {
+          inner.removeAttribute("role");
+          inner.removeAttribute("aria-label");
+        }
         place(anchor);
       }
+      updateListeners();
     },
   };
   return api;
