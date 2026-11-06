@@ -20,14 +20,16 @@ Quy tắc:
 
 - Thứ tự bắt buộc: (các) dòng `Closes` / `Fixes` / `Resolves` → các
   `Issue-Snapshot` tương ứng → `Verification` → `Verified-Head` → đúng dòng `---`.
-- Dòng đầu tiên phải là declaration; không được có dòng trống trước nó. Dòng trống
-  giữa các field được bỏ qua, nhưng không được đảo hoặc chen field khác.
+- Dòng đầu tiên phải là declaration; không được có dòng trống hoặc whitespace-only
+  trong header. Dòng trống chỉ được phép sau `---`.
 - `Closes` / `Fixes` / `Resolves` viết độc lập, mỗi issue một dòng.
 - Mỗi issue có đúng **một** `Issue-Snapshot`; không thừa, không thiếu.
 - `Verification` là một dòng, tối đa 1500 ký tự, mô tả lệnh + kết quả + evidence.
 - `Verified-Head` là SHA 40 ký tự của chính PR head tại thời điểm attest.
 - Delimiter phải là đúng `---`; `----`, `--- ` hoặc thiếu delimiter đều invalid.
 - Sau `---` mới được viết Markdown tự do.
+- Helper và closure consumer dùng chung contract
+  `scripts/github/attestation-contract.cjs`; cả hai phải accept/reject giống nhau.
 
 Sinh header:
 

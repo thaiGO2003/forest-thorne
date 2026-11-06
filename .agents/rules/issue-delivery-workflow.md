@@ -231,10 +231,11 @@ Verified-Head: <40 hex>
 ```
 
 Thứ tự bắt buộc: `Closes`/`Fixes`/`Resolves` → `Issue-Snapshot` tương ứng →
-`Verification` → `Verified-Head` → đúng dòng `---`. Không được có dòng trống trước
-dòng đầu tiên; delimiter `----`/`--- ` hoặc thiếu `---` đều invalid. Sau `---` mới
-được viết Markdown tự do. Sai thứ tự, thêm list/quote/code fence trước `---`, hoặc
-sai snapshot sẽ làm workflow đóng issue bỏ qua toàn bộ PR.
+`Verification` → `Verified-Head` → đúng dòng `---`. Không được có dòng trống hoặc
+whitespace-only trong header; delimiter `----`/`--- ` hoặc thiếu `---` đều invalid.
+Sau `---` mới được viết Markdown tự do. Helper và closure consumer dùng chung
+`scripts/github/attestation-contract.cjs`. Sai thứ tự, thêm list/quote/code fence
+trước `---`, hoặc sai snapshot sẽ làm workflow đóng issue bỏ qua toàn bộ PR.
 
 ### 7.3 Tạo PR và comment evidence
 

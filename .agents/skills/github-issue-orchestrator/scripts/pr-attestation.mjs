@@ -2,11 +2,16 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
+const require = createRequire(import.meta.url);
+const { MAX_VERIFICATION, parseAttestationHeader } = require(
+  "../../../../scripts/github/attestation-contract.cjs",
+);
+
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
-const MAX_VERIFICATION = 1500;
 const HEAD_RE = /^[a-f0-9]{40}$/i;
 const REPO_RE = /^[^/\s]+\/[^/\s]+$/;
 
@@ -30,96 +35,7 @@ export function issueSnapshotHash(issue) {
 }
 
 export function parseHeader(body) {
-  const lines = String(body ?? "").split(/\r?\n/);
-  const errors = [];
-  const declared = [];
-  const snapshots = new Map();
-  let head = null;
-  let verification = null;
-
-  const delimiterIndex = lines.indexOf("---");
-  if (delimiterIndex === -1) {
-    errors.push("missing exact --- delimiter");
-  }
-  const rawHeader = delimiterIndex === -1 ? lines : lines.slice(0, delimiterIndex);
-  if (!rawHeader.length) {
-    errors.push("empty attestation header");
-  } else if (rawHeader[0].trim() === "") {
-    errors.push("leading blank line is not allowed");
-  }
-  const header = rawHeader.filter((line) => line.trim() !== "");
-
-  let index = 0;
-  while (index < header.length) {
-    const match = /^(?:Closes|Fixes|Resolves) #([1-9]\d*)$/i.exec(header[index]);
-    if (!match) break;
-    declared.push(Number(match[1]));
-    index += 1;
-  }
-  if (!declared.length) {
-    errors.push("first line must be a Closes/Fixes/Resolves #N declaration");
-  }
-  if (new Set(declared).size !== declared.length) {
-    errors.push("duplicate issue declaration");
-  }
-
-  const snapshotStart = index;
-  while (index < header.length) {
-    const match = /^Issue-Snapshot: #([1-9]\d*) sha256:([a-f0-9]{64})$/i.exec(header[index]);
-    if (!match) break;
-    const number = Number(match[1]);
-    if (snapshots.has(number)) errors.push(`duplicate Issue-Snapshot for #${number}`);
-    snapshots.set(number, match[2].toLowerCase());
-    index += 1;
-  }
-  if (index === snapshotStart) {
-    errors.push("missing Issue-Snapshot after issue declarations");
-  }
-
-  if (index >= header.length) {
-    errors.push("missing Verification");
-  } else {
-    const match = /^Verification: (\S.*)$/i.exec(header[index]);
-    if (!match) {
-      errors.push(`expected Verification at header line ${index + 1}: ${header[index].slice(0, 80)}`);
-    } else {
-      if (match[1].length > MAX_VERIFICATION) {
-        errors.push(`Verification exceeds ${MAX_VERIFICATION} characters`);
-      }
-      verification = match[1];
-      index += 1;
-    }
-  }
-
-  if (index >= header.length) {
-    errors.push("missing Verified-Head");
-  } else {
-    const match = /^Verified-Head: ([a-f0-9]{40})$/i.exec(header[index]);
-    if (!match) {
-      errors.push(`expected Verified-Head at header line ${index + 1}: ${header[index].slice(0, 80)}`);
-    } else {
-      head = match[1].toLowerCase();
-      index += 1;
-    }
-  }
-
-  while (index < header.length) {
-    errors.push(`invalid header line: ${header[index].slice(0, 80)}`);
-    index += 1;
-  }
-
-  const issues = [...new Set(declared)];
-  if (snapshots.size !== issues.length) {
-    errors.push("Issue-Snapshot count must equal declared issue count");
-  }
-  for (const number of issues) {
-    if (!snapshots.has(number)) errors.push(`missing Issue-Snapshot for #${number}`);
-  }
-  for (const number of snapshots.keys()) {
-    if (!issues.includes(number)) errors.push(`Issue-Snapshot without declaration for #${number}`);
-  }
-
-  return { ok: errors.length === 0, errors, issues, snapshots, head, verification };
+  return parseAttestationHeader(body);
 }
 
 export function buildHeader({ issues, head, verification }) {
