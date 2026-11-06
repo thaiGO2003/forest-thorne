@@ -19,7 +19,7 @@ export const ART_SCALE = 2;
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
 export const NORMAL_FONT = `"Forest Normal", "Times New Roman", Times, serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
-export const BUTTON_FONT = `"Forest Normal", "Times New Roman", Times, serif`;
+export const BUTTON_FONT = `"Times New Roman", Times, serif`;
 export const INK = "#111";
 export const LABEL = "#fff8ec";
 const BUTTON_LABEL = "#fff8ec";
@@ -57,6 +57,7 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
         document.fonts.load(`16px ${HEADING_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
         document.fonts.load(`16px ${NORMAL_FONT}`),
+        document.fonts.load(`16px ${BUTTON_FONT}`),
       ]);
     }
     for (const fn of repaint) fn();
@@ -268,7 +269,7 @@ export function kitButton(o: {
     const iconFill = skin === "wood" || skin === "icon" ? fill : BUTTON_INK;
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));
     if (icon && text) {
-      label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null });
+      label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null, font: "button" });
       label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - hh - 8), font: "button", weight: 400 });
     } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "button" });
     else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - 12), font: "button", weight: 400 });

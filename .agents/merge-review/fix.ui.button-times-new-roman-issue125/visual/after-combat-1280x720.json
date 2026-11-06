@@ -1,0 +1,42 @@
+{
+  "route": "planning",
+  "combatCycle": 1,
+  "buttons": [
+    {
+      "cls": "kit-btn cb-speed fit-btn",
+      "label": "Tốc độ x1",
+      "font": "\"Times New Roman\", Times, serif"
+    },
+    {
+      "cls": "kit-btn cb-fast fit-btn",
+      "label": "Kết thúc nhanh (10 🪙)",
+      "font": "\"Times New Roman\", Times, serif"
+    },
+    {
+      "cls": "kit-btn cb-details",
+      "label": "Thứ tự lượt / Nhật ký trận",
+      "font": "\"Times New Roman\", Times, serif"
+    },
+    {
+      "cls": "kit-btn cb-hist",
+      "label": "Lịch sử",
+      "font": "\"Times New Roman\", Times, serif"
+    },
+    {
+      "cls": "kit-btn cb-info-btn",
+      "label": "Thông tin",
+      "font": "\"Times New Roman\", Times, serif"
+    },
+    {
+      "cls": "kit-btn cb-settings",
+      "label": "Cài đặt",
+      "font": "\"Times New Roman\", Times, serif"
+    }
+  ],
+  "canvasFonts": [
+    "21.84px \"Times New Roman\", Times, serif",
+    "18.48px \"Times New Roman\", Times, serif"
+  ],
+  "focused": "",
+  "errors": []
+}

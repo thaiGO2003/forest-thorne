@@ -89,6 +89,10 @@ Gameplay rules live only in `src/game`; rendering and UI read and stage that sta
 
 *Luật chơi chỉ nằm ở `src/game`; render/UI chỉ đọc và dàn dựng state đó.*
 
+## Button typography / Phông chữ nút
+
+Game buttons use `"Times New Roman", Times, serif` for their labels: `src/ui/kit.ts` supplies `BUTTON_FONT` for Canvas-rendered kit buttons, and `src/ui/ui.css` sets DOM kit/native-button text and measurement elements. Headings, body copy, tooltips and non-button Canvas labels keep their own font definitions. No system font file is bundled; devices without Times New Roman use the listed fallbacks.
+
 ## Item Registry / Danh mục vật phẩm
 
 `src/core/itemRegistry.ts` is the single source of authored materials, equipment, and recipes. Crafting, equipment, loot, UI, and persistence consumers resolve canonical identities through `getItem(id)`, `getEquipment(id)`, and `getRecipe(id)` instead of maintaining parallel catalogs.

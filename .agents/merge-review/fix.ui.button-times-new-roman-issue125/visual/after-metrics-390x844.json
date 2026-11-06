@@ -1,0 +1,1471 @@
+[
+  {
+    "screen": "menu",
+    "file": "after-menu-390x844.png",
+    "fonts": {
+      "forestNormal": true,
+      "times": true,
+      "faces": [
+        "Forest Heading 400",
+        "Forest Normal 400",
+        "Forest Story 400",
+        "Noto Sans 400",
+        "Noto Sans 400",
+        "Noto Sans 700",
+        "Noto Sans 700",
+        "Noto Sans 900",
+        "Noto Sans 900"
+      ]
+    },
+    "dom": [
+      {
+        "cls": "kit-btn",
+        "label": "Trò chơi mới",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 291,
+        "h": 54,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cài đặt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thư viện",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thành tựu",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Quản lý mod",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Ngôn ngữ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Vinh danh",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Discord",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Ủng hộ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 52,
+        "h": 52,
+        "touchOk": true,
+        "textOverflow": false
+      }
+    ],
+    "canvas": [
+      {
+        "cls": "kit-btn",
+        "text": "Trò chơi mới",
+        "font": "22px \"Times New Roman\", Times, serif",
+        "width": 115,
+        "maxW": 229,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "",
+        "font": "21.84px \"Times New Roman\", Times, serif",
+        "width": 0,
+        "maxW": 40,
+        "squeeze": 1
+      }
+    ]
+  },
+  {
+    "screen": "planning",
+    "file": "after-planning-390x844.png",
+    "fonts": {
+      "forestNormal": true,
+      "times": true,
+      "faces": [
+        "Forest Heading 400",
+        "Forest Normal 400",
+        "Forest Story 400",
+        "Noto Sans 400",
+        "Noto Sans 400",
+        "Noto Sans 700",
+        "Noto Sans 700",
+        "Noto Sans 900",
+        "Noto Sans 900"
+      ]
+    },
+    "dom": [
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "label": "Bắt đầu (-1 ❤️)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 116,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "XP (4 🪙)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 68,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-cortisol",
+        "label": "🧘",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thư viện",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cây công nghệ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Chế tạo",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Điều hướng nhanh",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Lịch sử",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thông tin",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cài đặt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-shop-toggle",
+        "label": "Cửa hàng thú",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      }
+    ],
+    "canvas": [
+      {
+        "cls": "kit-btn",
+        "text": "Trò chơi mới",
+        "font": "22px \"Times New Roman\", Times, serif",
+        "width": 115,
+        "maxW": 229,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "XP (4 ",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 44,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": ")",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": "Bắt đầu (-1 ",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 88,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": ")",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      }
+    ]
+  },
+  {
+    "screen": "library",
+    "file": "after-library-390x844.png",
+    "fonts": {
+      "forestNormal": true,
+      "times": true,
+      "faces": [
+        "Forest Heading 400",
+        "Forest Normal 400",
+        "Forest Story 400",
+        "Noto Sans 400",
+        "Noto Sans 400",
+        "Noto Sans 700",
+        "Noto Sans 700",
+        "Noto Sans 900",
+        "Noto Sans 900"
+      ]
+    },
+    "dom": [
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "label": "Bắt đầu (-1 ❤️)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 116,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "XP (4 🪙)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 68,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-cortisol",
+        "label": "🧘",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thư viện",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cây công nghệ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Chế tạo",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Điều hướng nhanh",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Lịch sử",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thông tin",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cài đặt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-shop-toggle",
+        "label": "Cửa hàng thú",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thú",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 160,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Vật phẩm",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 160,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Trang bị",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 160,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "label": "Đỡ đòn",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 40,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "label": "Đấu sĩ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 40,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "label": "Sát thủ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 40,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "label": "Xạ thủ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 40,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "label": "Pháp sư",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 40,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-page",
+        "label": "‹",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn lib-page",
+        "label": "›",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn kit-close modal-close",
+        "label": "Thu gọn",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": null,
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      }
+    ],
+    "canvas": [
+      {
+        "cls": "kit-btn",
+        "text": "XP (4 ",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 44,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": ")",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": "Bắt đầu (-1 ",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 88,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": ")",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "text": "1",
+        "font": "bold 20px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "text": "2",
+        "font": "bold 20px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "text": "3",
+        "font": "bold 20px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "text": "4",
+        "font": "bold 20px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-chip",
+        "text": "5",
+        "font": "bold 20px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Thú",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 30,
+        "maxW": 148,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Vật phẩm",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 72,
+        "maxW": 148,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Trang bị",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 62,
+        "maxW": 148,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Chế tạo / công thức",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 144,
+        "maxW": 148,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Chúc phúc",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 80,
+        "maxW": 148,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Xác suất cửa hàng",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 136,
+        "maxW": 184,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-reset",
+        "text": "Bỏ lọc",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 49,
+        "maxW": 88,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-page",
+        "text": "‹",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": 32,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn lib-page",
+        "text": "›",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": 32,
+        "squeeze": 1
+      }
+    ]
+  },
+  {
+    "screen": "settings",
+    "file": "after-settings-390x844.png",
+    "fonts": {
+      "forestNormal": true,
+      "times": true,
+      "faces": [
+        "Forest Heading 400",
+        "Forest Normal 400",
+        "Forest Story 400",
+        "Noto Sans 400",
+        "Noto Sans 400",
+        "Noto Sans 700",
+        "Noto Sans 700",
+        "Noto Sans 900",
+        "Noto Sans 900"
+      ]
+    },
+    "dom": [
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "label": "Bắt đầu (-1 ❤️)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 116,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "XP (4 🪙)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 68,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-cortisol",
+        "label": "🧘",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thư viện",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cây công nghệ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Chế tạo",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Điều hướng nhanh",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Lịch sử",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thông tin",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cài đặt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-shop-toggle",
+        "label": "Cửa hàng thú",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Âm thanh",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 108,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Hiển thị",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 104,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Phím tắt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 104,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Dữ liệu",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 104,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "label": "Tắt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 120,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "label": "Tắt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 120,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "label": "Tắt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 120,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "label": "Tắt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 120,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "label": "Bật",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 120,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": "<",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": ">",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "label": "Bật",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 120,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": "<",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": ">",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": "<",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": ">",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": "<",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": ">",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": "Bản nhạc trước",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "label": "Bản nhạc tiếp theo",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 56,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn kit-close modal-close",
+        "label": "Thu gọn",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": null,
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn modal-header-action",
+        "label": "Về menu chính",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      }
+    ],
+    "canvas": [
+      {
+        "cls": "kit-btn",
+        "text": "XP (4 ",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 44,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": ")",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": "Bắt đầu (-1 ",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 88,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": ")",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Âm thanh",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 73,
+        "maxW": 96,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Hiển thị",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 60,
+        "maxW": 92,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Phím tắt",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 62,
+        "maxW": 92,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Dữ liệu",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 56,
+        "maxW": 92,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "text": "Tắt",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 25,
+        "maxW": 108,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn toggle-btn",
+        "text": "Bật",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 26,
+        "maxW": 108,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "text": "<",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": 44,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "text": ">",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 10,
+        "maxW": 44,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "text": "‹",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": 44,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn step-btn",
+        "text": "›",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": 44,
+        "squeeze": 1
+      }
+    ]
+  },
+  {
+    "screen": "unit-detail",
+    "file": "after-unit-detail-390x844.png",
+    "fonts": {
+      "forestNormal": true,
+      "times": true,
+      "faces": [
+        "Forest Heading 400",
+        "Forest Normal 400",
+        "Forest Story 400",
+        "Noto Sans 400",
+        "Noto Sans 400",
+        "Noto Sans 700",
+        "Noto Sans 700",
+        "Noto Sans 900",
+        "Noto Sans 900"
+      ]
+    },
+    "dom": [
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "label": "Bắt đầu (-1 ❤️)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 116,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "XP (4 🪙)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 68,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-cortisol",
+        "label": "🧘",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 40,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thư viện",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cây công nghệ",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Chế tạo",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Điều hướng nhanh",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Lịch sử",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Thông tin",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn",
+        "label": "Cài đặt",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn pl-shop-toggle",
+        "label": "Cửa hàng thú",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-up",
+        "label": "Nâng camera",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 42,
+        "h": 42,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-left",
+        "label": "Di chuyển camera sang trái",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 42,
+        "h": 42,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-down",
+        "label": "Hạ camera",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 42,
+        "h": 42,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-right",
+        "label": "Di chuyển camera sang phải",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 42,
+        "h": 42,
+        "touchOk": false,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "label": "Bán thú (+1 🪙)",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 150,
+        "h": 46,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "label": "Thư viện",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": "\"Times New Roman\", Times, serif",
+        "w": 150,
+        "h": 46,
+        "touchOk": true,
+        "textOverflow": false
+      },
+      {
+        "cls": "kit-btn kit-close modal-close",
+        "label": "Thu gọn",
+        "font": "\"Times New Roman\", Times, serif",
+        "measureFont": null,
+        "w": 44,
+        "h": 44,
+        "touchOk": true,
+        "textOverflow": false
+      }
+    ],
+    "canvas": [
+      {
+        "cls": "kit-btn",
+        "text": "XP (4 ",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 44,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": ")",
+        "font": "16.8px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": "Bắt đầu (-1 ",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 88,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn pl-start fit-btn",
+        "text": ")",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "text": "Tháo tất cả (0 ",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 107,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "text": ")",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "text": "Bán thú (+1 ",
+        "font": "19.32px \"Times New Roman\", Times, serif",
+        "width": 97,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "text": ")",
+        "font": "19.32px \"Times New Roman\", Times, serif",
+        "width": 6,
+        "maxW": null,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn",
+        "text": "Xác nhận",
+        "font": "18.48px \"Times New Roman\", Times, serif",
+        "width": 70,
+        "maxW": 124,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-up",
+        "text": "↑",
+        "font": "24px \"Times New Roman\", Times, serif",
+        "width": 12,
+        "maxW": 30,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-left",
+        "text": "←",
+        "font": "24px \"Times New Roman\", Times, serif",
+        "width": 24,
+        "maxW": 30,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-down",
+        "text": "↓",
+        "font": "24px \"Times New Roman\", Times, serif",
+        "width": 12,
+        "maxW": 30,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn portrait-control portrait-right",
+        "text": "→",
+        "font": "24px \"Times New Roman\", Times, serif",
+        "width": 24,
+        "maxW": 30,
+        "squeeze": 1
+      },
+      {
+        "cls": "kit-btn ui-inventory-action",
+        "text": "Thư viện",
+        "font": "19.32px \"Times New Roman\", Times, serif",
+        "width": 70,
+        "maxW": 96,
+        "squeeze": 1
+      }
+    ]
+  }
+]
