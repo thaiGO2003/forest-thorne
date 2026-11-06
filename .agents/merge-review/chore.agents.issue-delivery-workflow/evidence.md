@@ -1,6 +1,18 @@
 # Evidence — chore/agents/issue-delivery-workflow
 
-## Latest: strict PR attestation header fix
+## Latest: shared attestation and issue-closure contract verification
+
+- **Code commit tested:** `676fb94ad1486b8a8f10bb31c206c5954a958a03`
+- **Captured (UTC):** 2026-11-06T00:50:55Z
+- **Screenshot:** `verification-cross-consumer-2026-11-06.png` (1304 × 884 px; 166,873 bytes; RGB PNG).
+- **Image SHA-256:** `71167a8292b56e4c4115ccad620bceb6797ee34b2869b5283a6c993f6281ec4b`.
+- **Real terminal evidence:** xterm on X11 `DISPLAY=:0`, captured with `scrot -w`. The visible terminal shows Node tests `58 / 58 PASS`, `pnpm typecheck` PASS, `pnpm build` PASS, syntax PASS, and diff-check PASS. The build emits only the existing large-chunk warning (137 modules).
+- **Independently executed:** `node --test .agents/skills/github-issue-orchestrator/scripts/pr-attestation.test.mjs tests/github-issue-closure.test.cjs tests/pr-attestation-cross-consumer.test.cjs`; `node --check` for all three JS entry points; `pnpm typecheck`; `pnpm build`; `git diff --check origin/dev...HEAD`. No full Vitest suite.
+- **Runtime contract:** single/multi-issue valid headers accepted by helper and closure consumer; malformed order, missing delimiter, blanks, duplicate declarations/snapshots/receipts rejected by both. Closure tests cover permission, maintainer label, head/body changes, snapshot changes, and pre-mutation revalidation.
+- **Provenance:** screenshot records the tested implementation commit above; a subsequent evidence-only commit carries this PNG and index. Verification is rerun at that final commit before updating PR #132's `Verified-Head`.
+- **Privacy:** no credentials or tokens visible; scoped source scan detected no leaked credentials. The branch has no linked GitHub issue, so no `Closes` or `Issue-Snapshot` attestation applies to PR #132.
+
+## Previous: strict PR attestation header fix
 
 - **Code commit tested:** `3d1257f6439e18d2909aadc2135c6d196736aea8`
 - **Captured (UTC):** 2026-11-05T23:54:36Z
