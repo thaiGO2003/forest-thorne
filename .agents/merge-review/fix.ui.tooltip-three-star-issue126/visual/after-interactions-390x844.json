@@ -1,0 +1,142 @@
+[
+  {
+    "id": "ant_guard",
+    "initial": {
+      "open": "true",
+      "mode": "expanded",
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 374,
+        "height": 828
+      },
+      "bottomClip": 0,
+      "rightClip": 0,
+      "starLabels": [
+        "  1★ · Nộ 2 · (hiện tại)",
+        " 2★ · Nộ 3",
+        " 3★ · Nộ 4"
+      ],
+      "currentStars": [
+        "1"
+      ],
+      "metadataCount": 1,
+      "contentHeight": 1084,
+      "viewportHeight": 804,
+      "scrollTop": 0,
+      "overflowY": "auto",
+      "nineSliceCanvas": true
+    },
+    "keyboard": {
+      "open": "true",
+      "mode": "expanded",
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 374,
+        "height": 828
+      },
+      "bottomClip": 0,
+      "rightClip": 0,
+      "starLabels": [
+        "  1★ · Nộ 2 · (hiện tại)",
+        " 2★ · Nộ 3",
+        " 3★ · Nộ 4"
+      ],
+      "currentStars": [
+        "1"
+      ],
+      "metadataCount": 1,
+      "contentHeight": 1084,
+      "viewportHeight": 804,
+      "scrollTop": 280,
+      "overflowY": "auto",
+      "nineSliceCanvas": true
+    },
+    "escape": true
+  },
+  {
+    "id": "rabbit_blood",
+    "initial": {
+      "open": "true",
+      "mode": "expanded",
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 374,
+        "height": 828
+      },
+      "bottomClip": 0,
+      "rightClip": 0,
+      "starLabels": [
+        "  1★ · Nộ 2 · (hiện tại)",
+        " 2★ · Nộ 3",
+        " 3★ · Nộ 4"
+      ],
+      "currentStars": [
+        "1"
+      ],
+      "metadataCount": 1,
+      "contentHeight": 1762,
+      "viewportHeight": 804,
+      "scrollTop": 0,
+      "overflowY": "auto",
+      "nineSliceCanvas": true
+    },
+    "keyboard": {
+      "open": "true",
+      "mode": "expanded",
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 374,
+        "height": 828
+      },
+      "bottomClip": 0,
+      "rightClip": 0,
+      "starLabels": [
+        "  1★ · Nộ 2 · (hiện tại)",
+        " 2★ · Nộ 3",
+        " 3★ · Nộ 4"
+      ],
+      "currentStars": [
+        "1"
+      ],
+      "metadataCount": 1,
+      "contentHeight": 1762,
+      "viewportHeight": 804,
+      "scrollTop": 643,
+      "overflowY": "auto",
+      "nineSliceCanvas": true
+    },
+    "escape": true
+  },
+  {
+    "touch": {
+      "open": "true",
+      "mode": "expanded",
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 374,
+        "height": 828
+      },
+      "bottomClip": 0,
+      "rightClip": 0,
+      "starLabels": [
+        "  1★ · Nộ 2 · (hiện tại)",
+        " 2★ · Nộ 3",
+        " 3★ · Nộ 4"
+      ],
+      "currentStars": [
+        "1"
+      ],
+      "metadataCount": 1,
+      "contentHeight": 1762,
+      "viewportHeight": 804,
+      "scrollTop": 255,
+      "overflowY": "auto",
+      "nineSliceCanvas": true
+    }
+  }
+]

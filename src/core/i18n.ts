@@ -675,6 +675,7 @@ const vi = {
   "tooltip.section.passive": "Nội tại",
   "tooltip.section.basicAttack": "Đánh thường",
   "tooltip.section.skill": "Chiêu thức",
+  "tooltip.currentStar": "(hiện tại)",
   "tooltip.badge.buy": "Giá mua {cost}",
   "tooltip.badge.sell": "Giá bán {price}",
   "tooltip.badge.owned": "Sở hữu ×{count}",
