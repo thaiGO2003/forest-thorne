@@ -607,6 +607,7 @@ const vi = {
   "element.WOOD": "Gỗ",
   "library.boss": "Trùm",
   "library.back": "Về thư viện",
+  "ui.back": "Quay lại",
   "combat.queue": "Thứ tự lượt",
   "combat.log": "Nhật ký trận",
   "combat.team": "Sức mạnh đội",

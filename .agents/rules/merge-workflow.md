@@ -113,6 +113,21 @@ Sau merge, chạy lại `pnpm typecheck` + test targeted trên `dev`. Nếu fail
 
 Muốn push `dev` lên remote: cập nhật approval cho **chính HEAD mới của `dev`** (`Target: dev`, `Head: <sha sau merge>`, người review duyệt lại), rồi mới push. Hook chặn force/`--delete`/`--all`/`--mirror` lên `dev`/`main` trong mọi trường hợp.
 
+Với feature/fix branch, có thể merge qua GitHub PR thay cho local merge:
+
+```bash
+# đứng trên branch nguồn có tên trong worktree, HEAD trùng dossier
+git branch --show-current
+git rev-parse HEAD
+gh pr merge <N> --merge
+```
+
+- Không `--admin`, không `--squash` (trừ khi owner đồng ý), không `--no-verify`.
+- Hook `merge-guard` kiểm dossier của branch nguồn + `Target: dev`; chạy từ detached
+  HEAD sẽ trượt approval.
+- Sau merge: `git fetch origin --prune`, xác nhận `origin/dev` chứa merge, rồi chạy
+  lại `pnpm typecheck` + test targeted trên `dev` sạch.
+
 ### 6. Release `dev` → `main`
 
 - Mở PR `dev` → `main`, chạy lại toàn bộ gate (typecheck, test, build, smoke acceptance).

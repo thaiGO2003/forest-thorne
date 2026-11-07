@@ -12,6 +12,7 @@ import { itemArt } from "./art";
 import { rankRecipesCraftable } from "../../core/recipeGraph";
 import { itemTooltipContent, recipeCraftable, recipeMissing } from "./copy";
 import { openCraftLibraryOverlay, openItemSheetOverlay } from "./library";
+import type { CraftOverlay } from "./overlay";
 
 type BagKind = "all" | "material" | "equipment";
 type DragSource = { kind: "bag" } | { kind: "cell"; index: number };
@@ -55,6 +56,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
   let disposed = false;
   let feedback = "";
   let controls: KitButton[] = [];
+  let itemUnbinds: Array<() => void> = [];
   let bagQuery = "";
   let bagKind: BagKind = "all";
   let bagTier = 0;
@@ -63,7 +65,11 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
   let recipeOnlyCraftable = false;
   let recipePage = 0;
   let focusTarget: "bag" | "recipe" | null = null;
-  let overlay: { close(): void } | null = null;
+  let bagScrollTop = 0;
+  let recipeScrollTop = 0;
+  let overlay: CraftOverlay | null = null;
+  const parents: CraftOverlay[] = [];
+  let flowOpener: HTMLElement | null = null;
   let drag: DragState | null = null;
   const cellHighlights = new Map<number, HTMLElement>();
   let bagHighlight: HTMLElement | null = null;
@@ -74,15 +80,48 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
   const stagedCounts = (staged = app.bridge.craftStaging()) => countItems(staged);
   const availableOf = (id: string, bag = bagCounts(), staged = stagedCounts()) => (bag[id] ?? 0) - (staged[id] ?? 0);
 
-  const openInfo = (itemId: string, source: DragSource | null = null) => {
+  const dismissChildren = (restoreFocus = true) => {
+    overlay?.close("replace");
+    overlay = null;
+    for (const parent of parents.reverse()) parent.close("replace");
+    parents.length = 0;
+    root.inert = false;
+    if (restoreFocus && !disposed) {
+      const target = flowOpener?.isConnected && root.contains(flowOpener)
+        ? flowOpener : root.querySelector<HTMLElement>("button:not([disabled]), input");
+      target?.focus({ preventScroll: true });
+    }
+    flowOpener = null;
+  };
+  const backChild = () => {
+    if (!parents.length) {
+      dismissChildren();
+      return;
+    }
     app.tooltip.hide();
-    overlay?.close();
+    overlay?.close("replace");
+    overlay = parents.pop() ?? null;
+    overlay?.resume();
+  };
+  const enterChild = (create: (onBack: () => void) => CraftOverlay) => {
+    if (disposed) return;
+    app.tooltip.hide();
+    if (overlay) {
+      overlay.suspend();
+      parents.push(overlay);
+    } else {
+      flowOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      root.inert = true;
+    }
+    overlay = create(backChild);
+  };
+  const openInfo = (itemId: string, source: DragSource | null = null) => {
     const level = run()?.craftTableLevel ?? 0;
     const actions = source?.kind === "cell"
       ? {
         onRemove: () => {
           stageAt(source.index, null);
-          overlay?.close();
+          dismissChildren();
           render();
         },
       }
@@ -96,20 +135,24 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
             } else {
               stageAt(empty, itemId);
             }
-            overlay?.close();
+            dismissChildren();
             render();
           },
         }
         : {};
-    overlay = openItemSheetOverlay(app, overlayHost, itemId, actions, {
+    enterChild((onBack) => openItemSheetOverlay(app, overlayHost, itemId, actions, {
       onOpenLibrary: () => openLibrary(),
       onSelect: (next) => openInfo(next),
-    });
+      onBack,
+      onDismiss: () => dismissChildren(),
+    }));
   };
   const openLibrary = () => {
-    app.tooltip.hide();
-    overlay?.close();
-    overlay = openCraftLibraryOverlay(app, overlayHost, { onOpenItem: (next) => openInfo(next) });
+    enterChild((onBack) => openCraftLibraryOverlay(app, overlayHost, {
+      onOpenItem: (next) => openInfo(next),
+      onBack,
+      onDismiss: () => dismissChildren(),
+    }));
   };
 
   const say = (message: string) => { feedback = message; };
@@ -314,7 +357,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
     };
   };
 
-  const bindInfo = (el: HTMLElement, itemId: string) => bindItem(el, itemId, null);
+  const bindInfo = (el: HTMLElement, itemId: string) => itemUnbinds.push(bindItem(el, itemId, null));
 
   const clearGrid = () => {
     const staged = app.bridge.craftStaging();
@@ -374,7 +417,13 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
 
   const render = () => {
     if (disposed) return;
+    const previousBagGrid = root.querySelector<HTMLElement>(".craft-bag-grid");
+    const previousRecipeList = root.querySelector<HTMLElement>(".craft-recipe-list");
+    if (previousBagGrid) bagScrollTop = previousBagGrid.scrollTop;
+    if (previousRecipeList) recipeScrollTop = previousRecipeList.scrollTop;
     cleanupDrag();
+    for (const off of itemUnbinds) off();
+    itemUnbinds = [];
     for (const button of controls) button.dispose();
     controls = [];
     disposeSurfaceTree(root);
@@ -454,7 +503,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
         cell.append(lock);
       } else if (itemId) {
         cell.append(itemArt(itemId, "craft-cell-icon"));
-        bindItem(cell, itemId, { kind: "cell", index });
+        itemUnbinds.push(bindItem(cell, itemId, { kind: "cell", index }));
       } else {
         cell.append(h("span", "craft-cell-plus", "+"));
       }
@@ -582,7 +631,7 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
       tile.append(itemArt(id, "craft-item-tile-icon"));
       tile.append(h("span", "craft-item-tile-name", itemDisplayName(id)));
       tile.append(h("span", "craft-item-tile-count", `×${available}`));
-      bindItem(tile, id, { kind: "bag" });
+      itemUnbinds.push(bindItem(tile, id, { kind: "bag" }));
       bagGrid.append(tile);
     }
     if (!bagIds.length) bagGrid.append(h("p", "crafting-muted", copy("Không có vật phẩm phù hợp bộ lọc.", "No items match the filters.")));
@@ -673,6 +722,10 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
 
     workspace.append(table, bagPanel, recipePanel);
     root.append(workspace);
+    const nextBagGrid = root.querySelector<HTMLElement>(".craft-bag-grid");
+    const nextRecipeList = root.querySelector<HTMLElement>(".craft-recipe-list");
+    if (nextBagGrid) nextBagGrid.scrollTop = bagScrollTop;
+    if (nextRecipeList) nextRecipeList.scrollTop = recipeScrollTop;
     const message = h("p", "crafting-feedback", feedback || (planning()
       ? copy("Nguyên liệu chỉ tiêu hao khi chế tạo thành công.", "Ingredients are consumed only after a successful craft.")
       : copy("Chỉ có thể chế tạo trong giai đoạn chuẩn bị.", "Crafting is available during planning only.")));
@@ -697,8 +750,9 @@ export function mountCraftWorkbench(app: App, host: HTMLElement): { dispose(): v
       disposed = true;
       off();
       cleanupDrag();
-      overlay?.close();
-      overlay = null;
+      dismissChildren(false);
+      for (const off of itemUnbinds) off();
+      itemUnbinds = [];
       app.tooltip.hide();
       for (const button of controls) button.dispose();
       controls = [];

@@ -12,7 +12,6 @@ const hashIssue = (title, body) => createHash('sha256')
 const EMPTY_ISSUE_HASH = hashIssue('', '');
 const GOOD_BODY = `Closes #12
 Fixes #14
-Closes #12
 Issue-Snapshot: #12 sha256:${EMPTY_ISSUE_HASH}
 Issue-Snapshot: #14 sha256:${EMPTY_ISSUE_HASH}
 Verification: pnpm typecheck, targeted regression tests and runtime smoke passed
@@ -125,9 +124,40 @@ function harness({
 }
 
 test('only exact plain-text header directives are eligible', () => {
-  assert.deepEqual(linkedIssueNumbers('Closes #12\nResolves #13\n---\nFixes #99'), [12, 13]);
+  const valid = [
+    'Closes #12',
+    'Resolves #13',
+    `Issue-Snapshot: #12 sha256:${EMPTY_ISSUE_HASH}`,
+    `Issue-Snapshot: #13 sha256:${EMPTY_ISSUE_HASH}`,
+    'Verification: tests pass',
+    `Verified-Head: ${SHA}`,
+    '---',
+    'Fixes #99',
+  ].join('\n');
+  assert.deepEqual(linkedIssueNumbers(valid), [12, 13]);
   assert.deepEqual(linkedIssueNumbers('Related to #5\nCloses #12'), []);
   assert.deepEqual(linkedIssueNumbers('Closes #12\n- Fixes #10'), []);
+});
+
+test('strict closure gate rejects cross-consumer divergences before any issue read', async () => {
+  const snap = `Issue-Snapshot: #12 sha256:${EMPTY_ISSUE_HASH}`;
+  const head = `Verified-Head: ${SHA}`;
+  const cases = {
+    'missing exact delimiter': ['Closes #12', snap, 'Verification: tests pass', head].join('\n'),
+    'Verification before Closes': ['Verification: tests pass', 'Closes #12', snap, head, '---'].join('\n'),
+    'leading blank line': ['', 'Closes #12', snap, 'Verification: tests pass', head, '---'].join('\n'),
+    'interior blank line': ['Closes #12', '', snap, 'Verification: tests pass', head, '---'].join('\n'),
+    'interior whitespace-only line': ['Closes #12', '   ', snap, 'Verification: tests pass', head, '---'].join('\n'),
+    'duplicate Closes': ['Closes #12', 'Closes #12', snap, 'Verification: tests pass', head, '---'].join('\n'),
+  };
+  for (const [label, body] of Object.entries(cases)) {
+    const fixture = harness({ body });
+    const result = await closeVerifiedIssues(fixture);
+    assert.deepEqual(result.closed, [], label);
+    assert.deepEqual(fixture.updates, [], label);
+    assert.deepEqual(fixture.comments, [], label);
+    assert.deepEqual(fixture.lookups, [], label);
+  }
 });
 
 test('verified, non-draft PR closes each open linked issue exactly once with a receipt', async () => {
@@ -189,7 +219,19 @@ test('already-closed items, pull request numbers and missing issues are not muta
   const fixture = harness({ issues: {
     12: { state: 'closed' },
     14: { state: 'open', pull_request: { url: 'https://example.test/pr' } },
-  }, body: GOOD_BODY.replace('---', `Closes #16\nIssue-Snapshot: #16 sha256:${EMPTY_ISSUE_HASH}\nCloses #17\nIssue-Snapshot: #17 sha256:${EMPTY_ISSUE_HASH}\n---`), });
+  }, body: [
+    'Closes #12',
+    'Fixes #14',
+    'Closes #16',
+    'Closes #17',
+    `Issue-Snapshot: #12 sha256:${EMPTY_ISSUE_HASH}`,
+    `Issue-Snapshot: #14 sha256:${EMPTY_ISSUE_HASH}`,
+    `Issue-Snapshot: #16 sha256:${EMPTY_ISSUE_HASH}`,
+    `Issue-Snapshot: #17 sha256:${EMPTY_ISSUE_HASH}`,
+    'Verification: complete',
+    `Verified-Head: ${SHA}`,
+    '---',
+  ].join('\n'), });
   fixture.github.rest.issues.get = async ({ issue_number }) => {
     fixture.lookups.push(issue_number);
     if (issue_number === 16) throw Object.assign(new Error('not found'), { status: 404 });
@@ -566,7 +608,7 @@ test('missing, duplicate, extra, invalid and ambiguous snapshots never authorize
 
 test('Issue digest binds exact bytes, including trailing newlines, CRLF and null body', async () => {
   const single = 'Closes #12\nIssue-Snapshot: #12 sha256:' + EMPTY_ISSUE_HASH +
-    '\nVerification: complete\nVerified-Head: ' + SHA;
+    '\nVerification: complete\nVerified-Head: ' + SHA + '\n---';
   for (const body of [null, '', '\n', '\r\n', 'content\n', 'content\r\n']) {
     const fixture = harness({ body: single, issues: { 12: { state: 'open', body } } });
     const result = await closeVerifiedIssues(fixture);

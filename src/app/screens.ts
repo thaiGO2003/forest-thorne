@@ -16,12 +16,13 @@ import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
 import { mountReadonlyUnitInventory, mountUnitInventory } from "../ui/unitInventory";
 import { mountCraftWorkbench } from "../ui/crafting/workbench";
-import { findOwnedUnit, inspectOwnedUnit, type OwnedUnitInspection } from "../core/unitInventory";
+import { findOwnedUnit, inspectOwnedUnit } from "../core/unitInventory";
 import { combatTargetPreview, snapshotWithResources } from "../core/combat";
-import { mountSettings } from "../ui/settings";
+import { mountSettings, type SettingsView } from "../ui/settings";
 import { mountTechTree } from "../ui/techTree";
 import { mountHistory, mountHistoryView } from "../ui/history";
 import type { ModalHandle, ModalOptions } from "../ui/modal";
+import type { ModalOrigin } from "../ui/modalOrigins";
 import type { TooltipContent } from "../ui/tooltip";
 import { applyLocale, registerPanel, registerScreen, registerUtility, type App } from "./app";
 import { runView } from "./bridge";
@@ -66,13 +67,18 @@ function openPanelModal(app: App, o: ModalOptions, mount: (m: ModalHandle) => { 
   const off = app.modals.onChange((active) => { if (active !== o.id) { off(); view?.dispose(); } });
 }
 
-function openReturnToMenuConfirm(app: App) {
-  const m = app.modals.open({ id: "return-menu-confirm", title: t("settings.home"), size: "sm", closeLabel: t("ui.close") });
+function openReturnToMenuConfirm(app: App, origin: Extract<ModalOrigin, { kind: "settings-confirm" }>) {
+  const restore = () => openSettings(app, origin.state);
+  const m = app.modals.open({
+    id: "return-menu-confirm", title: t("settings.home"), size: "sm", closeLabel: t("ui.close"),
+    onBack: { label: t("ui.back"), restore },
+    onClose: restore,
+  });
   const body = h("div", "stack");
   body.append(h("p", "dialog-copy", t("settings.homeConfirm")));
   const actions = h("div", "row dialog-actions");
-  const cancel = kitButton({ skin: "wood", label: t("common.cancel"), onClick: () => { m.close(); app.openPanel("settings"); } });
-  const confirm = kitButton({ skin: "red", label: t("common.confirm"), cls: "fit-btn", onClick: () => { m.close(); app.go("menu"); } });
+  const cancel = kitButton({ skin: "wood", label: t("common.cancel"), onClick: () => m.close() });
+  const confirm = kitButton({ skin: "red", label: t("common.confirm"), cls: "fit-btn", onClick: () => app.go("menu") });
   confirm.el.append(h("span", "kit-fit-measure", t("common.confirm")));
   actions.append(cancel.el, confirm.el);
   body.append(actions);
@@ -1269,10 +1275,24 @@ function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent
 
 
 
-function openEnemyUnitDetail(app: App, uid: string) {
+function openEnemyUnitDetail(app: App, uid: string, origin?: Extract<ModalOrigin, { kind: "enemy-detail" }>) {
   const initial = enemyDiagnostics(app, uid);
   if (!initial) return;
-  openPanelModal(app, { id: "enemy-unit-detail", title: getUnit(initial.baseId).nameVi, size: "lg" }, (m) => {
+  openPanelModal(app, {
+    id: "enemy-unit-detail", title: getUnit(initial.baseId).nameVi, size: "lg",
+    onBack: origin ? {
+      label: t("ui.back"),
+      restore() {
+        if (app.route() !== origin.route) return;
+        const valid = Boolean(enemyDiagnostics(app, origin.uid));
+        origin.restorePreview(valid);
+        const focus = valid && origin.focus?.isConnected && origin.focus !== document.body
+          ? origin.focus
+          : app.layers.hud.querySelector<HTMLElement>("button,[tabindex]");
+        focus?.focus({ preventScroll: true });
+      },
+    } : undefined,
+  }, (m) => {
     const view = mountReadonlyUnitInventory(m, portraits, () => enemyDiagnostics(app, uid));
     const off = app.bridge.onChange(view.update);
     app.presentation.refreshEnemyDetail = view.update;
@@ -1284,10 +1304,24 @@ function openEnemyUnitDetail(app: App, uid: string) {
   });
 }
 
-const openLibrary = (app: App, id?: string) =>
+const openLibrary = (app: App, id?: string, origin?: Extract<ModalOrigin, { kind: "owned-inventory" }>) =>
   openPanelModal(
     app,
-    { id: "library", title: t("menu.library"), size: "full" },
+    {
+      id: "library", title: t("menu.library"), size: "full",
+      onBack: origin ? {
+        label: t("ui.back"),
+        restore() {
+          if (app.route() !== origin.route) return;
+          const run = app.bridge.run();
+          if (run && findOwnedUnit(run, origin.uid)) {
+            app.presentation.openOwnedInventory?.(origin.uid, origin.state);
+          } else {
+            app.layers.hud.querySelector<HTMLElement>("button,[tabindex]")?.focus({ preventScroll: true });
+          }
+        },
+      } : undefined,
+    },
     (m) => mountLibrary(m, portraits, app.tooltip, app.bridge, id),
   );
 registerPanel("library", (app, id) => openLibrary(app, id));
@@ -1308,16 +1342,27 @@ registerPanel("unit-detail", (app, id) => {
   }
   openLibrary(app, id);
 });
-registerPanel("settings", (app) =>
+function openSettings(app: App, restoreState?: Extract<ModalOrigin, { kind: "settings-confirm" }>["state"]) {
+  let view: SettingsView | null = null;
   openPanelModal(app, {
     id: "settings", title: t("menu.settings"), size: "lg",
-    headerAction: { icon: ICONS.home, label: t("settings.home"), onClick: () => openReturnToMenuConfirm(app) },
-  }, (m) =>
-    mountSettings(m, app.bridge.settings, {
+    headerAction: {
+      icon: ICONS.home, label: t("settings.home"),
+      onClick: () => {
+        if (view) openReturnToMenuConfirm(app, { kind: "settings-confirm", state: view.snapshot() });
+      },
+    },
+  }, (m) => {
+    view = mountSettings(m, app.bridge.settings, {
+      restoreState,
       hasRun: app.bridge.saveSummary().kind !== "none",
       exportRun: () => app.bridge.exportRun(),
       clearRun: () => { app.bridge.clearRun(); m.close(); app.go("menu"); },
-    })));
+    });
+    return view;
+  });
+}
+registerPanel("settings", (app) => openSettings(app));
 registerPanel("history", (app) =>
   openPanelModal(app, { id: "history", title: t("planning.history"), size: "lg" }, (m) => mountHistory(m, app.bridge.history())));
 registerPanel("tech", (app) => {
@@ -1355,7 +1400,6 @@ registerScreen("planning", (app) => {
   let resultFireworks: VictoryFireworks | null = null;
   let planningEnemyPreview: ReturnType<typeof bridge.prepareEnemyPreview> = null;
   let inventoryView: ReturnType<typeof mountUnitInventory> | null = null;
-  let inventoryInspection: OwnedUnitInspection | null = null;
   let inventoryUid: string | null = null;
   const liveRoster = app.presentation.liveRoster;
   liveRoster.clear();
@@ -1365,28 +1409,49 @@ registerScreen("planning", (app) => {
     const found = run ? findOwnedUnit(run, uid) : null;
     return found ? action(found.where, found.index) : false;
   };
-  const openOwnedInventory = (uid: string) => {
+  const openOwnedInventory = (uid: string, restoreState?: Extract<ModalOrigin, { kind: "owned-inventory" }>["state"]) => {
     const run = bridge.run();
     const inspection = run ? inspectOwnedUnit(run, uid) : null;
-    if (!inspection) return;
-    openPanelModal(app, { id: "unit-inventory", title: t("inventory.title"), size: "full" }, (m) => {
-      inventoryUid = uid; inventoryInspection = inspection;
+    if (!inspection) {
+      app.layers.hud.querySelector<HTMLElement>("button,[tabindex]")?.focus({ preventScroll: true });
+      return;
+    }
+    const planningFocus = restoreState ? restoreState.planningFocus : document.activeElement;
+    openPanelModal(app, {
+      id: "unit-inventory", title: t("inventory.title"), size: "full",
+      onBack: {
+        label: t("ui.back"),
+        restore() {
+          if (app.route() !== "planning") return;
+          const run = bridge.run();
+          const target = run && findOwnedUnit(run, uid) && planningFocus instanceof HTMLElement && planningFocus !== document.body && planningFocus.isConnected
+            ? planningFocus
+            : app.layers.hud.querySelector<HTMLElement>("button,[tabindex]");
+          target?.focus({ preventScroll: true });
+        },
+      },
+    }, (m) => {
+      inventoryUid = uid;
       const view = mountUnitInventory(m, portraits, {
         getModel: () => {
           const state = bridge.run();
-          if (!state || !inventoryInspection || !findOwnedUnit(state, uid)) return null;
+          const currentInspection = state ? inspectOwnedUnit(state, uid) : null;
+          if (!state || !currentInspection) return null;
           const live = liveRoster.get(uid);
-          const current = live?.inspection ? snapshotWithResources(live.inspection, live, getUnit(inventoryInspection.unit.baseId).role) : inventoryInspection.boosted;
-          return { run: state, inspection: inventoryInspection, current, inCombat: state.phase === "COMBAT" };
+          const current = live?.inspection ? snapshotWithResources(live.inspection, live, getUnit(currentInspection.unit.baseId).role) : currentInspection.boosted;
+          return { run: state, inspection: currentInspection, current, inCombat: state.phase === "COMBAT" };
         },
-        openLibrary: () => app.openPanel("library", inspection.unit.baseId),
+        restoreState,
+        openLibrary: (state) => openLibrary(app, inspection.unit.baseId, {
+          kind: "owned-inventory", uid, state: { ...state, planningFocus: planningFocus instanceof HTMLElement ? planningFocus : null }, route: "planning",
+        }),
         sell: () => withOwned(uid, (where, index) => bridge.sell(where, index)),
         equip: (itemId) => withOwned(uid, (where, index) => bridge.equip(itemId, where, index)),
         unequip: (index) => withOwned(uid, (where, at) => bridge.unequip(where, at, index)),
         unequipAll: () => withOwned(uid, (where, index) => bridge.unequipAll(where, index)),
       });
       inventoryView = view;
-      return { dispose() { view.dispose(); if (inventoryView === view) { inventoryView = null; inventoryUid = null; inventoryInspection = null; } } };
+      return { dispose() { view.dispose(); if (inventoryView === view) { inventoryView = null; inventoryUid = null; } } };
     });
   };
   app.presentation.openOwnedInventory = openOwnedInventory;
@@ -1442,7 +1507,18 @@ registerScreen("planning", (app) => {
       app.tooltip.hide();
       board.setTargetPreview?.(null);
     },
-    inspectEnemy: (uid) => openEnemyUnitDetail(app, uid),
+    inspectEnemy: (uid) => {
+      const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      openEnemyUnitDetail(app, uid, {
+        kind: "enemy-detail", uid, route: "planning", focus,
+        restorePreview(valid) {
+          const current = bridge.prepareEnemyPreview();
+          planningEnemyPreview = current;
+          const fighters = valid && current ? bridge.planningCombatProjection(current) : null;
+          board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, uid, { kitPreview: true }) : null);
+        },
+      });
+    },
     enabled: () => !app.modals.blocking() && (bridge.run()?.phase === "PLANNING" || Boolean(combat)),
     inspectOnly: () => Boolean(combat),
   });
@@ -1481,7 +1557,7 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
-    if (inventoryUid) { inventoryInspection = inspectOwnedUnit(run, inventoryUid); inventoryView?.update(); }
+    if (inventoryUid) inventoryView?.update();
     const preview = bridge.prepareEnemyPreview();
     planningEnemyPreview = preview;
     const renderRun = preview && preview.units !== run.enemyPreview ? { ...run, enemyPreview: preview.units } : run;

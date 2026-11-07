@@ -11,6 +11,7 @@ import { t, setLocale, onLocaleChange, type Locale } from "../core/i18n";
 import { createStage, type Stage } from "../world/stage";
 import { h, loadKit } from "../ui/kit";
 import { createModalHost, type ModalHost } from "../ui/modal";
+import type { UnitInventoryNavigationState } from "../ui/modalOrigins";
 import { createTooltip, type Tooltip } from "../ui/tooltip";
 import { createLoading } from "../ui/loading";
 import { createMenu, type UtilityId } from "../ui/menu";
@@ -58,7 +59,7 @@ export interface App {
   presentation: {
     combatCycle: number | null;
     liveRoster: Map<string, RosterEntry>;
-    openOwnedInventory: ((uid: string) => void) | null;
+    openOwnedInventory: ((uid: string, restore?: UnitInventoryNavigationState) => void) | null;
     refreshEnemyDetail: (() => void) | null;
   };
   route(): Route;
@@ -128,7 +129,7 @@ export async function boot(root: HTMLElement): Promise<App> {
   const presentation = {
     combatCycle: null as number | null,
     liveRoster: new Map<string, RosterEntry>(),
-    openOwnedInventory: null as ((uid: string) => void) | null,
+    openOwnedInventory: null as ((uid: string, restore?: UnitInventoryNavigationState) => void) | null,
     refreshEnemyDetail: null as (() => void) | null,
   };
 
@@ -140,7 +141,7 @@ export async function boot(root: HTMLElement): Promise<App> {
       if (disposed) return;
       active?.dispose();
       active = null;
-      modals.closeActive();
+      modals.closeActive("replace");
       tooltip.hide();
       current = r;
       root.dataset.route = r;

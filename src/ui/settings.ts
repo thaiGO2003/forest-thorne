@@ -38,10 +38,18 @@ function toggle(on: boolean, set: (v: boolean) => void): HTMLElement {
   return b.el;
 }
 
-export interface SettingsView { dispose(): void }
+export interface SettingsNavigationState {
+  tab: Tab;
+  modalScrollTop: number;
+  bodyScrollTop: number;
+  tabScrollLeft: number;
+  focusIndex: number;
+  focusHeader: boolean;
+}
+export interface SettingsView { snapshot(): SettingsNavigationState; dispose(): void }
 
-export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { clearRun(): void; exportRun(): { filename: string; text: string } | null; hasRun: boolean }): SettingsView {
-  let tab: Tab = "audio", listening: { ctx: KeyContext; action: string } | null = null, note = "";
+export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { clearRun(): void; exportRun(): { filename: string; text: string } | null; hasRun: boolean; restoreState?: SettingsNavigationState }): SettingsView {
+  let tab: Tab = o.restoreState?.tab ?? "audio", listening: { ctx: KeyContext; action: string } | null = null, note = "";
   let confirmUntil = 0, confirmTimer = 0;
   const root = h("div", "settings");
   const tabs = h("div", "tabs");
@@ -183,8 +191,27 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
     if (note) { const n = h("div", "slot settings-note", note); n.setAttribute("role", "status"); body.append(n); }
   }
   render();
+  const focusControls = () => Array.from(root.querySelectorAll<HTMLElement>("button,input,[tabindex]"));
+  const snapshot = (): SettingsNavigationState => {
+    const focused = document.activeElement;
+    return {
+      tab, modalScrollTop: modal.body.scrollTop, bodyScrollTop: body.scrollTop, tabScrollLeft: tabs.scrollLeft,
+      focusIndex: focusControls().indexOf(focused as HTMLElement),
+      focusHeader: focused instanceof HTMLElement && focused.classList.contains("modal-header-action"),
+    };
+  };
+  if (o.restoreState) {
+    modal.body.scrollTop = o.restoreState.modalScrollTop;
+    body.scrollTop = o.restoreState.bodyScrollTop;
+    tabs.scrollLeft = o.restoreState.tabScrollLeft;
+    const target = o.restoreState.focusHeader
+      ? modal.body.parentElement?.querySelector<HTMLElement>(".modal-header-action")
+      : focusControls()[o.restoreState.focusIndex] ?? tabBtns.find((entry) => entry.id === tab)?.button.el;
+    if (target?.isConnected) target.focus({ preventScroll: true });
+  }
 
   return {
+    snapshot,
     dispose() {
       listening = null;
       removeEventListener("keydown", onKey, true);
