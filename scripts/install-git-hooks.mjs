@@ -94,9 +94,10 @@ export function installHooks({ cwd = process.cwd(), log = console.log, warn = co
         chained = true;
         log(`existing pre-push chained as ${sidecar}`);
       } else {
-        const backup = `${target}.bak-${Date.now()}`;
-        copyFileSync(target, backup);
-        warn(`pre-push exists and the chain sidecar already exists; backed up to ${backup}`);
+        throw new Error(
+          `pre-push and ${sidecar} both exist; refusing to overwrite or disable an existing guard. ` +
+          "Resolve the two hooks manually, then rerun `pnpm hooks:install`.",
+        );
       }
     }
   }

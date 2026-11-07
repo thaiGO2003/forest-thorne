@@ -92,6 +92,31 @@ test("chains an existing pre-push hook and propagates its failure", () => {
   }
 });
 
+test("fails closed when both current hook and sidecar exist, preserving both guards", () => {
+  const repo = makeRepo();
+  try {
+    const hooksDir = resolveHooksDir(repo);
+    const target = join(hooksDir, "pre-push");
+    const sidecar = `${target}${CHAIN_SUFFIX}`;
+    writeFileSync(target, "#!/bin/sh\nexit 3\n");
+    writeFileSync(sidecar, "#!/bin/sh\nexit 4\n");
+    chmodSync(target, 0o755);
+    chmodSync(sidecar, 0o755);
+
+    assert.throws(
+      () => installHooks({ cwd: repo, log: () => {}, warn: () => {} }),
+      /both exist; refusing to overwrite/,
+    );
+
+    assert.equal(readFileSync(target, "utf8"), "#!/bin/sh\nexit 3\n");
+    assert.equal(readFileSync(sidecar, "utf8"), "#!/bin/sh\nexit 4\n");
+    assert.equal(runHook(repo, target).status, 3);
+    assert.equal(runHook(repo, sidecar).status, 4);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("fails closed when scripts/mr.mjs is missing", () => {
   const repo = makeRepo();
   try {

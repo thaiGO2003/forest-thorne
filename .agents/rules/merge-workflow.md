@@ -45,7 +45,8 @@ pnpm mr --lint-only    # chỉ lint (hook pre-push gọi lệnh này)
 Hook `pre-push` chỉ chạy lint và chặn push nếu lint lỗi; không chạy test tích hợp,
 không build. `pnpm hooks:install` resolves the real hook path (`git rev-parse --git-path hooks`,
 including linked worktrees and `core.hooksPath`), chains an existing pre-push as
-`pre-push.forest-thorne-existing`, and fails closed when node/`scripts/mr.mjs` is missing.
+`pre-push.forest-thorne-existing`, and fails closed when node/`scripts/mr.mjs` is missing or
+when both `pre-push` and its sidecar already exist (resolve the two guards manually).
 
 ### CI (`pr-checks.yml`) — chưa triển khai trong repo hiện tại
 
