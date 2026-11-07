@@ -1,11 +1,16 @@
 // Registers every screen and utility modal with the app shell. Import side-effects only.
 import { LOCALES, t, getLocale, onLocaleChange, type MsgKey } from "../core/i18n";
-import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary } from "../core/run";
-import { RECIPES } from "../core/craft";
-import { getEquipment } from "../core/equipment";
+import { BOARD_SIZE, boardCount, slotCap, unequipQuote, type RoundResultSummary, type RunState } from "../core/run";
+import { getEquipment } from "../core/itemRegistry";
+import { itemDisplayName } from "../core/itemPresentation";
 import { AUGMENT_BY_ID } from "../core/augments";
+import { augmentCopy, augmentGroupLabel, augmentGroupRank } from "../content/augmentText";
+import { environmentCopy } from "../content/environmentText";
 import { dispatchPlanningShortcut, type PlanningShortcutActions } from "./planningShortcuts";
 import { h, kitButton, nineSlice, panelEl, surface, threeSlice } from "../ui/kit";
+import { combatEventSfx, combatFeedback, shopFeedback } from "../audio/combatFeedback";
+import { openCraftLibraryModal } from "../ui/crafting/library";
+import { mountQuickNav } from "../ui/quickNavView";
 import { createPlanningHud } from "../ui/planning";
 import { mountLibrary } from "../ui/library";
 import { mountAchievements } from "../ui/achievements";
@@ -24,12 +29,12 @@ import { createBoardView } from "../units/boardView";
 import { createPortraits } from "../units/portraits";
 import { createPlanningDragController } from "./planningDrag";
 import { getUnit } from "../content/catalog";
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, setEmojiRichText } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
 import { projectLiveDiagnostics, teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
 import { basicAttackCopy } from "../core/unitText";
-import { environmentFor } from "../core/environment";
+import { environmentFor, type EnvironmentId } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
 import { BLESSING_CHOICES, type BlessingChoiceId } from "../core/blessingChoice";
@@ -37,6 +42,7 @@ import { getGameSpeedDisplayMultiplier } from "../core/gameSpeed";
 import { finishFastCost } from "../core/combatFast";
 import { createModManager, type ModManager, type ModPackageType, type ModSource, type ModValidationIssue } from "../mods/ModRegistry";
 import { createCombatHud, openResult, type CombatHudView } from "../ui/combat";
+import { unitTooltipContent } from "../ui/unitTooltip";
 import { createCombatFx, type CombatFx } from "../units/fx";
 import { createCombatLowHpMusic } from "../audio/CombatLowHpMusic";
 import { playCombat, type CombatPlayer, type RosterEntry } from "../units/combatPlayer";
@@ -73,12 +79,7 @@ function openReturnToMenuConfirm(app: App) {
   m.body.append(body);
 }
 
-const ITEM_COPY: Partial<Record<string, MsgKey>> = {
-  eq_warmog_armor: "item.eq_warmog_armor",
-  eq_blue_buff: "item.eq_blue_buff",
-  tear: "item.tear",
-};
-const itemName = (id: string) => ITEM_COPY[id] ? t(ITEM_COPY[id]!) : id;
+const itemName = itemDisplayName;
 const MOD_PACKAGE_TYPE_COPY: Record<ModPackageType, MsgKey> = {
   ".ftunit": "mods.packageType.ftunit",
   ".ftlogic": "mods.packageType.ftlogic",
@@ -395,25 +396,27 @@ function openMods(app: App) {
 function openInformation(app: App) {
   const m = app.modals.open({ id: "information", title: t("menu.information"), size: "full", closeLabel: t("ui.close") });
   const root = h("div", "info-modal");
-  const tabs = h("div", "tabs");
+  const tabs = h("div", "tabs info-tabs");
   const body = h("div", "stack info-body");
   type InfoTab = "overview" | "weather" | "sides" | "formations" | "synergy" | "effects" | "history";
   let active: InfoTab = "overview";
   let mountedHistory: { dispose(): void } | null = null;
-  const tabDefs: Array<{ id: InfoTab; key: MsgKey }> = [
-    { id: "overview", key: "info.overview" },
-    { id: "weather", key: "info.weather" },
-    { id: "sides", key: "info.sides" },
-    { id: "formations", key: "info.formations" },
-    { id: "synergy", key: "info.synergy" },
-    { id: "effects", key: "info.effects" },
-    { id: "history", key: "info.history" },
+  const tabDefs: Array<{ id: InfoTab; key: MsgKey; icon: string }> = [
+    { id: "overview", key: "info.overview", icon: ICONS.info },
+    { id: "weather", key: "info.weather", icon: ICONS.palette },
+    { id: "sides", key: "info.sides", icon: ICONS.start },
+    { id: "formations", key: "info.formations", icon: ICONS.inventory },
+    { id: "synergy", key: "info.synergy", icon: ICONS.synergy },
+    { id: "effects", key: "info.effects", icon: ICONS.augment },
+    { id: "history", key: "info.history", icon: ICONS.history },
   ];
   const tabButtons = tabDefs.map((tab) => {
-    const button = kitButton({ skin: "blue", label: t(tab.key), onClick: () => { active = tab.id; render(); } });
+    const button = kitButton({ skin: "blue", icon: tab.icon, label: t(tab.key), onClick: () => { active = tab.id; render(); } });
     tabs.append(button.el);
     return { ...tab, button };
   });
+  const go = (id: InfoTab) => { active = id; render(); };
+  const iconOf = (key: string, fallback: string) => (ICONS as Record<string, string>)[key] ?? fallback;
 
   const disposeTabContent = () => {
     mountedHistory?.dispose();
@@ -421,10 +424,61 @@ function openInformation(app: App) {
     body.replaceChildren();
   };
 
-  const appendKv = (host: HTMLElement, label: string, value: string | number, skin: "panel_tooltip" | "slot_well" = "slot_well") => {
-    const row = panelEl(skin, "info-kv");
+  /** Slim icon + label pill; chrome comes from the kit, never from CSS. */
+  const chip = (text: string, icon?: string, skin: "slot_well" | "panel_wood" = "slot_well") => {
+    const el = panelEl(skin, "info-chip");
+    if (icon) el.append(h("span", "info-chip-icon", icon));
+    el.append(h("span", "info-chip-text", text));
+    return el;
+  };
+
+  /** Four-layer depth: modal frame → parchment section → oak header bar → slot wells. */
+  const section = (title: string, icon: string, cls = "") => {
+    const panel = panelEl("panel_parchment", `info-sec ${cls}`.trim());
+    const head = panelEl("panel_wood", "info-sec-head");
+    head.append(h("span", "info-sec-icon", icon), h("h3", "info-sec-title", title));
+    const inner = h("div", "info-sec-body");
+    panel.append(head, inner);
+    return { panel, inner, head };
+  };
+
+  /** Section whose oak header carries a right-aligned action (used by the overview digest). */
+  const sectionWithAction = (title: string, icon: string, label: string, onAction: () => void) => {
+    const made = section(title, icon);
+    const action = kitButton({ skin: "wood", label, cls: "info-sec-action", onClick: onAction });
+    made.head.append(action.el);
+    return made;
+  };
+
+  const emptyState = (icon: string, title: string, hint: string) => {
+    const el = h("div", "info-empty");
+    el.append(h("span", "info-empty-icon", icon), h("strong", "info-empty-title", title), h("small", "info-empty-hint", hint));
+    return el;
+  };
+
+  /** Icon + value + label tile; the primary "fact" unit across every tab. */
+  const fact = (icon: string, value: string | number, label: string) => {
+    const cell = panelEl("slot_well", "info-fact");
+    cell.append(
+      h("span", "info-fact-icon", icon),
+      h("strong", "info-fact-value", String(value)),
+      h("span", "info-fact-label", label),
+    );
+    return cell;
+  };
+
+  const factGrid = (host: HTMLElement, items: Array<[string, string | number, string]>) => {
+    const grid = h("div", "info-facts");
+    for (const [icon, value, label] of items) grid.append(fact(icon, value, label));
+    host.append(grid);
+    return grid;
+  };
+
+  const appendKv = (host: HTMLElement, label: string, value: string | number) => {
+    const row = panelEl("slot_well", "info-kv");
     row.append(h("strong", "", label), h("span", "", String(value)));
     host.append(row);
+    return row;
   };
 
   const statTile = (host: HTMLElement, icon: string, label: string, value: string | number) => {
@@ -437,40 +491,48 @@ function openInformation(app: App) {
     host.append(tile);
   };
 
-  const section = (title: string, icon: string, cls = "") => {
-    const panel = panelEl("panel_parchment", `info-sec ${cls}`.trim());
-    const head = h("div", "info-sec-head");
-    head.append(h("span", "info-sec-icon", icon), h("h3", "info-sec-title", title));
-    const inner = h("div", "info-sec-body");
-    panel.append(head, inner);
-    return { panel, inner };
+  const environmentName = (environment: EnvironmentId) => t(`element.${environment}` as MsgKey);
+
+  const heroBand = (run: RunState, friendly: { power: number }) => {
+    const band = panelEl("panel_wood", "info-hero");
+    const copy = h("div", "info-hero-copy");
+    copy.append(
+      h("h2", "info-hero-title", t(`mode.${run.mode}` as MsgKey)),
+      h("p", "info-hero-sub", `${t("combat.round", { round: run.round })} · ${t(`info.phase.${run.phase}` as MsgKey)} · ${t(`ai.${run.aiMode}` as MsgKey)}`),
+    );
+    const streaks = h("div", "info-hero-chips");
+    streaks.append(
+      chip(`${t("info.hearts")} ${run.hp}`, ICONS.heart),
+      chip(`${t("info.gold")} ${run.gold}`, ICONS.gold),
+      run.winStreak > 0
+        ? chip(`${t("info.streakWin")} ${run.winStreak}`, ICONS.streakWin)
+        : chip(`${t("info.streakLoss")} ${run.loseStreak}`, ICONS.streakLoss),
+    );
+    const stats = h("div", "info-hero-stats");
+    statTile(stats, ICONS.heart, t("info.hearts"), run.hp);
+    statTile(stats, ICONS.gold, t("info.gold"), run.gold);
+    statTile(stats, ICONS.level, t("info.level"), run.level);
+    statTile(stats, ICONS.atk, t("info.teamPower"), Math.round(friendly.power));
+    band.append(copy, streaks, stats);
+    return band;
   };
 
-  const unitList = (
-    host: HTMLElement,
-    entries: Array<{ uid: string; baseId: string; star: number; equips?: string[] }>,
-    empty: string,
-    detailId: (entry: { uid: string }) => string,
-  ) => {
-    if (!entries.length) {
-      host.append(h("div", "info-empty", empty));
-      return;
-    }
-    for (const entry of entries) {
-      const unit = getUnit(entry.baseId);
-      const row = panelEl("slot_well", "info-unit");
-      const medal = h("span", "info-medal", ICONS[unit.role]);
-      medal.setAttribute("aria-hidden", "true");
-      const copy = h("div", "grow");
-      copy.append(
-        h("strong", "", `${unit.nameVi} ★${entry.star}`),
-        h("div", "info-unit-meta", `${ICONS[unit.element]} ${t(`element.${unit.element}` as MsgKey)} · ${ICONS[unit.faction]} ${t(`faction.${unit.faction}` as MsgKey)} · ${t(`role.${unit.role}` as MsgKey)}`),
-      );
-      if (entry.equips?.length) copy.append(h("small", "", entry.equips.map(itemName).join(" · ")));
-      const details = kitButton({ skin: "wood", label: t("planning.details"), onClick: () => app.openPanel("unit-detail", detailId(entry)) });
-      row.append(medal, copy, details.el);
-      host.append(row);
-    }
+  /** Two-tone bar: asset trough + asset frame, only the fill is a runtime colour. */
+  const meter = (side: "ally" | "enemy", label: string, value: number, max: number) => {
+    const el = h("div", "info-meter");
+    el.setAttribute("role", "meter");
+    el.setAttribute("aria-label", `${side === "ally" ? t("info.allies") : t("info.enemies")} · ${label}`);
+    el.setAttribute("aria-valuemin", "0");
+    el.setAttribute("aria-valuemax", String(Math.round(max)));
+    el.setAttribute("aria-valuenow", String(Math.round(value)));
+    surface(el, (g, w, hh) => {
+      nineSlice(g, "bar_trough", 1, 3, 3, Math.max(0, w - 6), Math.max(0, hh - 6));
+      const fw = Math.round(Math.max(0, w - 6) * Math.max(0, Math.min(1, max > 0 ? value / max : 0)));
+      g.fillStyle = side === "ally" ? "#55b86a" : "#d85f61";
+      g.fillRect(3, 3, fw, Math.max(0, hh - 6));
+      threeSlice(g, "frame_bar", 3, 0, 0, w, hh);
+    });
+    return el;
   };
 
   const compareMetric = (host: HTMLElement, icon: string, label: string, ally: number, enemy: number) => {
@@ -486,25 +548,56 @@ function openInformation(app: App) {
       h("span", "info-compare-values", `${t("info.allies")}: ${Math.round(ally)} · ${t("info.enemies")}: ${Math.round(enemy)}`),
     );
     const bars = h("div", "info-compare-bars");
-    const meter = (side: "ally" | "enemy", value: number) => {
-      const el = h("div", "info-meter");
-      el.setAttribute("role", "meter");
-      el.setAttribute("aria-label", `${side === "ally" ? t("info.allies") : t("info.enemies")} · ${label}`);
-      el.setAttribute("aria-valuemin", "0");
-      el.setAttribute("aria-valuemax", String(Math.round(max)));
-      el.setAttribute("aria-valuenow", String(Math.round(value)));
-      surface(el, (g, w, hh) => {
-        nineSlice(g, "bar_trough", 1, 3, 3, Math.max(0, w - 6), Math.max(0, hh - 6));
-        const fw = Math.round(Math.max(0, w - 6) * Math.max(0, Math.min(1, value / max)));
-        g.fillStyle = side === "ally" ? "#55b86a" : "#d85f61";
-        g.fillRect(3, 3, fw, Math.max(0, hh - 6));
-        threeSlice(g, "frame_bar", 3, 0, 0, w, hh);
-      });
-      return el;
+    const side = (which: "ally" | "enemy", value: number) => {
+      const cell = h("div", "info-compare-side");
+      cell.append(h("small", "info-compare-side-label", which === "ally" ? t("info.allies") : t("info.enemies")));
+      cell.append(meter(which, label, value, max));
+      return cell;
     };
-    bars.append(meter("ally", ally), meter("enemy", enemy));
+    bars.append(side("ally", ally), side("enemy", enemy));
     card.append(head, bars);
     host.append(card);
+    return card;
+  };
+
+  const unitMedal = (icon: string) => {
+    const medal = h("span", "info-medal", icon);
+    medal.setAttribute("aria-hidden", "true");
+    return medal;
+  };
+
+  const unitCard = (
+    host: HTMLElement,
+    entry: { uid: string; baseId: string; star: number; equips?: string[] },
+    detailId: (entry: { uid: string }) => string,
+  ) => {
+    const unit = getUnit(entry.baseId);
+    const row = panelEl("slot_well", "info-unit");
+    const copy = h("div", "grow info-unit-copy");
+    const title = h("div", "info-unit-title");
+    title.append(h("strong", "", unit.nameVi), h("span", "info-unit-stars", `${ICONS.star}${entry.star}`));
+    copy.append(
+      title,
+      h("div", "info-unit-meta", `${ICONS[unit.element]} ${t(`element.${unit.element}` as MsgKey)} · ${ICONS[unit.faction]} ${t(`faction.${unit.faction}` as MsgKey)} · ${t(`role.${unit.role}` as MsgKey)}`),
+    );
+    if (entry.equips?.length) copy.append(h("small", "info-unit-equips", entry.equips.map(itemDisplayName).join(" · ")));
+    const details = kitButton({ skin: "wood", label: t("planning.details"), onClick: () => app.openPanel("unit-detail", detailId(entry)) });
+    row.append(unitMedal(ICONS[unit.role]), copy, details.el);
+    host.append(row);
+    return row;
+  };
+
+  const unitList = (
+    host: HTMLElement,
+    entries: Array<{ uid: string; baseId: string; star: number; equips?: string[] }>,
+    empty: string,
+    detailId: (entry: { uid: string }) => string,
+  ) => {
+    if (!entries.length) {
+      host.append(emptyState(ICONS.emptyBox, empty, t("info.emptyHint")));
+      return;
+    }
+    for (const entry of entries) unitCard(host, entry, detailId);
   };
 
   const teamSnapshot = (entries: Array<{ uid: string }>, side: "L" | "R") => {
@@ -519,12 +612,117 @@ function openInformation(app: App) {
     })));
   };
 
+  /** Augment card: never shows the raw id, always the themed name + effect line + value. */
+  const augmentCard = (host: HTMLElement, id: string) => {
+    const copy = augmentCopy(id);
+    const card = panelEl("slot_well", "info-augment");
+    const head = h("div", "info-augment-head");
+    head.append(unitMedal(copy.icon), h("strong", "info-augment-name", copy.name));
+    if (copy.value) head.append(h("span", "info-augment-value", copy.value));
+    card.append(head, h("small", "info-augment-summary", copy.summary), chip(augmentGroupLabel(copy.group)));
+    host.append(card);
+    return card;
+  };
+
+  const augmentGrid = (host: HTMLElement, ids: readonly string[], empty: string) => {
+    if (!ids.length) {
+      host.append(emptyState(ICONS.augment, empty, t("info.emptyHint")));
+      return;
+    }
+    const sorted = [...ids].sort((a, b) => {
+      const ca = augmentCopy(a), cb = augmentCopy(b);
+      return augmentGroupRank(ca.group) - augmentGroupRank(cb.group) || ca.name.localeCompare(cb.name);
+    });
+    const grid = h("div", "info-augments");
+    for (const id of sorted) augmentCard(grid, id);
+    host.append(grid);
+  };
+
+  /** Weather hero: element medallion, confirmation chip and the concrete own/other mods. */
+  const weatherHero = (host: HTMLElement, environment: EnvironmentId, confirmed: boolean) => {
+    const card = panelEl("panel_parchment", "info-weather-hero");
+    const art = panelEl("slot_well", "info-weather-art");
+    art.append(h("span", "info-weather-icon", ICONS[environment]));
+    const copy = h("div", "info-weather-copy");
+    copy.append(
+      h("small", "info-weather-kicker", t("info.currentWeather")),
+      h("h3", "info-weather-name", environmentName(environment)),
+      chip(confirmed ? t("info.confirmed") : t("info.forecast"), confirmed ? ICONS.check : ICONS.hourglass),
+    );
+    const rules = environmentCopy(environment);
+    const sides = h("div", "info-weather-rules");
+    const ruleColumn = (title: string, icon: string, lines: string[]) => {
+      const col = panelEl("slot_well", "info-rule-col");
+      const head = h("div", "info-rule-head");
+      head.append(h("span", "info-rule-icon", icon), h("strong", "", title));
+      const list = h("ul", "info-rule-list");
+      for (const line of lines) list.append(h("li", "", line));
+      col.append(head, list);
+      return col;
+    };
+    sides.append(
+      ruleColumn(t("info.sameElement"), ICONS.check, rules.own.length ? rules.own : [t("info.noMods")]),
+      ruleColumn(t("info.otherElement"), ICONS.question, rules.other.length ? rules.other : [t("info.noMods")]),
+    );
+    card.append(art, copy, sides);
+    host.append(card);
+    return card;
+  };
+
+  /** Round strip: the next eight rounds with their element, current round first. */
+  const weatherCycle = (host: HTMLElement, round: number) => {
+    const strip = h("div", "info-cycle");
+    for (let i = 0; i < 8; i++) {
+      const at = round + i;
+      const environment = environmentFor(at);
+      const pill = panelEl(i === 0 ? "panel_wood" : "slot_well", "info-cycle-pill");
+      pill.append(
+        h("span", "info-cycle-icon", ICONS[environment]),
+        h("small", "info-cycle-round", t("combat.round", { round: at })),
+        h("small", "info-cycle-name", environmentName(environment)),
+      );
+      strip.append(pill);
+    }
+    host.append(strip);
+    return strip;
+  };
+
+  /** Ordered weather blessing list with up/down controls; shared by the weather and effects tabs. */
+  const blessingOrder = (host: HTMLElement, run: RunState) => {
+    if (!run.blessingQueue.length) {
+      host.append(emptyState(ICONS.emptyBox, t("info.noBlessings"), t("info.noBlessingsHint")));
+      return;
+    }
+    run.blessingQueue.forEach((id, index) => {
+      // Corrupt or retired ids from an older save must not crash the modal.
+      const environment = WEATHER_BLESSING_ENVIRONMENT[id] as EnvironmentId | undefined;
+      if (!environment) return;
+      const row = panelEl("slot_well", "info-order");
+      const rank = panelEl("shell_billboard", "info-order-rank");
+      rank.append(h("strong", "", `#${index + 1}`));
+      const copy = h("div", "grow info-order-copy");
+      copy.append(
+        h("strong", "", environmentName(environment)),
+        h("small", "", `${ICONS[environment]} ${t("info.weatherBlessingShort")}`),
+      );
+      const actions = h("div", "row info-order-actions");
+      const up = kitButton({ skin: "wood", label: t("mods.up"), onClick: () => { if (app.bridge.reorderWeatherBlessing(index, index - 1)) render(); } });
+      const down = kitButton({ skin: "wood", label: t("mods.down"), onClick: () => { if (app.bridge.reorderWeatherBlessing(index, index + 1)) render(); } });
+      const editable = run.phase === "PLANNING";
+      up.setDisabled(!editable || index === 0);
+      down.setDisabled(!editable || index === run.blessingQueue.length - 1);
+      actions.append(up.el, down.el);
+      row.append(rank, copy, actions);
+      host.append(row);
+    });
+  };
+
   const render = () => {
     disposeTabContent();
     for (const tab of tabButtons) tab.button.setSelected(tab.id === active);
     const run = app.bridge.run();
     if (!run) {
-      body.append(h("div", "slot", t("info.noRun")));
+      body.append(emptyState(ICONS.info, t("info.noRun"), t("info.emptyHint")));
       return;
     }
     const preview = app.bridge.prepareEnemyPreview();
@@ -532,162 +730,255 @@ function openInformation(app: App) {
     const ownedAllies = [...allies, ...run.bench];
     const enemies = preview?.units ?? run.enemyPreview;
     const combat = app.bridge.combatSnapshot();
+    const friendly = teamSnapshot(allies, "L");
+    const enemyTeam = teamSnapshot(enemies, "R");
+    const currentEnvironment = combat?.environment ?? environmentFor(run.round);
 
     if (active === "overview") {
-      const friendly = teamSnapshot(allies, "L");
-      const enemy = teamSnapshot(enemies, "R");
-      const currentEnvironment = combat?.environment ?? environmentFor(run.round);
-
-      const hero = panelEl("panel_wood", "info-hero");
-      const heroCopy = h("div", "info-hero-copy");
-      heroCopy.append(
-        h("h2", "info-hero-title", t(`mode.${run.mode}` as MsgKey)),
-        h("p", "info-hero-sub", `${t("combat.round", { round: run.round })} · ${t(`info.phase.${run.phase}` as MsgKey)} · ${t(`ai.${run.aiMode}` as MsgKey)}`),
-      );
-      const heroStats = h("div", "info-hero-stats");
-      statTile(heroStats, ICONS.heart, t("info.hearts"), run.hp);
-      statTile(heroStats, ICONS.gold, t("info.gold"), run.gold);
-      statTile(heroStats, ICONS.level, t("info.level"), run.level);
-      statTile(heroStats, ICONS.atk, t("info.teamPower"), Math.round(friendly.power));
-      hero.append(heroCopy, heroStats);
-      body.append(hero);
+      body.append(heroBand(run, friendly));
+      factGrid(body, [
+        [ICONS.round, t("combat.round", { round: run.round }), t("info.missionLabel")],
+        [ICONS[currentEnvironment], environmentName(currentEnvironment), t("info.environment")],
+        [ICONS.inventory, allies.length, t("info.deployed")],
+        [ICONS.synergy, run.bench.length, t("info.bench")],
+      ]);
 
       const dashboard = h("div", "info-dashboard");
 
-      const overview = section(t("info.overview"), ICONS.info);
-      appendKv(overview.inner, t("combat.round", { round: run.round }), t(`info.phase.${run.phase}` as MsgKey));
-      appendKv(overview.inner, t("info.cycle"), app.presentation.combatCycle ?? "—");
-      appendKv(overview.inner, t("info.deployed"), allies.length);
-      appendKv(overview.inner, t("info.environment"), t(`element.${currentEnvironment}` as MsgKey));
-      appendKv(overview.inner, t("info.bench"), run.bench.length);
-      dashboard.append(overview.panel);
-
-      const formation = section(t("info.formations"), ICONS.synergy);
-      unitList(formation.inner, ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+      const formation = sectionWithAction(t("info.formations"), ICONS.synergy, t("info.openTab"), () => go("formations"));
+      unitList(formation.inner, ownedAllies.slice(0, 4), t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+      if (ownedAllies.length > 4) formation.inner.append(h("small", "info-more", t("info.moreUnits", { count: ownedAllies.length - 4 })));
       dashboard.append(formation.panel);
 
-      const enemiesSection = section(t("info.enemiesPreview"), ICONS.start);
-      unitList(enemiesSection.inner, enemies, t("info.noPreview"), (entry) => enemyPanelId(entry.uid));
+      const enemiesSection = sectionWithAction(t("info.enemiesPreview"), ICONS.start, t("info.openTab"), () => go("sides"));
+      unitList(enemiesSection.inner, enemies.slice(0, 4), t("info.noPreview"), (entry) => enemyPanelId(entry.uid));
+      if (enemies.length > 4) enemiesSection.inner.append(h("small", "info-more", t("info.moreUnits", { count: enemies.length - 4 })));
       dashboard.append(enemiesSection.panel);
 
-      const weather = section(t("info.weatherBlessings"), ICONS[currentEnvironment]);
-      appendKv(weather.inner, t("info.currentWeather"), t(`element.${currentEnvironment}` as MsgKey));
-      appendKv(weather.inner, t("info.nextWeather"), t(`element.${environmentFor(run.round + 1)}` as MsgKey));
-      if (run.blessingQueue.length) {
-        run.blessingQueue.forEach((id, index) => appendKv(weather.inner, `#${index + 1} ${t("info.weatherOrder")}`, t(`element.${WEATHER_BLESSING_ENVIRONMENT[id]}` as MsgKey)));
-      } else {
-        weather.inner.append(h("div", "info-empty", t("info.noBlessings")));
-      }
-      dashboard.append(weather.panel);
-
-      const comparison = section(t("info.comparison"), ICONS.atk);
-      compareMetric(comparison.inner, ICONS.hp, t("info.health"), friendly.hp, enemy.hp);
-      compareMetric(comparison.inner, ICONS.atk, t("info.power"), friendly.power, enemy.power);
-      appendKv(comparison.inner, t("info.allies"), friendly.units);
-      appendKv(comparison.inner, t("info.enemies"), enemy.units);
+      const comparison = sectionWithAction(t("info.comparison"), ICONS.atk, t("info.openTab"), () => go("sides"));
+      compareMetric(comparison.inner, ICONS.hp, t("info.health"), friendly.hp, enemyTeam.hp);
+      compareMetric(comparison.inner, ICONS.atk, t("info.power"), friendly.power, enemyTeam.power);
       dashboard.append(comparison.panel);
 
-      const mods = section(t("info.mods"), ICONS.synergy);
-      if (!run.augments.length) mods.inner.append(h("div", "info-empty", t("info.noAugments")));
-      for (const id of run.augments) {
-        const def = AUGMENT_BY_ID.get(id);
-        appendKv(mods.inner, id, def ? `${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}` : id);
-      }
-      dashboard.append(mods.panel);
+      const weather = sectionWithAction(t("info.weatherBlessings"), ICONS[currentEnvironment], t("info.openTab"), () => go("weather"));
+      appendKv(weather.inner, t("info.currentWeather"), environmentName(currentEnvironment));
+      appendKv(weather.inner, t("info.nextWeather"), environmentName(environmentFor(run.round + 1)));
+      appendKv(weather.inner, t("info.weatherOrder"), run.blessingQueue.length ? String(run.blessingQueue.length) : t("info.none"));
+      dashboard.append(weather.panel);
+
+      const effects = sectionWithAction(t("info.activeEffects"), ICONS.augment, t("info.openTab"), () => go("effects"));
+      appendKv(effects.inner, t("info.mods"), run.augments.length);
+      appendKv(effects.inner, t("info.blessingPicked"), run.blessingPicks.length);
+      appendKv(effects.inner, t("info.weatherBlessings"), run.blessingQueue.length);
+      dashboard.append(effects.panel);
 
       body.append(dashboard);
       return;
     }
 
     if (active === "weather") {
-      const current = combat?.environment ?? environmentFor(run.round);
-      const rows = [
-        [t("info.currentWeather"), t(`element.${current}` as MsgKey), t("info.confirmed")],
-        [t("info.nextWeather"), t(`element.${environmentFor(run.round + 1)}` as MsgKey), t("info.forecast")],
-        [t("info.followingWeather"), t(`element.${environmentFor(run.round + 2)}` as MsgKey), t("info.forecast")],
-      ] as const;
-      for (const [label, value, certainty] of rows) {
-        const card = panelEl("panel_tooltip", "info-weather-card");
-        card.append(h("strong", "", label), h("span", "", value), h("small", "", certainty));
-        body.append(card);
+      weatherHero(body, currentEnvironment, true);
+      weatherCycle(body, run.round);
+
+      const forecast = section(t("info.forecast"), ICONS.hourglass);
+      const forecastGrid = h("div", "info-forecast");
+      for (const offset of [1, 2]) {
+        const at = run.round + offset;
+        const environment = environmentFor(at);
+        const card = panelEl("slot_well", "info-forecast-card");
+        card.append(
+          h("span", "info-forecast-icon", ICONS[environment]),
+          h("strong", "", environmentName(environment)),
+          h("small", "", `${t("combat.round", { round: at })} · ${t("info.forecast")}`),
+        );
+        forecastGrid.append(card);
       }
+      forecast.inner.append(forecastGrid);
+      body.append(forecast.panel);
+
+      const manual = section(t("info.weatherOrder"), ICONS.info);
+      blessingOrder(manual.inner, run);
+      body.append(manual.panel);
       return;
     }
 
     if (active === "sides") {
-      const friendly = teamSnapshot(allies, "L");
-      const enemy = teamSnapshot(enemies, "R");
-      compareMetric(body, ICONS.hp, t("info.health"), friendly.hp, enemy.hp);
-      compareMetric(body, ICONS.atk, t("info.power"), friendly.power, enemy.power);
-      const counts = h("div", "info-summary");
-      appendKv(counts, t("info.allies"), friendly.units);
-      appendKv(counts, t("info.enemies"), enemy.units);
-      body.append(counts);
+      const banners = h("div", "info-sides");
+      const sideBanner = (which: "ally" | "enemy", title: string, icon: string, team: typeof friendly, skin: "panel_wood" | "slot_well") => {
+        const card = panelEl(skin, "info-side");
+        const head = h("div", "info-side-head");
+        head.append(h("span", "info-side-icon", icon), h("strong", "info-side-title", title));
+        const stats = h("div", "info-side-stats");
+        stats.append(
+          fact(ICONS.inventory, team.units, t("info.units")),
+          fact(ICONS.hp, Math.round(team.hp), t("info.health")),
+          fact(ICONS.atk, Math.round(team.power), t("info.power")),
+        );
+        card.append(head, stats);
+        return card;
+      };
+      banners.append(sideBanner("ally", t("info.allies"), ICONS.leaf, friendly, "panel_wood"));
+      banners.append(sideBanner("enemy", t("info.enemies"), ICONS.skull, enemyTeam, "slot_well"));
+      body.append(banners);
+
+      const detail = section(t("info.comparison"), ICONS.atk);
+      compareMetric(detail.inner, ICONS.hp, t("info.health"), friendly.hp, enemyTeam.hp);
+      compareMetric(detail.inner, ICONS.atk, t("info.power"), friendly.power, enemyTeam.power);
+      const gap = Math.round(friendly.power - enemyTeam.power);
+      factGrid(detail.inner, [
+        [ICONS.inventory, friendly.units, t("info.allies")],
+        [ICONS.skull, enemyTeam.units, t("info.enemies")],
+        [ICONS.crown, gap > 0 ? `+${gap}` : String(gap), t("info.powerGap")],
+      ]);
+      body.append(detail.panel);
+
+      // Role composition: the quickest read of "what am I actually facing".
+      const composition = section(t("info.composition"), ICONS.synergy);
+      const columns = h("div", "info-comp");
+      const roleColumn = (title: string, entries: Array<{ baseId: string }>) => {
+        const col = panelEl("slot_well", "info-comp-col");
+        col.append(h("strong", "info-comp-title", title));
+        const counts = new Map<string, number>();
+        for (const entry of entries) {
+          const role = getUnit(entry.baseId).role;
+          counts.set(role, (counts.get(role) ?? 0) + 1);
+        }
+        if (!counts.size) {
+          col.append(h("small", "info-comp-empty", t("info.none")));
+          return col;
+        }
+        for (const [role, count] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
+          const row = h("div", "info-comp-row");
+          row.append(h("span", "info-comp-role", ICONS[role as keyof typeof ICONS] ?? ICONS.question), h("span", "", t(`role.${role}` as MsgKey)), h("strong", "", String(count)));
+          col.append(row);
+        }
+        return col;
+      };
+      columns.append(roleColumn(t("info.allies"), allies), roleColumn(t("info.enemies"), enemies));
+      composition.inner.append(columns);
+      body.append(composition.panel);
       return;
     }
 
     if (active === "formations") {
-      body.append(h("strong", "", t("info.allies")));
-      unitList(body, ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
-      body.append(h("strong", "", t("info.enemies")));
-      unitList(body, enemies, t("info.noUnits"), (entry) => enemyPanelId(entry.uid));
+      const columns = h("div", "info-formations");
+      const alliesSection = section(t("info.allies"), ICONS.leaf);
+      unitList(alliesSection.inner, ownedAllies, t("info.noUnits"), (entry) => ownedPanelId(entry.uid));
+      const enemiesSection = section(t("info.enemies"), ICONS.skull);
+      unitList(enemiesSection.inner, enemies, t("info.noUnits"), (entry) => enemyPanelId(entry.uid));
+      columns.append(alliesSection.panel, enemiesSection.panel);
+      body.append(columns);
       return;
     }
 
     if (active === "synergy") {
       const synergies = runView.synergies(run);
-      if (!synergies.length) body.append(h("div", "slot", t("planning.empty")));
-      for (const line of synergies) {
-        const kind = t(line.kind === "class" ? "info.synergyClass" : line.kind === "element" ? "info.synergyElement" : "info.synergyFaction");
-        const prefix = line.kind === "class" ? "role" : line.kind;
-        const name = t(`${prefix}.${line.key}` as MsgKey);
-        const row = panelEl("panel_tooltip", "info-kv");
-        row.append(h("strong", "", `${kind}: ${name}`), h("span", "", `${line.count} / ${line.next ?? line.active}`));
-        body.append(row);
+      if (!synergies.length) {
+        const empty = section(t("info.synergy"), ICONS.synergy);
+        empty.inner.append(emptyState(ICONS.synergy, t("info.noSynergy"), t("info.synergyHint")));
+        body.append(empty.panel);
+        return;
       }
+      const kinds: Array<{ kind: "class" | "element" | "faction"; title: MsgKey; icon: string }> = [
+        { kind: "class", title: "info.synergyClass", icon: ICONS.synergy },
+        { kind: "element", title: "info.synergyElement", icon: ICONS.palette },
+        { kind: "faction", title: "info.synergyFaction", icon: ICONS.leaf },
+      ];
+      const grid = h("div", "info-dashboard");
+      for (const group of kinds) {
+        const lines = synergies.filter((line) => line.kind === group.kind);
+        if (!lines.length) continue;
+        const made = section(t(group.title), group.icon);
+        for (const line of lines) {
+          const prefix = line.kind === "class" ? "role" : line.kind;
+          const name = t(`${prefix}.${line.key}` as MsgKey);
+          const row = panelEl("slot_well", "info-synergy");
+          const head = h("div", "info-synergy-head");
+          head.append(unitMedal(iconOf(line.key, group.icon)), h("strong", "", name));
+          head.append(h("small", "info-synergy-count", line.next ? `${line.count} / ${line.next}` : `${line.count}`));
+          const bar = h("div", "info-meter");
+          const target = line.next ?? Math.max(1, line.count);
+          bar.setAttribute("role", "progressbar");
+          bar.setAttribute("aria-label", name);
+          bar.setAttribute("aria-valuemin", "0");
+          bar.setAttribute("aria-valuemax", String(target));
+          bar.setAttribute("aria-valuenow", String(line.count));
+          surface(bar, (g, w, hh) => {
+            nineSlice(g, "bar_trough", 1, 3, 3, Math.max(0, w - 6), Math.max(0, hh - 6));
+            const fw = Math.round(Math.max(0, w - 6) * Math.min(1, line.count / target));
+            g.fillStyle = line.next ? "#5aa9d8" : "#55b86a";
+            g.fillRect(3, 3, fw, Math.max(0, hh - 6));
+            threeSlice(g, "frame_bar", 3, 0, 0, w, hh);
+          });
+          row.append(head, bar);
+          if (line.active) row.append(h("small", "info-synergy-active", `${ICONS.check} ${t("info.synergyActive")}`));
+          made.inner.append(row);
+        }
+        grid.append(made.panel);
+      }
+      body.append(grid);
       return;
     }
 
     if (active === "effects") {
-      body.append(h("strong", "", t("info.activeEffects")));
-      if (!run.augments.length) body.append(h("div", "slot", t("planning.empty")));
-      for (const id of run.augments) {
-        const def = AUGMENT_BY_ID.get(id);
-        const row = panelEl("panel_tooltip", "info-kv");
-        row.append(h("strong", "", id), h("span", "", def ? `${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}` : id));
-        body.append(row);
+      const activeEffects = section(t("info.activeEffects"), ICONS.augment);
+      augmentGrid(activeEffects.inner, run.augments, t("info.noAugments"));
+      body.append(activeEffects.panel);
+
+      const bonuses = section(t("info.bonuses"), ICONS.crown);
+      const pctText = (v: number) => `${v > 0 ? "+" : "−"}${Math.abs(Math.round(v))}%`;
+      const bonusRows: Array<[string, string | number, string]> = [];
+      if (run.teamAtkPct) bonusRows.push([ICONS.atk, pctText(run.teamAtkPct), t("info.bonusAtk")]);
+      if (run.teamDefPct) bonusRows.push([ICONS.def, pctText(run.teamDefPct), t("info.bonusDef")]);
+      if (run.teamHpPct) bonusRows.push([ICONS.hp, pctText(run.teamHpPct), t("info.bonusHp")]);
+      if (run.teamMatkPct) bonusRows.push([ICONS.matk, pctText(run.teamMatkPct), t("info.bonusMatk")]);
+      if (run.teamMdefPct) bonusRows.push([ICONS.mdef, pctText(run.teamMdefPct), t("info.bonusMdef")]);
+      if (run.lifestealPct) bonusRows.push([ICONS.regen, pctText(run.lifestealPct), t("info.bonusLifesteal")]);
+      if (run.startingRage) bonusRows.push([ICONS.rage, `+${run.startingRage}`, t("info.bonusStartingRage")]);
+      if (run.startingShield) bonusRows.push([ICONS.shield, `+${run.startingShield}`, t("info.bonusStartingShield")]);
+      if (run.deployCapBonus) bonusRows.push([ICONS.inventory, `+${run.deployCapBonus}`, t("info.bonusDeploy")]);
+      if (run.benchBonus) bonusRows.push([ICONS.synergy, `+${run.benchBonus}`, t("info.bonusBench")]);
+      if (run.inventoryBonus) bonusRows.push([ICONS.inventory, `+${run.inventoryBonus}`, t("info.bonusBag")]);
+      if (run.winGoldBonus) bonusRows.push([ICONS.gold, `+${run.winGoldBonus}`, t("info.bonusWinGold")]);
+      if (run.interestRateBonus) bonusRows.push([ICONS.gold, pctText(run.interestRateBonus * 100), t("info.bonusInterest")]);
+      if (run.xpCostDelta) bonusRows.push([ICONS.xp, String(run.xpCostDelta), t("info.bonusXpCost")]);
+      if (run.rollCostDelta) bonusRows.push([ICONS.reroll, String(run.rollCostDelta), t("info.bonusRollCost")]);
+      if (!bonusRows.length) bonuses.inner.append(emptyState(ICONS.crown, t("info.noBonuses"), t("info.emptyHint")));
+      else factGrid(bonuses.inner, bonusRows);
+      body.append(bonuses.panel);
+
+      const picks = section(t("info.blessingPicked"), ICONS.augment);
+      if (!run.blessingPicks.length) {
+        picks.inner.append(emptyState(ICONS.emptyBox, t("info.noPicked"), t("info.noPickedHint")));
+      } else {
+        const grid = h("div", "info-augments");
+        for (const id of run.blessingPicks) {
+          const copy = BLESSING_COPY[id];
+          const card = panelEl("slot_well", "info-augment");
+          const head = h("div", "info-augment-head");
+          head.append(unitMedal(copy.icon), h("strong", "info-augment-name", t(copy.title)));
+          card.append(head, h("small", "info-augment-summary", t(copy.effect)), chip(t(copy.group)));
+          grid.append(card);
+        }
+        picks.inner.append(grid);
       }
-      body.append(h("strong", "", t("info.weatherOrder")));
-      if (!run.blessingQueue.length) body.append(h("div", "slot", t("planning.empty")));
-      run.blessingQueue.forEach((id, index) => {
-        const environment = WEATHER_BLESSING_ENVIRONMENT[id];
-        const row = panelEl("panel_tooltip", "info-kv");
-        const actions = h("div", "row");
-        const up = kitButton({
-          skin: "wood",
-          label: t("mods.up"),
-          onClick: () => {
-            if (app.bridge.reorderWeatherBlessing(index, index - 1)) render();
-          },
-        });
-        const down = kitButton({
-          skin: "wood",
-          label: t("mods.down"),
-          onClick: () => {
-            if (app.bridge.reorderWeatherBlessing(index, index + 1)) render();
-          },
-        });
-        const editable = run.phase === "PLANNING";
-        up.setDisabled(!editable || index === 0);
-        down.setDisabled(!editable || index === run.blessingQueue.length - 1);
-        actions.append(up.el, down.el);
-        row.append(h("strong", "", `#${index + 1}`), h("span", "", t(`element.${environment}` as MsgKey)), actions);
-        body.append(row);
-      });
+      body.append(picks.panel);
+
+      const manual = section(t("info.weatherOrder"), ICONS.info);
+      blessingOrder(manual.inner, run);
+      body.append(manual.panel);
+
+      const status = section(t("info.runStatus"), ICONS.hourglass);
+      appendKv(status.inner, t("info.cycle"), app.presentation.combatCycle ?? "—");
+      appendKv(status.inner, t("info.pendingBlessing"), run.pendingBlessingChoice ? t("info.yes") : t("info.no"));
+      appendKv(status.inner, t("info.pendingRage"), run.pendingCombatRage);
+      body.append(status.panel);
       return;
     }
 
-    mountedHistory = mountHistoryView(body, app.bridge.history());
+    const history = section(t("info.history"), ICONS.history);
+    body.append(history.panel);
+    mountedHistory = mountHistoryView(history.inner, app.bridge.history());
   };
   root.append(tabs, body);
   m.body.append(root);
@@ -712,7 +1003,7 @@ function mountInventory(app: App, host: HTMLElement) {
     const root = h("div", "stack");
     root.append(h("strong", "", t("planning.items")));
     const bag = h("div", "row");
-    for (const id of run.itemBag) bag.append(h("div", "slot", itemName(id)));
+    for (const id of run.itemBag) bag.append(h("div", "slot", itemDisplayName(id)));
     if (!run.itemBag.length) bag.append(h("div", "slot", t("planning.empty")));
     root.append(bag);
 
@@ -743,8 +1034,8 @@ function mountInventory(app: App, host: HTMLElement) {
           const unequip = kitButton({
             skin: "plum",
             label: cost == null
-              ? `${t("planning.unequip")} ${itemName(itemId)}`
-              : `${t("inventory.unequip", { cost: `${cost} ${ICONS.gold}` })} ${itemName(itemId)}`,
+              ? `${t("planning.unequip")} ${itemDisplayName(itemId)}`
+              : `${t("inventory.unequip", { cost: `${cost} ${ICONS.gold}` })} ${itemDisplayName(itemId)}`,
             onClick: () => { app.bridge.unequip(group.where, index, equippedIndex); },
           });
           unequip.setDisabled(cost == null || run.gold < cost);
@@ -756,7 +1047,7 @@ function mountInventory(app: App, host: HTMLElement) {
           if (!item) continue;
           const equip = kitButton({
             skin: "green",
-            label: `${t("planning.equip")} ${itemName(itemId)}`,
+            label: `${t("planning.equip")} ${itemDisplayName(itemId)}`,
             onClick: () => { app.bridge.equip(itemId, group.where, index); },
           });
           equip.setDisabled(item.tier > unit.star || unit.equips.length >= capacity);
@@ -779,16 +1070,6 @@ function mountInventory(app: App, host: HTMLElement) {
   };
 }
 
-function mountRecipes(host: HTMLElement) {
-  const root = h("div", "choice-list");
-  for (const recipe of RECIPES) {
-    const row = h("div", "slot");
-    row.textContent = `${recipe.pattern.map((id) => id ? itemName(id) : t("planning.empty")).join(" + ")} → ${itemName(`eq_${recipe.id}`)}`;
-    root.append(row);
-  }
-  host.append(root);
-}
-
 function augmentChoiceCopy(id: string): string {
   const def = AUGMENT_BY_ID.get(id);
   if (!def) return id;
@@ -807,10 +1088,10 @@ function augmentChoiceCopy(id: string): string {
   return `${id} · ${def.effect} ${def.value >= 0 ? "+" : ""}${def.value}`;
 }
 
-const BLESSING_COPY: Record<BlessingChoiceId, { group: MsgKey; title: MsgKey; effect: MsgKey; icon: string; skin: "green" | "blue" | "plum" }> = {
-  gold_cache: { group: "blessing.group.economy", title: "blessing.gold.title", effect: "blessing.gold.effect", icon: ICONS.gold, skin: "green" },
-  forest_order: { group: "blessing.group.formation", title: "blessing.deploy.title", effect: "blessing.deploy.effect", icon: ICONS.synergy, skin: "blue" },
-  opening_fury: { group: "blessing.group.combat", title: "blessing.rage.title", effect: "blessing.rage.effect", icon: ICONS.rage, skin: "plum" },
+const BLESSING_COPY: Record<BlessingChoiceId, { group: MsgKey; title: MsgKey; effect: MsgKey; icon: string; frame: "card_t2" | "card_t3" | "card_t4" }> = {
+  gold_cache: { group: "blessing.group.economy", title: "blessing.gold.title", effect: "blessing.gold.effect", icon: ICONS.gold, frame: "card_t2" },
+  forest_order: { group: "blessing.group.formation", title: "blessing.deploy.title", effect: "blessing.deploy.effect", icon: ICONS.leaf, frame: "card_t3" },
+  opening_fury: { group: "blessing.group.combat", title: "blessing.rage.title", effect: "blessing.rage.effect", icon: ICONS.FIRE, frame: "card_t4" },
 };
 
 function mountBlessingChoice(app: App, m: ModalHandle) {
@@ -835,23 +1116,35 @@ function mountBlessingChoice(app: App, m: ModalHandle) {
     const cards = h("div", "blessing-cards");
     for (const def of BLESSING_CHOICES) {
       const copy = BLESSING_COPY[def.id];
-      const card = panelEl("panel_wood", "blessing-card");
-      const art = h("div", "blessing-art");
-      art.append(h("span", "blessing-icon", copy.icon));
+      // Tier-card art already ships green/blue/purple frames with a parchment interior, so the
+      // card chrome stays PNG 9-slice; only layout is CSS (asset-first, spec 2.3).
+      const card = panelEl(copy.frame, "blessing-card");
+      const group = panelEl("panel_wood", "blessing-group");
+      group.append(h("span", "", t(copy.group)));
+      const slot = panelEl("slot_well", "blessing-slot");
+      const star = h("span", "blessing-star");
+      star.setAttribute("aria-hidden", "true");
+      setEmojiRichText(star, ICONS.star);
+      const icon = h("span", "blessing-icon");
+      icon.setAttribute("aria-hidden", "true");
+      setEmojiRichText(icon, copy.icon);
+      slot.append(icon, star);
       const text = h("div", "blessing-copy");
       text.append(
-        h("span", "blessing-group", t(copy.group)),
         h("h3", "blessing-title", t(copy.title)),
         h("p", "blessing-effect", t(copy.effect)),
       );
+      const rule = h("div", "blessing-rule");
+      rule.setAttribute("aria-hidden", "true");
+      surface(rule, (g, w, hh) => threeSlice(g, "bar_trough", 1, 0, 0, w, hh));
       const choose = kitButton({
-        skin: copy.skin,
+        skin: "green",
         label: t("blessing.choose"),
         cls: "blessing-choose",
         aria: `${t(copy.title)} — ${t(copy.effect)}`,
         onClick: () => { if (app.bridge.chooseBlessing(def.id)) m.close(); },
       });
-      card.append(art, text, choose.el);
+      card.append(group, slot, text, rule, choose.el);
       cards.append(card);
     }
     const footer = panelEl("panel_parchment", "blessing-footer");
@@ -962,41 +1255,16 @@ function enemyDiagnostics(app: App, uid: string) {
 }
 
 
-/** Hover summary (A96 summary mode, cf. old-src `buildSummaryUnitSectionBlocks`): traits, headline
- *  combat numbers, active statuses and the star-resolved skill. The current/base/derived numeric
- *  breakdown stays on the diagnostics surface instead of being dumped onto the viewport. */
+/** Hover summary (A96): rich old_src-style unit card with header, chips, HP/rage meters and the
+ *  compact/summary/expanded bodies. Diagnostics supply the live stat, shield, rage and status data;
+ *  catalog-only surfaces reuse the same model through `unitCardTooltip`. */
 function unitSummaryTooltipContent(diagnostics: UnitDiagnostics): TooltipContent {
   const unitDef = getUnit(diagnostics.baseId);
-  const { live, derived, effects, star } = diagnostics;
-  const num = (v: number) => Math.round(v);
-  const lines: NonNullable<TooltipContent["lines"]> = [
-    { icon: ICONS.hp, text: `HP ${num(live.hp)}/${num(live.maxHp)}` },
-    { icon: ICONS.atk, text: `ATK ${num(live.atk)} · DEF ${num(live.def)}` },
-    { icon: ICONS.matk, text: `MATK ${num(live.matk)} · MDEF ${num(live.mdef)}` },
-    { icon: ICONS.range, text: `Tầm ${num(live.range)} · Nộ ${num(live.rage)}/${num(live.rageMax)}` },
-  ];
-  for (const effect of effects.slice(0, 3)) {
-    const value = effect.pct ? `${effect.value}%` : String(effect.value);
-    lines.push({ text: `${effect.key} · ${value} · ${effect.turns}T` });
-  }
-  lines.push({
-    icon: ICONS.star,
-    text: `${t("library.skill")}: ${unitDef.skill.nameVi} (${t("unit.rage", { cost: derived.rageMax })})`,
+  return unitTooltipContent(unitDef, {
+    star: diagnostics.star as 1 | 2 | 3,
+    diagnostics,
+    portrait: portraits.get(unitDef.id, diagnostics.star),
   });
-  return {
-    title: `${unitDef.nameVi} ★${star}`,
-    subtitle: [
-      t(`role.${unitDef.role}` as MsgKey),
-      t(`element.${unitDef.element}` as MsgKey),
-      t(`faction.${unitDef.faction}` as MsgKey),
-    ].join(" · "),
-    lines,
-    body: [
-      unitDef.pitchVi,
-      `${t("library.basic")}: ${basicAttackCopy(unitDef)}`,
-      unitDef.skill.starDetailVi[star - 1] ?? unitDef.skill.detailVi,
-    ].filter(Boolean).join("\n"),
-  };
 }
 
 
@@ -1063,8 +1331,16 @@ registerPanel("tech", (app) => {
 });
 registerPanel("inventory", (app) =>
   openPanelModal(app, { id: "inventory", title: t("planning.inventory"), size: "full" }, (m) => mountInventory(app, m.body)));
-registerPanel("recipes", (app) =>
-  openPanelModal(app, { id: "recipes", title: t("planning.recipes"), size: "full" }, (m) => mountRecipes(m.body)));
+registerPanel("recipes", (app) => openCraftLibraryModal(app));
+registerPanel("quick-nav", (app) => {
+  openPanelModal(app, { id: "quick-nav", title: t("planning.quickNav"), size: "sm" }, (m) => {
+    const view = mountQuickNav({
+      open: (id) => { m.close(); app.openPanel(id); },
+    });
+    m.body.append(view.el);
+    return { dispose: () => view.dispose() };
+  });
+});
 registerPanel("craft", (app) =>
   openPanelModal(app, { id: "craft", title: t("planning.craft"), size: "full" }, (m) => mountCraftWorkbench(app, m.body)));
 registerPanel("augment", (app) =>
@@ -1078,7 +1354,6 @@ registerScreen("planning", (app) => {
   let combat: { player: CombatPlayer; hud: CombatHudView; fx: CombatFx; lowHpMusic: { dispose(): void } } | null = null;
   let resultFireworks: VictoryFireworks | null = null;
   let planningEnemyPreview: ReturnType<typeof bridge.prepareEnemyPreview> = null;
-  let selectedUid: string | null = null;
   let inventoryView: ReturnType<typeof mountUnitInventory> | null = null;
   let inventoryInspection: OwnedUnitInspection | null = null;
   let inventoryUid: string | null = null;
@@ -1104,7 +1379,6 @@ registerScreen("planning", (app) => {
           const current = live?.inspection ? snapshotWithResources(live.inspection, live, getUnit(inventoryInspection.unit.baseId).role) : inventoryInspection.boosted;
           return { run: state, inspection: inventoryInspection, current, inCombat: state.phase === "COMBAT" };
         },
-        select: () => { selectedUid = uid; board.setSelected?.(uid); },
         openLibrary: () => app.openPanel("library", inspection.unit.baseId),
         sell: () => withOwned(uid, (where, index) => bridge.sell(where, index)),
         equip: (itemId) => withOwned(uid, (where, index) => bridge.equip(itemId, where, index)),
@@ -1174,17 +1448,20 @@ registerScreen("planning", (app) => {
   });
   const buyUnit = (slot: number) => {
     const bought = bridge.buy(slot);
-    if (bought) void app.sfx.play("buy");
+    const cue = shopFeedback("buy", bought);
+    if (cue) void app.sfx.play(cue);
     return bought;
   };
   const rerollShop = () => {
     const rerolled = bridge.reroll();
-    if (rerolled) void app.sfx.play("reroll");
+    const cue = shopFeedback("reroll", rerolled);
+    if (cue) void app.sfx.play(cue);
     return rerolled;
   };
   const purchaseXp = () => {
     const purchased = bridge.buyXp();
-    if (purchased) void app.sfx.play("buy");
+    const cue = shopFeedback("xp", purchased);
+    if (cue) void app.sfx.play(cue);
     return purchased;
   };
   const hud = createPlanningHud(app.layers.hud, app.tooltip, portraits, {
@@ -1204,7 +1481,6 @@ registerScreen("planning", (app) => {
   const sync = () => {
     const run = bridge.run();
     if (!run) return;
-    if (selectedUid && !findOwnedUnit(run, selectedUid)) { selectedUid = null; board.setSelected?.(null); }
     if (inventoryUid) { inventoryInspection = inspectOwnedUnit(run, inventoryUid); inventoryView?.update(); }
     const preview = bridge.prepareEnemyPreview();
     planningEnemyPreview = preview;
@@ -1271,13 +1547,14 @@ registerScreen("planning", (app) => {
           reserveOrigins.push({ x: visual.root.position.x, y: visual.root.position.y, z: visual.root.position.z });
         });
       }
-      void app.sfx.play(summary.winner === "LEFT" ? "victory" : summary.winner === "RIGHT" ? "defeat" : "draw");
+      const feedback = combatFeedback(summary.winner === "LEFT" ? "LEFT" : summary.winner === "RIGHT" ? "RIGHT" : "DRAW");
+      void app.sfx.play(feedback.sfx);
       endCombat();
       resultFireworks?.dispose();
       resultFireworks = summary.winner === "LEFT" && reserveOrigins.length
         ? createVictoryFireworks(stage.scene, stage.onFrame, reserveOrigins)
         : null;
-      app.music.play(summary.winner === "LEFT" ? "victory" : "defeat");
+      app.music.play(feedback.music);
       openResult(app.modals, combatRound, summary, () => {
         resultFireworks?.dispose();
         resultFireworks = null;
@@ -1301,12 +1578,8 @@ registerScreen("planning", (app) => {
       board, fx, roster: session.roster, events: session.events,
       inspectionFrames: session.inspectionFrames, onFrame: stage.onFrame,
       onEvent: (event) => {
-        switch (event.t) {
-          case "basic": void app.sfx.play("hit"); break;
-          case "skill": void app.sfx.play("skill"); break;
-          case "heal": void app.sfx.play("heal"); break;
-          case "death": void app.sfx.play("ko"); break;
-        }
+        const cue = combatEventSfx(event.t);
+        if (cue) void app.sfx.play(cue);
       },
       onTick: (tk) => {
         const hpRatio = (side: "L" | "R") => {

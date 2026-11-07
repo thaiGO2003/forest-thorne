@@ -2,10 +2,14 @@
 // Presentation replays `events` in order; HP/status changes are already resolved per event.
 import { getUnit, type Element, type Faction, type Role } from "../content/catalog";
 import { STAR_EFFECT_CHANCE, STAR_SKILL, STAR_STAT } from "./economy";
-import { skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
+import { BLOOD_SWORD_OATH_FAMILY, CANNON_COLUMN_BLAST_FAMILY, ELEPHANT_TIDE_FAMILY, FROST_STORM_FAMILY, GOLD_THROW_FAMILY, GRASS_STORM_FAMILY, HARD_BEAK_DIVE_FAMILY, KIRIN_HORNS_FAMILY, LOVE_KISS_FAMILY, SHEEP_ELF_GUARD_FAMILY, SPIDER_SOUL_FAMILY, SPORE_FAMILY, TIME_SAND_FAMILY, VIKING_BULL_FAMILY, WASP_ASSASSIN_FAMILY, skillSpec, type BuffStat, type DamageType, type SkillSelector, type SkillSpec, type Stat, type StatMod } from "./skills";
 import { CLASS_COUNTER, COUNTER_BONUS, ELEMENT_COUNTER } from "./synergy";
 import { environmentMods, type EnvironmentId, type EnvMods } from "./environment";
-import { slotCapForUnit, sumEquipmentBonuses, type EquipmentBonuses } from "./equipment";
+import { slotCapForUnit, sumEquipmentBonuses } from "./equipment";
+import {
+  EMPTY_EQUIPMENT_LOGIC, logicDamageMultiplier, resolveEquipmentLogic, rollSkillProc, type ResolvedEquipmentLogic,
+} from "./equipmentLogic";
+import type { EquipmentBonuses } from "./itemRegistry";
 import { sumVariantBonuses, type VariantBonuses, type VariantTraitRef } from "./variants";
 import type { WeatherBlessingId } from "./blessings";
 
@@ -23,8 +27,17 @@ export function reflectOffenseStat(role: Role): BuffStat {
   return REFLECT_OFFENSE_STAT[role];
 }
 const STAR_DOT = [0, 1, 1.3, 1.6];
-const CONTROL_PRIORITY = ["freeze", "stun", "sleep"] as const;
+const CONTROL_PRIORITY = ["freeze", "stun", "sleep", "paralyze", "knockup", "petrify"] as const;
 const DOTS = ["burn", "poison", "bleed", "disease"] as const;
+const CLEANSEABLE_STATUSES = new Set<string>([
+  ...DOTS, ...CONTROL_PRIORITY, "silence", "disarm", "taunt", "fireVulnerability", "healBlock", "slow",
+]);
+const TIDE_SHIELD_PREFIX = "elephantTideShield:";
+
+const SHEEP_ELF_SHIELD = "sheepElfShield";
+const SHEEP_ELF_MAGIC_DAMAGE = "sheepElfMagicDamage";
+const SHEEP_ELF_MAGIC_PEN = "sheepElfMagicPen";
+const SHEEP_ELF_LINK_STATUSES = [SHEEP_ELF_SHIELD, SHEEP_ELF_MAGIC_DAMAGE, SHEEP_ELF_MAGIC_PEN] as const;
 
 interface Mod extends StatMod { stackKey?: string }
 
@@ -40,7 +53,13 @@ export interface SkillStatusSource {
 export interface TimedStatus {
   turns: number;
   value: number;
+  /** Damage-triggered thaw, not turn expiry (Sương Điệp 3★ only). */
+  permanent?: boolean;
+  /** Viking retaliation lasts through the end of the following shared cycle. */
+  expiresAfterCycle?: number;
   source?: SkillStatusSource;
+  /** Next shared cycle that removes a one-round Elephant Tide shield. */
+  expiresCycle?: number;
 }
 
 export interface ReflectReactionState {
@@ -89,9 +108,20 @@ export interface Fighter {
   counterTurns: number;
   phoenix: PhoenixReactionState;
   berserk: BerserkReactionState | null;
+  /** Oath resolves at the next shared cycle, not at cast impact. */
+  oath: { cycle: number; star: number } | null;
+  /** A roar arms exactly one ordinary basic in the following shared cycle. */
+  vikingNextBasicCycle?: number;
+  /** Wind hook effects are scoped to the current shared combat cycle. */
+  hookOffense?: { cycle: number; multiplier: number };
+  hookGuardCycle?: number;
   /** A32 environment mods read at the owning event (vulnerability, heal received, accuracy, aura). */
   env: EnvMods;
+  /** Authored equipment logic resolved from the equipped item ids (issue #31). */
+  logic: ResolvedEquipmentLogic;
 }
+
+/** Snapshot the one-round recovery contract when cloning fighters. */
 export function cloneFighter(fighter: Fighter): Fighter {
   return {
     ...fighter,
@@ -107,7 +137,9 @@ export function cloneFighter(fighter: Fighter): Fighter {
     } : null,
     phoenix: { ...fighter.phoenix },
     berserk: fighter.berserk ? { ...fighter.berserk } : null,
+    oath: fighter.oath ? { ...fighter.oath } : null,
     env: { ...fighter.env },
+    logic: { ...fighter.logic },
   };
 }
 
@@ -138,17 +170,34 @@ export interface Placement {
 export type CombatEvent =
   | { t: "cycle"; cycle: number }
   | { t: "empty"; side: Side; row: number; col: number }
-  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean }
+  | { t: "basic" | "skill"; src: string; dst: string; dmg: number; absorbed: number; crit: boolean; kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "gold" | "sand" | "cannon"; from?: string }
   | { t: "reflect"; src: string; dst: string; dmg: number; absorbed: number }
   | { t: "miss"; src: string; dst: string }
   | { t: "cast"; src: string; targets: string[]; trigger?: "TANKER" | "SUPPORT" }
+  | { t: "hookPull"; src: string; dst: string; row: number; col: number }
+  | { t: "teleport"; src: string; row: number; col: number }
   | { t: "dot"; dst: string; kind: string; dmg: number }
   | { t: "heal"; src: string; dst: string; amount: number }
   | { t: "shield"; src: string; dst: string; amount: number }
-  | { t: "status"; dst: string; kind: string; turns: number; source?: SkillStatusSource }
+  /** Elephant Tide shield replacement and one-time cleanse resolve together at visual impact. */
+  | { t: "tideGuard"; src: string; dst: string; delta: number; active: boolean; removed: string[] }
+  | { t: "status"; dst: string; kind: string; turns: number; permanent?: boolean; expiresAfterCycle?: number; source?: SkillStatusSource }
+  | { t: "rage"; src: string; dst: string; amount: number }
   | { t: "revive"; src: string; dst: string; hp: number }
   | { t: "skip"; src: string; reason: string }
-  | { t: "death"; dst: string };
+  | { t: "death"; dst: string }
+  /** Sword oath: transient debuff suppression begins/ends within one cast animation. */
+  | { t: "oath"; dst: string; suppressed: string[]; active: boolean }
+  /** Spore mist cast: pools land on these enemy-half cells (presented at the skill impact). */
+  | { t: "sporeThrow"; src: string; cells: SporeCell[]; cycles: number }
+  /** Cycle start: an enemy standing on owner's pool gave it a point; points is the new total. */
+  | { t: "sporePoint"; owner: string; dst: string; row: number; col: number; points: number }
+  /** Cycle end: owner detonated points; its pools on cells are consumed. Damage follows as skill events. */
+  | { t: "sporeBurst"; owner: string; cells: SporeCell[]; points: number }
+  /** Pools that reached the end of their lifetime without detonating. */
+  | { t: "sporeExpire"; owner: string; cells: SporeCell[] };
+
+export interface SporeCell { row: number; col: number }
 
 export interface CombatResult {
   winner: Side | null;
@@ -210,8 +259,10 @@ export interface CombatTargetPreview {
   skillCasterUid: string | null;
   /** Per-target semantic effect for hover preview colours/icons. */
   tags?: CombatPreviewTag[];
-  /** Acting unit's role, used to pick sword/bow/wand badges without owning presentation data. */
+  /** Acting unit's role, used to pick the fist/basic and role-authored skill badges without owning presentation data. */
   actorRole?: Role;
+  /** Cell-based skill area (may include empty cells), e.g. Sương Độc covering the whole enemy half. */
+  areaCells?: Array<{ col: number; row: number; effect: CombatPreviewEffect }>;
 }
 
 export interface CombatOptions {
@@ -288,8 +339,9 @@ function freshFighter(p: Placement, side: Side): Fighter {
     evade: Math.min(0.6, ROLE_EVADE[u.role] + (st.evade ?? 0) + (star - 1) * 0.05),
     lifesteal: 0, rageGainPct: 0, healPct: 0, onHitBurn: 0, onHitPoison: 0,
     status: {}, mods: [], tauntBy: null, casting: false,
-    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null,
+    reflect: null, counterTurns: 0, phoenix: { armed: false, used: false, revivePct: 0.3 }, berserk: null, oath: null,
     env: environmentMods(undefined, u.element),
+    logic: { ...EMPTY_EQUIPMENT_LOGIC },
   };
 }
 
@@ -332,6 +384,13 @@ function applyEquipment(f: Fighter, b: EquipmentBonuses, opening: OpeningResourc
   const equipmentRage = Math.min(4, Math.max(0, Math.round(finite(b.startingRage))));
   f.rage = Math.min(f.rageMax, f.rage + equipmentRage);
   opening.shield += Math.max(0, finite(b.startingShield));
+}
+
+/** Issue #31: authored `logic` payloads are resolved from the equipped ids, so removing an item
+ * removes its effect and nothing is carried over between combats. */
+function applyEquipmentLogic(f: Fighter, equips: readonly string[], opening: OpeningResources) {
+  f.logic = resolveEquipmentLogic(equips);
+  opening.shield += f.logic.startShield;
 }
 
 function applyVariants(f: Fighter, b: VariantBonuses, opening: OpeningResources) {
@@ -396,6 +455,7 @@ export function materializeCombat(left: Placement[], right: Placement[], o: Comb
   for (const { fighter: f, placement, opening } of entries) {
     const u = getUnit(f.baseId);
     applyEquipment(f, sumEquipmentBonuses(placement.equips ?? [], f.star, slotCapForUnit(u, f.star)), opening);
+    applyEquipmentLogic(f, placement.equips ?? [], opening);
     applyVariants(f, sumVariantBonuses(f.role, placement.traits ?? []), opening);
   }
   for (const { fighter, opening } of entries) applyEnvironment(fighter, o.environment, opening);
@@ -484,6 +544,13 @@ interface DeferredAutoCast {
   role: AutoCastRole;
   preferred?: Fighter;
 }
+/** One non-stacking focus mark per team; contributors accrue only actual HP damage. */
+interface WaspMark {
+  owner: string;
+  target: string;
+  star: number;
+  contributors: Map<string, number>;
+}
 
 interface Ctx {
   all: Fighter[];
@@ -498,6 +565,134 @@ interface Ctx {
   bountyKills: Record<Side, number>;
   deferredAutoCasts: DeferredAutoCast[];
   autoCastInFlight: Set<Fighter>;
+  /** 1-based cycle currently resolving (0 before the first cycle, e.g. in previews). */
+  cycle: number;
+  spores: SporeState;
+  /** Kiss counts are per caster and victim for this simulation only; batlings never update them. */
+  kissHits: Map<string, Map<string, number>>;
+  /** 3★ soul count is fixed before any round-start damage, per caster. */
+  spiderRowCounts: Map<string, number>;
+  waspMarks: Record<Side, WaspMark | null>;
+}
+
+// ---------- Sương Độc spore pools (toad_spore_mist) ----------
+
+/** Pools thrown per cast. */
+export const SPORE_THROWS = 3;
+/** Cycle-start ticks a pool lives for after the cycle it was thrown in. */
+export const SPORE_CYCLES = 2;
+/** Points needed for the end-of-cycle detonation. */
+export const SPORE_BURST_POINTS = 5;
+/** Damage per point: 10 + 0.25 × MATK (magic), before mitigation. */
+export const SPORE_POINT_BASE = 10, SPORE_POINT_MATK = 0.25;
+/** Self-heal as a fraction of the actual HP damage the detonation dealt. */
+export const SPORE_HEAL_PCT = 0.5;
+/** Per-throw chance (by star) to aim at an occupied cell instead of a uniformly random one. */
+export const SPORE_OCCUPIED_BIAS: readonly number[] = [0, 0, 0.2, 0.4];
+
+interface SporePool { owner: string; row: number; col: number; lastCycle: number }
+interface SporePoint { victim: string; row: number; col: number }
+interface SporeState { pools: SporePool[]; points: Map<string, SporePoint[]> }
+const newSporeState = (): SporeState => ({ pools: [], points: new Map() });
+
+const cellKey = (row: number, col: number) => row * COLS + col;
+
+/** Every cell of the half opposite `side`. Sized from COLS/ROWS so a larger combat grid widens it. */
+export function enemyHalfCells(side: Side): SporeCell[] {
+  const half = Math.floor(COLS / 2);
+  const from = side === "L" ? half : 0, to = side === "L" ? COLS : half;
+  const cells: SporeCell[] = [];
+  for (let col = from; col < to; col++) for (let row = 0; row < ROWS; row++) cells.push({ row, col });
+  return cells;
+}
+
+const sporeOccupant = (c: Ctx, owner: Fighter, row: number, col: number) =>
+  c.all.find((x) => x.alive && x.side !== owner.side && x.row === row && x.col === col);
+
+/** Pick up to SPORE_THROWS distinct cells on the enemy half that hold none of the owner's active pools. */
+function pickSporeCells(c: Ctx, f: Fighter): SporeCell[] {
+  const taken = new Set(c.spores.pools.filter((p) => p.owner === f.uid).map((p) => cellKey(p.row, p.col)));
+  const free = enemyHalfCells(f.side).filter((cell) => !taken.has(cellKey(cell.row, cell.col)));
+  const bias = SPORE_OCCUPIED_BIAS[f.star] ?? 0;
+  const chosen: SporeCell[] = [];
+  for (let i = 0; i < SPORE_THROWS && free.length; i++) {
+    const occupied = bias > 0 ? free.filter((cell) => sporeOccupant(c, f, cell.row, cell.col)) : [];
+    const pool = occupied.length && c.rng() < bias ? occupied : free;
+    const cell = pool[Math.floor(c.rng() * pool.length)]!;
+    free.splice(free.indexOf(cell), 1);
+    chosen.push(cell);
+  }
+  return chosen;
+}
+
+function castSporePools(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const cells = pickSporeCells(c, f);
+  const targets = cells.flatMap((cell) => sporeOccupant(c, f, cell.row, cell.col)?.uid ?? []);
+  const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets };
+  if (trigger) castEvent.trigger = trigger;
+  c.events.push(castEvent);
+  for (const cell of cells) c.spores.pools.push({ owner: f.uid, row: cell.row, col: cell.col, lastCycle: c.cycle + SPORE_CYCLES });
+  c.events.push({ t: "sporeThrow", src: f.uid, cells, cycles: SPORE_CYCLES });
+}
+
+/** Cycle start: each enemy standing on a live owner's pool adds one point; then spent pools expire. */
+function tickSporePools(c: Ctx) {
+  const { pools, points } = c.spores;
+  if (!pools.length) return;
+  for (const pool of pools) {
+    const owner = c.all.find((x) => x.uid === pool.owner);
+    if (!owner?.alive) continue;
+    const victim = sporeOccupant(c, owner, pool.row, pool.col);
+    if (!victim) continue;
+    const list = points.get(owner.uid) ?? [];
+    points.set(owner.uid, list);
+    list.push({ victim: victim.uid, row: pool.row, col: pool.col });
+    c.events.push({ t: "sporePoint", owner: owner.uid, dst: victim.uid, row: pool.row, col: pool.col, points: list.length });
+  }
+  const expired = new Map<string, SporeCell[]>();
+  c.spores.pools = pools.filter((pool) => {
+    if (pool.lastCycle > c.cycle) return true;
+    const cells = expired.get(pool.owner) ?? [];
+    expired.set(pool.owner, cells);
+    cells.push({ row: pool.row, col: pool.col });
+    return false;
+  });
+  for (const [owner, cells] of expired) c.events.push({ t: "sporeExpire", owner, cells });
+}
+
+/**
+ * Cycle end: every living owner with ≥ SPORE_BURST_POINTS detonates all its points. Each point deals
+ * (10 + 0.25 × MATK) magic damage to the enemy that earned it (points of one victim resolve as one
+ * hit); the owner heals 50% of the actual HP damage. Pools that produced a point are consumed, so those
+ * cells stay clean until a later cast lands there again. Returns whether anything detonated.
+ */
+function burstSporePools(c: Ctx): boolean {
+  let any = false;
+  for (const f of c.all) {
+    const list = c.spores.points.get(f.uid);
+    if (!f.alive || !list || list.length < SPORE_BURST_POINTS) continue;
+    any = true;
+    c.spores.points.delete(f.uid);
+    const consumed = new Set(list.map((pt) => cellKey(pt.row, pt.col)));
+    const cells: SporeCell[] = [];
+    c.spores.pools = c.spores.pools.filter((pool) => {
+      if (pool.owner !== f.uid || !consumed.has(cellKey(pool.row, pool.col))) return true;
+      cells.push({ row: pool.row, col: pool.col });
+      return false;
+    });
+    c.events.push({ t: "sporeBurst", owner: f.uid, cells, points: list.length });
+    const perVictim = new Map<string, number>();
+    for (const pt of list) perVictim.set(pt.victim, (perVictim.get(pt.victim) ?? 0) + 1);
+    const perPoint = (SPORE_POINT_BASE + combatStat(f, "matk") * SPORE_POINT_MATK) * goldMultiplier(c.gold[f.side]);
+    let drained = 0;
+    for (const [uid, n] of perVictim) {
+      const victim = c.all.find((x) => x.uid === uid);
+      if (!f.alive || !victim?.alive) continue;
+      drained += strike(c, f, victim, Math.round(perPoint * n), "magic", true).hp;
+    }
+    if (drained > 0) heal(c, f, f, drained * SPORE_HEAL_PCT);
+  }
+  return any;
 }
 
 const foes = (c: Ctx, f: Fighter) => c.all.filter((x) => x.alive && x.side !== f.side);
@@ -509,11 +704,92 @@ const AI_CLASS_PRIORITY: Record<Role, number> = {
   MAGE: 0, ARCHER: 1, SUPPORT: 2, FIGHTER: 3, TANKER: 4, ASSASSIN: 5,
 };
 
+/** A focus mark is shared by every living ally, with taunt still taking precedence. */
+function focusedTarget(c: Ctx, f: Fighter, pool: Fighter[]): Fighter | undefined {
+  const mark = c.waspMarks[f.side];
+  if (mark) return pool.find((enemy) => enemy.uid === mark.target);
+  // Planning preview has no live simulation context; read the canonical mark provenance.
+  return pool.find((enemy) => (enemy.status.waspMark?.turns ?? 0) > 0
+    && c.all.some((owner) => owner.uid === enemy.status.waspMark?.source?.unitUid && owner.side === f.side));
+}
+
+function clearWaspMark(c: Ctx, side: Side) {
+  const mark = c.waspMarks[side];
+  if (!mark) return;
+  const target = c.all.find((fighter) => fighter.uid === mark.target);
+  if (target) {
+    delete target.status.waspMark;
+    c.events.push({ t: "status", dst: target.uid, kind: "waspMark", turns: 0 });
+  }
+  c.waspMarks[side] = null;
+}
+
+/** Select by role first, then Manhattan distance; exact ties use uniform gameplay RNG. */
+function applyWaspKillMark(c: Ctx, killer: Fighter) {
+  const enemies = foes(c, killer);
+  if (!enemies.length) return;
+  const priority = Math.min(...enemies.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+  const candidates = enemies.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+  const nearest = Math.min(...candidates.map((enemy) => dist(killer, enemy)));
+  const tied = candidates.filter((enemy) => dist(killer, enemy) === nearest)
+    .sort((a, b) => a.uid.localeCompare(b.uid));
+  const target = tied.length === 1 ? tied[0]! : tied[Math.floor(c.rng() * tied.length)]!;
+  const previous = c.waspMarks[killer.side];
+  const same = previous?.target === target.uid;
+  if (previous && !same) clearWaspMark(c, killer.side);
+  const star = Math.max(killer.star, same ? previous!.star : 0);
+  c.waspMarks[killer.side] = {
+    owner: killer.uid, target: target.uid, star,
+    contributors: same ? previous!.contributors : new Map<string, number>(),
+  };
+  const source: SkillStatusSource = {
+    skillId: WASP_ASSASSIN_FAMILY, unitUid: killer.uid, unitBaseId: killer.baseId,
+    unitStar: star, turns: 2, value: star,
+  };
+  target.status.waspMark = { turns: 2, value: star, source };
+  c.events.push({ t: "status", dst: target.uid, kind: "waspMark", turns: 2, source });
+}
+
+/** Mark payout is once per target death, never an attack or a chain-trigger. */
+function settleWaspMark(c: Ctx, dead: Fighter) {
+  const side: Side = dead.side === "L" ? "R" : "L";
+  const mark = c.waspMarks[side];
+  if (!mark || mark.target !== dead.uid) return;
+  clearWaspMark(c, side);
+  if (mark.star < 2) return;
+  for (const [uid, damage] of mark.contributors) {
+    const attacker = c.all.find((fighter) => fighter.uid === uid && fighter.alive && fighter.side === side);
+    if (!attacker) continue;
+    if (damage > 0) heal(c, attacker, attacker, damage);
+    if (mark.star >= 3) {
+      const before = attacker.rage;
+      addRage(attacker, 1);
+      if (attacker.rage > before) c.events.push({ t: "rage", src: mark.owner, dst: attacker.uid, amount: attacker.rage - before });
+    }
+  }
+}
+
+/** Created during cycle N: active through N+1; removed at the shared round end. */
+function expireWaspMarks(c: Ctx) {
+  for (const side of ["L", "R"] as const) {
+    const mark = c.waspMarks[side];
+    if (!mark) continue;
+    const target = c.all.find((fighter) => fighter.uid === mark.target);
+    if (!target?.alive || !target.status.waspMark || --target.status.waspMark.turns <= 0) {
+      clearWaspMark(c, side);
+    } else if (target.status.waspMark.source) {
+      target.status.waspMark.source.turns = target.status.waspMark.turns;
+    }
+  }
+}
+
 /** A102 basic target: taunt first; RIGHT uses authored melee/ranged/Assassin scoring. */
 function basicTarget(c: Ctx, f: Fighter): Fighter | null {
   const list = foes(c, f);
   const taunter = f.status.taunt?.turns ? list.find((x) => x.uid === f.tauntBy) : undefined;
   if (taunter) return taunter;
+  const focused = focusedTarget(c, f, list);
+  if (focused) return focused;
   if (!list.length) return null;
 
   if (f.side === "R") {
@@ -559,26 +835,142 @@ function applyStatus(
   turns: number,
   value = 0,
   source?: SkillStatusOrigin,
+  permanent = false,
+  expiresAfterCycle?: number,
 ) {
   if (!dst.alive || turns <= 0) return;
   const cur = dst.status[kind];
   const nextTurns = Math.max(turns, cur?.turns ?? 0);
   const nextValue = Math.max(value, cur?.value ?? 0);
-  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue;
+  const nextPermanent = permanent || (cur?.permanent ?? false);
+  const changed = !cur || cur.turns !== nextTurns || cur.value !== nextValue || (!!cur.permanent !== nextPermanent)
+    || (expiresAfterCycle !== undefined && (cur.expiresAfterCycle ?? 0) < expiresAfterCycle);
   // Never shorten; keep the stronger payload (A73). A89 source changes only when the merged state changes.
   if (!cur) {
-    dst.status[kind] = source
-      ? { turns: nextTurns, value: nextValue, source: { ...source, turns: nextTurns, value: nextValue } }
-      : { turns: nextTurns, value: nextValue };
+    dst.status[kind] = {
+      turns: nextTurns, value: nextValue, ...(nextPermanent ? { permanent: true } : {}),
+      ...(expiresAfterCycle !== undefined ? { expiresAfterCycle } : {}),
+      ...(source ? { source: { ...source, turns: nextTurns, value: nextValue } } : {}),
+    };
   } else if (changed) {
     cur.turns = nextTurns;
     cur.value = nextValue;
+    if (nextPermanent) cur.permanent = true;
+    if (expiresAfterCycle !== undefined) cur.expiresAfterCycle = Math.max(cur.expiresAfterCycle ?? 0, expiresAfterCycle);
     if (source) cur.source = { ...source, turns: nextTurns, value: nextValue };
     else delete cur.source;
   }
   const event: Extract<CombatEvent, { t: "status" }> = { t: "status", dst: dst.uid, kind, turns: nextTurns };
+  if (nextPermanent) event.permanent = true;
+  if (dst.status[kind]?.expiresAfterCycle !== undefined) event.expiresAfterCycle = dst.status[kind]!.expiresAfterCycle;
   if (dst.status[kind]?.source) event.source = dst.status[kind]!.source;
   c.events.push(event);
+}
+/** The linked shield is a tracked slice of the target's normal shield resource.
+ * Other shields remain intact when this slice expires or is refreshed. */
+function clearSheepElfLink(c: Ctx, dst: Fighter, expireShield: boolean) {
+  const link = dst.status[SHEEP_ELF_SHIELD];
+  if (!link) return;
+  if (expireShield && link.value > 0) {
+    dst.shield = Math.max(0, dst.shield - link.value);
+    c.events.push({ t: "shield", src: link.source?.unitUid ?? dst.uid, dst: dst.uid, amount: -link.value });
+  }
+  for (const kind of SHEEP_ELF_LINK_STATUSES) {
+    if (!dst.status[kind]) continue;
+    delete dst.status[kind];
+    c.events.push({ t: "status", dst: dst.uid, kind, turns: 0 });
+  }
+}
+
+/** Refresh a single linked shield, never stack the absorbed amount or magic bonuses. */
+function applySheepElfLink(c: Ctx, caster: Fighter, dst: Fighter, amount: number, source: SkillStatusOrigin) {
+  const spec = caster.skill.linkedShield;
+  if (!spec || !dst.alive) return;
+  const oldShield = dst.status[SHEEP_ELF_SHIELD]?.value ?? 0;
+  dst.shield = Math.max(0, dst.shield - oldShield) + amount;
+  if (amount !== oldShield) c.events.push({ t: "shield", src: caster.uid, dst: dst.uid, amount: amount - oldShield });
+  const oldMagic = Boolean(dst.status[SHEEP_ELF_MAGIC_DAMAGE]);
+  const oldPen = Boolean(dst.status[SHEEP_ELF_MAGIC_PEN]);
+  for (const kind of SHEEP_ELF_LINK_STATUSES) delete dst.status[kind];
+  applyStatus(c, dst, SHEEP_ELF_SHIELD, spec.turns, amount, source);
+  if (spec.magicDamagePct > 0) applyStatus(c, dst, SHEEP_ELF_MAGIC_DAMAGE, spec.turns, spec.magicDamagePct, source);
+  else if (oldMagic) c.events.push({ t: "status", dst: dst.uid, kind: SHEEP_ELF_MAGIC_DAMAGE, turns: 0 });
+  if (spec.magicPenPct > 0) applyStatus(c, dst, SHEEP_ELF_MAGIC_PEN, spec.turns, spec.magicPenPct, source);
+  else if (oldPen) c.events.push({ t: "status", dst: dst.uid, kind: SHEEP_ELF_MAGIC_PEN, turns: 0 });
+}
+
+
+/** 1★ controls one action; 2★ retaliations control through the following cycle.
+ * Only a new or extended stun is an application eligible for 3★ healing. */
+function applyVikingStun(c: Ctx, bull: Fighter, victim: Fighter, retaliation: boolean) {
+  if (!bull.alive || bull.hp <= 0 || !victim.alive || victim.hp <= 0) return;
+  const existing = victim.status.stun;
+  const expiry = retaliation ? c.cycle + 1 : undefined;
+  if (existing && (existing.permanent || (!retaliation && existing.turns > 0)
+    || (retaliation && existing.expiresAfterCycle !== undefined && existing.expiresAfterCycle >= expiry!)
+    || (retaliation && existing.turns > 1 && existing.expiresAfterCycle === undefined))) return;
+  applyStatus(c, victim, "stun", bull.skill.viking?.nextBasicStunTurns ?? 1, 0, {
+    skillId: VIKING_BULL_FAMILY, unitUid: bull.uid, unitBaseId: bull.baseId, unitStar: bull.star,
+  }, false, expiry);
+  const formula = bull.skill.viking?.healOnStun;
+  if (formula) heal(c, bull, bull, formula.base + statValue(bull, formula.stat) * formula.scale);
+}
+
+function cleanseRandomDebuffs(c: Ctx, fighter: Fighter, count: number) {
+  for (let removed = 0; removed < count; removed++) {
+    const candidates: Array<{ kind: "status"; key: string } | { kind: "mod"; index: number; icon: string }> = [];
+    for (const [key, status] of Object.entries(fighter.status)) {
+      if (status.turns > 0 && CLEANSEABLE_STATUSES.has(key)) candidates.push({ kind: "status", key });
+    }
+    fighter.mods.forEach((mod, index) => {
+      if (mod.turns > 0 && mod.value < 0) candidates.push({ kind: "mod", index, icon: `${mod.stat}Down` });
+    });
+    if (candidates.length === 0) break;
+    const chosen = candidates[Math.floor(c.rng() * candidates.length)]!;
+    if (chosen.kind === "status") {
+      delete fighter.status[chosen.key];
+      if (chosen.key === "taunt") fighter.tauntBy = null;
+      c.events.push({ t: "status", dst: fighter.uid, kind: chosen.key, turns: 0 });
+      continue;
+    }
+    fighter.mods.splice(chosen.index, 1);
+    c.events.push({ t: "status", dst: fighter.uid, kind: chosen.icon, turns: 0 });
+  }
+}
+
+/** Full cleanse is deterministic and consumes no RNG; positive effects never qualify. */
+function cleanseTideDebuffs(dst: Fighter): string[] {
+  const removed: string[] = [];
+  for (const [kind, status] of Object.entries(dst.status)) {
+    if (status.turns <= 0 || !CLEANSEABLE_STATUSES.has(kind)) continue;
+    delete dst.status[kind];
+    if (kind === "taunt") dst.tauntBy = null;
+    removed.push(kind);
+  }
+  dst.mods = dst.mods.filter((mod) => {
+    if (mod.turns <= 0 || mod.value >= 0) return true;
+    removed.push(`${mod.stat}Down`);
+    return false;
+  });
+  return removed;
+}
+
+/** Reconcile tracked Tide shield after normal mitigation, preserving unrelated shield sources. */
+function consumeTideShield(dst: Fighter, absorbed: number, preShield: number) {
+  let tideBalance = 0;
+  for (const kind in dst.status) {
+    if (kind.startsWith(TIDE_SHIELD_PREFIX)) tideBalance += Math.max(0, dst.status[kind]!.value);
+  }
+  let remaining = Math.max(0, absorbed - Math.max(0, preShield - tideBalance));
+  if (remaining === 0) return;
+  for (const kind in dst.status) {
+    if (!kind.startsWith(TIDE_SHIELD_PREFIX)) continue;
+    const status = dst.status[kind]!;
+    const consumed = Math.min(remaining, Math.max(0, status.value));
+    status.value -= consumed;
+    remaining -= consumed;
+    if (remaining === 0) break;
+  }
 }
 
 function applyMod(dst: Fighter, mod: StatMod, stackKey?: string) {
@@ -604,30 +996,62 @@ function heal(c: Ctx, src: Fighter, dst: Fighter, raw: number) {
 }
 
 function kill(c: Ctx, f: Fighter, killer: Fighter | null) {
+  clearSheepElfLink(c, f, true);
   f.alive = false;
   f.shield = 0;
   f.hp = 0;
   c.events.push({ t: "death", dst: f.uid });
+  settleWaspMark(c, f);
   if (killer?.role === "ASSASSIN" && killer.alive && killer.side !== f.side) {
     c.bounty[killer.side] += killer.star;
     c.bountyKills[killer.side] += 1;
   }
 }
 
-/** Shield first, then HP. Attack callers may defer lethal resolution until A120 aftermath completes. */
+/** Mitigate before shield/HP; attack callers may defer lethal resolution until A120 aftermath completes. */
 function applyDamage(
   c: Ctx,
   dst: Fighter,
   dmg: number,
   killer: Fighter | null,
-  event: (absorbed: number) => CombatEvent,
+  event: (absorbed: number, appliedDamage: number) => CombatEvent,
   deferDeath = false,
 ) {
-  const absorbed = Math.min(dst.shield, dmg);
+  const reduction = dst.status.damageReduction?.turns > 0
+    ? Math.min(0.9, Math.max(0, dst.status.damageReduction.value))
+    : 0;
+  // Hard-beak vulnerability multiplies incoming damage after mitigation; the wind
+  // sickle hook guard then absorbs a flat 10 from the same hit this cycle.
+  const vulnerability = dst.status.hardBeakVulnerability?.value ?? 0;
+  const guarding = dst.hookGuardCycle === c.cycle;
+  const mitigated = Math.round(dmg * (1 - reduction) * (1 + vulnerability));
+  const appliedDamage = Math.max(guarding ? 0 : 1, mitigated - (guarding ? 10 : 0));
+  const absorbed = Math.min(dst.shield, appliedDamage);
+  const preShield = dst.shield;
+  const link = dst.status[SHEEP_ELF_SHIELD];
+  let tideShield = 0;
+  for (const [kind, value] of Object.entries(dst.status)) {
+    if (kind.startsWith(TIDE_SHIELD_PREFIX)) tideShield += Math.max(0, value.value);
+  }
+  // Generic shields absorb first, then tracked Tide shields, then the Sheep Elf slice.
+  const genericShield = Math.max(0, preShield - tideShield - (link?.value ?? 0));
+  const tideAbsorbed = Math.min(tideShield, Math.max(0, absorbed - genericShield));
+  if (tideAbsorbed > 0) consumeTideShield(dst, tideAbsorbed, tideShield);
+  if (link) {
+    link.value = Math.max(0, link.value - Math.max(0, absorbed - genericShield - tideAbsorbed));
+    if (link.source) link.source.value = link.value;
+  }
   dst.shield -= absorbed;
-  const toHp = Math.min(dst.hp, dmg - absorbed);
+  const toHp = Math.min(dst.hp, appliedDamage - absorbed);
   dst.hp -= toHp;
-  c.events.push(event(absorbed));
+  c.events.push(event(absorbed, appliedDamage));
+  if (link && link.value <= 0) clearSheepElfLink(c, dst, false);
+  // Frost from 3★ Sương Điệp persists through turns but thaws on actual HP damage.
+  // Centralize here so basics, skills, DoTs and reflected damage all follow one rule.
+  if (toHp > 0 && dst.status.freeze?.permanent) {
+    delete dst.status.freeze;
+    c.events.push({ t: "status", dst: dst.uid, kind: "freeze", turns: 0 });
+  }
   const lethal = dst.hp <= 0 && dst.alive;
   let killed = false;
   if (lethal && !deferDeath) {
@@ -643,6 +1067,7 @@ function resolveLethal(c: Ctx, f: Fighter, killer: Fighter | null): boolean {
     const pct = Math.min(1, Math.max(0.01, Number.isFinite(f.phoenix.revivePct) ? f.phoenix.revivePct : 0.3));
     f.phoenix.armed = false;
     f.phoenix.used = true;
+    clearSheepElfLink(c, f, true);
     f.shield = 0;
     f.hp = Math.max(1, Math.round(f.maxHp * pct));
     c.events.push({ t: "revive", src: f.uid, dst: f.uid, hp: f.hp });
@@ -663,7 +1088,7 @@ function applyReflect(c: Ctx, defender: Fighter, attacker: Fighter, incomingType
   if (!(pct > 0)) return false;
   const dmg = Math.max(1, Math.round(actualHpDamage * pct));
   applyDamage(c, attacker, dmg, defender,
-    (absorbed) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg, absorbed }), true);
+    (absorbed, appliedDamage) => ({ t: "reflect", src: defender.uid, dst: attacker.uid, dmg: appliedDamage, absorbed }), true);
   return true;
 }
 
@@ -676,6 +1101,14 @@ function applyReflectOffenseDebuff(defender: Fighter, attacker: Fighter, actualH
 
 interface StrikeOptions {
   allowCounter?: boolean;
+  /** Distinct presentation for authored skill impact families. */
+  kind?: "kiss" | "batling" | "grass" | "soul" | "horn" | "gold" | "sand" | "cannon";
+  from?: string;
+  canCrit?: boolean;
+  /** Charged normal basic only, never a counterattack or chained skill impact. */
+  vikingStun?: boolean;
+  /** Applied once after offense, defense, elemental, critical and global modifiers. */
+  falloff?: number;
 }
 
 function basicAttack(c: Ctx, src: Fighter, dst: Fighter, options: StrikeOptions = {}) {
@@ -710,6 +1143,26 @@ function resolveBerserkKill(c: Ctx, src: Fighter) {
   }
 }
 
+/** Issue #31: authored on-hit / on-skill effects, applied only after damage has landed. */
+function applyEquipmentOnHit(c: Ctx, src: Fighter, skill: boolean) {
+  const logic = src.logic;
+  if (skill) {
+    if (logic.rageOnSkill > 0) addRage(src, logic.rageOnSkill);
+    const procRage = rollSkillProc(logic, c.rng);
+    if (procRage > 0) addRage(src, procRage);
+    return;
+  }
+  const stack = (stat: "atk" | "matk", pct: number, max: number) => {
+    if (pct <= 0 || max <= 0) return;
+    const key = `logic:${stat}:${src.uid}`;
+    const applied = src.mods.filter((m) => m.stackKey === key).length;
+    if (applied >= max) return;
+    applyMod(src, { stat, value: pct / 100, pct: true, turns: 0 }, key);
+  };
+  stack("atk", logic.atkStackPct, logic.atkStackMax);
+  stack("matk", logic.matkStackPct, logic.matkStackMax);
+}
+
 /** A12/A13 pipeline + A74/A120 aftermath. Returns HP damage dealt (0 on miss). */
 function strike(
   c: Ctx,
@@ -740,15 +1193,34 @@ function strike(
   }
   let dmg = Math.max(1, adjustedRaw);
   if (ELEMENT_COUNTER[src.element] === dst.element) dmg *= dst.role === "TANKER" ? 0.5 : src.role === "TANKER" ? 1 : 1 + COUNTER_BONUS;
+  // A Sheep Elf's bonuses apply to magic impacts only while its own shield remains.
+  const linkedShieldActive = (src.status[SHEEP_ELF_SHIELD]?.value ?? 0) > 0;
+  if (type === "magic" && linkedShieldActive) {
+    dmg *= 1 + (src.status[SHEEP_ELF_MAGIC_DAMAGE]?.value ?? 0) / 100;
+  }
   if (src.element === "FIRE") dmg *= dst.env.fireVuln;
   if (CLASS_COUNTER[src.role]?.includes(dst.role)) dmg *= 1 + COUNTER_BONUS;
-  const isCrit = type !== "true" && c.rng() < crit;
+  const isCrit = (options.canCrit ?? true) && type !== "true" && c.rng() < crit;
   if (isCrit) dmg *= critMult;
   else if (type === "physical") dmg = (dmg * 100) / (100 + combatStat(dst, "def"));
-  else if (type === "magic") dmg = (dmg * 100) / (100 + combatStat(dst, "mdef"));
-  dmg = Math.max(1, Math.round(dmg * c.globalMult));
+  else if (type === "magic") {
+    const pen = linkedShieldActive ? Math.min(1, Math.max(0, (src.status[SHEEP_ELF_MAGIC_PEN]?.value ?? 0) / 100)) : 0;
+    dmg = (dmg * 100) / (100 + combatStat(dst, "mdef") * (1 - pen));
+  }
+  // Authored on-hit logic (issue #31): low/high-HP bonuses and capped stack scaling.
+  dmg *= logicDamageMultiplier(src.logic, dst.maxHp > 0 ? dst.hp / dst.maxHp : 1);
+  dmg = Math.max(1, Math.round(dmg * c.globalMult * (src.hookOffense?.cycle === c.cycle ? src.hookOffense.multiplier : 1) * (options.falloff ?? 1)));
   const resolved = applyDamage(c, dst, dmg, src,
-    (absorbed) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg, absorbed, crit: isCrit }), true);
+    (absorbed, appliedDamage) => ({ t: skill ? "skill" : "basic", src: src.uid, dst: dst.uid, dmg: appliedDamage, absorbed, crit: isCrit,
+      ...(options.kind ? { kind: options.kind } : {}), ...(options.from ? { from: options.from } : {}) }), true);
+  if (options.vikingStun && !skill) applyVikingStun(c, src, dst, false);
+  const retaliationChance = dst.skill.viking?.retaliationChance ?? 0;
+  if (dst.alive && dst.hp > 0 && src.alive && src.hp > 0 && retaliationChance > 0
+    && c.rng() < retaliationChance) applyVikingStun(c, dst, src, true);
+  const activeMark = c.waspMarks[src.side];
+  if (activeMark?.target === dst.uid && (resolved.hp > 0 || resolved.absorbed > 0)) {
+    activeMark.contributors.set(src.uid, (activeMark.contributors.get(src.uid) ?? 0) + resolved.hp);
+  }
 
   if (resolved.hp > 0 && !skill) {
     addRage(src, Math.round(c.rageGain[src.side] * (1 + src.rageGainPct)));
@@ -761,12 +1233,19 @@ function strike(
     const reflected = applyReflect(c, dst, src, type, resolved.hp);
     if (reflected && src.hp > 0) applyReflectOffenseDebuff(dst, src, resolved.hp);
     if (src.hp > 0 && dst.hp > 0 && (options.allowCounter ?? true)) resolveCounter(c, dst, src);
+    // The oath restores HP only from actual HP damage during the next entire cycle.
+    if (src.hp > 0 && src.oath?.cycle === c.cycle) {
+      heal(c, src, src, resolved.hp * (src.oath.star === 1 ? 0.5 : src.oath.star === 2 ? 1 : 2));
+    }
     const lifesteal = src.lifesteal + (activeBerserk(src)?.lifestealPct ?? 0);
     if (src.hp > 0 && lifesteal > 0) heal(c, src, src, resolved.hp * lifesteal);
+    if (src.hp > 0 && src.logic.healOnDmgPct > 0) heal(c, src, src, resolved.hp * src.logic.healOnDmgPct);
+    if (src.hp > 0) applyEquipmentOnHit(c, src, skill);
   }
 
   resolveLethal(c, src, dst);
   const killed = resolveLethal(c, dst, src);
+  if (killed && src.alive && src.baseId === "wasp_assassin") applyWaspKillMark(c, src);
   if (!skill && killed && src.alive) resolveBerserkKill(c, src);
   return { hp: resolved.hp, absorbed: resolved.absorbed, killed, landed: true };
 }
@@ -843,6 +1322,8 @@ function clustered(pool: Fighter[], axis: "row" | "col", score: (xs: Fighter[]) 
 function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSelector, count: number, preferred?: Fighter): Fighter[] {
   if (!pool.length) return [];
   const stable = stableTargets(f, pool);
+  const focused = focusedTarget(c, f, pool);
+  if (focused) return [focused, ...stableTargets(f, pool).filter((target) => target !== focused)].slice(0, Math.max(1, count));
   const max = Math.max(1, count);
   const take = (xs: Fighter[]) => xs.slice(0, max);
   if (preferred?.alive && pool.includes(preferred) && (selector === "frontline_default" || selector === "primary_target")) {
@@ -850,6 +1331,33 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
   }
   const stableIndex = (x: Fighter) => stable.indexOf(x);
   switch (selector) {
+    case "frost_role_column": {
+      // Select the strongest role represented in each column first; only columns
+      // with equal role priority compete by total ATK (stable column fallback).
+      const columns = [...new Set(stable.map((target) => target.col))].map((col) => {
+        const members = stable.filter((target) => target.col === col);
+        return {
+          col,
+          priority: Math.min(...members.map((target) => AI_CLASS_PRIORITY[target.role])),
+          totalAtk: members.reduce((sum, target) => sum + combatStat(target, "atk"), 0),
+        };
+      });
+      columns.sort((a, b) => a.priority - b.priority || b.totalAtk - a.totalAtk || a.col - b.col);
+      return take(stable.filter((target) => target.col === columns[0]!.col)
+        .sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+          || dist(f, a) - dist(f, b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+          || a.uid.localeCompare(b.uid)));
+    }
+    case "role_priority":
+      return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+        || dist(f, a) - dist(f, b) || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+        || a.uid.localeCompare(b.uid)));
+    case "highest_current_hp_role":
+      return take([...stable].sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+        || b.hp - a.hp || stableIndex(a) - stableIndex(b)));
+    case "adjacent_allies":
+      return take(stable.filter((target) => target !== f
+        && Math.abs(target.row - f.row) <= 1 && Math.abs(target.col - f.col) <= 1));
     case "self": return [f];
     case "lowest_hp_pct":
     case "lowest_hp_pct_ally":
@@ -896,6 +1404,10 @@ function selectorTargets(c: Ctx, f: Fighter, pool: Fighter[], selector: SkillSel
     }
     case "random":
       return Array.from({ length: max }, () => pool[Math.floor(c.rng() * pool.length)]!);
+    case "grass_row":
+      return take([...pool].filter((x) => x.row === f.row)
+        .sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+          || dist(f, a) - dist(f, b) || a.uid.localeCompare(b.uid)));
     case "same_row":
     case "same_row_carry": {
       const row = stable.filter((x) => x.row === f.row);
@@ -938,9 +1450,59 @@ function skillTargets(c: Ctx, f: Fighter, sp: SkillSpec, preferred?: Fighter, su
   const p = ordered[0];
   if (!p) return supportSelfFallback ? [f] : [];
   if (sp.area === "row") return pool.filter((x) => x.row === p.row);
-  if (sp.area === "column") return pool.filter((x) => x.col === p.col);
+  if (sp.area === "column") {
+    const column = pool.filter((x) => x.col === p.col);
+    return sp.selector === "frost_role_column" ? [p, ...column.filter((x) => x !== p)] : column;
+  }
   if (sp.area === "square") return pool.filter((x) => Math.abs(x.row - p.row) <= 1 && Math.abs(x.col - p.col) <= 1);
   return ordered;
+}
+
+/** Role priority applies within each positional zone; 2★ uniformly samples the adjacent column. */
+function elephantTideTargets(c: Ctx, caster: Fighter): Fighter[] {
+  const ally = friends(c, caster).filter((f) => f !== caster);
+  const priority = (f: Fighter) => f.role === "SUPPORT" || f.role === "TANKER" ? 0 : 1;
+  const ordered = (xs: Fighter[]) => xs.sort((a, b) => priority(a) - priority(b)
+    || dist(caster, a) - dist(caster, b) || a.row - b.row || a.col - b.col || a.uid.localeCompare(b.uid));
+  const behind = ordered(ally.filter((f) => caster.side === "L" ? f.col < caster.col : f.col > caster.col));
+  if (caster.star === 1) return behind;
+  const selected = new Set(behind.map((f) => f.uid));
+  const neighbors = ally.filter((f) => Math.abs(f.col - caster.col) === 1 && !selected.has(f.uid));
+  const extra: Fighter[] = [];
+  for (const tier of [0, 1]) {
+    const candidates = ordered(neighbors.filter((f) => priority(f) === tier));
+    for (let i = 0; i < candidates.length && extra.length < 2; i++) {
+      const j = i + Math.floor(c.rng() * (candidates.length - i));
+      [candidates[i], candidates[j]] = [candidates[j]!, candidates[i]!];
+      extra.push(candidates[i]!);
+    }
+    if (extra.length === 2) break;
+  }
+  for (const f of extra) selected.add(f.uid);
+  if (caster.star === 2) return [...behind, ...extra];
+  const adjacent = ordered(ally.filter((f) => !selected.has(f.uid)
+    && Math.abs(f.row - caster.row) <= 1 && Math.abs(f.col - caster.col) <= 1));
+  return [...behind, ...extra, ...adjacent];
+}
+
+/** Non-damaging cast: shields live through this shared cycle, then expire before next-cycle DoTs. */
+function castElephantTide(c: Ctx, caster: Fighter, trigger?: AutoCastRole) {
+  const targets = elephantTideTargets(c, caster);
+  c.events.push({ t: "cast", src: caster.uid, targets: targets.map((f) => f.uid), ...(trigger ? { trigger } : {}) });
+  const formula = caster.skill.shield;
+  if (!formula) throw new Error("Elephant Tide requires an authored shield formula");
+  const amount = Math.max(1, Math.round(formula.base + statValue(caster, formula.stat) * formula.scale));
+  const key = `${TIDE_SHIELD_PREFIX}${caster.uid}`;
+  for (const ally of targets) {
+    const removed = cleanseTideDebuffs(ally);
+    const previous = ally.status[key]?.value ?? 0;
+    const delta = amount - previous;
+    ally.shield += delta;
+    ally.status[key] = { turns: 1, value: amount, expiresCycle: c.cycle + 1,
+      source: { skillId: ELEPHANT_TIDE_FAMILY, unitUid: caster.uid,
+        unitBaseId: caster.baseId, unitStar: caster.star, turns: 1, value: amount } };
+    c.events.push({ t: "tideGuard", src: caster.uid, dst: ally.uid, delta, removed, active: true });
+  }
 }
 
 function previewSeed(all: readonly Fighter[], sourceUid: string): number {
@@ -959,6 +1521,13 @@ function previewSeed(all: readonly Fighter[], sourceUid: string): number {
     hash = Math.imul(hash ^ Math.round(fighter.rage), 0x01000193);
   }
   return hash | 0;
+}
+
+/** Candidate splash victims are adjacent to the chosen role-priority target, not to the caster.
+ * Return all living eligible neighbors; casting samples exactly one via gameplay RNG. */
+function kirinAdjacentTargets(c: Ctx, f: Fighter, primary: Fighter): Fighter[] {
+  return stableTargets(f, foes(c, f).filter((target) => target !== primary
+    && Math.max(Math.abs(target.row - primary.row), Math.abs(target.col - primary.col)) === 1));
 }
 
 export interface CombatTargetPreviewOptions {
@@ -991,6 +1560,11 @@ export function combatTargetPreview(
     bountyKills: { L: 0, R: 0 },
     deferredAutoCasts: [],
     autoCastInFlight: new Set(),
+    cycle: 0,
+    spores: newSporeState(),
+    kissHits: new Map(),
+    spiderRowCounts: new Map(),
+    waspMarks: { L: null, R: null },
   };
   const basic = basicTarget(c, source);
   if (!basic) return { scanCells: [], directUids: [], splashUids: [], skillCasterUid: null, tags: [], actorRole: source.role };
@@ -1035,6 +1609,93 @@ export function combatTargetPreview(
     };
   }
 
+  if (source.skillFamily === SPORE_FAMILY) {
+    // Sương Độc lands on random cells anywhere on the enemy half, so the whole half is the area and
+    // every enemy there is a possible (secondary) target. No single primary target exists.
+    const cells = enemyHalfCells(source.side);
+    const exposed = stableTargets(source, foes(c, source));
+    const sporeTags: CombatPreviewTag[] = exposed.map((fighter) => ({ uid: fighter.uid, effect: "damage", kind: "skill", primary: false }));
+    return {
+      scanCells: cells.map(({ col, row }) => ({ col, row })),
+      directUids: [],
+      splashUids: exposed.map((fighter) => fighter.uid),
+      skillCasterUid: source.uid,
+      tags: options.kitPreview ? [...sporeTags, { uid: basic.uid, effect: "damage", kind: "basic", primary: true }] : sporeTags,
+      actorRole: source.role,
+      areaCells: cells.map(({ col, row }) => ({ col, row, effect: "damage" })),
+    };
+  }
+  if (source.skillFamily === ELEPHANT_TIDE_FAMILY) {
+    const targets = elephantTideTargets(c, source);
+    const tags: CombatPreviewTag[] = targets.map((fighter, i) =>
+      ({ uid: fighter.uid, effect: "shield", kind: "skill", primary: i === 0 }));
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return { scanCells, directUids: targets.slice(0, 1).map((f) => f.uid),
+      splashUids: targets.slice(1).map((f) => f.uid), skillCasterUid: source.uid,
+      tags, actorRole: source.role };
+  }
+
+if (source.skillFamily === SPIDER_SOUL_FAMILY) {
+    const row = foes(c, source).filter((target) => target.row === source.row)
+      .sort((a, b) => AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+        || dist(source, a) - dist(source, b) || a.uid.localeCompare(b.uid));
+    const first = row[0];
+    const tags: CombatPreviewTag[] = row.map((target, index) => ({
+      uid: target.uid, effect: "damage", kind: "skill", primary: index === 0,
+    }));
+    return {
+      scanCells, directUids: first ? [first.uid] : [],
+      splashUids: row.slice(1).map((target) => target.uid),
+      skillCasterUid: source.uid, actorRole: source.role,
+      tags: options.kitPreview ? [...tags, { uid: basic.uid, effect: "damage", kind: "basic", primary: false }] : tags,
+    };
+  }
+if (source.skillFamily === KIRIN_HORNS_FAMILY) {
+    const [primary] = skillTargets(c, source, source.skill);
+    const adjacent = primary ? kirinAdjacentTargets(c, source, primary) : [];
+    const effect = skillPreviewEffect(source.skill);
+    const tags: CombatPreviewTag[] = [
+      ...(primary ? [{ uid: primary.uid, effect, kind: "skill" as const, primary: true }] : []),
+      ...adjacent.map((target) => ({ uid: target.uid, effect, kind: "skill" as const, primary: false })),
+    ];
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells,
+      directUids: primary ? [primary.uid] : [],
+      splashUids: adjacent.map((target) => target.uid),
+      skillCasterUid: source.uid,
+      tags,
+      actorRole: source.role,
+    };
+  }
+
+  if (source.skillFamily === GOLD_THROW_FAMILY) {
+    const [primary] = skillTargets(c, source, source.skill);
+    const adjacent = primary && source.star >= 2 ? kirinAdjacentTargets(c, source, primary) : [];
+    const targets = primary ? [primary, ...adjacent] : [];
+    const tags: CombatPreviewTag[] = targets.map((target, index) => ({
+      uid: target.uid, effect: "damage", kind: "skill", primary: index === 0,
+    }));
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells, directUids: primary ? [primary.uid] : [],
+      splashUids: adjacent.map((target) => target.uid),
+      skillCasterUid: source.uid, tags, actorRole: source.role,
+    };
+  }
+  if (source.skillFamily === CANNON_COLUMN_BLAST_FAMILY) {
+    const [primary, ...splash] = cannonColumnTargets(c, source);
+    const tags: CombatPreviewTag[] = [
+      ...(primary ? [{ uid: primary.uid, effect: "damage" as const, kind: "skill" as const, primary: true }] : []),
+      ...splash.map((target) => ({ uid: target.uid, effect: "damage" as const, kind: "skill" as const, primary: false })),
+    ];
+    if (options.kitPreview) tags.push({ uid: basic.uid, effect: "damage", kind: "basic", primary: false });
+    return {
+      scanCells, directUids: primary ? [primary.uid] : [],
+      splashUids: splash.map((target) => target.uid),
+      skillCasterUid: source.uid, tags, actorRole: source.role,
+    };
+  }
   const skillTargetsResolved = skillTargets(c, source, source.skill, basic);
   const skillPrimary = skillTargetsResolved[0];
   const directUids = skillPrimary ? [skillPrimary.uid] : [];
@@ -1048,7 +1709,9 @@ export function combatTargetPreview(
     kind: "skill",
     primary: index === 0,
   }));
-  const tags = options.kitPreview && !skillTags.some((tag) => tag.uid === basic.uid)
+  // The kit preview projects the unit's whole kit, so a target can legitimately carry both the
+  // basic-attack marker and the skill marker; one badge stack per target renders both.
+  const tags = options.kitPreview
     ? [...skillTags, { uid: basic.uid, effect: "damage" as const, kind: "basic" as const, primary: false }]
     : skillTags;
   return {
@@ -1087,6 +1750,412 @@ interface CastSkillOptions {
   trigger?: AutoCastRole;
 }
 
+// ---------- Giơ Kiếm Lên Trời (blood_sword_oath) ----------
+
+/** Every debuff remains stored with its original duration during this action-only suppression. */
+function withOathDebuffsSuppressed(c: Ctx, f: Fighter, action: () => void) {
+  const candidates: Array<{ kind: "status"; key: string; status: TimedStatus }
+    | { kind: "mod"; mod: Mod }> = [];
+  for (const [key, status] of Object.entries(f.status)) {
+    if (status.turns > 0 && CLEANSEABLE_STATUSES.has(key)) candidates.push({ kind: "status", key, status });
+  }
+  for (const mod of f.mods) {
+    if (mod.turns > 0 && mod.value < 0) candidates.push({ kind: "mod", mod });
+  }
+  const suppressed = f.star === 1 && candidates.length
+    ? [candidates[Math.floor(c.rng() * candidates.length)]!]
+    : candidates;
+  const removedMods = new Set<Mod>();
+  const previousTaunt = f.tauntBy;
+  const labels: string[] = [];
+  for (const effect of suppressed) {
+    if (effect.kind === "status") {
+      delete f.status[effect.key];
+      if (effect.key === "taunt") f.tauntBy = null;
+      labels.push(effect.key);
+    } else {
+      removedMods.add(effect.mod);
+      labels.push(`${effect.mod.stat}Down`);
+    }
+  }
+  if (removedMods.size) f.mods = f.mods.filter((mod) => !removedMods.has(mod));
+  c.events.push({ t: "oath", dst: f.uid, suppressed: labels, active: true });
+  try {
+    action();
+  } finally {
+    for (const effect of suppressed) {
+      if (effect.kind !== "status") continue;
+      const now = f.status[effect.key];
+      if (!now) f.status[effect.key] = effect.status;
+      else {
+        now.turns = Math.max(now.turns, effect.status.turns);
+        now.value = Math.max(now.value, effect.status.value);
+      }
+    }
+    if (removedMods.size) f.mods.push(...removedMods);
+    if (suppressed.some((effect) => effect.kind === "status" && effect.key === "taunt")
+      && f.status.taunt?.turns && !f.tauntBy) f.tauntBy = previousTaunt;
+    c.events.push({ t: "oath", dst: f.uid, suppressed: labels, active: false });
+  }
+}
+
+/** Physical burst is unchanged; suppression surrounds impact and recovery starts next cycle. */
+function castBloodSwordOath(c: Ctx, f: Fighter, preferred: Fighter | undefined, trigger?: AutoCastRole) {
+  const target = preferred?.alive && preferred.side !== f.side ? preferred : basicTarget(c, f);
+  const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
+  if (trigger) castEvent.trigger = trigger;
+  c.events.push(castEvent);
+  withOathDebuffsSuppressed(c, f, () => {
+    const d = f.skill.damage;
+    if (!target || !d) return;
+    const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+      * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+    strike(c, f, target, raw, d.type, true);
+  });
+  if (f.alive) f.oath = { cycle: c.cycle + 1, star: f.star };
+}
+
+/** One kiss per selected foe; the second landed kiss on a given foe spawns unique batlings at that impact. */
+function castLoveKiss(c: Ctx, f: Fighter, preferred?: Fighter, trigger?: AutoCastRole) {
+  const sp = f.skill;
+  const targets = skillTargets(c, f, sp, preferred);
+  const event: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((t) => t.uid) };
+  if (trigger) event.trigger = trigger;
+  c.events.push(event);
+  if (!sp.damage) return;
+  const d = sp.damage;
+  const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  let counts = c.kissHits.get(f.uid);
+  if (!counts) { counts = new Map(); c.kissHits.set(f.uid, counts); }
+  let landed = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i]!;
+    if (!target.alive) continue;
+    const kissRaw = i === 0 ? raw : Math.round(raw * (i === 1 ? 1 / 2 : 2 / 3));
+    const hit = strike(c, f, target, kissRaw, d.type, true, { kind: "kiss" });
+    if (!hit.landed) continue;
+    landed++;
+    if (target.alive) applyStatus(c, target, "stun", 1, 0, {
+      skillId: LOVE_KISS_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+    });
+    const next = (counts.get(target.uid) ?? 0) + 1;
+    counts.set(target.uid, next);
+    if (next !== 2) continue;
+    // Uniform sampling without replacement; never kiss-count, stun, or recursively spawn from a batling.
+    const available = foes(c, f).filter((other) => other !== target);
+    const batRaw = Math.round(raw / 3);
+    for (let n = 0; n < 5 && available.length; n++) {
+      const index = Math.floor(c.rng() * available.length);
+      const batTarget = available.splice(index, 1)[0]!;
+      if (batTarget.alive) strike(c, f, batTarget, batRaw, d.type, true, { kind: "batling" });
+    }
+  }
+  if (f.role === "MAGE") addRage(f, landed);
+}
+
+function castGrassStorm(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const sp = f.skill;
+  const targets = skillTargets(c, f, sp);
+  const cast: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: targets.map((x) => x.uid) };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = sp.damage;
+  if (!damage) return;
+  const raw = (damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]);
+  for (let i = 0; i < targets.length; i++) {
+    const dst = targets[i]!;
+    if (!dst.alive || !f.alive) continue;
+    const multiplier = f.star === 3 ? Math.max(0.25, 1 - 0.15 * i)
+      : [1, 0.8, 0.6, 0.4][i] ?? 0.4;
+    const chance = sp.fourthTargetBonusChance;
+    const bonus = f.star === 2 && i === 3 && chance != null && chance > 0
+      && c.rng() < Math.min(1, Math.max(0, chance)) ? 0.2 : 0;
+    strike(c, f, dst, Math.round(raw * (multiplier + bonus)), "magic", true, { kind: "grass" });
+  }
+}
+
+function castSpiderSouls(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const rowAtCast = foes(c, f).filter((enemy) => enemy.row === f.row).length;
+  const count = f.star === 3 ? 2 * (c.spiderRowCounts.get(f.uid) ?? rowAtCast) : rowAtCast;
+  const cast: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [] };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = f.skill.damage;
+  if (!damage || count === 0) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const paralyze = f.skill.controls.find((effect) => effect.kind === "paralyze");
+  const paralyzed = new Set<Fighter>();
+  const source: SkillStatusOrigin = {
+    skillId: SPIDER_SOUL_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  let previous: Fighter | null = null;
+  let hitCount = 0;
+  for (let i = 0; i < count; i++) {
+    const enemies = foes(c, f);
+    // The volley count is fixed; surviving off-row targets keep snapshots from becoming fake shots.
+    const row = enemies.filter((enemy) => enemy.row === f.row);
+    const eligible = row.length ? row : enemies;
+    if (!eligible.length) break;
+    const priority = Math.min(...eligible.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+    const ranked = eligible.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+    const adjacent: Fighter[] = previous
+      ? ranked.filter((enemy) => Math.abs(enemy.row - previous!.row) <= 1 && Math.abs(enemy.col - previous!.col) <= 1)
+      : [];
+    const candidates: Fighter[] = adjacent.length ? adjacent : ranked;
+    const target: Fighter = i === 0 ? stableTargets(f, candidates)[0]! : candidates[Math.floor(c.rng() * candidates.length)]!;
+    previous = target;
+    cast.targets.push(target.uid);
+    const hit = strike(c, f, target, raw, "magic", true, { kind: "soul", canCrit: f.star >= 2 });
+    if (hit.landed) {
+      hitCount++;
+      if (target.alive && paralyze && c.rng() < paralyze.chance) paralyzed.add(target);
+    }
+  }
+  for (const target of paralyzed) if (target.alive) applyStatus(c, target, "paralyze", paralyze!.turns, 0, source);
+  if (f.role === "MAGE") addRage(f, hitCount);
+}
+
+function castKirinHorns(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const sp = f.skill;
+  const primary = skillTargets(c, f, sp)[0];
+  const neighbors = primary ? kirinAdjacentTargets(c, f, primary) : [];
+  const neighbor = neighbors.length ? neighbors[Math.floor(c.rng() * neighbors.length)]! : null;
+  const event: Extract<CombatEvent, { t: "cast" }> = {
+    t: "cast", src: f.uid, targets: primary ? [primary.uid, ...(neighbor ? [neighbor.uid] : [])] : [],
+  };
+  if (trigger) event.trigger = trigger;
+  c.events.push(event);
+  if (!primary || !sp.damage || !sp.hitCount) return;
+  const d = sp.damage;
+  const total = Math.round((d.base + statValue(f, d.stat) * d.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const base = Math.floor(total / sp.hitCount);
+  const remainder = total % sp.hitCount;
+  const chance = sp.controls.find((control) => control.kind === "paralyze")?.chance ?? 0;
+  const source: SkillStatusOrigin = {
+    skillId: KIRIN_HORNS_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  for (let i = 0; i < sp.hitCount && f.alive; i++) {
+    // If the intended opponent died on an earlier impact, keep attacking a living enemy.
+    const intended = i % 2 ? neighbor : primary;
+    const dst = intended?.alive ? intended : primary.alive ? primary
+      : neighbor?.alive ? neighbor : skillTargets(c, f, sp)[0];
+    if (!dst) break;
+    const hit = strike(c, f, dst, base + Number(i < remainder), d.type, true,
+      { kind: "horn", allowCounter: false });
+    if (hit.landed && dst.alive && chance > 0 && c.rng() < chance) {
+      applyStatus(c, dst, "paralyze", 1, 0, source);
+    }
+  }
+}
+
+/** One gold projectile lands once per victim; 3★ launches a second independent throw. */
+function castGoldThrow(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const damage = f.skill.damage;
+  if (!damage) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const statusSource: SkillStatusOrigin = {
+    skillId: GOLD_THROW_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  for (let throwIndex = 0; throwIndex < (f.star === 3 ? 2 : 1) && f.alive; throwIndex++) {
+    const primary = skillTargets(c, f, f.skill)[0];
+    if (!primary) break;
+    // Neighbors are selected from the occupied eight surrounding cells at each throw,
+    // never a square centered on the caster and never including the primary twice.
+    const adjacent = f.star >= 2 ? kirinAdjacentTargets(c, f, primary) : [];
+    const cast: Extract<CombatEvent, { t: "cast" }> = {
+      t: "cast", src: f.uid, targets: [primary.uid, ...adjacent.map((enemy) => enemy.uid)],
+    };
+    if (trigger && throwIndex === 0) cast.trigger = trigger;
+    c.events.push(cast);
+    const primaryHit = strike(c, f, primary, raw, damage.type, true,
+      { kind: "gold", allowCounter: false });
+    for (const enemy of adjacent) {
+      if (enemy.alive && f.alive) strike(c, f, enemy, raw, damage.type, true,
+        { kind: "gold", allowCounter: false });
+    }
+    // Stun is a one-action non-stacking control; the second throw refreshes it, not doubles it.
+    if (primaryHit.landed && primary.alive) applyStatus(c, primary, "stun", 1, 0, statusSource);
+  }
+}
+
+function castHardBeakDive(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const targets = foes(c, f).sort((a, b) =>
+    AI_CLASS_PRIORITY[a.role] - AI_CLASS_PRIORITY[b.role]
+    || dist(f, a) - dist(f, b)
+    || rowRank(f.row, a.row) - rowRank(f.row, b.row)
+    || a.uid.localeCompare(b.uid));
+  const target = targets[0];
+  const event: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
+  if (trigger) event.trigger = trigger;
+  c.events.push(event);
+  if (!target) return;
+  const damage = f.skill.damage!;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  strike(c, f, target, raw, damage.type, true, { allowCounter: false });
+  if (target.alive) {
+    const source: SkillStatusOrigin = {
+      skillId: HARD_BEAK_DIVE_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+    };
+    applyStatus(c, target, "stun", 1, 0, source);
+    applyStatus(c, target, "hardBeakVulnerability", f.star === 1 ? 1 : 999999,
+      f.star === 1 ? 1 / 3 : 2 / 3, source);
+  }
+  if (f.star === 3 && f.alive) {
+    // Reuse this skill's catalog damage formula and canonical star multiplier for absorption.
+    const amount = Math.max(1, Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+      * (STAR_SKILL[f.star] ?? 1)));
+    f.shield += amount;
+    c.events.push({ t: "shield", src: f.uid, dst: f.uid, amount });
+  }
+}
+
+/** Hook impacts once before moving a living target; enemy-half occupancy is never overwritten. */
+function castWindSickleHook(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const target = selectorTargets(c, f, foes(c, f), "highest_current_hp_role", 1)[0];
+  const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: target ? [target.uid] : [] };
+  if (trigger) castEvent.trigger = trigger;
+  c.events.push(castEvent);
+  if (target && f.skill.damage) {
+    const d = f.skill.damage;
+    const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+      * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+    strike(c, f, target, raw, d.type, true);
+    if (target.alive) {
+      const first = f.side === "L" ? COLS / 2 : COLS / 2 - 1;
+      const step = f.side === "L" ? 1 : -1;
+      for (let col = first; col >= 0 && col < COLS; col += step) {
+        if (c.all.some((other) => other !== target && other.alive && other.side === target.side && other.row === f.row && other.col === col)) continue;
+        target.row = f.row;
+        target.col = col;
+        c.events.push({ t: "hookPull", src: f.uid, dst: target.uid, row: f.row, col });
+        break;
+      }
+    }
+  }
+  if (f.star >= 2) {
+    const multiplier = f.star === 2 ? 2 / 3 : 1 / 2;
+    for (const enemy of foes(c, f)) {
+      if (enemy.row !== f.row) continue;
+      const previous = enemy.hookOffense?.cycle === c.cycle ? enemy.hookOffense.multiplier : 1;
+      enemy.hookOffense = { cycle: c.cycle, multiplier: Math.min(previous, multiplier) };
+    }
+  }
+  if (f.star === 3) f.hookGuardCycle = c.cycle;
+}
+
+/** Orthogonal links never wrap rows or cross halves; only living victims can continue a chain. */
+function sandNeighbors(c: Ctx, origin: Fighter, side: Side): Fighter[] {
+  return c.all.filter((other) => other.alive && other.side === side && other !== origin
+    && Math.abs(other.row - origin.row) + Math.abs(other.col - origin.col) === 1);
+}
+
+function castTimeSand(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const foesNow = foes(c, f);
+  const priority = Math.min(...foesNow.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+  const preferred = foesNow.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === priority);
+  const primary = preferred.length ? preferred[Math.floor(c.rng() * preferred.length)]! : null;
+  const cast: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [] };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  if (!primary || !f.skill.damage) return;
+
+  const d = f.skill.damage;
+  const raw = Math.round((d.base + statValue(f, d.stat) * d.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const hits = new Map<Fighter, number>();
+  const hit = (target: Fighter, from: Fighter) => {
+    if (!f.alive || !target.alive) return;
+    const outcome = strike(c, f, target, raw, d.type, true, { kind: "sand", from: from.uid, allowCounter: false });
+    if (outcome.landed) {
+      hits.set(target, (hits.get(target) ?? 0) + 1);
+      cast.targets.push(target.uid);
+    }
+  };
+  hit(primary, f);
+  if (f.star >= 2) {
+    // Splash is simultaneous by contract: snapshot the four adjacent cells before any deaths.
+    const splash = sandNeighbors(c, primary, primary.side);
+    for (const target of splash) hit(target, primary);
+    // The chain continues from the final living splash impact, not from the
+    // original target; each subsequent hop is orthogonally adjacent.
+    let previous = primary;
+    for (let i = splash.length - 1; i >= 0; i--) {
+      if (splash[i]!.alive) { previous = splash[i]!; break; }
+    }
+    for (let step = 0; step < 5 && f.alive; step++) {
+      const neighbors = sandNeighbors(c, previous, primary.side);
+      if (!neighbors.length) break;
+      const best = Math.min(...neighbors.map((enemy) => AI_CLASS_PRIORITY[enemy.role]));
+      const eligible = neighbors.filter((enemy) => AI_CLASS_PRIORITY[enemy.role] === best);
+      const next = eligible[Math.floor(c.rng() * eligible.length)]!;
+      hit(next, previous);
+      previous = next;
+    }
+  }
+
+  const source: SkillStatusOrigin = {
+    skillId: TIME_SAND_FAMILY, unitUid: f.uid, unitBaseId: f.baseId, unitStar: f.star,
+  };
+  if (f.star === 3) {
+    for (const [target, count] of hits) {
+      if (count >= 2 && target.alive) applyStatus(c, target, "petrify", 1, 0, source);
+    }
+  }
+  if (primary.alive) applyStatus(c, primary, "knockup", 1, 0, source);
+  if (f.alive && f.role === "MAGE") addRage(f, hits.size);
+  if (!f.alive) return;
+  const halfStart = f.side === "L" ? 0 : COLS / 2;
+  const free: SporeCell[] = [];
+  for (let col = halfStart; col < halfStart + COLS / 2; col++) {
+    for (let row = 0; row < ROWS; row++) {
+      if (col === f.col && row === f.row) continue;
+      if (!c.all.some((other) => other !== f && other.alive && other.side === f.side && other.col === col && other.row === row)) {
+        free.push({ col, row });
+      }
+    }
+  }
+  if (!free.length) return;
+  const destination = free[Math.floor(c.rng() * free.length)]!;
+  f.col = destination.col;
+  f.row = destination.row;
+  c.events.push({ t: "teleport", src: f.uid, ...destination });
+}
+
+/** A primary shell hit plus living neighbors exactly one row above and below its column. */
+function cannonColumnTargets(c: Ctx, f: Fighter): Fighter[] {
+  const pool = foes(c, f);
+  const primary = selectorTargets(c, f, pool, "role_priority", 1)[0];
+  return primary ? [primary, ...pool.filter((enemy) =>
+    enemy.col === primary.col && Math.abs(enemy.row - primary.row) === 1)
+    .sort((a, b) => a.row - b.row)] : [];
+}
+
+function castCannonColumnBlast(c: Ctx, f: Fighter, trigger?: AutoCastRole) {
+  const targets = cannonColumnTargets(c, f);
+  const primary = targets[0];
+  const cast: Extract<CombatEvent, { t: "cast" }> = {
+    t: "cast", src: f.uid, targets: targets.map((target) => target.uid),
+  };
+  if (trigger) cast.trigger = trigger;
+  c.events.push(cast);
+  const damage = f.skill.damage;
+  if (!damage || !primary) return;
+  const raw = Math.round((damage.base + statValue(f, damage.stat) * damage.scale)
+    * (STAR_SKILL[f.star] ?? 1) * goldMultiplier(c.gold[f.side]));
+  const splash = f.star === 1 ? 1 / 3 : f.star === 2 ? 2 / 3 : 1;
+  for (const target of targets) {
+    if (!target.alive || !f.alive) continue;
+    strike(c, f, target, raw, damage.type, true,
+      { allowCounter: false, kind: "cannon", falloff: target === primary ? 1 : splash });
+  }
+}
+
 function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOptions = {}) {
   const sp = f.skill;
   const family = f.skillFamily;
@@ -1100,6 +2169,61 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
   f.casting = true;
   if (options.consumeRage ?? true) f.rage = 0;
   try {
+    if (family === TIME_SAND_FAMILY) {
+      castTimeSand(c, f, options.trigger);
+      return;
+    }
+    if (family === VIKING_BULL_FAMILY) {
+      const castEvent: Extract<CombatEvent, { t: "cast" }> = { t: "cast", src: f.uid, targets: [f.uid] };
+      if (options.trigger) castEvent.trigger = options.trigger;
+      c.events.push(castEvent);
+      f.vikingNextBasicCycle = c.cycle + 1;
+      return;
+    }
+    if (family === CANNON_COLUMN_BLAST_FAMILY) {
+      castCannonColumnBlast(c, f, options.trigger);
+      return;
+    }
+    if (family === "wind_sickle_hook") {
+      castWindSickleHook(c, f, options.trigger);
+      return;
+    }
+    if (family === ELEPHANT_TIDE_FAMILY) {
+      castElephantTide(c, f, options.trigger);
+      return;
+    }
+    if (family === BLOOD_SWORD_OATH_FAMILY) {
+      castBloodSwordOath(c, f, preferred, options.trigger);
+      return;
+    }
+    if (family === SPORE_FAMILY) {
+      castSporePools(c, f, options.trigger);
+      return;
+    }
+    if (family === LOVE_KISS_FAMILY) {
+      castLoveKiss(c, f, preferred, options.trigger);
+      return;
+    }
+    if (family === GRASS_STORM_FAMILY) {
+      castGrassStorm(c, f, options.trigger);
+      return;
+    }
+    if (family === SPIDER_SOUL_FAMILY) {
+      castSpiderSouls(c, f, options.trigger);
+      return;
+    }
+    if (family === HARD_BEAK_DIVE_FAMILY) {
+      castHardBeakDive(c, f, options.trigger);
+      return;
+    }
+    if (family === KIRIN_HORNS_FAMILY) {
+      castKirinHorns(c, f, options.trigger);
+      return;
+    }
+    if (family === GOLD_THROW_FAMILY) {
+      castGoldThrow(c, f, options.trigger);
+      return;
+    }
     const supportSelfFallback = options.trigger === "SUPPORT" && sp.side === "enemy";
     const targets = skillTargets(c, f, sp, preferred, supportSelfFallback);
     const fallbackSelfTarget = supportSelfFallback && targets.length === 1 && targets[0] === f;
@@ -1126,6 +2250,11 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
     const starSkill = STAR_SKILL[f.star] ?? 1;
     const starChance = STAR_EFFECT_CHANCE[f.star] ?? 1;
     const enemyHit = new Set<string>();
+    // Consume exactly one seeded freeze roll for every unique cast victim, even if
+    // the corresponding impact is lethal. Crit rolls are separate strike RNG.
+    const frostRolls = family === FROST_STORM_FAMILY
+      ? new Map<string, number>([...new Set(targets.map((target) => target.uid))].map((uid): [string, number] => [uid, c.rng()]))
+      : null;
     const enemies = sp.side === "enemy" && !fallbackSelfTarget ? targets : [];
     const allies = sp.side === "enemy" ? [f] : targets;
     if (sp.damage) {
@@ -1144,6 +2273,11 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (!t.alive) continue;
       for (const d of sp.dots) applyStatus(c, t, d.kind, d.turns, Math.round(d.value * dotMult), statusSource);
       for (const k of sp.controls) {
+        if (family === FROST_STORM_FAMILY && k.kind === "freeze") {
+          if ((frostRolls?.get(t.uid) ?? 1) >= k.chance) continue;
+          applyStatus(c, t, "freeze", 1, 0, statusSource, f.star === 3);
+          continue;
+        }
         if (k.kind === "stun" && c.rng() >= Math.min(1, k.chance * starChance)) continue;
         applyStatus(c, t, k.kind, k.turns, 0, statusSource);
         if (k.kind === "taunt") t.tauntBy = f.uid;
@@ -1155,7 +2289,7 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (dead) {
         dead.alive = true;
         dead.hp = Math.max(1, Math.round(dead.maxHp * sp.revivePct));
-        dead.status = {}; dead.mods = []; dead.rage = 0;
+        dead.status = {}; dead.mods = []; dead.rage = 0; dead.oath = null;
         c.events.push({ t: "revive", src: f.uid, dst: dead.uid, hp: dead.hp });
       }
     }
@@ -1174,8 +2308,11 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       if (!a.alive) continue;
       if (sp.shield) {
         const amount = Math.max(1, Math.round((sp.shield.base + statValue(f, sp.shield.stat) * sp.shield.scale) * starSkill));
-        a.shield += amount;
-        c.events.push({ t: "shield", src: f.uid, dst: a.uid, amount });
+        if (sp.linkedShield) applySheepElfLink(c, f, a, amount, statusSource);
+        else {
+          a.shield += amount;
+          c.events.push({ t: "shield", src: f.uid, dst: a.uid, amount });
+        }
       }
       if (!teamDefBuff) for (const m of sp.buffs) {
         const stackKey = a === f && m.stat === "atk" && sp.reaction.berserk ? f.berserk?.atkBuffStackKey : undefined;
@@ -1189,6 +2326,10 @@ function castSkill(c: Ctx, f: Fighter, preferred?: Fighter, options: CastSkillOp
       }
     }
     if (sp.selfHealPctMaxHp) heal(c, f, f, f.maxHp * sp.selfHealPctMaxHp);
+    if (sp.damageReductionPct > 0 && sp.damageReductionTurns > 0) {
+      applyStatus(c, f, "damageReduction", sp.damageReductionTurns, sp.damageReductionPct, statusSource);
+    }
+    if (sp.cleanseCount > 0) cleanseRandomDebuffs(c, f, sp.cleanseCount);
     if (f.role === "MAGE") addRage(f, enemyHit.size);
   } finally {
     f.casting = false;
@@ -1204,6 +2345,27 @@ interface TurnGate {
 /** All ongoing damage resolves once at the beginning of a cycle, before either side acts.
  * New statuses applied during that cycle cannot tick until the next boundary. */
 function startCycle(c: Ctx) {
+  // One-cycle guard expires before any next-round DoT consumes a stale shield.
+  for (const f of c.all) for (const [kind, status] of Object.entries(f.status)) {
+    if (!kind.startsWith(TIDE_SHIELD_PREFIX) || (status.expiresCycle ?? Infinity) > c.cycle) continue;
+    const remaining = Math.max(0, status.value);
+    f.shield = Math.max(0, f.shield - remaining);
+    delete f.status[kind];
+    c.events.push({ t: "tideGuard", src: kind.slice(TIDE_SHIELD_PREFIX.length), dst: f.uid,
+      delta: -remaining, removed: [], active: false });
+  }
+  c.spiderRowCounts.clear();
+  for (const f of c.all) {
+    if (f.alive && f.skillFamily === SPIDER_SOUL_FAMILY && f.star === 3) {
+      c.spiderRowCounts.set(f.uid, c.all.filter((enemy) => enemy.alive && enemy.side !== f.side && enemy.row === f.row).length);
+    }
+  }
+  // The 3★ immediate heal happens before DoTs at the start of the following cycle.
+  for (const f of c.all) {
+    if (f.alive && f.oath?.cycle === c.cycle && f.oath.star === 3) {
+      heal(c, f, f, combatStat(f, "atk"));
+    }
+  }
   // Snapshot active effects before any disease spread applies new ones to other fighters.
   const activeDots = c.all.map((f) => DOTS.map((kind) => f.status[kind] ?? null));
   for (let i = 0; i < c.all.length; i++) {
@@ -1217,7 +2379,7 @@ function startCycle(c: Ctx) {
         ? f.env.fireVuln * ((f.status.fireVulnerability?.turns ?? 0) > 0 ? Math.max(1, f.status.fireVulnerability!.value) : 1)
         : 1;
       const dmg = Math.max(1, Math.round(s.value * fireVulnerability * c.globalMult));
-      applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: k, dmg }));
+      applyDamage(c, f, dmg, null, (_absorbed, appliedDamage) => ({ t: "dot", dst: f.uid, kind: k, dmg: appliedDamage }));
       if (k === "disease" && dmg > 0) {
         for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
           const neighbor = c.all.find((x) => x.alive && x.side === f.side && x.row === f.row + dr && x.col === f.col + dc);
@@ -1229,8 +2391,10 @@ function startCycle(c: Ctx) {
     }
     if (!f.alive || f.env.poisonAura <= 0) continue;
     const dmg = f.env.poisonAura;
-    applyDamage(c, f, dmg, null, () => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg }));
+    applyDamage(c, f, dmg, null, (_absorbed, appliedDamage) => ({ t: "dot", dst: f.uid, kind: "poisonAura", dmg: appliedDamage }));
   }
+  // Spore pools score after DoTs, so an enemy killed by a DoT this boundary gives no point.
+  tickSporePools(c);
 }
 
 /** A79: capture control state first, then resolve timed triggers and one canonical duration tick. */
@@ -1254,11 +2418,27 @@ function startTurn(c: Ctx, f: Fighter): TurnGate {
   if (f.berserk && --f.berserk.turns <= 0) f.berserk = null;
   for (const [k, s] of Object.entries(f.status)) {
     if (DOTS.includes(k as (typeof DOTS)[number])) continue;
-    if (k === "hot") continue;
-    if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip) continue;
+    if (k === "hardBeakVulnerability") continue;
+    if (k === "waspMark") continue;
+    if (k.startsWith(TIDE_SHIELD_PREFIX)) continue;
+    if (k === "hot" || s.permanent) continue;
+    if (s.expiresAfterCycle !== undefined) continue;
+    // Sand knock-up and petrify consume a single victim action when combined.
+    if (CONTROL_PRIORITY.includes(k as (typeof CONTROL_PRIORITY)[number]) && k !== skip
+      && !((skip === "knockup" || skip === "petrify") && (k === "knockup" || k === "petrify"))) continue;
+    // Expire only the Sheep Elf slice and its linked bonuses.
+    if (!f.status[k]) continue;
+    if (k === SHEEP_ELF_SHIELD && s.turns <= 1) {
+      clearSheepElfLink(c, f, true);
+      continue;
+    }
     if (--s.turns <= 0) {
       delete f.status[k];
       if (k === "taunt") f.tauntBy = null;
+      if (k === "paralyze" || k === "knockup" || k === "petrify"
+        || (k === "stun" && s.source?.skillId === VIKING_BULL_FAMILY)) {
+        c.events.push({ t: "status", dst: f.uid, kind: k, turns: 0 });
+      }
     }
   }
   if (skip) c.events.push({ t: "skip", src: f.uid, reason: skip });
@@ -1269,35 +2449,52 @@ function act(c: Ctx, f: Fighter) {
   if (!f.alive) return;
   const gate = startTurn(c, f);
   if (!gate.canAct) return;
-  const target = basicTarget(c, f);
-  if (!target) {
+  const charged = f.vikingNextBasicCycle === c.cycle;
+  const ordinaryTarget = basicTarget(c, f);
+  if (!ordinaryTarget) {
     c.events.push({ t: "skip", src: f.uid, reason: "no-target" });
     return;
   }
-  if (f.rage >= f.rageMax && !gate.silenced && f.skillFamily) {
-    castSkill(c, f, target);
+  if (!charged && f.rage >= f.rageMax && !gate.silenced && f.skillFamily) {
+    castSkill(c, f, ordinaryTarget);
     return;
   }
   if (gate.disarmed) {
     c.events.push({ t: "skip", src: f.uid, reason: "disarm" });
     return;
   }
-  basicAttack(c, f, target);
+  const target = charged && !f.status.taunt?.turns
+    ? selectorTargets(c, f, foes(c, f), "role_priority", 1)[0] ?? ordinaryTarget : ordinaryTarget;
+  if (charged) f.vikingNextBasicCycle = undefined;
+  basicAttack(c, f, target, { vikingStun: charged });
+  // Oath recovery is cycle-scoped, independent of the number of actions or hits.
   // SUPPORT auto-cast is scheduled from positive basic-hit aftermath inside strike() (A74/A120).
+}
+
+/** Reject malformed placements and ambiguous event identities once per public combat call. */
+function validateCombatRoster(all: readonly Fighter[]): void {
+  const seen = new Set<string>();
+  for (const fighter of all) {
+    const validSide = fighter.side === "L" || fighter.side === "R";
+    const minCol = fighter.side === "L" ? 0 : COLS / 2;
+    const maxCol = fighter.side === "L" ? COLS / 2 : COLS;
+    if (!validSide || !Number.isInteger(fighter.row) || fighter.row < 0 || fighter.row >= ROWS
+      || !Number.isInteger(fighter.col) || fighter.col < minCol || fighter.col >= maxCol) {
+      throw new RangeError(`Invalid combat position: ${fighter.uid} (${fighter.side}, ${fighter.col}, ${fighter.row})`);
+    }
+    if (seen.has(fighter.uid)) throw new Error(`Duplicate combat UID: ${fighter.uid}`);
+    seen.add(fighter.uid);
+  }
 }
 
 /** A11 queue: per side scan order, then interleave L0,R0,L1,R1… (empty cells only affect presentation timing). */
 export function turnOrder(all: Fighter[]): Fighter[] {
-  const scan = (side: Side) => all.filter((f) => f.side === side && f.alive)
-    .sort((a, b) => (side === "L" ? b.col - a.col : a.col - b.col) || a.row - b.row);
-  const l = scan("L");
-  const r = scan("R");
-  const out: Fighter[] = [];
-  for (let i = 0; i < Math.max(l.length, r.length); i++) {
-    if (l[i]) out.push(l[i]!);
-    if (r[i]) out.push(r[i]!);
+  validateCombatRoster(all);
+  const order: Fighter[] = [];
+  for (const entry of turnTimeline(all)) {
+    if (entry.kind === "unit") order.push(entry.fighter);
   }
-  return out;
+  return order;
 }
 
 type TurnTimelineEntry =
@@ -1305,6 +2502,18 @@ type TurnTimelineEntry =
   | { kind: "unit"; fighter: Fighter };
 
 function turnChunks(all: Fighter[], side: Side): TurnTimelineEntry[][] {
+  const occupants = new Map<number, Fighter[]>();
+  for (const fighter of all) {
+    if (!fighter.alive || fighter.side !== side) continue;
+    const key = fighter.col * ROWS + fighter.row;
+    const cell = occupants.get(key);
+    if (cell) cell.push(fighter);
+    else occupants.set(key, [fighter]);
+  }
+  for (const cell of occupants.values()) {
+    cell.sort((a, b) => a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0);
+  }
+
   const chunks: TurnTimelineEntry[][] = [];
   let chunk: TurnTimelineEntry[] = [];
   const firstCol = side === "L" ? 4 : 5;
@@ -1312,14 +2521,16 @@ function turnChunks(all: Fighter[], side: Side): TurnTimelineEntry[][] {
   const step = side === "L" ? -1 : 1;
   for (let col = firstCol; col !== endCol; col += step) {
     for (let row = 0; row < ROWS; row++) {
-      const fighter = all.find((candidate) => candidate.side === side && candidate.col === col && candidate.row === row && candidate.alive);
-      if (!fighter) {
+      const cell = occupants.get(col * ROWS + row);
+      if (!cell) {
         chunk.push({ kind: "empty", side, row, col });
         continue;
       }
-      chunk.push({ kind: "unit", fighter });
-      chunks.push(chunk);
-      chunk = [];
+      for (const fighter of cell) {
+        chunk.push({ kind: "unit", fighter });
+        chunks.push(chunk);
+        chunk = [];
+      }
     }
   }
   if (chunk.length) chunks.push(chunk);
@@ -1352,6 +2563,7 @@ function mulberry(seed: number) {
  * Deterministic for identical freshly-materialized input + seed.
  */
 export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
+  validateCombatRoster(all);
   const inspectionFrames: CombatInspectionFrame[] | undefined = o.captureInspection
     ? [{ eventIndex: 0, cycle: 1, units: all.map(snapshotFighter) }] : undefined;
   const total = {
@@ -1368,6 +2580,11 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     bountyKills: { L: 0, R: 0 },
     deferredAutoCasts: [],
     autoCastInFlight: new Set<Fighter>(),
+    cycle: 0,
+    spores: newSporeState(),
+    kissHits: new Map(),
+    spiderRowCounts: new Map(),
+    waspMarks: { L: null, R: null },
   };
   const count = (side: Side) => all.filter((f) => f.side === side && f.alive).length;
   let actions = 0;
@@ -1377,6 +2594,7 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
     const blessing = o.orderedBlessings?.[consumedBlessings.length];
     if (blessing) consumedBlessings.push(blessing);
     c.events.push({ t: "cycle", cycle: cycle + 1 });
+    c.cycle = cycle + 1;
     // DOTs resolve at one shared boundary before either side acts.
     startCycle(c);
     inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
@@ -1396,6 +2614,33 @@ export function simulate(all: Fighter[], o: CombatOptions): CombatResult {
       // A17 anti-stall: after action 100, every 5th action +0.2 global damage.
       if (actions > 100 && actions % 5 === 0) c.globalMult += 0.2;
     }
+    // Cycle end: Sương Độc detonations resolve once both sides have acted.
+    if (burstSporePools(c)) {
+      flushDeferredAutoCasts(c);
+      inspectionFrames?.push({ eventIndex: c.events.length, cycle: cycle + 1, units: all.map(snapshotFighter) });
+    }
+    // Oath expires at this exact round boundary; 3★ cleanses one uniformly chosen debuff.
+    for (const f of all) {
+      if (f.oath?.cycle !== c.cycle) continue;
+      if (f.alive && f.oath.star === 3) cleanseRandomDebuffs(c, f, 1);
+      f.oath = null;
+    }
+    // 1★ vulnerability lasts through the current shared round, not the target's action.
+    for (const f of all) {
+      if ((f.status.hardBeakVulnerability?.value ?? 0) <= 1 / 3) delete f.status.hardBeakVulnerability;
+    }
+    // Cycle-scoped retaliation does not tick on individual actions; expire only
+    // after every actor has had its turn in the following shared cycle.
+    for (const f of all) {
+      if (f.vikingNextBasicCycle !== undefined && f.vikingNextBasicCycle <= c.cycle) {
+        f.vikingNextBasicCycle = undefined;
+      }
+      if (f.status.stun?.expiresAfterCycle === c.cycle) {
+        delete f.status.stun;
+        c.events.push({ t: "status", dst: f.uid, kind: "stun", turns: 0 });
+      }
+    }
+    expireWaspMarks(c);
   }
   const alive = { L: count("L"), R: count("R") };
   return {

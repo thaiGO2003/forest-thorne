@@ -107,6 +107,58 @@ describe("music director A45", () => {
     director.dispose();
   });
 
+  it("starts a longPlay mix in the first slot instead of demoting it behind short cues", () => {
+    const settings = createSettingsStore(memoryStorage());
+    const audio = audioFactory();
+    const longFirst: MusicPlaylists = {
+      ...playlists,
+      ambient: { id: "ambient", shuffle: false, tracks: [
+        { key: "mix-long", src: "/mix-long.mp3", longPlay: true },
+        { key: "cue-short", src: "/cue-short.mp3" },
+      ] },
+    };
+    const director = createMusicDirector({ settings, playlists: longFirst, createAudioElement: audio.factory });
+    director.play("ambient");
+    expect(audio.created[0]?.src).toBe("/mix-long.mp3");
+    director.dispose();
+  });
+
+  it("keeps a longPlay track in place when it is not the head and still avoids a repeat", () => {
+    const settings = createSettingsStore(memoryStorage());
+    const audio = audioFactory();
+    const mixed: MusicPlaylists = {
+      ...playlists,
+      ambient: { id: "ambient", shuffle: false, tracks: [
+        { key: "cue-a", src: "/cue-a.mp3" },
+        { key: "mix-long", src: "/mix-long.mp3", longPlay: true },
+      ] },
+    };
+    const director = createMusicDirector({ settings, playlists: mixed, createAudioElement: audio.factory });
+    director.play("ambient");
+    expect(audio.created[0]?.src).toBe("/cue-a.mp3");
+    audio.created[0]?.onended?.();
+    expect(audio.created[1]?.src).toBe("/mix-long.mp3");
+    director.dispose();
+  });
+
+  it("rotates away from the finished track instead of demoting the long mix", () => {
+    const settings = createSettingsStore(memoryStorage());
+    const audio = audioFactory();
+    const longFirst: MusicPlaylists = {
+      ...playlists,
+      ambient: { id: "ambient", shuffle: false, tracks: [
+        { key: "mix-long", src: "/mix-long.mp3", longPlay: true },
+        { key: "cue-short", src: "/cue-short.mp3" },
+      ] },
+    };
+    const director = createMusicDirector({ settings, playlists: longFirst, createAudioElement: audio.factory });
+    director.play("ambient");
+    expect(audio.created[0]?.src).toBe("/mix-long.mp3");
+    audio.created[0]?.onended?.();
+    expect(audio.created[1]?.src).toBe("/cue-short.mp3");
+    director.dispose();
+  });
+
   it("crossfades for 900 ms and releases the outgoing element", () => {
     const settings = createSettingsStore(memoryStorage());
     settings.save({ volumeLevel: 10, musicVolume: 5 });

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { Role } from "../content/catalog";
 
 // A61. Emoji/icon authority and fallback behavior
 // Semantic icon names map to canonical Unicode characters and optional emoji-api slugs.
@@ -30,6 +31,9 @@ export const SEMANTIC_EMOJIS: Record<string, { char: string; slug?: string }> = 
   sparkle: { char: "❇️", slug: "sparkle" },
   zap: { char: "⚡", slug: "high-voltage" },
   bow: { char: "🏹", slug: "bow-and-arrow" },
+  fist: { char: "👊", slug: "oncoming-fist" },
+  dagger: { char: "🗡️", slug: "dagger-knife" },
+  axe: { char: "🪓", slug: "axe" },
   potion: { char: "🧪", slug: "test-tube" },
   hammer: { char: "🔨", slug: "hammer" },
   map: { char: "🗺️", slug: "world-map" },
@@ -175,8 +179,16 @@ export function splitEmojiText(text: string): EmojiTextPart[] {
 
 export function getEmojiImageUrl(nameOrInput: string): string {
   const char = resolveEmojiChar(nameOrInput);
-  return `${EMOJI_IMAGE_SOURCE.baseUrl}/${toCodepointKey(char).replaceAll("_", "-")}.png`;
+  const key = toCodepointKey(char).replaceAll("_", "-");
+  // Twemoji drops FE0F for nearly every sequence; the heart-on-fire ZWJ is the authored exception.
+  const preserved = EMOJI_FE0F_OVERRIDES[key] ?? key;
+  return `${EMOJI_IMAGE_SOURCE.baseUrl}/${preserved}.png`;
 }
+
+/** Twemoji filenames that keep FE0F inside a ZWJ sequence (stripped form 404s). */
+const EMOJI_FE0F_OVERRIDES: Readonly<Record<string, string>> = {
+  "2764-200d-1f525": "2764-fe0f-200d-1f525",
+};
 
 const FALLBACK_IMAGE_URL = `${EMOJI_IMAGE_SOURCE.baseUrl}/${toCodepointKey(SEMANTIC_EMOJIS.question.char).replaceAll("_", "-")}.png`;
 
@@ -330,15 +342,34 @@ export const ICONS = {
   shop: "🛒", event: "✨", vet: "🩺", explore: "🧭",
   synergy: "🔗", augment: "💎", language: "🌐", achievements: "🏆", mods: "🧩", tribute: "🎖️",
   social: "💬", donate: "💝", cortisol: "🧘",
-  rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨",
+  rage: "⚡", hp: "❤️", atk: "🗡️", def: "🛡️", matk: "🔮", mdef: "🧿", range: "🎯", crit: "💥", evade: "💨", accuracy: "🎯", critDmg: "💢", variant: "🧬",
+  materialBark: "🪵", materialFeather: "🪶", materialBelt: "🧥", materialClaw: "🦷", materialTear: "💧", materialCrystal: "🔮",
   // Roles
   TANKER: "🛡️", ASSASSIN: "🗡️", ARCHER: "🏹", MAGE: "🔮", SUPPORT: "💚", FIGHTER: "⚔️",
+  // Action markers: the fist always means "basic attack"; skills use authored role weapons.
+  fist: SEMANTIC_EMOJIS.fist.char, dagger: SEMANTIC_EMOJIS.dagger.char, axe: SEMANTIC_EMOJIS.axe.char,
   // Factions
   BEAST: SEMANTIC_EMOJIS.paw.char, AVIAN: "🪶", INSECT: "🐞", REPTILE: "🦎", AQUATIC: "🐟", MYTHICAL: "🐉",
   // Elements
   STONE: "🪨", WIND: "🌪️", FIRE: SEMANTIC_EMOJIS.fire.char, TIDE: "🌊", NIGHT: "🌙", SPIRIT: "👻", SWARM: "🐝", WOOD: "🌿",
   // Statuses
   burn: "🔥", poison: "☠️", bleed: "🩸", freeze: "❄️", stun: "💫", sleep: "💤", silence: "🤐",
-  shield: "🛡️", taunt: "📣", healBlock: "🚫", atkUp: "💪", atkDown: "🥀", defUp: "🧱", defDown: "🪓",
+  shield: "🛡️", damageReduction: "🛡️", taunt: "📣", healBlock: "🚫", atkUp: "💪", atkDown: "🥀", defUp: "🧱", defDown: "🪓",
   regen: "🌱", reflect: "🪞", immune: "✳️", disease: "🦠", slow: "🐌", haste: "⚡",
 } as const;
+
+/**
+ * Authored skill markers. The dagger belongs to ASSASSIN and the axe to FIGHTER so the two melee
+ * roles never share one glyph; every other role keeps its own weapon/identity marker.
+ */
+export const SKILL_ICONS: Record<Role, string> = {
+  TANKER: ICONS.TANKER,
+  ASSASSIN: ICONS.dagger,
+  ARCHER: ICONS.ARCHER,
+  MAGE: ICONS.MAGE,
+  SUPPORT: ICONS.SUPPORT,
+  FIGHTER: ICONS.axe,
+};
+
+/** Badge glyph for a basic attack, shared by board previews and every summary surface. */
+export const BASIC_ATTACK_ICON = ICONS.fist;

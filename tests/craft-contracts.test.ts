@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { activeIndices, craft, matchRecipe, stage, type CraftState, type Recipe } from "../src/core/craft";
+import { activeIndices, craft, matchRecipe, stage, type CraftState } from "../src/core/craft";
 import { craftRunItem, createRun, inventoryCapacity, research, stageRunCraftItem } from "../src/core/run";
 import { skipTutorial } from "../src/core/tutorial";
-import { getEquipment } from "../src/core/equipment";
+import { getEquipment, getRecipe } from "../src/core/itemRegistry";
 
 const blank = (): (string | null)[] => Array(9).fill(null);
 const makeState = (over: Partial<CraftState> = {}): CraftState => ({
@@ -15,7 +15,7 @@ const counts = (bag: readonly string[]) => bag.reduce<Record<string, number>>((a
   return acc;
 }, {});
 
-/** The only authored recipe consumes one tear and produces one blue buff. */
+/** One representative authored 1x1 recipe consumes tear and produces blue buff. */
 const expectConserved = (after: Record<string, number>, before: Record<string, number>) => {
   const expected = { ...before };
   expected.tear = (expected.tear ?? 0) - 1;
@@ -84,9 +84,9 @@ describe("craft commit contracts (A7)", () => {
   });
 
   it("failed craft leaves the run untouched for every failure mode", () => {
-    const noRecipe = makeState({ itemBag: ["bark"] });
-    expect(craft(noRecipe, stage(blank(), 4, "bark", 1)!)).toBeNull();
-    expect(noRecipe).toEqual(makeState({ itemBag: ["bark"] }));
+    const noRecipe = makeState({ itemBag: ["ghost"] });
+    expect(craft(noRecipe, stage(blank(), 4, "ghost", 1)!)).toBeNull();
+    expect(noRecipe).toEqual(makeState({ itemBag: ["ghost"] }));
 
     const missing = makeState({ itemBag: ["bark"] });
     expect(craft(missing, stage(blank(), 4, "tear", 1)!)).toBeNull();
@@ -106,26 +106,33 @@ describe("craft commit contracts (A7)", () => {
     expect(s.itemBag).toEqual(["tear", "tear"]);
     expect(s.craftHistory).toEqual([]);
   });
-  it("requires every copy of a repeated ingredient before consuming any resources", () => {
-    // The authored recipe table has no tier-2 entries yet; inject a two-slot recipe to test multiset validation.
-    const repeated: Recipe = { id: "two_tears", size: 2, pattern: ["tear", "tear", null, null] };
-    const staged = stage(stage(blank(), 0, "tear", 2)!, 1, "tear", 2)!;
-    const s = makeState({ itemBag: ["bark", "tear", "claw"], craftTableLevel: 2, craftHistory: ["previous"] });
+  it("requires every copy of a repeated authored ingredient before consuming resources", () => {
+    const repeated = getRecipe("mindforge_spear")!;
+    const positions = [0, 1, 3, 4];
+    let staged = blank();
+    for (let i = 0; i < positions.length; i++) {
+      staged = stage(staged, positions[i], repeated.pattern[i], 2)!;
+    }
+    const s = makeState({
+      itemBag: ["bark", "eq_blue_buff", "tear", "crystal", "claw"],
+      craftTableLevel: 2,
+      craftHistory: ["previous"],
+    });
     const bagBefore = s.itemBag;
     const historyBefore = s.craftHistory;
 
-    expect(matchRecipe(staged, 2, [repeated])).toBe(repeated);
-    expect(craft(s, staged, [repeated])).toBeNull();
+    expect(matchRecipe(staged, 2)).toBe(repeated);
+    expect(craft(s, staged)).toBeNull();
     expect(s.itemBag).toBe(bagBefore);
     expect(s.craftHistory).toBe(historyBefore);
-    expect(s.itemBag).toEqual(["bark", "tear", "claw"]);
+    expect(s.itemBag).toEqual(["bark", "eq_blue_buff", "tear", "crystal", "claw"]);
     expect(s.craftHistory).toEqual(["previous"]);
 
-    s.itemBag.push("tear");
-    expect(craft(s, staged, [repeated])).toBe("eq_two_tears");
-    expect(s.itemBag).toEqual(["bark", "claw", "eq_two_tears"]);
-    expect(s.craftHistory).toEqual(["previous", "two_tears"]);
-    expect(staged.filter((id) => id === "tear")).toHaveLength(2);
+    s.itemBag.push("crystal");
+    expect(craft(s, staged)).toBe("eq_mindforge_spear");
+    expect(s.itemBag).toEqual(["bark", "claw", "eq_mindforge_spear"]);
+    expect(s.craftHistory).toEqual(["previous", "mindforge_spear"]);
+    expect(staged.filter((id) => id === "crystal")).toHaveLength(2);
   });
 });
 
@@ -136,7 +143,8 @@ describe("run crafting resource conservation", () => {
     s.craftTableLevel = 1;
     s.inventoryBonus = 3;
     s.itemBag = ["bark", "feather", "claw"];
-    const staged = stageRunCraftItem(s, blank(), 4, "tear")!;
+    expect(stageRunCraftItem(s, blank(), 4, "tear")).toBeNull();
+    const staged = stage(blank(), 4, "tear", 1)!;
     const before = { bag: [...s.itemBag], history: [...s.craftHistory], seed: s.rngSeed };
 
     expect(s.itemBag).toHaveLength(inventoryCapacity(s));

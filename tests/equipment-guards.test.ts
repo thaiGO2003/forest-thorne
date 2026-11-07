@@ -7,7 +7,7 @@ import { normalizeEquipment } from "../src/core/equipment";
 import { skipTutorial } from "../src/core/tutorial";
 
 const BLUE = "eq_blue_buff";
-const ARMOR = "eq_warmog_armor";
+const ARMOR = "eq_ao_phap_su"; // Authored tier-2 armor; warmog_armor is tier 1.
 const CELL = 12;
 const BASE_ID = "deer_song";
 

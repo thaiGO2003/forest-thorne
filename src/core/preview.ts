@@ -1,5 +1,6 @@
 // Canonical Planning enemy-preview lifecycle (A68, A103, A114). Pure gameplay data only.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import type { Placement } from "./combat";
 import { creativeRightEnemyOverride } from "./creative";
 import { generateEncounter } from "./encounter";
@@ -17,7 +18,7 @@ export function normalizeEnemyPreview(value: unknown): Placement[] {
   const out: Placement[] = [];
   for (let index = 0; index < value.length; index++) {
     const raw = record(value[index]);
-    if (!raw || typeof raw.baseId !== "string" || !UNIT_BY_ID.has(raw.baseId)) continue;
+    if (!raw || typeof raw.baseId !== "string" || !UNIT_BY_ID.has(raw.baseId) || !hasUnitVisual(raw.baseId)) continue;
     const row = Math.min(4, Math.max(0, Math.floor(Number(raw.row) || 0)));
     const col = Math.min(9, Math.max(5, Math.floor(Number(raw.col) || 5)));
     const star = Math.min(3, Math.max(1, Math.round(Number(raw.star) || 1)));

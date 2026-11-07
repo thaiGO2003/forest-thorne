@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { UNITS } from "../src/content/catalog";
-import { BASE_MATERIALS } from "../src/core/craft";
+import { BASE_MATERIALS } from "../src/core/itemRegistry";
 import { itemDisplayName, itemSemanticIcon } from "../src/core/itemPresentation";
 import {
   applyOutcome, groupDrops, lossDamage, materialCandidates, rollEquipmentLoot, rollMaterialLoot, type RewardTarget,
@@ -83,9 +83,9 @@ describe("loot", () => {
     });
   });
   it("resolves canonical localized names and semantic icon hooks for loot items", () => {
-    expect(itemDisplayName("bark")).toBe("Vỏ Cây");
+    expect(itemDisplayName("bark")).toBe("Gỗ Cứng");
     expect(itemDisplayName("eq_blue_buff")).toBe("Bùa Xanh");
-    expect(itemSemanticIcon("bark")).toBe("leaf");
+    expect(itemSemanticIcon("bark")).toBe("materialBark");
     expect(itemSemanticIcon("eq_warmog_armor")).toBe("shield");
   });
 
@@ -95,16 +95,32 @@ describe("loot", () => {
 
   it("win gold = enemy count + star bonus + bounty + winGoldBonus; idempotent; capacity-bounded loot", () => {
     const t = target();
-    const drops = ["x", "y", "z"].map((item) => ({ item, source: "s", rule: "material" as const }));
+    const drops = ["tear", "eq_blue_buff", "bark"].map((item) => ({ item, source: "s", rule: item.startsWith("eq_") ? "equipment" as const : "material" as const }));
     const o = { combatId: "c1", won: true, enemySurvivors: 0, enemyStars: [1, 2, 3], bounty: 2, drops };
     const r = applyOutcome(t, o, 2, "clamped")!;
     expect(r.gold).toBe(3 + 3 + 2 + 1);
-    expect(t.itemBag).toEqual(["x", "y"]);
-    expect(r.rejected.map((d) => d.item)).toEqual(["z"]);
+    expect(t.itemBag).toEqual(["tear", "eq_blue_buff"]);
+    expect(r.rejected.map((d) => d.item)).toEqual(["bark"]);
     expect(t.xpGain).toBe(2);
     expect(applyOutcome(t, o, 9, "clamped")).toBeNull();
     expect(t.gold).toBe(9);
   });
+  it("rejects unknown and misclassified drops without consuming capacity", () => {
+    const t = target();
+    const drops = [
+      { item: "missing_item", source: "s", rule: "material" as const },
+      { item: "tear", source: "s", rule: "equipment" as const },
+      { item: "tear", source: "s", rule: "material" as const },
+      { item: "eq_blue_buff", source: "s", rule: "equipment" as const },
+      { item: "bark", source: "s", rule: "material" as const },
+    ];
+    const outcome = { combatId: "unknown-drop", won: true, enemySurvivors: 0, enemyStars: [], bounty: 0, drops };
+    const result = applyOutcome(t, outcome, 2, "clamped")!;
+    expect(result.accepted).toEqual(drops.slice(2, 4));
+    expect(result.rejected).toEqual([drops[0], drops[1], drops[4]]);
+    expect(t.itemBag).toEqual(["tear", "eq_blue_buff"]);
+  });
+
 
   it("loss pays bounty, applies mode damage, flips streak", () => {
     const t = target();

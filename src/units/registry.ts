@@ -6,11 +6,37 @@ import { createUnitVisual, defineUnit, type RigMaterials, type Star, type UnitRi
 import jaguarHunt from "./roster/jaguarHunt";
 import toadPoison from "./roster/toadPoison";
 import frogAlchemy from "./roster/frogAlchemy";
+import weaselWind from "./roster/weaselWind";
+import batLove from "./roster/batLove";
+import antGuard from "./roster/antGuard";
+import rabbitBlood from "./roster/rabbitBlood";
+import roosterRapper from "./roster/roosterRapper";
+import butterflyFrost from "./roster/butterflyFrost";
+import butterflyGrass from "./roster/butterflyGrass";
+import woodpeckerShield from "./roster/woodpeckerShield";
+import kirinVolt from "./roster/kirinVolt";
+import spiderSpirit from "./roster/spiderSpirit";
 
+import elephantTide from "./roster/elephantTide";
+import hawkLance from "./roster/hawkLance";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
   frog_alchemy: frogAlchemy,
+  // Phong Liêm Dứu keeps the legacy catalog id so existing saves still resolve.
+  weasel_quick: weaselWind,
+  // Dơi Tình Yêu keeps the legacy catalog id so existing saves still resolve.
+  bat_blood: batLove,
+  ant_guard: antGuard,
+  rabbit_blood: rabbitBlood,
+  crane_blessing: roosterRapper,
+  ice_mage: butterflyFrost,
+  butterfly_mirror: butterflyGrass,
+  woodpecker_drill: woodpeckerShield,
+  kirin_thunder: kirinVolt,
+  spider_venom: spiderSpirit,
+  elephant_guard: elephantTide,
+  hawk_hunter: hawkLance,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];

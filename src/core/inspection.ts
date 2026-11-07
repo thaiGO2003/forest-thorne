@@ -1,9 +1,11 @@
 // Shared unit readout + combat-strength formulas (spec A59, A68). No UI formatting/layout ownership here.
 import { NORMAL_UNITS, getUnit, type Role, type UnitDef } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import { combatStat, makeFighter, type CombatUnitSnapshot, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
 import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
 import type { DamageType } from "./skills";
+import type { VariantTraitRef } from "./variants";
 
 export const ROLE_EVASION_BASE: Readonly<Record<Role, number>> = {
   TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.10, MAGE: 0.05, SUPPORT: 0.07,
@@ -124,6 +126,7 @@ export interface UnitDiagnostics {
   readonly: boolean;
   environment?: EnvironmentId;
   equips: string[];
+  traits: VariantTraitRef[];
   base: UnitStatSnapshot;
   derived: UnitStatSnapshot;
   live: UnitStatSnapshot;
@@ -221,6 +224,7 @@ export function unitDiagnostics(
     readonly,
     environment,
     equips: [...(placement.equips ?? [])],
+    traits: [...(placement.traits ?? [])],
     base: catalogSnapshot(getUnit(placement.baseId)),
     derived: fighterSnapshot(derivedFighter, false),
     live: fighterSnapshot(live, true),
@@ -310,7 +314,7 @@ const ROLE_ORDER: Readonly<Record<Role, number>> = { ARCHER: 0, ASSASSIN: 1, FIG
 
 /** A69 deterministic normal shop roster, independent from randomized offer rolls. */
 export function canonicalShopRoster(tier?: number): UnitDef[] {
-  return NORMAL_UNITS.filter((unit) => tier == null || unit.tier === tier)
+  return NORMAL_UNITS.filter((unit) => (tier == null || unit.tier === tier) && hasUnitVisual(unit.id))
     .slice()
     .sort((a, b) => a.tier - b.tier || ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.id.localeCompare(b.id));
 }

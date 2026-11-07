@@ -1,0 +1,135 @@
+{
+  "planningKitMeasure": [
+    {
+      "selector": ".kit-btn .kit-measure",
+      "html": "<span class=\"kit-measure with-icon\" aria-hidden=\"true\" style=\"display: block; visibility: visible;\">Bắt đầu (-1 ❤️)</spa",
+      "fonts": [
+        {
+          "familyName": "Segoe UI Emoji",
+          "postScriptName": "SegoeUIEmoji",
+          "isCustomFont": false,
+          "glyphCount": 1
+        },
+        {
+          "familyName": "Times New Roman",
+          "postScriptName": "TimesNewRomanPSMT",
+          "isCustomFont": false,
+          "glyphCount": 13
+        }
+      ]
+    },
+    {
+      "selector": ".kit-btn .kit-measure",
+      "html": "<span class=\"kit-measure with-icon\" aria-hidden=\"true\" style=\"display: block; visibility: visible;\">XP (4 🪙)</span>",
+      "fonts": [
+        {
+          "familyName": "Times New Roman",
+          "postScriptName": "TimesNewRomanPSMT",
+          "isCustomFont": false,
+          "glyphCount": 7
+        },
+        {
+          "familyName": "Noto Sans Symbols2",
+          "postScriptName": "NotoSansSymbols2-Regular",
+          "isCustomFont": false,
+          "glyphCount": 1
+        }
+      ]
+    },
+    {
+      "selector": ".kit-btn .kit-measure",
+      "html": "<span class=\"kit-measure with-icon\" aria-hidden=\"true\" style=\"display: none; visibility: visible;\"></span>",
+      "fonts": []
+    },
+    {
+      "selector": ".kit-btn .kit-measure",
+      "html": "<span class=\"kit-measure with-icon\" aria-hidden=\"true\" style=\"display: none; visibility: visible;\"></span>",
+      "fonts": []
+    },
+    {
+      "selector": ".kit-btn .kit-measure",
+      "html": "<span class=\"kit-measure with-icon\" aria-hidden=\"true\" style=\"display: none; visibility: visible;\"></span>",
+      "fonts": []
+    },
+    {
+      "selector": ".kit-btn .kit-measure",
+      "html": "<span class=\"kit-measure with-icon\" aria-hidden=\"true\" style=\"display: none; visibility: visible;\"></span>",
+      "fonts": []
+    }
+  ],
+  "craftingDom": [
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    },
+    {
+      "cls": "craft-cell",
+      "text": "",
+      "font": "\"Times New Roman\", Times, serif",
+      "childFonts": [
+        "\"Times New Roman\", Times, serif"
+      ]
+    }
+  ],
+  "craftingPlatform": []
+}

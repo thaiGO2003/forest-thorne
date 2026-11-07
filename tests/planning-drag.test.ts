@@ -375,6 +375,10 @@ describe("Planning drag controller", () => {
     const combatBefore = JSON.stringify(run);
     click(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), 10);
     expect(selections.at(-1)).toEqual({ kind: "bench", index: 0 });
+    // Combat hover reports the live rig instead of clearing the tooltip.
+    const combatHover = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
+    canvas.dispatchPointer("pointermove", combatHover.clientX, combatHover.clientY, 14);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(playerUid);
     drag(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 11);
     expect(moves).toHaveLength(moveCount);
     expect(selections).toHaveLength(4);

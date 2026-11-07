@@ -11,13 +11,14 @@ import type { TutorialStep } from "../core/tutorial";
 import { createCard, unitCardTooltip, type CardView, type PortraitProvider } from "./card";
 import { h, kitButton, label, LABEL, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import { uiFont } from "./fontScale";
-import type { Tooltip } from "./tooltip";
+import type { Tooltip, TooltipContent } from "./tooltip";
 
-export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "history" | "information" | "settings";
+export type PlanningAction = "library" | "tech" | "craft" | "recipes" | "inventory" | "quick-nav" | "history" | "information" | "settings";
 const ACTIONS: { id: PlanningAction; icon: string; key: MsgKey }[] = [
   { id: "library", icon: ICONS.library, key: "menu.library" },
   { id: "tech", icon: ICONS.tech, key: "planning.tech" },
   { id: "craft", icon: ICONS.craft, key: "planning.craft" },
+  { id: "quick-nav", icon: ICONS.explore, key: "planning.quickNav" },
   { id: "history", icon: ICONS.history, key: "planning.history" },
   { id: "information", icon: ICONS.info, key: "menu.information" },
   { id: "settings", icon: ICONS.settings, key: "menu.settings" },
@@ -100,10 +101,57 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
   });
 
+  // ---- chip tooltips: every summary chip explains itself on hover ----
+  const chipContent = (index: number): TooltipContent | null => {
+    if (!m) return null;
+    const r = m.run;
+    switch (index) {
+      case 0: return { title: t("hud.round", { round: r.round }), body: t("hud.roundHint") };
+      case 1: return { title: t("hud.hearts", { hearts: r.hp }), body: t("hud.heartsHint") };
+      case 2: return { title: t("hud.gold", { gold: r.gold }), body: t("hud.goldHint") };
+      case 3: return { title: t("hud.level", { level: r.level }), body: t("hud.levelHint") };
+      case 4: return { title: t("hud.deploy", { current: m.deployed, max: m.deployLimit }), body: t("hud.deployHint") };
+      default: return null;
+    }
+  };
+  const chipIndexAt = (event: PointerEvent): number => {
+    const rect = stats.getBoundingClientRect();
+    const x = event.clientX - rect.left, y = event.clientY - rect.top, gap = 4;
+    const rows: [number, number, number, number][] = portraitPlanning.matches
+      ? [[0, 3, 7, 26], [3, 5, 38, 26]]
+      : [[0, 5, 6, 28]];
+    for (const [start, end, top, height] of rows) {
+      if (y < top || y > top + height) continue;
+      const count = end - start;
+      const width = (rect.width - 16 - gap * (count - 1)) / count;
+      const index = Math.floor((x - 8) / (width + gap));
+      if (index >= 0 && index < count) return start + index;
+    }
+    return -1;
+  };
+  let hoveredChip = -1;
+  stats.addEventListener("pointermove", (event) => {
+    const index = chipIndexAt(event);
+    if (index === hoveredChip) return;
+    hoveredChip = index;
+    const content = index >= 0 ? chipContent(index) : null;
+    if (content) tip.show(new DOMRect(event.clientX - 1, event.clientY - 1, 2, 2), content);
+    else tip.hide();
+  });
+  stats.addEventListener("pointerleave", () => { hoveredChip = -1; tip.hide(); });
+
   // ---- top battle controls: summary on the left, Start/actions on the right ----
   const battle = panelEl("panel_wood", "pl-battle");
   const battleActions = h("div", "pl-battle-actions");
-  const reroll = kitButton({ skin: "blue", icon: ICONS.reroll, cls: "pl-reroll", onClick: () => it.reroll() });
+  const reroll = kitButton({ skin: "icon", icon: ICONS.reroll, aria: t("planning.reroll", { cost: `${refreshCost(1)} ${ICONS.gold}` }), cls: "pl-reroll", onClick: () => it.reroll() });
+  const rerollControl = h("div", "pl-reroll-control");
+  const rerollCostLabel = h("span", "pl-reroll-cost");
+  rerollCostLabel.setAttribute("aria-hidden", "true");
+  let rerollCostText = "";
+  const rerollCostSurface = surface(rerollCostLabel, (g, w, hh) => {
+    if (rerollCostText) label(g, rerollCostText, w / 2, hh / 2, { size: uiFont(13), fill: LABEL, stroke: null });
+  });
+  rerollControl.append(reroll.el, rerollCostLabel);
   const start = kitButton({ skin: "green", icon: ICONS.start, cls: "pl-start fit-btn", onClick: () => it.start() });
   const startMeasure = h("span", "kit-fit-measure");
   start.el.append(startMeasure);
@@ -116,7 +164,19 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   portraitPlanning.addEventListener("change", syncPlanningComposition);
   syncPlanningComposition();
   tip.bind(lock.el, () => ({ title: t("planning.lock") }));
+  const rerollTooltip = () => {
+    if (!m) return null;
+    const cost = refreshCost(m.run.level, m.run.rollCostDelta);
+    return { title: t("planning.reroll", { cost: `${cost} ${ICONS.gold}` }) };
+  };
+  const unbindRerollTip = tip.bind(rerollControl, rerollTooltip);
+  const showRerollFocusTip = () => { const content = rerollTooltip(); if (content) tip.show(reroll.el, content); };
+  const hideRerollFocusTip = () => tip.hide();
+  reroll.el.addEventListener("focus", showRerollFocusTip);
+  reroll.el.addEventListener("blur", hideRerollFocusTip);
   tip.bind(cortisol.el, () => ({ title: t("planning.cortisol") }));
+  tip.bind(xp.el, () => ({ title: t("hud.xp"), body: t("hud.xpHint") }));
+  tip.bind(start.el, () => ({ title: t("planning.start"), body: t("hud.startHint") }));
 
   // ---- right action stack ----
   const rail = panelEl("panel_wood", "pl-actions");
@@ -171,7 +231,7 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
   });
   const prev = kitButton({ skin: "wood", label: "‹", cls: "pl-page", onClick: () => { page = Math.max(0, page - 1); renderShop(); } });
   const next = kitButton({ skin: "wood", label: "›", cls: "pl-page", onClick: () => { page++; renderShop(); } });
-  dockHead.append(reroll.el, lock.el, prev.el, next.el);
+  dockHead.append(rerollControl, lock.el, prev.el, next.el);
   const grid = h("div", "pl-shop-grid");
   dock.append(dockHead, grid);
   function syncShopVisibility() {
@@ -208,23 +268,19 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     card.el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(); }
     });
-    slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id)) : null; });
+    slot.unbindTip = tip.bind(card.el, () => { const id = activeId(); return id ? unitCardTooltip(getUnit(id), { portrait: portraits.get(id, 1) }) : null; });
     row.append(slot.buy.el);
     wrap.append(card.el, row);
     grid.append(wrap);
     return slot;
   });
-  let rerollText = "", rerollCostText = "", rerollDrawn = "";
   const syncResponsiveLabels = () => {
-    const rerollVisible = reroll.el.clientWidth >= 112 ? rerollText : rerollCostText;
-    if (rerollVisible !== rerollDrawn) { rerollDrawn = rerollVisible; reroll.setLabel(rerollVisible); }
     for (const slot of slots) {
       const visible = slot.buy.el.clientWidth >= 100 ? slot.buyText : slot.buyCost;
       if (visible !== slot.drawnText) { slot.drawnText = visible; slot.buy.setLabel(visible); }
     }
   };
   const shopButtonResize = new ResizeObserver(syncResponsiveLabels);
-  shopButtonResize.observe(reroll.el);
   for (const slot of slots) shopButtonResize.observe(slot.buy.el);
 
   function renderShop() {
@@ -283,8 +339,8 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
     const buyXpCost = xpBuyCost(r.xpCostDelta);
     const rerollLabel = t("planning.reroll", { cost: `${rerollCost} ${ICONS.gold}` });
     const xpLabel = t("planning.buyXp", { cost: `${buyXpCost} ${ICONS.gold}` });
-    rerollText = rerollLabel;
     rerollCostText = `${rerollCost} ${ICONS.gold}`;
+    rerollCostSurface.paint();
     xp.setLabel(xpLabel);
     const startText = `${t("planning.start")} (-1 ${ICONS.heart})`;
     start.setLabel(startText);
@@ -313,6 +369,10 @@ export function createPlanningHud(host: HTMLElement, tip: Tooltip, portraits: Po
       portraitShop.removeEventListener("change", onShopViewportChange);
       smallLandscapeShop.removeEventListener("change", onShopViewportChange);
       for (const s of slots) { s.unbindTip?.(); s.card.dispose(); }
+      unbindRerollTip();
+      reroll.el.removeEventListener("focus", showRerollFocusTip);
+      reroll.el.removeEventListener("blur", hideRerollFocusTip);
+      rerollCostSurface.dispose();
       tip.hide();
       root.remove();
     },

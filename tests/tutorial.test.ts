@@ -16,7 +16,7 @@ const owned = (uid: string, baseId = "ant_guard", star: 1 | 2 | 3 = 1): OwnedUni
 describe("tutorial A94/A108", () => {
   it("uses the authored round-1 shop and blocks mutations until the exact step/target is legal", () => {
     const s = createRun(7);
-    expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "deer_song", "falcon_dive", "cat_goldbow", "ram_charge"]);
+    expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing", "rabbit_blood"]);
     expect(currentTutorialStep(s)?.id).toBe("welcome");
     expect(buy(s, 0)).toBeNull();
 
@@ -54,10 +54,10 @@ describe("tutorial A94/A108", () => {
     s.gold = 100;
     expect(refresh(s)).toBe(true);
     expect(s.tutorial.shopVariant).toBe(1);
-    expect(s.shop.slice(0, 5)).toEqual(["eagle_marksman", "owl_nightshot", "deer_song", "ant_guard", "ram_charge"]);
+    expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing", "rabbit_blood"]);
     incrementTutorialShopVariant(s);
     expect(tutorialShop(2, s.tutorial.shopVariant, 5)).toEqual([
-      "ram_charge", "fox_flame", "cat_goldbow", "deer_song", "ant_guard",
+      "ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing", "rabbit_blood",
     ]);
   });
 
@@ -66,7 +66,7 @@ describe("tutorial A94/A108", () => {
     round3.round = 3;
     syncTutorialRound(round3);
     expect(prepareTutorialRound(round3)).toEqual({ prepared: true, clearCraftStaging: false });
-    expect(round3.bench.map((u) => u.baseId)).toEqual(["falcon_dive"]);
+    expect(round3.bench.map((u) => u.baseId)).toEqual(["jaguar_hunt"]);
     expect(prepareTutorialRound(round3).prepared).toBe(false);
     expect(round3.bench).toHaveLength(1);
 

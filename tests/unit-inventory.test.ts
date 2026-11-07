@@ -44,6 +44,14 @@ describe("owned creature inspection", () => {
     expect(inspectOwnedUnit(run, "missing")).toBeNull();
   });
 
+  it("carries variant traits into diagnostics so the detail panel can list them", () => {
+    const { run, unit } = fixture();
+    const diagnostics = unitDiagnostics({ ...unit, row: 2, col: 2 }, "L", {}, environmentFor(run.round));
+    expect(diagnostics.traits).toEqual([{ id: "fighter_crushing_guard", seed: 1 }]);
+    const traits = diagnostics.traits.map((ref) => ref.id);
+    expect(traits).not.toContain("mage_focus_spell");
+  });
+
   it("does not grant formation synergy to bench units", () => {
     const { run, unit } = fixture();
     run.board[12] = null; run.bench = [unit];
@@ -176,7 +184,7 @@ describe("owned creature inspection", () => {
     const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
     run.bench = [fixture().unit]; run.gold = 20;
     expect(bridge.unequipAll("bench", 0)).toBe(true);
-    expect(run.gold).toBe(11);
+    expect(run.gold).toBe(16);
     const saved = inspectSave(store);
     expect(saved.status).toBe("valid");
     if (saved.status === "valid") expect(saved.envelope.payload.player?.bench[0].equips).toEqual([]);

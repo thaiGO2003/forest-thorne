@@ -3,7 +3,7 @@
 // unit moving between cells keeps its rig, and are rebuilt only when identity or star changes.
 import * as THREE from "three";
 import { benchSlots, toVisual, type Profile } from "../board/geometry";
-import { getUnit, type Role } from "../content/catalog";
+import { getUnit } from "../content/catalog";
 import { STAR_STAT } from "../core/economy";
 import { ICONS, onEmojiAssetReady, preloadEmojiImage } from "../core/emojiIcon";
 import type { RunState } from "../core/run";
@@ -11,6 +11,7 @@ import type { CombatPreviewEffect, CombatPreviewTag, CombatTargetPreview } from 
 import { BLOCK, cellToWorld } from "../world/arena";
 import type { Stage } from "../world/stage";
 import { BILLBOARD_H, BILLBOARD_W, createBillboard, type Billboard, type BillboardState } from "./billboard";
+import { groupPreviewIcons } from "./previewIcons";
 import { label } from "../ui/kit";
 import { createUnit } from "./registry";
 import type { Star, UnitVisual } from "./rig";
@@ -31,7 +32,9 @@ const PREVIEW_STYLE: Record<CombatPreviewEffect, { color: number; opacity: numbe
 };
 const PREVIEW_BASIC = { color: 0xffd36b, opacity: .40 };
 const RAINBOW_STEP_MS = 50;
-const PREVIEW_ICON_SIZE = 0.46;
+const PREVIEW_ICON_SIZE = 0.42;
+/** Horizontal stride between stacked badges on the same tile (one world unit per tile). */
+const PREVIEW_ICON_GAP = 0.42;
 const PREVIEW_ICON_Y = 0.95;
 const HEAL_ARROW_SIZE = 0.5;
 
@@ -72,7 +75,7 @@ export interface BoardView {
   cellCenter(col: number, row: number): { x: number; z: number };
   forEach(fn: (uid: string, v: UnitVisual, kind: Slot["kind"]) => void): void;
   /** Combat pushes live HP/rage/statuses; also drives star multiplicity (A90.3). */
-  setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses">>): void;
+  setLive(uid: string, live: Partial<Pick<BillboardState, "hp" | "maxHp" | "rage" | "rageMax" | "statuses" | "counter">>): void;
   setCombat(v: boolean): void;
   startLowCortisol(): void;
   stopLowCortisol(): void;
@@ -92,6 +95,8 @@ export interface BoardView {
   landUnit?(uid: string): void;
   /** Persistent Planning hover projection; null clears it without disturbing transient combat flashes. */
   setTargetPreview?(preview: CombatTargetPreview | null): void;
+  /** Combat ground hazards (Sương Độc pools): replaces the whole set; drawn under flashes and previews. */
+  setHazardCells?(cells: ReadonlyArray<{ col: number; row: number }>): void;
   dispose(): void;
 }
 
@@ -474,6 +479,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
   };
   const tilePriority = { scan: 1, splash: 2, direct: 3 };
   type TileKind = keyof typeof tileMaterials;
+  // Lowest layer: persistent combat hazards (Sương Độc poison pools), purple like the pool VFX.
+  const hazardMaterial = new THREE.MeshBasicMaterial({ color: 0x9b40d6, transparent: true, opacity: .42, side: THREE.DoubleSide, depthWrite: false });
+  const hazardCells = new Set<number>();
   const tileEffects = new Map<number, { mesh: THREE.Mesh; time: number; kind: TileKind | null }>();
   interface PreviewCell { material: THREE.MeshBasicMaterial; priority: number }
   const previewCells = new Map<number, PreviewCell>();
@@ -488,9 +496,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     color: number;
   }
   const previewIconMaterials = new Map<string, PreviewIconMaterial>();
-  let healTargetUids: string[] = [];
-  const healArrows: THREE.Sprite[] = [];
-  let healArrowMaterial: THREE.SpriteMaterial | null = null;
+  let arrowTargets: { uid: string; effect: CombatPreviewEffect }[] = [];
+  const effectArrows: THREE.Sprite[] = [];
+  const arrowMaterials = new Map<CombatPreviewEffect, THREE.SpriteMaterial>();
   let uiTime = 0;
   const canDraw = () => typeof document !== "undefined" && typeof document.createElement === "function";
   const rainbowMaterial = new THREE.MeshBasicMaterial({ color: 0xff568c, side: THREE.DoubleSide, depthWrite: false });
@@ -586,19 +594,6 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     }
     return material;
   };
-  const previewIconChar = (tag: CombatPreviewTag, role?: Role): string => {
-    if (tag.kind === "basic") {
-      return role === "ARCHER" ? ICONS.ARCHER : role === "MAGE" ? ICONS.matk : role === "ASSASSIN" ? ICONS.ASSASSIN : ICONS.atk;
-    }
-    switch (tag.effect) {
-      case "heal": return ICONS.regen;
-      case "shield": return ICONS.shield;
-      case "buff": return ICONS.augment;
-      case "debuff": return ICONS.atkDown;
-      case "control": return ICONS.freeze;
-      default: return role === "MAGE" ? ICONS.matk : role === "ARCHER" ? ICONS.ARCHER : ICONS.atk;
-    }
-  };
   const drawPreviewIcon = (entry: PreviewIconMaterial) => {
     const g = entry.canvas.getContext("2d");
     if (!g) return;
@@ -638,9 +633,19 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     stage.scene.add(sprite);
     return sprite;
   };
-  const createHealArrowMaterial = () => {
-    if (healArrowMaterial) return healArrowMaterial;
+  const ARROW_COLORS: Record<CombatPreviewEffect, { face: string; edge: string }> = {
+    damage: { face: "#ff9a7a", edge: "#5c1a0d" },
+    heal: { face: "#bcffd2", edge: "#0a3a1d" },
+    shield: { face: "#a7dcff", edge: "#0b2c46" },
+    buff: { face: "#b7ffe9", edge: "#0b3a34" },
+    debuff: { face: "#ffd18f", edge: "#43260a" },
+    control: { face: "#d9c2ff", edge: "#2a1745" },
+  };
+  const createArrowMaterial = (effect: CombatPreviewEffect) => {
+    const cached = arrowMaterials.get(effect);
+    if (cached) return cached;
     if (!canDraw()) return null;
+    const colors = ARROW_COLORS[effect];
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 96;
     const g = canvas.getContext("2d");
@@ -648,26 +653,26 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     g.clearRect(0, 0, 96, 96);
     g.lineCap = "round";
     // Dark extrusion first, then the bright face: readable at small size.
-    g.strokeStyle = "rgba(7,32,18,.85)";
+    g.strokeStyle = colors.edge;
     g.lineWidth = 17;
     g.beginPath();
     g.moveTo(48, 14);
     g.lineTo(48, 50);
     g.stroke();
-    g.fillStyle = "rgba(7,32,18,.85)";
+    g.fillStyle = colors.edge;
     g.beginPath();
     g.moveTo(19, 43);
     g.lineTo(48, 89);
     g.lineTo(77, 43);
     g.closePath();
     g.fill();
-    g.strokeStyle = "#9dffbe";
+    g.strokeStyle = colors.face;
     g.lineWidth = 9;
     g.beginPath();
     g.moveTo(48, 17);
     g.lineTo(48, 51);
     g.stroke();
-    g.fillStyle = "#bcffd2";
+    g.fillStyle = colors.face;
     g.beginPath();
     g.moveTo(26, 46);
     g.lineTo(48, 80);
@@ -676,25 +681,28 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     g.fill();
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
-    healArrowMaterial = new THREE.SpriteMaterial({
+    const material = new THREE.SpriteMaterial({
       map: texture, transparent: true, depthWrite: false, depthTest: false, toneMapped: false,
     });
-    return healArrowMaterial;
+    arrowMaterials.set(effect, material);
+    return material;
   };
-  const ensureHealArrows = (count: number) => {
+  const ensureEffectArrows = (targets: { uid: string; effect: CombatPreviewEffect }[]) => {
     if (!canDraw()) return;
-    const material = createHealArrowMaterial();
-    if (!material) return;
-    while (healArrows.length < count) {
-      const sprite = new THREE.Sprite(material);
-      sprite.name = "preview-heal-arrow";
+    while (effectArrows.length < targets.length) {
+      const sprite = new THREE.Sprite();
+      sprite.name = "preview-effect-arrow";
       sprite.scale.set(HEAL_ARROW_SIZE, HEAL_ARROW_SIZE, 1);
       sprite.renderOrder = 41;
       sprite.raycast = () => {};
       stage.scene.add(sprite);
-      healArrows.push(sprite);
+      effectArrows.push(sprite);
     }
-    healArrows.forEach((sprite, index) => { sprite.visible = index < count; });
+    effectArrows.forEach((sprite, index) => {
+      const material = targets[index] ? createArrowMaterial(targets[index]!.effect) : null;
+      sprite.visible = Boolean(targets[index] && material);
+      if (material) sprite.material = material;
+    });
   };
   const previewTags = (preview: CombatTargetPreview): CombatPreviewTag[] => {
     if (preview.tags?.length) return preview.tags;
@@ -711,35 +719,55 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     previewCells.clear();
     previewSkillUid = activePreview?.skillCasterUid ?? null;
     for (const sprite of previewIcons) sprite.visible = false;
-    healTargetUids = [];
+    arrowTargets = [];
     if (activePreview) {
+      // Cell-based skill area first (secondary priority), so unit tags drawn below can override it.
+      for (const cell of activePreview.areaCells ?? []) {
+        if (cell.row < 0 || cell.row >= BOARD || cell.col < 0 || cell.col >= BOARD * 2) continue;
+        const { key } = ensureTileEffect(cell.col, cell.row);
+        if (!previewCells.has(key)) previewCells.set(key, { material: previewMaterial(cell.effect, false), priority: 1 });
+      }
       const tags = previewTags(activePreview);
-      let iconIndex = 0;
       for (const tag of tags) {
         const s = slots.get(tag.uid);
         if (!s || s.kind === "bench" || s.row < 0) continue;
-        const style = previewStyle(tag.kind === "basic" ? "basic" : tag.effect);
         const material = previewMaterial(tag.kind === "basic" ? "basic" : tag.effect, tag.primary);
         const { key } = ensureTileEffect(s.col, s.row);
         const existing = previewCells.get(key);
         if (!existing || tag.primary || existing.priority < 2) {
           previewCells.set(key, { material, priority: tag.primary ? 2 : 1 });
         }
-        if (canDraw()) {
-          const icon = previewIconChar(tag, activePreview.actorRole);
-          const iconMaterial = ensurePreviewIconMaterial(icon, style.color);
-          const sprite = previewIcons[iconIndex] ?? createPreviewIconSprite();
-          previewIcons[iconIndex] = sprite;
-          sprite.material = iconMaterial.material;
-          sprite.visible = true;
-          sprite.position.set(s.x, PREVIEW_ICON_Y, s.z + .28);
-          iconIndex++;
-        }
-        if (tag.effect === "heal") healTargetUids.push(tag.uid);
       }
-      ensureHealArrows(healTargetUids.length);
+      // Arrow over every affected unit, tinted by effect; skill tag wins over the basic marker.
+      const arrowByUid = new Map<string, CombatPreviewEffect>();
+      for (const tag of tags) {
+        if (tag.kind !== "skill" && arrowByUid.has(tag.uid)) continue;
+        arrowByUid.set(tag.uid, tag.effect);
+      }
+      arrowTargets = [...arrowByUid].map(([uid, effect]) => ({ uid, effect }));
+      // One badge stack per affected unit: basic attacks always show the fist, so a target hit by
+      // both the basic and the skill carries both markers side by side instead of one replacing the other.
+      if (canDraw()) {
+        let iconIndex = 0;
+        for (const stack of groupPreviewIcons(tags, activePreview.actorRole)) {
+          const s = slots.get(stack.uid);
+          if (!s || s.kind === "bench" || s.row < 0) continue;
+          const count = stack.icons.length;
+          stack.icons.forEach((icon, index) => {
+            const style = previewStyle(icon.kind);
+            const iconMaterial = ensurePreviewIconMaterial(icon.char, style.color);
+            const sprite = previewIcons[iconIndex] ?? createPreviewIconSprite();
+            previewIcons[iconIndex] = sprite;
+            sprite.material = iconMaterial.material;
+            sprite.visible = true;
+            sprite.position.set(s.x + (index - (count - 1) / 2) * PREVIEW_ICON_GAP, PREVIEW_ICON_Y, s.z + .28);
+            iconIndex++;
+          });
+        }
+      }
+      ensureEffectArrows(arrowTargets);
     } else {
-      ensureHealArrows(0);
+      ensureEffectArrows([]);
     }
     for (const [key, effect] of tileEffects) renderTileEffect(key, effect);
   };
@@ -757,9 +785,20 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     } else if (preview) {
       effect.mesh.visible = true;
       effect.mesh.material = preview.material;
+    } else if (hazardCells.has(key)) {
+      effect.mesh.visible = true;
+      effect.mesh.material = hazardMaterial;
     } else {
       effect.mesh.visible = false;
     }
+  };
+  const setHazardCells = (cells: ReadonlyArray<{ col: number; row: number }>) => {
+    hazardCells.clear();
+    for (const { col, row } of cells) {
+      if (row < 0 || row >= BOARD || col < 0 || col >= BOARD * 2) continue;
+      hazardCells.add(ensureTileEffect(col, row).key);
+    }
+    for (const [key, effect] of tileEffects) renderTileEffect(key, effect);
   };
   const ensureTileEffect = (col: number, row: number) => {
     const key = row * BOARD * 2 + col;
@@ -831,9 +870,9 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
     uiTime += Math.max(0, dt);
     layoutLabels();
     // Heal preview arrow: floats above the target billboard and bobs continuously.
-    for (let i = 0; i < healArrows.length; i++) {
-      const sprite = healArrows[i]!;
-      const uid = healTargetUids[i];
+    for (let i = 0; i < effectArrows.length; i++) {
+      const sprite = effectArrows[i]!;
+      const uid = arrowTargets[i]?.uid;
       const s = uid ? slots.get(uid) : undefined;
       if (!s) { sprite.visible = false; continue; }
       const billboardTop = s.v.root.position.y + s.v.anchor.position.y * s.v.root.scale.y + s.bb.sprite.scale.y;
@@ -907,7 +946,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       v.root.userData.uid = uid;
       stage.scene.add(v.root);
       const u = getUnit(baseId), maxHp = Math.round(u.stats.hp * (STAR_STAT[st] ?? 1));
-      const base: BillboardState = { name: u.nameVi, star: st, hp: maxHp, maxHp, rage: 0, rageMax: u.stats.rageMax, side: kind === "enemy" ? "R" : "L", statuses: [] };
+      const base: BillboardState = { name: u.nameVi, role: u.role, star: st, hp: maxHp, maxHp, rage: 0, rageMax: u.stats.rageMax, side: kind === "enemy" ? "R" : "L", statuses: [] };
       const bb = createBillboard(v.anchor);
       bb.set(base);
       bb.setPriority(uid === hovered || uid === selected);
@@ -1037,6 +1076,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       dropLands.set(uid, 0);
     },
     setTargetPreview,
+    setHazardCells,
     setLive(uid, live) {
       const s = slots.get(uid);
       if (!s) return;
@@ -1076,6 +1116,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         hovered = null;
         for (const effect of tileEffects.values()) effect.mesh.removeFromParent();
         tileEffects.clear();
+        hazardCells.clear();
         skillUid = null; skillTime = 0; previewSkillUid = null; previewCells.clear(); rainbow.visible = false; rainbowFill.visible = false;
         turnUid = null; actorUid = null; borderUid = null; borderKind = null; rainbowUid = null;
         return;
@@ -1090,6 +1131,7 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
       off();
       offEmojiReady();
       rainbow.removeFromParent(); rainbow.geometry.dispose(); rainbowMaterial.dispose();
+      hazardMaterial.dispose(); hazardCells.clear();
       rainbowFill.removeFromParent(); rainbowFill.geometry.dispose(); rainbowFillMaterial.dispose();
       turnFill.removeFromParent(); turnFill.geometry.dispose(); turnFillMaterial.dispose();
       turnBorder.removeFromParent(); turnBorder.geometry.dispose(); turnBorderMaterial.dispose();
@@ -1100,14 +1142,14 @@ export function createBoardView(stage: Stage, profile: Profile = "solo"): BoardV
         entry.material.dispose();
       }
       previewIconMaterials.clear();
-      for (const sprite of healArrows) sprite.removeFromParent();
-      if (healArrowMaterial) {
-        healArrowMaterial.map?.dispose();
-        healArrowMaterial.dispose();
-        healArrowMaterial = null;
+      for (const sprite of effectArrows) sprite.removeFromParent();
+      for (const material of arrowMaterials.values()) {
+        material.map?.dispose();
+        material.dispose();
       }
-      healArrows.length = 0;
-      healTargetUids = [];
+      arrowMaterials.clear();
+      effectArrows.length = 0;
+      arrowTargets = [];
       for (const material of previewMaterials.values()) material.dispose();
       previewMaterials.clear();
       previewIcons.length = 0;

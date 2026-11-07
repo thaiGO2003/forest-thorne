@@ -7,7 +7,7 @@ import { getUnit } from "../content/catalog";
 export type Stat = "atk" | "matk" | "def" | "mdef" | "hp";
 export type DamageType = "physical" | "magic" | "true";
 export type DotKind = "bleed" | "burn" | "poison" | "disease";
-export type ControlKind = "stun" | "freeze" | "sleep" | "silence" | "disarm" | "taunt";
+export type ControlKind = "stun" | "freeze" | "sleep" | "silence" | "disarm" | "taunt" | "paralyze";
 export type BuffStat = "atk" | "matk" | "def" | "mdef" | "evade";
 export type Area = "single" | "all" | "row" | "column" | "square";
 export type SkillSelector =
@@ -15,8 +15,8 @@ export type SkillSelector =
   | "highest_matk" | "highest_atk" | "highest_max_hp_front" | "lowest_def_front"
   | "lowest_mdef_backline" | "highest_atk_backline" | "isolated_backline" | "backline_caster"
   | "most_clustered_row" | "most_clustered_col" | "highest_total_atk_row" | "highest_total_atk_col"
-  | "random" | "random_unique" | "same_row" | "same_row_carry" | "same_column" | "front_cone"
-  | "self" | "frontline_default" | "backline_jump" | "primary_target";
+  | "random" | "random_unique" | "same_row" | "same_row_carry" | "grass_row" | "same_column" | "front_cone"
+  | "highest_current_hp_role" | "role_priority" | "frost_role_column" | "self" | "frontline_default" | "backline_jump" | "primary_target" | "adjacent_allies";
 
 export interface Formula { base: number; scale: number; stat: Stat }
 export interface StatMod { stat: BuffStat; value: number; pct: boolean; turns: number }
@@ -45,6 +45,31 @@ export interface SkillReactionSpec {
   berserk?: BerserkReactionSpec;
 }
 
+/** Bướm Cỏ: sequential same-row magic impacts, with no persistent status. */
+export const GRASS_STORM_FAMILY = "grass_row_storm";
+/** Điện Linh Dương: alternate horn impacts with an optional adjacent foe and per-hit paralyze. */
+export const KIRIN_HORNS_FAMILY = "kirin_volt_horns";
+/** Thiên Nga Trắng: role-first gold throw, adjacent splash and a second cast at 3★. */
+export const GOLD_THROW_FAMILY = "gold_throw_stun";
+
+/** Nhện Linh: one canonical magic impact per launched soul. */
+export const SPIDER_SOUL_FAMILY = "spider_soul_volley";
+/** Sương Điệp: a role-prioritized column burst with one freeze roll per victim. */
+export const FROST_STORM_FAMILY = "frost_storm";
+/** Ma Vải Thời Gian: role-first seeded sand jumps and relocation. */
+export const TIME_SAND_FAMILY = "time_sand_chain";
+/** Bò Viking: next-cycle basic stun, reactive stun and heal only on successful stun application. */
+export const VIKING_BULL_FAMILY = "viking_bull_stun";
+/** Dao Ong Sát Thủ: a kill applies a shared focus mark; the stab's authored damage is unchanged. */
+export const WASP_ASSASSIN_FAMILY = "single_burst_armor_pen";
+/** Tượng Đại Thủy: position-scoped, role-prioritized shield and full debuff cleanse. */
+export const ELEPHANT_TIDE_FAMILY = "elephant_tide_guard";
+/** Pháo Thân: one primary shell with adjacent same-column splash and no statuses. */
+export const CANNON_COLUMN_BLAST_FAMILY = "cannon_column_blast";
+
+/** Elf Lùn Cừu: adjacent ally shields with strictly shield-linked magic bonuses. */
+export const SHEEP_ELF_GUARD_FAMILY = "sheep_elf_guard";
+
 export interface SkillSpec {
   /** Who the primary effect lands on. */
   side: "enemy" | "ally" | "self";
@@ -60,6 +85,11 @@ export interface SkillSpec {
   /** Gradual max-HP healing spread across the authored duration. */
   hot: TimedHotSpec | null;
   selfHealPctMaxHp: number;
+  /** Fraction of incoming damage prevented while the authored self-only guard is active. */
+  damageReductionPct: number;
+  damageReductionTurns: number;
+  /** Random negative statuses/stat modifiers removed from the caster. */
+  cleanseCount: number;
   lifestealPct: number;
   shield: Formula | null;
   buffs: StatMod[];
@@ -67,6 +97,18 @@ export interface SkillSpec {
   rageGrant: number;
   revivePct: number;
   reaction: SkillReactionSpec;
+  /** Only the fourth hit of the 2★ grass storm may proc; null when not configured. */
+  fourthTargetBonusChance?: number | null;
+  /** Authored Kirin total number of individual damage events per cast. */
+  hitCount?: number;
+  /** Bonus percentages exist only while this caster's adjacent shield has remaining strength. */
+  linkedShield?: { turns: number; magicDamagePct: number; magicPenPct: number };
+  /** Viking roar is a self-buff; only the following basic hit applies its control. */
+  viking?: {
+    nextBasicStunTurns: number;
+    retaliationChance: number;
+    healOnStun: Formula | null;
+  };
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
@@ -75,7 +117,7 @@ const FORMULA = new RegExp(String.raw`\(${NUM}\s*\+\s*(?:${NUM}\s*x\s*|${NUM}%\s
 const STAT_KEY: Record<string, Stat> = { ATK: "atk", MATK: "matk", DEF: "def", MDEF: "mdef", HP: "hp", "HP tối đa": "hp" };
 const DOT_WORD: Record<string, DotKind> = { "chảy máu": "bleed", "thiêu đốt": "burn", "nhiễm độc": "poison", "độc": "poison", "mắc bệnh": "disease" };
 const CONTROL_WORD: Record<string, ControlKind> = {
-  "choáng": "stun", "đóng băng": "freeze", "ngủ": "sleep", "câm lặng": "silence", "tước vũ khí": "disarm", "khiêu khích": "taunt",
+  "choáng": "stun", "đóng băng": "freeze", "ngủ": "sleep", "câm lặng": "silence", "tước vũ khí": "disarm", "khiêu khích": "taunt", "tê liệt": "paralyze",
 };
 const BUFF_WORD: Record<string, BuffStat> = { ATK: "atk", MATK: "matk", DEF: "def", MDEF: "mdef", "né tránh": "evade" };
 
@@ -166,7 +208,7 @@ export function parseSkill(text: string): SkillSpec {
     dots.push({ kind: DOT_WORD[m[1]!]!, value: Number(m[2]), turns: m[3] ? Number(m[3]) : turnsAfter(t, m.index!) });
   }
   const controls: SkillSpec["controls"] = [];
-  for (const m of t.matchAll(/(choáng|đóng băng|câm lặng|tước vũ khí|khiêu khích|(?<![a-zà-ỹ])ngủ(?![a-zà-ỹ]))/g)) {
+  for (const m of t.matchAll(/(choáng|đóng băng|câm lặng|tước vũ khí|khiêu khích|tê liệt|(?<![a-zà-ỹ])ngủ(?![a-zà-ỹ]))/g)) {
     const kind = CONTROL_WORD[m[1]!]!;
     if (!controls.some((c) => c.kind === kind)) {
       controls.push({ kind, turns: turnsAfter(t, m.index!), chance: controlChance(t, m.index!, m[0]!.length) });
@@ -183,9 +225,13 @@ export function parseSkill(text: string): SkillSpec {
   if (allyHeal) heal = { formula: null, pctMaxHp: Number(allyHeal[1]) / 100 };
   else if (flatHeal) heal = { formula: flatHeal[4] ? formulaAt(flatHeal) : { base: Number(flatHeal[1]), scale: 0, stat: "matk" }, pctMaxHp: 0 };
   const selfHeal = /(?:Tự hồi|hồi) (\d+)% HP tối đa(?: cho bản thân)?(?!\s*(?:trong \d+ lượt )?cho (?!bản))/.exec(t);
+  const damageReduction = /giảm\s+(\d+(?:\.\d+)?)%\s+sát thương nhận vào trong\s+(\d+)\s+lượt/i.exec(t);
+  const cleanse = /(?:thanh tẩy|xóa)\s+(?:tối đa\s+)?(\d+)\s+(?:hiệu ứng bất lợi|debuff)(?:\s+ngẫu nhiên)?\s+(?:trên|cho) bản thân/i.exec(t);
   const steal = /hút (\d+)% sát thương|hồi máu bằng (\d+)% sát thương/.exec(t);
 
-  const shieldM = t.match(new RegExp(String.raw`khiên(?: bằng)? ${FORMULA.source}`)) ?? t.match(/khiên (\d+)/);
+  const shieldM = t.match(new RegExp(String.raw`khiên(?: bằng)? ${FORMULA.source}`))
+    ?? t.match(/(?:nhận|được) (\d+) khiên/i)
+    ?? t.match(/khiên (\d+)/);
   const shield = shieldM ? (shieldM[4] ? formulaAt(shieldM) : { base: Number(shieldM[1]), scale: 0, stat: "def" as Stat }) : null;
 
   const rage = /(?:Bơm|tăng|hồi) (\d+) nộ/.exec(t);
@@ -210,6 +256,9 @@ export function parseSkill(text: string): SkillSpec {
     pickLowestHp: /% máu thấp nhất|thấp máu nhất/.test(t),
     damage, dots, controls, heal, hot,
     selfHealPctMaxHp: selfHeal && !allyHeal ? Number(selfHeal[1]) / 100 : 0,
+    damageReductionPct: damageReduction ? Number(damageReduction[1]) / 100 : 0,
+    damageReductionTurns: damageReduction ? Number(damageReduction[2]) : 0,
+    cleanseCount: cleanse ? Number(cleanse[1]) : 0,
     lifestealPct: steal ? Number(steal[1] ?? steal[2]) / 100 : 0,
     shield, buffs: statMods(t, "tăng"), debuffs: statMods(t, "giảm"),
     rageGrant: rage ? Number(rage[1]) : 0,
@@ -271,6 +320,22 @@ function reactionSpec(text: string, family: string): SkillReactionSpec {
   return out;
 }
 
+/** Huyết Thố: action-scoped debuff suppression and next-round recovery, resolved in combat.ts. */
+export const BLOOD_SWORD_OATH_FAMILY = "blood_sword_oath";
+
+/**
+ * Cóc Độc "Sương Độc": pooled area denial resolved by the combat engine (combat.ts, spore pools).
+ * Its authored text describes the mechanic for players only; numbers live in the engine constants.
+ */
+export const SPORE_FAMILY = "toad_spore_mist";
+/** Dơi Tình Yêu's hit tracking and batling retaliation are resolved once per kiss in combat.ts. */
+export const LOVE_KISS_FAMILY = "love_kiss_batlings";
+
+/** Gõ Kiến Mỏ Cứng: single impact, stun, incoming-damage vulnerability and 3★ self shield. */
+export const HARD_BEAK_DIVE_FAMILY = "hard_beak_dive";
+
+
+
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
 export function skillSpec(baseId: string, star: number): SkillSpec {
@@ -281,7 +346,144 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const u = getUnit(baseId);
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
+  if (baseId === "wasp_assassin") {
+    // Parse the existing (40 + 1.5 × ATK) physical strike unchanged. Recovery
+    // belongs to marked-target death, not the generic skill's cast effect.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      heal: null, hot: null, rageGrant: 0, buffs: [], debuffs: [],
+    } satisfies Partial<SkillSpec>);
+  }
   s.reaction = reactionSpec(detail, u.skill.family);
+  if (u.skill.family === BLOOD_SWORD_OATH_FAMILY) {
+    // The authored physical burst is retained; recovery and debuff suppression are combat-owned.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === TIME_SAND_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      damage: { base: 18, scale: 0.55, stat: "matk", type: "magic" },
+      dots: [], controls: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0, reaction: {},
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === SPORE_FAMILY) {
+    // The prose mentions a damage formula and a heal; none of it may run through the generic cast path.
+    Object.assign(s, {
+      side: "enemy", area: "all", count: 1, damage: null, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === LOVE_KISS_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: resolvedStar, selector: "highest_current_hp_role",
+      dots: [], controls: [{ kind: "stun", turns: 1, chance: 1 }],
+      debuffs: [], selfHealPctMaxHp: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === GRASS_STORM_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: resolvedStar === 1 ? 3 : resolvedStar === 2 ? 4 : Number.MAX_SAFE_INTEGER,
+      selector: "same_row", damage: { base: 0, scale: 1, stat: "matk", type: "magic" },
+      dots: [], controls: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [],
+      reaction: {}, fourthTargetBonusChance: u.skill.fourthTargetBonusChance ?? null,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === SPIDER_SOUL_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "same_row",
+      damage: { base: 18, scale: 0.7, stat: "atk", type: "magic" },
+      dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === FROST_STORM_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "column", count: 1, selector: "frost_role_column",
+      damage: { base: 22, scale: 0.8, stat: "matk", type: "magic" },
+      controls: [{ kind: "freeze", turns: 1, chance: [0.5, 0.75, 1][resolvedStar - 1]! }],
+      dots: [], buffs: [], debuffs: [], heal: null, hot: null, shield: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === VIKING_BULL_FAMILY) {
+    Object.assign(s, {
+      side: "self", area: "single", count: 1, selector: "self",
+      damage: null, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, damageReductionPct: 0, damageReductionTurns: 0,
+      cleanseCount: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [],
+      rageGrant: 0, revivePct: 0, reaction: {},
+      viking: {
+        nextBasicStunTurns: 1,
+        retaliationChance: resolvedStar >= 2 ? 1 / 3 : 0,
+        healOnStun: resolvedStar === 3 ? { base: 0, scale: 1, stat: "atk" } : null,
+      },
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === CANNON_COLUMN_BLAST_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      dots: [], controls: [], heal: null, hot: null, shield: null,
+      buffs: [], debuffs: [], reaction: {}, selfHealPctMaxHp: 0,
+      damageReductionPct: 0, damageReductionTurns: 0, cleanseCount: 0,
+      lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === HARD_BEAK_DIVE_FAMILY) {
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "frontline_default",
+      damage: { base: 10, scale: 0.45, stat: "atk", type: "physical" },
+      controls: [{ kind: "stun", turns: 1, chance: 1 }],
+      dots: [], debuffs: [], buffs: [], shield: null, heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === KIRIN_HORNS_FAMILY) {
+    if (!u.skill.hitCountByStar || !u.skill.paralyzeChanceByStar || !s.damage) {
+      throw new Error("kirin_volt_horns requires authored hits, chance and damage");
+    }
+    const chance = u.skill.paralyzeChanceByStar[resolvedStar - 1]!;
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      hitCount: u.skill.hitCountByStar[resolvedStar - 1]!,
+      controls: chance > 0 ? [{ kind: "paralyze", turns: 1, chance }] : [],
+      dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [], reaction: {},
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === GOLD_THROW_FAMILY) {
+    // The prior shield-only skill has no damage formula. Reuse this unit's existing
+    // 1×MATK magic basic-attack coefficient rather than inventing a flat damage value.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, selector: "role_priority",
+      damage: { base: 0, scale: 1, stat: "matk", type: "magic" },
+      controls: [{ kind: "stun", turns: 1, chance: 1 }],
+      dots: [], heal: null, hot: null, shield: null, buffs: [], debuffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === SHEEP_ELF_GUARD_FAMILY) {
+    const turns = Number(/trong (\d+) lượt/.exec(detail)?.[1] ?? 0);
+    if (!s.shield || turns <= 0) throw new Error("sheep_elf_guard requires an authored shield formula and duration");
+    Object.assign(s, {
+      side: "ally", area: "single", count: 8, selector: "adjacent_allies",
+      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [], debuffs: [],
+      linkedShield: {
+        turns,
+        magicDamagePct: Number(/tăng (\d+)% sát thương phép/.exec(detail)?.[1] ?? 0),
+        magicPenPct: Number(/xuyên (\d+)% kháng phép/.exec(detail)?.[1] ?? 0),
+      },
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === ELEPHANT_TIDE_FAMILY) {
+    // Preserve the authored 35/42/51 + ATK scalings as shields, never as a damage strike.
+    Object.assign(s, {
+      side: "ally", area: "single", count: 1, selector: "role_priority",
+      damage: null, dots: [], controls: [], heal: null, hot: null, buffs: [],
+      selfHealPctMaxHp: 0, lifestealPct: 0, rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -290,7 +492,17 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   }
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
-    s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
+    // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
+    s.selector = u.skill.family === FROST_STORM_FAMILY ? "frost_role_column"
+      : u.skill.family === GRASS_STORM_FAMILY ? "grass_row"
+      : u.skill.family === SPIDER_SOUL_FAMILY ? "same_row"
+      : u.skill.family === KIRIN_HORNS_FAMILY || u.skill.family === GOLD_THROW_FAMILY || u.skill.family === TIME_SAND_FAMILY || u.skill.family === CANNON_COLUMN_BLAST_FAMILY ? "role_priority"
+      : u.skill.family === LOVE_KISS_FAMILY ? "highest_current_hp_role"
+      : u.skill.family === ELEPHANT_TIDE_FAMILY ? "role_priority"
+      : u.skill.family === BLOOD_SWORD_OATH_FAMILY || u.skill.family === HARD_BEAK_DIVE_FAMILY
+        ? "frontline_default" : u.skill.family === SHEEP_ELF_GUARD_FAMILY
+          ? "adjacent_allies" : baseId === "wasp_assassin"
+            ? "role_priority" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 

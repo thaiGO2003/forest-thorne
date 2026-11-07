@@ -10,14 +10,14 @@ export type ButtonState = "normal" | "hover" | "pressed" | "disabled" | "selecte
 export const SLICE = {
   panel_parchment: 8, panel_wood: 8, panel_tooltip: 5, slot_well: 5,
   shell_billboard: 7, tile_status: 7, frame_bar: 3, frame_rage_cell: 2,
-  card: 8, btn: 6, btn_icon: 10, ribbon: 16,
+  card: 8, card_t2: 8, card_t3: 8, card_t4: 8, btn: 6, btn_icon: 10, ribbon: 16,
 } as const;
 
 /** Art-pixel → CSS-pixel factor. Integer keeps pixel art crisp. */
 export const ART_SCALE = 2;
 /** The supplied OTF faces are shared by DOM and canvas text. */
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
-export const NORMAL_FONT = `"Times New Roman", Times, serif`;
+export const NORMAL_FONT = `"Forest Normal", "Times New Roman", Times, serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
 export const BUTTON_FONT = `"Times New Roman", Times, serif`;
 export const INK = "#111";
@@ -56,6 +56,8 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
       await Promise.allSettled([
         document.fonts.load(`16px ${HEADING_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
+        document.fonts.load(`16px ${NORMAL_FONT}`),
+        document.fonts.load(`16px ${BUTTON_FONT}`),
       ]);
     }
     for (const fn of repaint) fn();
@@ -215,7 +217,9 @@ export function disposeSurfaceTree(root: HTMLElement): void {
   }
 }
 
-export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard";
+export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard"
+  /** Tier card art reused as tinted frames (green/blue/purple) for choice cards. */
+  | "card_t2" | "card_t3" | "card_t4";
 
 /** Panel host: element whose background chrome is a 9-sliced kit image. */
 export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {
@@ -265,7 +269,7 @@ export function kitButton(o: {
     const iconFill = skin === "wood" || skin === "icon" ? fill : BUTTON_INK;
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));
     if (icon && text) {
-      label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null });
+      label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null, font: "button" });
       label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - hh - 8), font: "button", weight: 400 });
     } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "button" });
     else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - 12), font: "button", weight: 400 });

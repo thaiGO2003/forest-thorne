@@ -2,19 +2,25 @@
 import { getUnit } from "../content/catalog";
 import { unitEvolutionName } from "../content/unitNames";
 import type { CombatUnitSnapshot } from "../core/combat";
-import { ICONS } from "../core/emojiIcon";
-import { getEquipment, slotCapForUnit } from "../core/equipment";
-import { sellValue } from "../core/economy";
+import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
+import { getEquipment } from "../core/itemRegistry";
+import { slotCapForUnit } from "../core/equipment";
+import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
+import { STAR_SKILL, sellValue } from "../core/economy";
 import { t, type MsgKey } from "../core/i18n";
 import { MODE_CONFIG } from "../core/modes";
 import { unequipQuote, type RunState } from "../core/run";
+import { skillSpec } from "../core/skills";
 import { tutorialActionAllowed } from "../core/tutorial";
 import type { OwnedUnitInspection } from "../core/unitInventory";
-import type { UnitDiagnostics, UnitDiagnosticEffect, UnitStatSnapshot } from "../core/inspection";
+import { starStatMilestones, type UnitDiagnostics, type UnitDiagnosticEffect, type UnitStatSnapshot } from "../core/inspection";
+import { VARIANT_BY_ID, type VariantBonuses, type VariantTraitRef } from "../core/variants";
+import { basicAttackCopy } from "../core/unitText";
 import type { Portraits } from "../units/portraits";
 import { h, INK, kitButton, label, nineSlice, NORMAL_FONT, SLICE, surface, threeSlice, type KitButton, type Surface } from "./kit";
 import { uiFont } from "./fontScale";
 import { mountPortraitControls } from "./portraitControls";
+import { decorateDescription, richSpan, type RichTone } from "./richText";
 import type { ModalHandle } from "./modal";
 
 export interface UnitInventoryModel {
@@ -25,7 +31,6 @@ export interface UnitInventoryModel {
 }
 export interface UnitInventoryIntents {
   getModel(): UnitInventoryModel | null;
-  select(): void;
   sell(): boolean;
   equip(itemId: string): boolean;
   unequip(index: number): boolean;
@@ -34,8 +39,9 @@ export interface UnitInventoryIntents {
   openLibrary?(): void;
 }
 
-type StatKey = "hp" | "atk" | "matk" | "def" | "mdef" | "rage" | "shield" | "evade" | "crit" | "accuracy";
-const STAT_ROWS: { key: StatKey; icon: string; fill: string }[] = [
+type StatKey = "hp" | "atk" | "matk" | "def" | "mdef" | "rage" | "shield" | "evade" | "crit" | "accuracy" | "range";
+type StatRowKey = StatKey | "critDmg";
+const STAT_ROWS: { key: StatRowKey; icon: string; fill: string }[] = [
   { key: "hp", icon: ICONS.hp, fill: "#69ae46" },
   { key: "atk", icon: ICONS.atk, fill: "#d8873c" },
   { key: "matk", icon: ICONS.matk, fill: "#af79c4" },
@@ -43,22 +49,59 @@ const STAT_ROWS: { key: StatKey; icon: string; fill: string }[] = [
   { key: "mdef", icon: ICONS.mdef, fill: "#8b8dce" },
   { key: "rage", icon: ICONS.rage, fill: "#e7b042" },
   { key: "shield", icon: ICONS.def, fill: "#9cbbb6" },
+  { key: "evade", icon: ICONS.evade, fill: "#8fd6d0" },
+  { key: "crit", icon: ICONS.crit, fill: "#e46a5a" },
+  { key: "accuracy", icon: ICONS.accuracy, fill: "#d9c26a" },
+  { key: "critDmg", icon: ICONS.critDmg, fill: "#c96f8f" },
+  { key: "range", icon: ICONS.range, fill: "#9fb3c8" },
 ];
-const PERCENT_STATS = new Set(["evade", "crit", "accuracy", "lifesteal", "healPct", "rageGainPct"]);
+const PERCENT_STATS = new Set(["evade", "crit", "accuracy", "critDmg", "lifesteal", "healPct", "rageGainPct"]);
 const fmt = (value: number) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(value);
 const statValue = (key: string, value: number) => PERCENT_STATS.has(key) ? `${fmt(value * 100)}%` : fmt(value);
 const statName = (key: string) => t(`inventory.${key}` as MsgKey);
-const itemName = (id: string) => id === "eq_warmog_armor" ? t("item.eq_warmog_armor") : id === "eq_blue_buff" ? t("item.eq_blue_buff") : id;
+const itemIcon = (itemId: string, alt: string) => {
+  if (!hasItemArt(itemId)) return h("span", "ui-inventory-item-emoji", itemIconChar(itemId));
+  const image = h("img");
+  image.src = `/assets/items/${encodeURIComponent(itemId)}.svg`;
+  image.alt = alt;
+  image.loading = "lazy";
+  return image;
+};
 
-type InventoryStats = Pick<UnitStatSnapshot, StatKey | "maxHp" | "rageMax">;
+type InventoryStats = Pick<UnitStatSnapshot, StatKey | "maxHp" | "rageMax"> & { critDmg?: number };
 interface InventoryDisplay {
   uid: string;
   baseId: string;
   star: number;
   stats: readonly [InventoryStats, InventoryStats, InventoryStats];
+  traits: readonly VariantTraitRef[];
   location: string;
   hint: string;
 }
+
+const VARIANT_BONUS_LABEL: Record<string, { key: MsgKey; pct: boolean }> = {
+  hpPct: { key: "inventory.hp", pct: true },
+  atkPct: { key: "inventory.atk", pct: true },
+  matkPct: { key: "inventory.matk", pct: true },
+  def: { key: "inventory.def", pct: false },
+  mdef: { key: "inventory.mdef", pct: false },
+  healPct: { key: "inventory.healPct", pct: true },
+  critPct: { key: "inventory.crit", pct: true },
+  evadePct: { key: "inventory.evade", pct: true },
+  lifestealPct: { key: "inventory.lifesteal", pct: true },
+  startingShield: { key: "inventory.shield", pct: false },
+  startingRage: { key: "inventory.rage", pct: false },
+};
+
+const variantBonusCopy = (bonuses: VariantBonuses): string => Object.entries(bonuses)
+  .filter(([, value]) => typeof value === "number" && value !== 0)
+  .map(([key, value]) => {
+    const label = VARIANT_BONUS_LABEL[key];
+    return label ? `${t(label.key)} +${fmt(value!)}${label.pct ? "%" : ""}` : "";
+  })
+  .filter(Boolean)
+  .join(" · ");
+
 
 /** The owned inventory and read-only enemy inspection share the same DOM, kit and stat painters. */
 function createInventoryView(modal: ModalHandle, portraits: Portraits, getDisplay: () => InventoryDisplay, readonly = false) {
@@ -92,9 +135,69 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     h("span", "", `${ICONS[unit.element]} ${t(`element.${unit.element}` as MsgKey)}`));
   const location = h("p", "ui-inventory-note");
   const skill = panel("ui-inventory-skill");
-  const skillDescription = h("p", "", unit.skill.starDetailVi[initial.star - 1] ?? unit.skill.detailVi ?? unit.pitchVi);
-  skill.append(h("h3", "", t("library.skill")), h("strong", "", unit.skill.nameVi), skillDescription);
-  profile.append(portraitPanel, name, stars, identity, location, skill);
+  const skillHead = h("div", "ui-inventory-section-head");
+  const skillName = h("strong", "", unit.skill.nameVi);
+  const skillRage = h("span", "ui-inventory-note");
+  skillHead.append(h("h3", "", `${SKILL_ICONS[unit.role]} ${t("inventory.skillBlock")}`), skillRage);
+  const skillMeta = h("p", "ui-inventory-note");
+  const milestones = h("div", "ui-inventory-milestones");
+  skill.append(skillHead, skillName, skillMeta, milestones);
+
+  const passive = panel("ui-inventory-passive");
+  passive.append(h("h3", "", t("inventory.passive")), h("p", "", t(`passive.${unit.role}` as MsgKey)));
+
+  const basic = panel("ui-inventory-basic");
+  const basicCopy = h("p");
+  basic.append(h("h3", "", `${ICONS.fist} ${t("inventory.basicAttack")}`), basicCopy);
+
+  profile.append(portraitPanel, name, stars, identity, location);
+
+  const renderSkill = (star: number) => {
+    const rageCost = unit.skill.rageCost[star - 1] ?? unit.skill.rageCost[0];
+    skillRage.textContent = `${ICONS.rage} ${t("unit.rage", { cost: rageCost })}`;
+    skillMeta.textContent = [unit.skill.targetVi, unit.skill.shapeVi, unit.skill.selectionVi, unit.skill.countVi, unit.skill.durationVi]
+      .filter(Boolean).join(" · ");
+    const spec = skillSpec(unit.id, star);
+    const tone = spec.damage?.type ?? (spec.heal ? "heal" : "magic");
+    milestones.replaceChildren(h("h4", "", `${ICONS.star} ${t("inventory.starMilestones")}`));
+    const statRows = starStatMilestones(unit);
+    const statLabelOf = (key: string) => t(`inventory.${key}` as MsgKey);
+    const statValueOf = (row: (typeof statRows)[number], key: string) =>
+      key === "hp" ? row.hp : key === "atk" ? row.atk : key === "matk" ? row.matk
+        : key === "def" ? row.def : key === "mdef" ? row.mdef : 0;
+    for (let s = 1; s <= 3; s++) {
+      const specS = skillSpec(unit.id, s);
+      const statsS = statRows[s - 1]!;
+      const mult = STAR_SKILL[s] ?? 1;
+      const entry = h("div", s === star ? "ui-inventory-milestone is-current" : "ui-inventory-milestone");
+      entry.append(h("strong", "", `${ICONS.star.repeat(s)} ${t("inventory.starLine", { star: s })}:`));
+      const prose = h("p");
+      prose.append(decorateDescription(unit.skill.starDetailVi[s - 1] ?? "", (specS.damage?.type ?? tone) as RichTone));
+      entry.append(prose);
+      const parts: { label: string; formula: { base: number; scale: number; stat: string }; tone: RichTone }[] = [];
+      if (specS.damage) parts.push({ label: "", formula: specS.damage, tone: specS.damage.type });
+      if (specS.heal?.formula) parts.push({ label: `${t("inventory.healPct")} `, formula: specS.heal.formula, tone: "heal" });
+      if (specS.shield) parts.push({ label: `${t("inventory.shield")} `, formula: specS.shield, tone: "shield" });
+      for (const part of parts) {
+        const statValue = statValueOf(statsS, part.formula.stat);
+        const total = Math.round((part.formula.base + part.formula.scale * statValue) * mult);
+        const precise = (value: number) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }).format(value);
+        const text = `${part.label}(${precise(part.formula.base)} + ${precise(part.formula.scale)} × ${statLabelOf(part.formula.stat)}) `
+          + `× ${t("inventory.starMultiplier", { mult: precise(mult) })} = (${precise(part.formula.base)} + ${precise(part.formula.scale)} × ${precise(statValue)}) `
+          + `× ${precise(mult)} = ${fmt(total)}`;
+        const line = h("p", "ui-inventory-star-formula");
+        line.append(`📜 ${t("inventory.skillFormula")}: `, richSpan(text, part.tone));
+        entry.append(line);
+      }
+      milestones.append(entry);
+    }
+    const milestone = statRows[star - 1];
+    basicCopy.replaceChildren(
+      `${ICONS.fist} ${basicAttackCopy(unit).replace(/\.\s*$/, "")} · ${t("inventory.basicDamage")}: `,
+      richSpan(fmt(milestone?.basicDamage ?? 0), unit.basic.damageType),
+    );
+  };
+  renderSkill(initial.star);
 
   const right = h("div", "ui-inventory-right");
   const statGrid = h("div", "ui-inventory-stats");
@@ -114,11 +217,17 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
       el.setAttribute("aria-label", `${t(titles[col])}: ${statName(row.key)}`);
       el.dataset.stat = row.key; el.dataset.column = String(col);
       const paint = surface(el, (g, w, hh) => {
+        const key = row.key;
         const stats = getDisplay().stats;
-        const current = stats[col], value = current[row.key];
-        const max = row.key === "hp" ? current.maxHp : row.key === "rage" ? current.rageMax : Math.max(1, ...stats.map((s) => s[row.key]));
-        const delta = col === 2 ? value - stats[1][row.key] : 0;
-        const text = row.key === "hp" ? `${fmt(value)} / ${fmt(current.maxHp)}` : row.key === "rage" ? `${fmt(value)} / ${fmt(current.rageMax)}` : fmt(value);
+        const current = stats[col];
+        const value = key === "critDmg" ? (current.critDmg ?? stats[1].critDmg ?? 1.5) : current[key];
+        const max = key === "hp" ? current.maxHp : key === "rage" ? current.rageMax
+          : key === "evade" || key === "crit" || key === "accuracy" ? 1
+          : key === "critDmg" ? 3 : key === "range" ? 5
+          : Math.max(1, ...stats.map((s) => s[key]));
+        const previous = key === "critDmg" ? (stats[1].critDmg ?? value) : stats[1][key];
+        const delta = col === 2 ? value - previous : 0;
+        const text = key === "hp" ? `${fmt(value)} / ${fmt(current.maxHp)}` : key === "rage" ? `${fmt(value)} / ${fmt(current.rageMax)}` : statValue(key, value);
         // Two stat columns make each cell narrow: keep the value on the label line only when it
         // fits, otherwise stack it above the bar so long labels never collide with their number.
         const font = uiFont(Math.max(8, Math.min(13, w / 14)));
@@ -140,14 +249,12 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
         } else g.fillRect(3, y + 2, barW * ratio, 9);
         threeSlice(g, "frame_bar", 3, 1, y, w - 2, 14);
         if (delta) label(g, `${delta > 0 ? "+" : ""}${fmt(delta)}`, w - 5, y - 10, { size: uiFont(9), align: "right" });
-        el.setAttribute("aria-valuenow", String(value)); el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", String(max));
+        el.setAttribute("aria-valuenow", String(Number(value.toFixed(3)))); el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", String(max));
         el.setAttribute("aria-valuetext", `${text}${delta ? ` (${delta > 0 ? "+" : ""}${fmt(delta)})` : ""}`);
       });
       statPainters.push(paint); surfaces.push(paint); column.append(el);
     }
-    const secondary = h("div", "ui-inventory-secondary");
-    secondary.dataset.secondary = String(col);
-    column.append(secondary); statGrid.append(column);
+    statGrid.append(column);
   }
 
   const lower = h("div", "ui-inventory-lower");
@@ -157,14 +264,31 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   equippedHead.append(h("h3", "", t("inventory.equipped")), slotsCount);
   const equipped = h("div", "ui-inventory-items");
   const bag = h("div", "ui-inventory-items");
-  equipment.append(equippedHead, equipped);
+  const equippedActions = h("div", "ui-inventory-equipped-actions");
+  equipment.append(equippedHead, equipped, equippedActions);
   if (!readonly) equipment.append(h("h3", "", t("inventory.bag")), bag);
   const effectPanel = panel("ui-inventory-effects");
   const effects = h("div", "ui-inventory-effect-list");
   const sources = h("div", "ui-inventory-effect-list");
   effectPanel.append(h("h3", "", t("inventory.effects")), effects);
   if (!readonly) effectPanel.append(h("h3", "", t("inventory.sources")), sources);
-  lower.append(equipment, effectPanel); right.append(statGrid, lower); content.append(profile, right);
+  const variantPanel = panel("ui-inventory-variants");
+  const variantHead = h("div", "ui-inventory-section-head");
+  const variantCount = h("span", "ui-inventory-note");
+  variantHead.append(h("h3", "", t("inventory.variant")), variantCount);
+  const variantList = h("div", "ui-inventory-variant-list");
+  variantPanel.append(variantHead, variantList);
+  const renderVariants = () => {
+    const defs = (getDisplay().traits ?? [])
+      .map((ref) => VARIANT_BY_ID.get(ref.id))
+      .filter((def): def is NonNullable<typeof def> => Boolean(def) && def!.role === unit.role);
+    variantCount.textContent = t("inventory.variantCount", { count: defs.length });
+    variantList.replaceChildren(...(defs.length
+      ? defs.map((def, index) => h("p", "ui-inventory-variant",
+        t("inventory.variantLine", { index: index + 1, name: def.nameVi, bonus: variantBonusCopy(def.bonuses) })))
+      : [h("p", "ui-inventory-note", t("inventory.noVariant"))]));
+  };
+  lower.append(equipment, effectPanel, variantPanel); right.append(statGrid, skill, passive, basic, lower); content.append(profile, right);
   root.append(content);
 
   const makeItem = (itemId: string, worn: boolean, count = 0) => {
@@ -172,15 +296,11 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     if (!item) return null;
     const card = h("div", "ui-inventory-item");
     const icon = panel("ui-inventory-item-icon", true);
-    const image = h("img");
-    image.src = `/assets/items/${encodeURIComponent(itemId)}.svg`;
-    image.alt = itemName(itemId);
-    image.loading = "lazy";
-    icon.append(image);
-    const caption = h("strong", "ui-inventory-item-name", itemName(itemId));
+    icon.append(itemIcon(itemId, itemDisplayName(itemId)));
+    const caption = h("strong", "ui-inventory-item-name", itemDisplayName(itemId));
     const meta = h("small", "ui-inventory-note", `${t("library.tier", { tier: item.tier })}${worn ? "" : ` · ×${count}`}`);
-    card.title = !Object.keys(item.bonuses).length ? t("inventory.itemNoBonus") :
-      Object.entries(item.bonuses).map(([key, value]) => `${key}: ${value}`).join(" · ");
+    const bonusCopy = equipmentBonusCopy(item.bonuses);
+    card.title = bonusCopy || t("inventory.itemNoBonus");
     const detail = h("details", "ui-inventory-item-details");
     detail.append(h("summary", "", t("inventory.itemDetail")), h("p", "", card.title));
     card.append(icon, caption, meta);
@@ -192,7 +312,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
     return empty;
   };
   return {
-    root, content, equipped, bag, slotsCount, effects, sources, itemButtons, panel, makeItem, emptySlot,
+    root, content, equipped, equippedHead, equippedActions, bag, slotsCount, effects, sources, itemButtons, panel, makeItem, emptySlot,
     updateStats() {
       const display = getDisplay();
       if (display.star !== shownStar) {
@@ -200,19 +320,15 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
         name.textContent = unitEvolutionName(unit, shownStar);
         viewer.setUnit(unit.id, shownStar as Parameters<typeof viewer.setUnit>[1]);
         stars.textContent = ICONS.star.repeat(shownStar);
-        skillDescription.textContent = unit.skill.starDetailVi[shownStar - 1] ?? unit.skill.detailVi ?? unit.pitchVi;
+        renderSkill(shownStar);
       }
       const baseHint = root.querySelector<HTMLElement>("[data-base-hint]");
       if (baseHint) baseHint.textContent = t("inventory.baseHint", { star: display.star });
       location.textContent = display.location;
       const hint = root.querySelector<HTMLElement>("[data-current-hint]");
       if (hint) hint.textContent = display.hint;
+      renderVariants();
       for (const painter of statPainters) painter.paint();
-      display.stats.forEach((snapshot, col) => {
-        const el = root.querySelector<HTMLElement>(`[data-secondary="${col}"]`);
-        if (el) el.textContent = ["evade", "crit", "accuracy"].map((key) =>
-          `${statName(key)} ${statValue(key, snapshot[key as "evade" | "crit" | "accuracy"])}`).join(" · ");
-      });
     },
     clearItems() {
       for (const s of itemSurfaces.splice(0)) s.dispose();
@@ -298,6 +414,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     baseId: model.inspection.unit.baseId,
     star: model.inspection.unit.star,
     stats: [model.inspection.base, model.inspection.boosted, model.current],
+    traits: model.inspection.unit.traits ?? [],
     location: t(model.inspection.where === "board" ? "inventory.board" : "inventory.bench"),
     hint: t(model.inCombat ? "inventory.liveHint" :
       model.inspection.where === "bench" ? "inventory.benchHint" : "inventory.planningHint"),
@@ -313,7 +430,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     update();
   };
   const removeAll = kitButton({ skin: "wood", cls: "ui-inventory-action", onClick: () => execute(intents.unequipAll, "inventory.unequippedOk") });
-  const select = kitButton({ skin: "green", label: t("inventory.select"), cls: "ui-inventory-action", onClick: () => { intents.select(); modal.close(); } });
+  view.equippedActions.append(removeAll.el);
   const sell = kitButton({ skin: "red", cls: "ui-inventory-action", onClick: () => { confirmingSale = true; update(); confirm.el.focus(); } });
   const library = intents.openLibrary
     ? kitButton({
@@ -321,7 +438,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
       onClick: () => { modal.close(); intents.openLibrary?.(); },
     })
     : null;
-  footer.append(gold, removeAll.el, select.el, sell.el, ...(library ? [library.el] : []));
+  footer.append(gold, sell.el, ...(library ? [library.el] : []));
   const saleHint = h("p", "ui-inventory-sale-hint", t("inventory.sellHint"));
   const confirmation = panel("ui-inventory-confirm");
   const confirmationText = h("p");
@@ -412,7 +529,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
         onClick: () => execute(() => worn ? intents.unequip(index) : intents.equip(itemId), worn ? "inventory.unequippedOk" : "inventory.equippedOk"),
       });
       button.setDisabled(Boolean(reason));
-      button.el.title = reason || itemName(itemId);
+      button.el.title = reason || itemDisplayName(itemId);
       itemButtons.push(button);
       card.append(button.el, detail);
       if (reason && editable()) card.append(h("small", "ui-inventory-item-reason", reason));
@@ -430,7 +547,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     if (!next) { modal.close(); return; }
     model = next;
     view.updateStats();
-    gold.textContent = `${ICONS.gold} ${t("inventory.gold", { gold: model.run.gold })}`;
+    gold.textContent = t("inventory.gold", { gold: model.run.gold });
     const costs = unequipQuote(model.run, model.inspection.where, model.inspection.index);
     const totalCost = costs?.reduce((sum, cost) => sum + cost, 0) ?? 0;
     removeAll.setLabel(t("inventory.unequipAll", { cost: `${totalCost} ${ICONS.gold}` }));
@@ -455,7 +572,7 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     disposed = true;
     view.dispose();
     library?.dispose();
-    for (const b of [removeAll, select, sell, confirm, cancel]) b.dispose();
+    for (const b of [removeAll, sell, confirm, cancel]) b.dispose();
   } };
 }
 
@@ -475,6 +592,7 @@ export function mountReadonlyUnitInventory(
     baseId: diagnostics.baseId,
     star: diagnostics.star,
     stats: [diagnostics.base, diagnostics.derived, diagnostics.live],
+    traits: diagnostics.traits,
     location: t(diagnostics.side === "R" ? "inventory.enemyBoard" : "inventory.board"),
     hint: t("inventory.liveHint"),
   }), true);

@@ -358,11 +358,18 @@ export function createPlanningDragController({
     }
     if (!pressed || event.pointerId !== pressed.pointerId) {
       const run = enabled() ? getRun() : null;
-      if (!run || run.phase !== "PLANNING") {
+      if (!run || (run.phase !== "PLANNING" && !inspectOnly())) {
         stage.arena.clearHighlights();
         stage.arena.clearBenchHighlights();
         clearPreview();
         board.setHovered(null);
+      } else if (run.phase !== "PLANNING") {
+        // Combat: units move every cycle, so report the live rig under the pointer and keep the
+        // hover tooltip/billboard priority without painting stale tactical tiles.
+        const picked = pickUnit(event.clientX, event.clientY);
+        board.setHovered(picked?.uid ?? null);
+        if (picked?.kind === "enemy") showEnemyPreview(picked.uid, event.clientX, event.clientY);
+        else showPreview(picked ? sourceForUid(run, picked.uid) : null, event.clientX, event.clientY);
       } else {
         const tileHit = boardPicker.pick(event.clientX, event.clientY);
         const picked = pickUnit(event.clientX, event.clientY) ?? pickOccupiedTile(tileHit, run);
