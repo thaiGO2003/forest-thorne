@@ -16,7 +16,7 @@ const owned = (uid: string, baseId = "ant_guard", star: 1 | 2 | 3 = 1): OwnedUni
 describe("tutorial A94/A108", () => {
   it("uses the authored round-1 shop and blocks mutations until the exact step/target is legal", () => {
     const s = createRun(7);
-    expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "deer_song", "jaguar_hunt", "toad_poison", "crane_blessing"]);
+    expect(s.shop.slice(0, 5)).toEqual(["ant_guard", "deer_song", "cat_goldbow", "jaguar_hunt", "toad_poison"]);
     expect(currentTutorialStep(s)?.id).toBe("welcome");
     expect(buy(s, 0)).toBeNull();
 
@@ -57,7 +57,7 @@ describe("tutorial A94/A108", () => {
     expect(s.shop.slice(0, 5)).toEqual(["deer_song", "ant_guard", "jaguar_hunt", "toad_poison", "crane_blessing"]);
     incrementTutorialShopVariant(s);
     expect(tutorialShop(2, s.tutorial.shopVariant, 5)).toEqual([
-      "fox_flame", "deer_song", "ant_guard", "jaguar_hunt", "toad_poison",
+      "fox_flame", "cat_goldbow", "deer_song", "ant_guard", "jaguar_hunt",
     ]);
   });
 

@@ -16,6 +16,12 @@ import oxMountain from "../src/units/roster/oxMountain";
 import foxSlingshot from "../src/units/roster/foxSlingshot";
 import saolaFrost from "../src/units/roster/saolaFrost";
 import boarGlutton from "../src/units/roster/boarGlutton";
+import timeCloth from "../src/units/roster/timeCloth";
+import pigCharm from "../src/units/roster/pigCharm";
+import bullRage from "../src/units/roster/bullRage";
+import hedgehogSun from "../src/units/roster/hedgehogSun";
+import duckKing from "../src/units/roster/duckKing";
+import elfSheep from "../src/units/roster/elfSheep";
 import { createUnit, hasRig } from "../src/units/registry";
 import { hasUnitVisual } from "../src/content/unitVisuals";
 import { getUnit, type Role } from "../src/content/catalog";
@@ -34,6 +40,12 @@ const CASES: [UnitRigDef<unknown>, string, Role][] = [
   [foxSlingshot, "Cáo Ná Thun", "ARCHER"],
   [saolaFrost, "Sao La Làng", "MAGE"],
   [boarGlutton, "Lợn Háu Ăn", "TANKER"],
+  [timeCloth, "Ma Vải Thời Gian", "MAGE"],
+  [pigCharm, "Lợn Quyến Rũ", "TANKER"],
+  [bullRage, "Bò Điên Tóc Đỏ", "TANKER"],
+  [hedgehogSun, "Nhím Mặt Trời", "ARCHER"],
+  [duckKing, "Vua Vịt Vàng", "MAGE"],
+  [elfSheep, "Elf Lùn Cừu", "SUPPORT"],
 ];
 const STATES: [ActionState, boolean][] = [["idle", false], ["idle", true], ["move", false], ["move", true], ["attack", false], ["skill", false], ["hit", false]];
 const SAMPLES = Array.from({ length: 41 }, (_, i) => i / 40);

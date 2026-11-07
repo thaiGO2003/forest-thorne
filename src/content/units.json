@@ -743,7 +743,7 @@
  {
   "id": "cat_goldbow",
   "species": "ong",
-  "nameVi": "Ong Lửa",
+  "nameVi": "Nhím Mặt Trời",
   "tier": 4,
   "role": "ARCHER",
   "faction": "INSECT",
@@ -1484,7 +1484,7 @@
  {
   "id": "dryad_tree",
   "species": "yeu-tinh",
-  "nameVi": "Yêu Tinh Cây",
+  "nameVi": "Elf Lùn Cừu",
   "tier": 2,
   "role": "SUPPORT",
   "faction": "MYTHICAL",
@@ -2387,9 +2387,9 @@
  {
   "id": "hippo_maul",
   "species": "ha-ma",
-  "nameVi": "Hà Mã Nện",
+  "nameVi": "Lợn Quyến Rũ",
   "tier": 3,
-  "role": "FIGHTER",
+  "role": "TANKER",
   "faction": "BEAST",
   "element": "TIDE",
   "boss": false,
@@ -5465,9 +5465,9 @@
  {
   "id": "swan_grace",
   "species": "thien-nga",
-  "nameVi": "Thiên Nga Trắng",
+  "nameVi": "Vua Vịt Vàng",
   "tier": 4,
-  "role": "SUPPORT",
+  "role": "MAGE",
   "faction": "AVIAN",
   "element": "TIDE",
   "boss": false,
@@ -6491,9 +6491,9 @@
  {
   "id": "wisp_light",
   "species": "hon-ma",
-  "nameVi": "Hồn Ma Sáng",
+  "nameVi": "Ma Vải Thời Gian",
   "tier": 3,
-  "role": "SUPPORT",
+  "role": "MAGE",
   "faction": "MYTHICAL",
   "element": "SPIRIT",
   "boss": false,
@@ -6890,7 +6890,7 @@
  {
   "id": "yak_highland",
   "species": "yak",
-  "nameVi": "Bò Tây Tạng",
+  "nameVi": "Bò Điên Tóc Đỏ",
   "tier": 4,
   "role": "TANKER",
   "faction": "BEAST",
