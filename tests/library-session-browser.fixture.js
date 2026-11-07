@@ -46,12 +46,15 @@ beforeEach(async () => {
       return nativeSetTimeout(fn, delay, ...args);
     };
     window.clearTimeout = (id) => { if (id < 0) timers.delete(id); else nativeClearTimeout(id); };
+    // setUnit recreates the real rig and clears its preview action (portraits.ts).
+    // This stateful viewer double models that reset instead of merely recording calls.
+    const viewerState = { action: "idle", unit: null, star: 1, skin: null };
     const portraits = {
       get: () => null, onReady: () => () => {},
       createViewer: () => ({
-        setUnit: () => {},
+        setUnit: (unit, star, skin = null) => Object.assign(viewerState, { unit, star, skin, action: "idle" }),
         setCombat: () => {},
-        play: () => {},
+        play: (action) => { viewerState.action = action; },
         moveCamera: () => {}, zoomBy: () => {}, resetView: () => {},
         dispose: () => {},
       }),
@@ -70,7 +73,7 @@ beforeEach(async () => {
       const modal = host.open({ id: "library", title: "Library", onClose: () => view?.dispose() });
       view = mountLibrary(modal, portraits, tip, account);
     };
-    window.libraryFixture = { open, close: () => host.closeActive(), timers, skinUnit, t, UNITS, hasUnitVisual, profile };
+    window.libraryFixture = { open, close: () => host.closeActive(), timers, skinUnit, t, UNITS, hasUnitVisual, profile, viewerState };
     open();
   });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -130,8 +133,10 @@ describe("Library detail session navigation", () => {
       actions[2].click(); // attack (idle, beast form, attack)
       document.querySelectorAll(".lib-stars button")[2].click();
       const actionAfterStar = document.querySelectorAll(".lib-actions button")[2].getAttribute("aria-pressed");
+      const viewerAfterStar = { ...f.viewerState };
       document.querySelectorAll(".lib-skin-actions button")[2].click(); // owned stage 2
       const actionAfterSkin = document.querySelectorAll(".lib-actions button")[2].getAttribute("aria-pressed");
+      const viewerAfterSkin = { ...f.viewerState };
       const selectedSkin = document.querySelectorAll(".lib-skin-actions button")[2].getAttribute("aria-pressed");
       const selectedStar = [...document.querySelectorAll('.lib-stars button')].findIndex((el) => el.getAttribute("aria-pressed") === "true") + 1;
       const activeTimersDuringAttack = f.timers.size;
@@ -147,14 +152,17 @@ describe("Library detail session navigation", () => {
       const search = document.querySelector(".lib-input");
       search.value = f.skinUnit.id; search.dispatchEvent(new Event("input", { bubbles: true }));
       document.querySelector("[data-library-unit]").click();
-      return { actionAfterStar, actionAfterSkin, selectedSkin, selectedStar, activeTimersDuringAttack,
-        idleSelected, timersAfterBack, timersAfterClose, rootSearch, rootSelected, rootTimers: f.timers.size,
+      return { actionAfterStar, actionAfterSkin, selectedSkin, selectedStar, activeTimersDuringAttack, viewerAfterStar, viewerAfterSkin,
+        idleSelected, timersAfterBack, timersAfterClose, rootSearch, rootSelected, rootTimers: f.timers.size, rootViewer: { ...f.viewerState },
         rootStar: document.querySelector(".lib-stars button").getAttribute("aria-pressed"),
         rootIdle: document.querySelector(".lib-actions button").getAttribute("aria-pressed"),
         equippedSkin: document.querySelector(".lib-skin-actions button:nth-child(2)").getAttribute("aria-pressed") };
     });
     expect(result.actionAfterStar).toBe("true");
     expect(result.actionAfterSkin).toBe("true");
+    expect(result.viewerAfterStar).toMatchObject({ star: 3, action: "attack" });
+    expect(result.viewerAfterSkin).toMatchObject({ star: 2, action: "attack" });
+    expect(result.viewerAfterSkin.skin).not.toBeNull();
     expect(result.selectedSkin).toBe("true");
     expect(result.selectedStar).toBe(2);
     expect(result.activeTimersDuringAttack).toBe(0);
@@ -165,6 +173,7 @@ describe("Library detail session navigation", () => {
     expect(result.rootSelected).toBe(0);
     expect(result.rootStar).toBe("true");
     expect(result.rootIdle).toBe("true");
+    expect(result.rootViewer).toMatchObject({ star: 1, action: "idle" });
     expect(result.equippedSkin).toBe("true");
     expect(result.rootTimers).toBe(1);
   });
