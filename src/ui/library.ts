@@ -2,21 +2,33 @@
 // 3D rig, five action-preview buttons, star selector, star milestone table and skill clarity.
 // Pure view over catalog + core inspection; owns no gameplay state.
 import { UNITS, type Element, type Faction, type Role, type UnitDef } from "../content/catalog";
-import { BASE_MATERIALS, RECIPES } from "../core/craft";
+import { hasUnitVisual } from "../content/unitVisuals";
 import { shopTierOdds } from "../core/economy";
-import { EQUIPMENT } from "../core/equipment";
+import { BASE_MATERIALS, EQUIPMENT } from "../core/itemRegistry";
 import { AUGMENTS, type AugGroup } from "../core/augments";
-import { ICONS } from "../core/emojiIcon";
+import { ICONS, SKILL_ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { starStatMilestones } from "../core/inspection";
-import { createCard, type CardView } from "./card";
+import { basicAttackCopy } from "../core/unitText";
+import { unitEvolutionName } from "../content/unitNames";
+import { createCard, unitCardTooltip, type CardView } from "./card";
+import { createCraftLibrary, type CraftLibraryView } from "./crafting/library";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
+import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
 import type { ModalHandle } from "./modal";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
+import { mountPortraitControls } from "./portraitControls";
+import { decorateDescription, inferRichTone } from "./richText";
 import { hasRig } from "../units/registry";
 import { ACTION_STATES, type ActionState, type Star } from "../units/rig";
 import type { CollectionProfile } from "../core/achievements";
+
+const richParagraph = (cls: string, text: string): HTMLElement => {
+  const p = h("p", cls);
+  p.append(decorateDescription(text, inferRichTone(text)));
+  return p;
+};
 
 const ROLES: Role[] = ["TANKER", "FIGHTER", "ASSASSIN", "ARCHER", "MAGE", "SUPPORT"];
 const FACTIONS: Faction[] = ["BEAST", "AVIAN", "INSECT", "REPTILE", "AQUATIC", "MYTHICAL"];
@@ -77,8 +89,21 @@ export function mountLibrary(
   const f: Filter = { q: "", role: null, faction: null, tier: null };
   let collection = account.collectionProfile();
   const refreshCollection = () => { collection = account.collectionProfile(); };
-  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, idleTimer: number | null = null, relaxedIdle = true;
+  let page = 0, cards: CardView[] = [], viewer: PortraitViewer | null = null, controlsOff: (() => void) | null = null, idleTimer: number | null = null, relaxedIdle = true;
   let tab: LibraryTab = "units";
+  let catalogTier = 0;
+  let catalogPage = 0;
+  let craftLibraryView: CraftLibraryView | null = null;
+  const cardTips: (() => void)[] = [];
+  const clearCardTips = () => {
+    for (const unbind of cardTips.splice(0)) unbind();
+    tip.hide();
+  };
+  const viewTips: (() => void)[] = [];
+  const clearViewTips = () => {
+    for (const unbind of viewTips.splice(0)) unbind();
+    tip.hide();
+  };
   const root = h("div", "lib");
   modal.body.append(root);
   const clearIdleTimer = () => {
@@ -100,7 +125,7 @@ export function mountLibrary(
     const row = h("div", "lib-chips");
     const btns: [T, KitButton][] = values.map((v) => {
       const b = kitButton({ skin: "icon", icon: icon(v), aria: name(v), cls: "lib-chip", onClick: () => { set(get() === v ? null : v); page = 0; renderGrid(); } });
-      tip.bind(b.el, () => ({ title: name(v) }));
+      viewTips.push(tip.bind(b.el, () => ({ title: name(v) })));
       row.append(b.el);
       return [v, b];
     });
@@ -108,44 +133,100 @@ export function mountLibrary(
   };
 
   function renderCatalog() {
+    if (tab === "recipes") {
+      // The graph library owns its own search, rail, columns and detail; the modal only supplies
+      // the tab shell so both the Library tab and the crafting overlay render the same view.
+      craftLibraryView?.dispose();
+      craftLibraryView = null;
+      const embed = h("div", "craft-library-embed");
+      craftLibraryView = createCraftLibrary({ tip });
+      embed.append(craftLibraryView.el);
+      root.append(embed);
+      return;
+    }
     const list = h("div", "lib-info");
     root.append(list);
     const entry = (title: string, ...detail: string[]) => {
       const panel = panelEl("panel_tooltip", "lib-sec");
       panel.append(h("h3", "lib-h", title));
-      for (const line of detail) panel.append(h("p", "lib-p", line));
+      for (const line of detail) panel.append(richParagraph("lib-p", line));
       list.append(panel);
       return panel;
     };
-    const iconEntry = (id: string, title: string, ...detail: string[]) => {
-      const heading = entry(title, ...detail).querySelector(".lib-h");
-      const icon = h("img", "lib-item-icon");
-      icon.src = `/assets/items/${encodeURIComponent(id)}.svg`;
-      icon.alt = "";
-      icon.loading = "lazy";
+    const hostEntry = (host: HTMLElement, title: string, ...detail: string[]) => {
+      const panel = panelEl("panel_tooltip", "lib-sec");
+      panel.append(h("h3", "lib-h", title));
+      for (const line of detail) panel.append(richParagraph("lib-p", line));
+      host.append(panel);
+      return panel;
+    };
+    const itemBadge = (heading: globalThis.Element | null, id: string) => {
+      const icon = hasItemArt(id) ? h("img", "lib-item-icon") : h("span", "lib-item-icon lib-item-emoji", itemIconChar(id));
+      if (icon instanceof HTMLImageElement) {
+        icon.src = `/assets/items/${encodeURIComponent(id)}.svg`;
+        icon.alt = "";
+        icon.loading = "lazy";
+      } else icon.setAttribute("aria-hidden", "true");
       heading?.prepend(icon);
     };
-    const nameOfEquipment = (id: string) => id === "eq_blue_buff"
-      ? t("item.eq_blue_buff")
-      : id === "eq_warmog_armor" ? t("item.eq_warmog_armor") : id;
+    const iconEntry = (id: string, title: string, ...detail: string[]) => {
+      itemBadge(entry(title, ...detail).querySelector(".lib-h"), id);
+    };
+    const hostIconEntry = (host: HTMLElement, id: string, title: string, ...detail: string[]) => {
+      itemBadge(hostEntry(host, title, ...detail).querySelector(".lib-h"), id);
+    };
     if (tab === "materials") {
       entry("Danh mục nguyên liệu", "Các nguyên liệu có thể sử dụng trên bàn chế tạo.");
-      for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? id);
+      for (const id of BASE_MATERIALS) iconEntry(id, MATERIAL_NAMES[id] ?? itemDisplayName(id));
     } else if (tab === "equipment") {
-      for (const item of EQUIPMENT) {
-        const bonuses = Object.entries(item.bonuses).map(([key, value]) => `${key}: ${value}`);
-        iconEntry(item.id, nameOfEquipment(item.id), `Bậc ${item.tier}`, ...bonuses);
-      }
-    } else if (tab === "recipes") {
-      entry("Công thức đã có", "Chỉ hiển thị các công thức được định nghĩa trong trò chơi; không suy đoán công thức còn thiếu.");
-      for (const recipe of RECIPES) {
-        const lines = [];
-        for (let row = 0; row < recipe.size; row++) {
-          lines.push(recipe.pattern.slice(row * recipe.size, (row + 1) * recipe.size)
-            .map((id) => id ? MATERIAL_NAMES[id] ?? id : "Ô trống").join(" · "));
+      const tiers = [...new Set(EQUIPMENT.map((item) => item.tier))].sort((a, b) => a - b);
+      entry(
+        "Trang bị cổ",
+        `${EQUIPMENT.length} trang bị từ bản classic. Chỉ số cộng đã áp dụng; hiệu ứng kích hoạt đặc biệt của old_src chưa được mô phỏng.`,
+        "Chọn bậc để lọc; dùng nút chuyển trang ở cuối danh sách.",
+      );
+      const filters = h("div", "lib-catalog-filters");
+      const filterButtons: { value: number; button: KitButton }[] = [];
+      const addFilter = (label: string, value: number) => {
+        const b = kitButton({ skin: "wood", label, cls: "lib-catalog-filter", onClick: () => {
+          catalogTier = value;
+          catalogPage = 0;
+          for (const entryItem of filterButtons) entryItem.button.setSelected(entryItem.value === value);
+          paint();
+        } });
+        filterButtons.push({ value, button: b });
+        b.setSelected(catalogTier === value);
+        viewTips.push(tip.bind(b.el, () => ({ title: label })));
+        filters.append(b.el);
+      };
+      addFilter(t("library.all"), 0);
+      for (const tier of tiers) addFilter(t("library.tier", { tier }), tier);
+      const body = h("div", "lib-catalog-list");
+      const foot = h("div", "lib-foot");
+      list.append(filters, body, foot);
+      const paint = () => {
+        const per = 6;
+        const equipment = catalogTier ? EQUIPMENT.filter((item) => item.tier === catalogTier) : EQUIPMENT;
+        const total = equipment.length;
+        const pages = Math.max(1, Math.ceil(total / per));
+        catalogPage = Math.min(catalogPage, pages - 1);
+        disposeSurfaceTree(body);
+        body.replaceChildren();
+        for (const item of equipment.slice(catalogPage * per, catalogPage * per + per)) {
+          hostIconEntry(body, item.id, itemDisplayName(item.id), t("library.tier", { tier: item.tier }),
+            equipmentBonusCopy(item.bonuses) || t("inventory.itemNoBonus"));
         }
-        iconEntry(`eq_${recipe.id}`, nameOfEquipment(`eq_${recipe.id}`), `Bàn ${recipe.size}×${recipe.size}`, ...lines);
-      }
+        disposeSurfaceTree(foot);
+        foot.replaceChildren();
+        if (pages > 1) {
+          const prev = kitButton({ skin: "wood", label: "‹", cls: "lib-page", onClick: () => { catalogPage = Math.max(0, catalogPage - 1); paint(); } });
+          const next = kitButton({ skin: "wood", label: "›", cls: "lib-page", onClick: () => { catalogPage = Math.min(pages - 1, catalogPage + 1); paint(); } });
+          prev.setDisabled(catalogPage === 0);
+          next.setDisabled(catalogPage >= pages - 1);
+          foot.append(prev.el, h("span", "lib-count", `${t("library.page", { page: catalogPage + 1, pages })} · ${total}`), next.el);
+        }
+      };
+      paint();
     } else if (tab === "augments") {
       const picker = h("select", "lib-input");
       picker.setAttribute("aria-label", "Nhóm chúc phúc");
@@ -198,8 +279,13 @@ export function mountLibrary(
   }
 
   function renderBrowse() {
+    clearCardTips();
+    clearViewTips();
     clearIdleTimer();
+    craftLibraryView?.dispose();
+    craftLibraryView = null;
     viewer?.dispose(); viewer = null;
+    controlsOff?.(); controlsOff = null;
     for (const c of cards) c.dispose();
     cards = [];
     gridRo?.disconnect(); gridRo = null;
@@ -210,7 +296,7 @@ export function mountLibrary(
     const tabs = h("div", "lib-tabs");
     tabs.setAttribute("role", "tablist");
     for (const item of TABS) {
-      const btn = kitButton({ skin: "wood", label: item.name, onClick: () => { tab = item.id; renderBrowse(); } });
+      const btn = kitButton({ skin: "wood", label: item.name, onClick: () => { tab = item.id; catalogTier = 0; catalogPage = 0; renderBrowse(); } });
       btn.setSelected(tab === item.id);
       btn.el.setAttribute("role", "tab");
       btn.el.setAttribute("aria-selected", String(tab === item.id));
@@ -257,22 +343,24 @@ export function mountLibrary(
   function renderGrid() {
     if (!gridEl || !footEl) return;
     syncChips();
+    clearCardTips();
     for (const c of cards) c.dispose();
     cards = [];
     gridEl.replaceChildren();
-    const list = filterUnits(UNITS, f);
+    const list = filterUnits(UNITS.filter((u) => hasUnitVisual(u.id)), f);
     const per = (lastPer = pageSize(gridEl));
     const pages = Math.max(1, Math.ceil(list.length / per));
     page = Math.min(page, pages - 1);
     if (!list.length) gridEl.append(h("div", "lib-empty", t("library.empty")));
     for (const u of list.slice(page * per, page * per + per)) {
       const c = createCard(portraits, "lib-card");
-      c.set({ unit: u, star: 1, detail: "library" });
+      c.set({ unit: u, star: 1, cost: u.boss ? undefined : u.tier });
       c.el.tabIndex = 0;
       c.el.setAttribute("role", "button");
-      const open = () => showDetail(u.id);
+      const open = () => { tip.hide(); showDetail(u.id); };
       c.el.addEventListener("click", open);
       c.el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+      cardTips.push(tip.bind(c.el, () => unitCardTooltip(u, { portrait: portraits.get(u.id, 1) })));
       gridEl.append(c.el);
       cards.push(c);
     }
@@ -280,11 +368,13 @@ export function mountLibrary(
     const prev = kitButton({ skin: "wood", label: "‹", cls: "lib-page", onClick: () => { page--; renderGrid(); } });
     const next = kitButton({ skin: "wood", label: "›", cls: "lib-page", onClick: () => { page++; renderGrid(); } });
     prev.setDisabled(page === 0); next.setDisabled(page >= pages - 1);
-    footEl.append(prev.el, h("span", "lib-count", `${t("library.count", { shown: list.length, total: UNITS.length })} · ${t("library.page", { page: page + 1, pages })}`), next.el);
+    footEl.append(prev.el, h("span", "lib-count", `${t("library.count", { shown: list.length, total: UNITS.filter((u) => hasUnitVisual(u.id)).length })} · ${t("library.page", { page: page + 1, pages })}`), next.el);
   }
 
   function showDetail(id: string) {
-    const found = UNITS.find((x) => x.id === id);
+    clearCardTips();
+    clearViewTips();
+    const found = UNITS.find((x) => x.id === id && hasUnitVisual(x.id));
     if (!found) return;
     const u: UnitDef = found; // non-optional binding: nested renderInfo keeps the narrowed type
     for (const c of cards) c.dispose();
@@ -292,7 +382,7 @@ export function mountLibrary(
     gridRo?.disconnect(); gridRo = null;
     disposeSurfaceTree(root);
     root.replaceChildren();
-    modal.setTitle(u.nameVi);
+    modal.setTitle(unitEvolutionName(u, 1));
     const equippedSkinId = collection.equippedSkinByUnitId[u.id];
     let star: Star = 1;
     let skinId: string | null = u.skin?.id === equippedSkinId && collection.unlockedSkinIds.includes(equippedSkinId) ? equippedSkinId : null;
@@ -302,8 +392,11 @@ export function mountLibrary(
     stagePanel.append(view);
     clearIdleTimer();
     viewer?.dispose();
+    controlsOff?.();
+    controlsOff = null;
     viewer = portraits.createViewer(view);
     viewer.setUnit(u.id, star, skinId);
+    controlsOff = mountPortraitControls(stagePanel, viewer);
     scheduleIdle();
     if (!hasRig(u.id)) stagePanel.append(h("div", "lib-pending", t("library.artPending")));
 
@@ -327,13 +420,19 @@ export function mountLibrary(
           for (const x of stateBtns) x.setSelected(false);
           clearIdleTimer();
         } });
-        tip.bind(beastForm.el, () => ({ title: t("unit.beastForm") }));
+        viewTips.push(tip.bind(beastForm.el, () => ({ title: t("unit.beastForm") })));
         actions.append(beastForm.el);
       }
     }
     const stars = h("div", "lib-stars");
+    const nameHeading = h("h2", "lib-name", unitEvolutionName(u, star));
+    const syncEvolutionName = () => {
+      const name = unitEvolutionName(u, star);
+      modal.setTitle(name);
+      nameHeading.textContent = name;
+    };
     const starBtns = ([1, 2, 3] as const).map((n) => {
-      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
+      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); syncEvolutionName(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
       stars.append(b.el);
       return b;
     });
@@ -342,7 +441,7 @@ export function mountLibrary(
     const info = h("div", "lib-info");
     const back = kitButton({ skin: "wood", label: t("library.back"), cls: "lib-back", onClick: () => renderBrowse() });
     const left = h("div", "lib-left");
-    left.append(stagePanel, actions, stars);
+    left.append(nameHeading, stagePanel, actions, stars);
     wrap.append(left, info);
     root.append(back.el, wrap);
 
@@ -351,13 +450,13 @@ export function mountLibrary(
       const sec = (title: string, ...rows: (string | undefined)[]) => {
         const p = panelEl("panel_tooltip", "lib-sec");
         p.append(h("h3", "lib-h", title));
-        for (const r of rows) if (r) p.append(h("p", "lib-p", r));
+        for (const r of rows) if (r) p.append(richParagraph("lib-p", r));
         info.append(p);
       };
       const identity = panelEl("panel_tooltip", "lib-sec");
       identity.append(
         h("h3", "lib-h", `${ICONS[u.role]} ${t(`role.${u.role}` as MsgKey)} · ${ICONS[u.faction]} ${t(`faction.${u.faction}` as MsgKey)} · ${ICONS[u.element as Element]} ${t(`element.${u.element}` as MsgKey)} · ${t("library.tier", { tier: u.tier })}`),
-        h("p", "lib-p lib-story", u.pitchVi),
+        richParagraph("lib-p lib-story", u.pitchVi),
       );
       info.append(identity);
       const ms = starStatMilestones(u);
@@ -373,14 +472,24 @@ export function mountLibrary(
       const statSec = panelEl("panel_tooltip", "lib-sec");
       statSec.append(h("h3", "lib-h", t("library.stars")), table);
       info.append(statSec);
-      sec(`${ICONS.atk} ${t("library.basic")}`, u.basic.textVi);
+      sec(`${ICONS.fist} ${t("library.basic")}`, basicAttackCopy(u));
       const s = u.skill;
-      sec(`${ICONS.rage} ${t("library.skill")}: ${s.nameVi} (${t("unit.rage", { cost: s.rageCost[star - 1] ?? s.rageCost[0] })})`,
+      sec(`${SKILL_ICONS[u.role]} ${t("library.skill")}: ${s.nameVi} (${t("unit.rage", { cost: s.rageCost[star - 1] ?? s.rageCost[0] })})`,
         s.starDetailVi[star - 1] ?? s.detailVi,
         s.targetVi && `${ICONS.range} ${t("library.target")}: ${s.targetVi}`,
-        s.shapeVi && `▦ ${t("library.shape")}: ${s.shapeVi}`,
-        s.countVi && `# ${t("library.targets")}: ${s.countVi}`,
-        s.durationVi && `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}`);
+        s.shapeVi && `${ICONS.synergy} ${t("library.shape")}: ${s.shapeVi}`,
+        s.countVi && `${ICONS.range} ${t("library.targets")}: ${s.countVi}`,
+        star === 1 && s.durationVi ? `${ICONS.hourglass} ${t("library.duration")}: ${s.durationVi}` : undefined);
+      const next = ms[star];
+      if (next) {
+        const current = ms[star - 1]!;
+        sec(`${t("library.stars")}: ${star}★ → ${next.star}★`,
+          `${ICONS.hp} ${current.hp} → ${next.hp}`,
+          `${ICONS.atk} ${current.atk} → ${next.atk} · ${ICONS.matk} ${current.matk} → ${next.matk}`,
+          `${ICONS.def} ${current.def} → ${next.def} · ${ICONS.mdef} ${current.mdef} → ${next.mdef}`);
+        sec(`${SKILL_ICONS[u.role]} ${t("library.skill")}: ${s.nameVi} · ${next.star}★ (${t("unit.rage", { cost: next.rageCost })})`,
+          s.starDetailVi[next.star - 1] ?? s.detailVi);
+      }
       const skin = u.skin;
       if (skin) {
         const skinSec = panelEl("panel_tooltip", "lib-sec");
@@ -391,6 +500,7 @@ export function mountLibrary(
           skinId = null;
           viewer?.setUnit(u.id, star, skinId);
           scheduleIdle();
+          syncEvolutionName();
           renderInfo();
         } });
         base.setSelected(skinId === null);
@@ -405,6 +515,7 @@ export function mountLibrary(
             skinId = skin.id;
             viewer?.setUnit(u.id, star, skinId);
             scheduleIdle();
+            syncEvolutionName();
             for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === star);
             renderInfo();
           } });
@@ -420,5 +531,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { clearIdleTimer(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
+  return { showDetail, dispose() { craftLibraryView?.dispose(); craftLibraryView = null; controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }

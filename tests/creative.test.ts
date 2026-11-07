@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NORMAL_UNITS } from "../src/content/catalog";
 import { creativeRightEnemyOverride, mergeCreativeSandboxUnits, normalizeCreativeSandboxUnits } from "../src/core/creative";
 import {
   benchCap, creativeEnemyOverride, createModeRun, moveCreativeSandboxUnit, placeCreativeClone, sellCreativeSandboxUnit,
   type OwnedUnit,
 } from "../src/core/run";
 
-const source = (uid: string, baseId = NORMAL_UNITS[0]!.id): OwnedUnit => ({ uid, baseId, star: 1, equips: [], traits: [] });
+const source = (uid: string, baseId = "ant_guard"): OwnedUnit => ({ uid, baseId, star: 1, equips: [], traits: [] });
 
 describe("Creative sandbox A46", () => {
   it("reserves one canonical bench slot for the Creative selector", () => {
@@ -40,7 +39,7 @@ describe("Creative sandbox A46", () => {
   });
 
   it("merges three exact baseId+star copies on the same side and preserves first source position", () => {
-    const baseId = NORMAL_UNITS[0]!.id;
+    const baseId = "ant_guard";
     const make = (uid: string, row: number) => ({
       ...source(uid, baseId), sandbox: true as const, sourceUid: `origin-${uid}`, side: "RIGHT" as const, row, col: 6,
     });
@@ -62,7 +61,7 @@ describe("Creative sandbox A46", () => {
   });
 
   it("save normalization clamps malformed positions, drops duplicate occupancy and preserves RIGHT override data", () => {
-    const baseId = NORMAL_UNITS[0]!.id;
+    const baseId = "ant_guard";
     const normalized = normalizeCreativeSandboxUnits([
       { uid: "r", baseId, star: 1, equips: [], traits: [], side: "RIGHT", row: 99, col: 1, sandbox: true },
       { uid: "dup", baseId, star: 1, equips: [], traits: [], side: "RIGHT", row: 4, col: 5, sandbox: true },

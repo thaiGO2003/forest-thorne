@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { UNITS } from "../src/content/catalog";
-import { BASE_MATERIALS } from "../src/core/craft";
+import { BASE_MATERIALS } from "../src/core/itemRegistry";
 import { itemDisplayName, itemSemanticIcon } from "../src/core/itemPresentation";
 import {
   applyOutcome, groupDrops, lossDamage, materialCandidates, rollEquipmentLoot, rollMaterialLoot, type RewardTarget,
@@ -44,6 +44,30 @@ describe("loot", () => {
     expect(rollEquipmentLoot(4, seq(0.01, 0), pool)).toEqual([]);
   });
 
+  it("equipment roll never consumes a chance draw when the tier pool is empty", () => {
+    let draws = 0;
+    const rng = () => { draws++; return 0.01; };
+    expect(rollEquipmentLoot(3, rng, [{ id: "only_t1", tier: 1 }])).toEqual([]);
+    expect(draws).toBe(0);
+  });
+
+  it("tier 3 rolls a real tier-3 item once the catalog has one", () => {
+    const pool = [{ id: "t1", tier: 1 }, { id: "t3a", tier: 3 }, { id: "t3b", tier: 3 }] as const;
+    expect(rollEquipmentLoot(3, seq(0.049, 0.75), pool)).toEqual([
+      { item: "t3b", source: "3", rule: "equipment" },
+    ]);
+    expect(rollEquipmentLoot(3, seq(0.05, 0.75), pool)).toEqual([]);
+  });
+
+  it("equipment selection replays identically from the same seeded sequence", () => {
+    const seeded = (seed: number) => {
+      let s = seed;
+      return () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+    };
+    const pool = [{ id: "a", tier: 2 }, { id: "b", tier: 2 }, { id: "c", tier: 2 }] as const;
+    expect(rollEquipmentLoot(2, seeded(7), pool)).toEqual(rollEquipmentLoot(2, seeded(7), pool));
+  });
+
   it("groups accepted loot by item while preserving the total quantity", () => {
     const drops = [
       { item: "tear", source: "a", rule: "material" as const },
@@ -59,9 +83,9 @@ describe("loot", () => {
     });
   });
   it("resolves canonical localized names and semantic icon hooks for loot items", () => {
-    expect(itemDisplayName("bark")).toBe("Vỏ Cây");
+    expect(itemDisplayName("bark")).toBe("Gỗ Cứng");
     expect(itemDisplayName("eq_blue_buff")).toBe("Bùa Xanh");
-    expect(itemSemanticIcon("bark")).toBe("leaf");
+    expect(itemSemanticIcon("bark")).toBe("materialBark");
     expect(itemSemanticIcon("eq_warmog_armor")).toBe("shield");
   });
 
@@ -71,16 +95,32 @@ describe("loot", () => {
 
   it("win gold = enemy count + star bonus + bounty + winGoldBonus; idempotent; capacity-bounded loot", () => {
     const t = target();
-    const drops = ["x", "y", "z"].map((item) => ({ item, source: "s", rule: "material" as const }));
+    const drops = ["tear", "eq_blue_buff", "bark"].map((item) => ({ item, source: "s", rule: item.startsWith("eq_") ? "equipment" as const : "material" as const }));
     const o = { combatId: "c1", won: true, enemySurvivors: 0, enemyStars: [1, 2, 3], bounty: 2, drops };
     const r = applyOutcome(t, o, 2, "clamped")!;
     expect(r.gold).toBe(3 + 3 + 2 + 1);
-    expect(t.itemBag).toEqual(["x", "y"]);
-    expect(r.rejected.map((d) => d.item)).toEqual(["z"]);
+    expect(t.itemBag).toEqual(["tear", "eq_blue_buff"]);
+    expect(r.rejected.map((d) => d.item)).toEqual(["bark"]);
     expect(t.xpGain).toBe(2);
     expect(applyOutcome(t, o, 9, "clamped")).toBeNull();
     expect(t.gold).toBe(9);
   });
+  it("rejects unknown and misclassified drops without consuming capacity", () => {
+    const t = target();
+    const drops = [
+      { item: "missing_item", source: "s", rule: "material" as const },
+      { item: "tear", source: "s", rule: "equipment" as const },
+      { item: "tear", source: "s", rule: "material" as const },
+      { item: "eq_blue_buff", source: "s", rule: "equipment" as const },
+      { item: "bark", source: "s", rule: "material" as const },
+    ];
+    const outcome = { combatId: "unknown-drop", won: true, enemySurvivors: 0, enemyStars: [], bounty: 0, drops };
+    const result = applyOutcome(t, outcome, 2, "clamped")!;
+    expect(result.accepted).toEqual(drops.slice(2, 4));
+    expect(result.rejected).toEqual([drops[0], drops[1], drops[4]]);
+    expect(t.itemBag).toEqual(["tear", "eq_blue_buff"]);
+  });
+
 
   it("loss pays bounty, applies mode damage, flips streak", () => {
     const t = target();

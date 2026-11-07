@@ -3,9 +3,11 @@
 import { ICONS } from "../core/emojiIcon";
 import { t, type MsgKey } from "../core/i18n";
 import { GAME_MODES, MODE_CONFIG, type GameMode } from "../core/modes";
-import { h, INK, kitButton, label, nineSlice, panelEl, SLICE, surface, type KitButton } from "./kit";
+import { h, INK, kitButton, label, LABEL, nineSlice, panelEl, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { uiFont } from "./fontScale";
 import type { ModalHost } from "./modal";
 import type { Tooltip } from "./tooltip";
+import { drawLoadingTitle } from "./loading";
 
 export type SaveSummary =
   | { kind: "none" }
@@ -47,9 +49,10 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
   titleEl.setAttribute("role", "heading");
   titleEl.setAttribute("aria-level", "1");
   const title = surface(titleEl, (g, w, hh) => {
-    nineSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6, 3);
-    label(g, t("loading.title"), w / 2, hh * 0.45, { size: Math.min(56, w / 11), weight: 900, fill: INK, maxW: w - 120, font: "heading" });
-    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.9, { size: Math.min(20, w / 28), fill: INK, font: "normal" });
+    threeSlice(g, "ribbon", SLICE.ribbon, 0, hh * 0.18, w, hh * 0.6);
+    // Ribbon spans 0.18..0.78 of the surface, so its optical center is 0.48, not 0.4.
+    drawLoadingTitle(g, t("loading.title"), 1, w, hh, { centerY: 0.48 });
+    label(g, "Chiến thuật rừng sâu", w / 2, hh * 0.92, { size: uiFont(Math.min(12, w / 36)), fill: LABEL, font: "normal" });
   });
 
   const main = panelEl("panel_wood", "menu-main");
@@ -71,7 +74,7 @@ export function createMenu(host: HTMLElement, modals: ModalHost, tip: Tooltip, i
     if (social) {
       const img = document.createElement("img");
       img.className = "menu-utility-icon";
-      img.src = "/assets/ui/discord.svg";
+      img.src = `${import.meta.env.BASE_URL}assets/ui/discord.svg`;
       img.alt = "";
       img.setAttribute("aria-hidden", "true");
       b.el.append(img);

@@ -1,5 +1,6 @@
 // Persistent Fortress route graph + service formulas (spec A20, A117). Pure gameplay data; no rendering.
 import { NORMAL_UNITS } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 
 export type FortressNodeType = "battle" | "elite" | "boss" | "shop" | "pharmacy" | "beast_den" | "blacksmith";
 
@@ -263,7 +264,7 @@ export function beastDenMaxTier(round: number, actIndex: number): number {
 
 export function beastDenOffers(round: number, actIndex: number, rng: () => number): string[] {
   const maxTier = beastDenMaxTier(round, actIndex);
-  const pool = NORMAL_UNITS.filter((unit) => unit.tier <= maxTier).map((unit) => unit.id).sort();
+  const pool = NORMAL_UNITS.filter((unit) => unit.tier <= maxTier && hasUnitVisual(unit.id)).map((unit) => unit.id).sort();
   const out: string[] = [];
   while (out.length < 3 && pool.length) {
     const index = Math.min(pool.length - 1, Math.floor(Math.max(0, Math.min(0.999999999, rng())) * pool.length));

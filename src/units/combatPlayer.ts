@@ -1,31 +1,42 @@
 // Replay the canonical event stream; combatStaging/gameSpeed own basic movement timing.
 import * as THREE from "three";
 import { getUnit } from "../content/catalog";
-import type {
-  CombatEvent,
-  CombatInspectionFrame,
-  CombatUnitSnapshot
+import {
+  SPORE_BURST_POINTS,
+  type CombatEvent,
+  type CombatInspectionFrame,
+  type CombatUnitSnapshot,
+  type SporeCell
 } from "../core/combat";
 import {
+  assassinBackContactUsesRing,
   basicContactCell,
+  meleeContactUsesRiverSeam,
   stageBasicCombatEvent,
   type BasicCombatEvent,
 } from "../core/combatStaging";
 import {
   getEmptyQueueDelayMs,
+  getGameSpeedDisplayMultiplier,
   normalizeGameSpeedLevel,
   scaleCombatPresentationMs
 } from "../core/gameSpeed";
 import { ICONS } from "../core/emojiIcon";
 import type { BillboardStatus } from "./billboard";
-import type { BoardView } from "./boardView";
+import { TILE_TOP, type BoardView } from "./boardView";
 import type { CombatFx } from "./fx";
+import { RIGS } from "./registry";
+import { BLOCK } from "../world/arena";
+import { RIG_DEFAULT_DURATIONS, RIG_DEFAULT_IMPACT } from "./rig";
 export interface RosterEntry { uid: string; baseId: string; star: number; side: "L" | "R"; hp: number; maxHp: number; rage: number; rageMax: number; shield: number; inspection?: CombatUnitSnapshot }
 export interface PlaybackTick { cycle: number; queue: string[]; log: string[]; alive: Record<"L" | "R", RosterEntry[]>; all: RosterEntry[] }
 export interface CombatPlayer { setSpeed(level: number): void; done: Promise<void>; dispose(): void }
-const POSITIVE = new Set(["shield", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
-const PROJECTILE_BASE_MS = 240;
+const POSITIVE = new Set(["shield", "damageReduction", "regen", "atkUp", "defUp", "haste", "immune", "reflect"]);
 const PROJECTILE_COLOR = 0xffd36a;
+/** Billboard badge while a delayed curse holds debuffs (ICONS.lock); negative group, it is a curse. */
+const CURSE_LOCK_STATUS: BillboardStatus = { key: "lock", positive: false };
+/** Sương Độc presentation: purple pool landing, lime detonation (matches the concept VFX). */
+const SPORE_POOL_COLOR = 0x9b40d6, SPORE_BURST_COLOR = 0xb6ff4a;
 const PRESENTATION_ONLY = () => {};
 export function playCombat(o: {
   board: BoardView; fx: CombatFx; roster: RosterEntry[]; events: CombatEvent[];
@@ -34,7 +45,25 @@ export function playCombat(o: {
   inspectionFrames?: CombatInspectionFrame[];
 }): CombatPlayer {
   const { board, fx } = o;
-  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[] }]));
+  const units = new Map(o.roster.map((unit) => [unit.uid, { ...unit, inspection: unit.inspection ? structuredClone(unit.inspection) : undefined, statuses: [] as BillboardStatus[], locks: 0, spores: 0 }]));
+  // Active Sương Độc pools per owner (cell keys), mirrored onto the board as hazard tiles.
+  const hazards = new Map<string, Map<number, SporeCell>>();
+  const hazardKey = (cell: SporeCell) => cell.row * 100 + cell.col;
+  const syncHazards = () => {
+    const cells = new Map<number, SporeCell>();
+    for (const owned of hazards.values()) for (const [k, cell] of owned) cells.set(k, cell);
+    board.setHazardCells?.([...cells.values()]);
+  };
+  const removeHazards = (owner: string, cells: readonly SporeCell[]) => {
+    const owned = hazards.get(owner);
+    if (!owned) return;
+    for (const cell of cells) owned.delete(hazardKey(cell));
+    syncHazards();
+  };
+  const cellPoint = (cell: SporeCell) => {
+    const c = board.cellCenter(cell.col, cell.row);
+    return new THREE.Vector3(c.x, TILE_TOP + 0.25, c.z);
+  };
   const log: string[] = [];
   const timers: { remaining: number; run: () => void }[] = [];
   const moves: { root: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number }[] = [];
@@ -65,7 +94,11 @@ export function playCombat(o: {
   };
   const push = (uid: string) => {
     const unit = units.get(uid);
-    if (unit) board.setLive(uid, { hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax, statuses: unit.statuses });
+    if (unit) board.setLive(uid, {
+      hp: unit.hp, maxHp: unit.maxHp, rage: unit.rage, rageMax: unit.rageMax,
+      statuses: unit.locks > 0 ? [...unit.statuses, CURSE_LOCK_STATUS] : unit.statuses,
+      counter: unit.spores > 0 ? { icon: ICONS.poison, value: unit.spores, max: SPORE_BURST_POINTS } : undefined,
+    });
   };
   const name = (uid: string) => { const unit = units.get(uid); return unit ? getUnit(unit.baseId).nameVi : uid; };
   const tick = () => {
@@ -117,6 +150,22 @@ export function playCombat(o: {
     if (duration <= 0) root.position.copy(to);
     else moves.push({ root, from: from.clone(), to: to.clone(), elapsed: 0, duration });
   };
+  // Old_src current-tile highlight: purple turn marker + gold actor outline; skills swap the
+  // outline for the stepped rainbow border (setCombatBorder("skill")).
+  let focusedUid: string | null = null;
+  const focusActor = (uid: string) => {
+    focusedUid = uid;
+    board.setTurnIndicator?.(uid);
+    board.setActorHighlight?.(uid);
+  };
+  const clearActorFocus = (uid: string) => {
+    // Overlapping skill/basic animations must not clear a newer actor's marker.
+    if (focusedUid !== uid) return;
+    focusedUid = null;
+    board.setTurnIndicator?.(null);
+    board.setActorHighlight?.(null);
+    board.setCombatBorder?.(null);
+  };
   const present = (event: CombatEvent): number => {
     if (event.t === "cycle") {
       o.onEvent?.(event);
@@ -146,14 +195,20 @@ export function playCombat(o: {
         : { t: "basic", src: event.src, dst: event.dst, dmg: event.dmg, absorbed: event.absorbed, crit: event.crit };
       const staged = stageBasicCombatEvent(stagedEvent, actor, speedLevel);
       const { timing } = staged;
+      focusActor(event.src);
 
       if (staged.pattern === "RANGED_STATIC") {
+        board.setCombatBorder?.(event.src, "attack");
         pendingActions++;
         const attackMs = scaleCombatPresentationMs(360, speedLevel);
         visual.play("attack", {
           duration: attackMs / 1000,
           onImpact: semanticImpact,
-          onDone: () => { if (!disposed) pendingActions--; },
+          onDone: () => {
+            if (disposed) return;
+            pendingActions--;
+            clearActorFocus(event.src);
+          },
         });
         const targetVisual = board.visual(event.dst);
         if (targetVisual) {
@@ -161,7 +216,7 @@ export function playCombat(o: {
             position(event.src),
             position(event.dst),
             PROJECTILE_COLOR,
-            scaleCombatPresentationMs(PROJECTILE_BASE_MS, speedLevel) / 1000,
+            (attackMs * (RIGS[actor.baseId]?.impact?.attack ?? RIG_DEFAULT_IMPACT.attack)) / 1000,
             PRESENTATION_ONLY,
           );
         }
@@ -172,6 +227,17 @@ export function playCombat(o: {
       const actorSlot = board.slot(event.src), targetSlot = board.slot(event.dst);
       const contact = actorSlot && targetSlot && actorSlot.kind !== "bench" && targetSlot.kind !== "bench"
         ? (() => {
+            // Old_src: melee front-line contact lands on the river seam, not the attacker's edge tile.
+            if (meleeContactUsesRiverSeam(staged.pattern, actor.side, targetSlot)) {
+              const left = board.cellCenter(4, targetSlot.row);
+              const right = board.cellCenter(5, targetSlot.row);
+              return new THREE.Vector3((left.x + right.x) / 2, home.y - 0.14, (left.z + right.z) / 2);
+            }
+            if (assassinBackContactUsesRing(staged.pattern, actor.side, targetSlot)) {
+              const center = board.cellCenter(targetSlot.col, targetSlot.row);
+              const awayFromRiver = actor.side === "L" ? 1 : -1;
+              return new THREE.Vector3(center.x + awayFromRiver * BLOCK, TILE_TOP, center.z);
+            }
             const cell = basicContactCell(staged.pattern, actor, targetSlot);
             const center = board.cellCenter(cell.col, cell.row);
             return new THREE.Vector3(center.x, home.y, center.z);
@@ -180,6 +246,7 @@ export function playCombat(o: {
       const target = board.visual(event.dst)?.root.position.clone();
       const attackMs = timing.preImpactMs + timing.postImpactMs;
       pendingActions++;
+      board.setCombatBorder?.(event.src, "attack");
       visual.play("move");
       move(visual.root, home, contact, timing.approachMs);
       after(timing.approachMs, () => {
@@ -201,6 +268,7 @@ export function playCombat(o: {
               visual.setFacing(actor.side);
               visual.play("idle");
               pendingActions--;
+              clearActorFocus(event.src);
             });
           },
         });
@@ -238,9 +306,14 @@ export function playCombat(o: {
         event.targets.forEach((uid, targetIndex) => board.flashTile?.(uid, targetIndex === 0 ? "direct" : "splash"));
         const visual = board.visual(event.src);
         if (!visual) break;
+        focusActor(event.src);
+        board.setCombatBorder?.(event.src, "skill");
         const window = { src: event.src, fired: false, pending: [] as (() => void)[], targets: event.targets };
         skillImpact = window;
+        const skillSeconds = (RIGS[units.get(event.src)?.baseId ?? ""]?.durations?.skill ?? RIG_DEFAULT_DURATIONS.skill)
+          / getGameSpeedDisplayMultiplier(speedLevel);
         visual.play("skill", {
+          duration: skillSeconds,
           onImpact: () => {
             if (disposed || window.fired) return;
             window.fired = true;
@@ -248,6 +321,7 @@ export function playCombat(o: {
           },
           onDone: () => {
             if (skillImpact === window) skillImpact = null;
+            if (!disposed) clearActorFocus(event.src);
           },
         });
         break;
@@ -293,6 +367,52 @@ export function playCombat(o: {
       }
       case "skip":
         fx.float(position(event.src), ICONS[event.reason as keyof typeof ICONS] ?? ICONS.sleep, "status");
+        break;
+      case "curse": {
+        const unit = units.get(event.dst);
+        if (unit) { unit.locks = event.locked; push(event.dst); }
+        if (!event.released.length) {
+          if (event.locked > 0) fx.float(position(event.dst), `${ICONS.lock}${event.locked}`, "status");
+        } else {
+          const icons = event.released.map((key) => ICONS[key as keyof typeof ICONS] ?? ICONS.question).join("");
+          fx.float(position(event.dst), `${ICONS.unlock}${icons}`, "status");
+        }
+        break;
+      }
+      case "sporeThrow": {
+        // Pools appear on the caster's skill impact, like skill damage; immediately if no window is open.
+        const land = () => {
+          const owned = hazards.get(event.src) ?? new Map<number, SporeCell>();
+          hazards.set(event.src, owned);
+          for (const cell of event.cells) {
+            owned.set(hazardKey(cell), cell);
+            fx.burst(cellPoint(cell), SPORE_POOL_COLOR);
+            board.flashCell?.(cell.col, cell.row, "splash");
+          }
+          syncHazards();
+        };
+        const window = skillImpact?.src === event.src && !skillImpact.fired ? skillImpact : null;
+        if (window) window.pending.push(exactImpact(land));
+        else land();
+        break;
+      }
+      case "sporePoint": {
+        const owner = units.get(event.owner);
+        if (owner) { owner.spores = event.points; push(event.owner); }
+        board.flashCell?.(event.col, event.row, "direct");
+        fx.float(position(event.dst), `${ICONS.poison}+1`, "status");
+        break;
+      }
+      case "sporeBurst": {
+        const owner = units.get(event.owner);
+        if (owner) { owner.spores = 0; push(event.owner); }
+        for (const cell of event.cells) fx.burst(cellPoint(cell), SPORE_BURST_COLOR);
+        fx.float(position(event.owner), `${ICONS.poison}×${event.points}`, "status");
+        removeHazards(event.owner, event.cells);
+        break;
+      }
+      case "sporeExpire":
+        removeHazards(event.owner, event.cells);
         break;
     }
     return scaleCombatPresentationMs(100, speedLevel);

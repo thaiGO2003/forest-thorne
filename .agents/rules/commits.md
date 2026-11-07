@@ -37,3 +37,10 @@ Quy chuẩn commit cho repository Forest Throne. Áp dụng cho mọi commit t�
 3. **Ngôn ngữ**:
    - Tiêu đề viết tiếng Anh hoặc tiếng Việt chuẩn mực kĩ thuật.
    - Phần body giải thích chi tiết, ưu tiên tiếng Việt hoặc tiếng Anh rõ nghĩa, rành mạch.
+
+## Nhịp commit và push (BẮT BUỘC)
+
+- Commit sau mỗi nhóm thay đổi nhỏ, độc lập đã kiểm chứng; không dồn nhiều tính năng hoàn chỉnh vào một commit lớn.
+- Chỉ stage chính xác file/hunk thuộc thay đổi đã kiểm chứng; bảo toàn staged, unstaged và untracked changes ngoài phạm vi.
+- Push nhánh làm việc tương ứng ngay sau khi commit thành công, rồi tiếp tục nhóm thay đổi kế tiếp.
+- Tuân thủ branch protection và human merge review; không push trực tiếp vào `dev`/`main` khi chưa đủ điều kiện, không force push, bypass hooks hoặc tự duyệt merge.

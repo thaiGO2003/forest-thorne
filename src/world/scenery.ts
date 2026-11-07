@@ -5,6 +5,8 @@ import * as THREE from "three";
 import { RIVER_X, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
 import type { EnvironmentId } from "../core/environment";
 import type { DayNightPhase } from "../core/dayNight";
+import { patchWaterfallSheet, type WaterUniforms } from "./water";
+import { patchFoliageSway, type FoliageUniforms } from "./foliage";
 
 /** Rings of terrain beyond the bench slab. */
 const REACH = 34;
@@ -30,22 +32,23 @@ export function createScenery(
   own: Own,
   toWorld: (c: Cell) => { x: number; z: number },
   waterMat: THREE.Material,
+  /** Optional shader plumbing; when omitted (unit tests) the meshes stay plain materials. */
+  fx?: { water?: WaterUniforms; foliage?: FoliageUniforms },
 ): { setEnvironment(environment: EnvironmentId): void; setDayNight(phase: DayNightPhase): void; update(dt: number): void } {
   const rows = totalRows(p);
   // Bench slab in visual-cell space (see arena foundation).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
-  const riverColumnForScenery = (cz: number) => {
-    if (cz >= minZ && cz <= maxZ) return RIVER_X;
+  // Outside the board the river meanders in whole cells only (axis-aligned voxel steps, never a
+  // rotated box) and is always at least 3 cells wide so the water reads as a river, not a puddle.
+  const riverSpanForScenery = (cz: number): { left: number; right: number } => {
+    if (cz >= minZ && cz <= maxZ) return { left: RIVER_X, right: RIVER_X };
     const edge = cz < minZ ? minZ : maxZ;
     const distance = Math.abs(cz - edge);
-    const phase = cz < minZ ? 0.45 : 1.75;
-    return RIVER_X + Math.round(Math.sin(distance * 0.52 + phase) * 1.35);
-  };
-  const riverWidthForScenery = (cz: number) => {
-    if (cz >= minZ && cz <= maxZ) return 1;
-    const edge = cz < minZ ? minZ : maxZ;
-    const distance = Math.abs(cz - edge);
-    return 1.08 + Math.min(3, distance * 0.09);
+    const phase = cz < minZ ? 0.4 : 1.9;
+    const shift = distance < 3 ? 0 : Math.round(Math.sin((distance - 3) * 0.42 + phase) * 2);
+    const half = Math.min(4, 1 + Math.floor(distance / 10));
+    const center = RIVER_X + shift;
+    return { left: center - half, right: center + half };
   };
 
   const box = own(new THREE.BoxGeometry(1, 1, 1));
@@ -75,7 +78,8 @@ export function createScenery(
     const d = Math.max(dx, dz);
     if (d === 0) continue;
     const w = toWorld({ x: cx, z: cz });
-    if (dx === 0 && Math.abs(cx - riverColumnForScenery(cz)) <= riverWidthForScenery(cz) / 2) { bed.push(w); continue; } // outside-only widening meandering river channel
+    const span = riverSpanForScenery(cz);
+    if (dx === 0 && cx >= span.left && cx <= span.right) { bed.push(w); continue; } // outside-only widening river channel
     const flat = cz > maxZ ? APRON_CAMERA_SIDE : APRON;
     const valley = dx === 0 ? Math.min(1, Math.max(0, (Math.abs(cx - RIVER_X) - 1) / 5)) : 1;
     const wave = Math.sin(cx * 0.35) + Math.sin(cz * 0.29 + 1.3) + Math.sin((cx + cz) * 0.17);
@@ -105,26 +109,110 @@ export function createScenery(
   const riverRows: number[] = [];
   for (let cz = minZ - REACH; cz < minZ; cz++) riverRows.push(cz);
   for (let cz = maxZ + REACH; cz > maxZ; cz--) riverRows.push(cz);
-  const riverWater = instanced(riverRows.length, waterMat, "scenery-river-meanders");
+  const riverWater = instanced(riverRows.length, waterMat, "scenery-river");
   riverRows.forEach((cz, i) => {
-    const nextZ = cz < minZ ? Math.min(minZ, cz + 1) : Math.max(maxZ, cz - 1);
-    const a = toWorld({ x: riverColumnForScenery(cz), z: cz });
-    const b = toWorld({ x: riverColumnForScenery(nextZ), z: nextZ });
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const width = (riverWidthForScenery(cz) + riverWidthForScenery(nextZ)) / 2;
-    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, (a.z + b.z) / 2, width, WATER_H, Math.hypot(dx, dz) + 0.18, Math.atan2(dx, dz));
+    const span = riverSpanForScenery(cz);
+    const a = toWorld({ x: span.left, z: cz });
+    const b = toWorld({ x: span.right, z: cz });
+    const width = span.right - span.left + 1;
+    put(riverWater, i, (a.x + b.x) / 2, WATER_Y, a.z, width, WATER_H, 1);
   });
 
-  const pathCells = columns.filter((c) => {
-    if ((c.cz >= minZ && c.cz <= maxZ) || c.d < 2 || c.d > 18 || c.h > 4) return false;
-    const edge = c.cz < minZ ? minZ : maxZ;
-    const distance = Math.abs(c.cz - edge);
-    const side = c.cz < minZ ? -1 : 1;
-    const targetX = RIVER_X + side * 5 + Math.round(Math.sin(distance * 0.44 + (side < 0 ? 0.2 : 1.1)) * 1.5);
-    return c.cx === targetX;
+  // --- Mountain waterfall source ---------------------------------------------------------------
+  // The far end of the decorative river rises into a voxel mountain. The sheet, pool and mist sit
+  // beyond the tactical slab and are purely decorative (never raycastable, all owned here).
+  const source = toWorld({ x: RIVER_X, z: minZ - REACH });
+  const waterfall = new THREE.Group();
+  waterfall.name = "scenery-waterfall";
+  root.add(waterfall);
+
+  const mountainMat = white({ roughness: 1 });
+  const mountainSpecs: { x: number; y: number; z: number; sx: number; sy: number; sz: number; tone: number }[] = [];
+  // Terrain columns out here reach ~10 blocks, so the source has to be a real massif, not a rock
+  // wall: twelve tiers crest above the sheet (y=7.2) and clear the surrounding hills. The centre
+  // notch stays open until the snow line so the sheet reaches the river, while the top tiers bridge
+  // over it as the mountain face.
+  const MOUNTAIN_TIERS = 12;
+  for (let layer = 0; layer < MOUNTAIN_TIERS; layer++) {
+    const width = 11 - Math.floor(layer / 2);
+    for (let ix = -width; ix <= width; ix++) {
+      if (Math.abs(ix) <= 1 && layer < 8) continue; // carved notch lets the waterfall reach the river
+      mountainSpecs.push({
+        x: source.x + ix * 1.05,
+        y: 0.55 + layer * 1.05,
+        z: source.z - 2.2 - layer * 0.5,
+        sx: 1.1,
+        sy: 1.05,
+        sz: 1.2,
+        tone: layer >= 9 ? 0xf2f6f8 : layer >= 7 ? 0x9fa19a : layer >= 4 ? 0x7d7a70 : 0x6e6a60,
+      });
+    }
+  }
+
+  const mountain = own(new THREE.InstancedMesh(box, mountainMat, Math.max(1, mountainSpecs.length)));
+  mountain.name = "scenery-waterfall-mountain";
+  mountain.count = mountainSpecs.length;
+  mountain.raycast = () => {};
+  mountain.receiveShadow = true;
+  mountainSpecs.forEach((spec, index) => {
+    put(mountain, index, spec.x, spec.y, spec.z, spec.sx, spec.sy, spec.sz);
+    mountain.setColorAt(index, col.setHex(spec.tone));
   });
-  const paths = instanced(pathCells.length, white({ color: 0xb08a5d, roughness: 1 }), "scenery-path-meanders");
-  pathCells.forEach((c, i) => put(paths, i, c.x, c.h + 0.045, c.z, 0.82, 0.09, 0.96, (hash(c.cx, c.cz, 30) - 0.5) * 0.16));
+  if (mountain.instanceColor) mountain.instanceColor.needsUpdate = true;
+  waterfall.add(mountain);
+
+  const sheetMat = own(new THREE.MeshStandardMaterial({
+    color: 0x8fe4ff,
+    emissive: 0x1d6f9a,
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.78,
+    roughness: 0.2,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  }));
+  const sheetGeo = own(new THREE.PlaneGeometry(1.9, 7.2));
+  // The sheet top is the plane centre plus half its height; streaks scale against that so the
+  // waterfall stays consistent if the sheet is ever re-proportioned.
+  if (fx?.water) {
+    fx.water.uSheetTop.value = 3.6 + 7.2 / 2;
+    fx.water.uSheetCenter.value = source.x;
+    patchWaterfallSheet(sheetMat, fx.water);
+  }
+  const sheet = new THREE.Mesh(sheetGeo, sheetMat);
+  sheet.name = "scenery-waterfall-sheet";
+  sheet.position.set(source.x, 3.6, source.z - 1.25);
+  sheet.raycast = () => {};
+  waterfall.add(sheet);
+
+  const poolGeo = own(new THREE.CylinderGeometry(2.1, 2.1, 0.16, 16));
+  const pool = new THREE.Mesh(poolGeo, waterMat);
+  pool.name = "scenery-waterfall-pool";
+  pool.position.set(source.x, WATER_Y + 0.01, source.z + 0.1);
+  pool.raycast = () => {};
+  waterfall.add(pool);
+
+  const foamMat = white({ color: 0xf2fbff, transparent: true, opacity: 0.78, roughness: 0.5 });
+  const foamSeeds = Array.from({ length: 10 }, (_, i) => ({
+    x: (hash(i, 0, 51) - 0.5) * 2.2,
+    z: (hash(i, 0, 52) - 0.5) * 0.7,
+    offset: hash(i, 0, 53) * 7.2,
+    speed: 1.4 + hash(i, 0, 54) * 1.2,
+    size: 0.12 + hash(i, 0, 55) * 0.12,
+  }));
+  const foam = own(new THREE.InstancedMesh(box, foamMat, foamSeeds.length));
+  foam.name = "scenery-waterfall-foam";
+  foam.count = foamSeeds.length;
+  foam.raycast = () => {};
+  waterfall.add(foam);
+
+  const mistMat = white({ color: 0xffffff, transparent: true, opacity: 0.32, roughness: 1 });
+  const mist = own(new THREE.InstancedMesh(box, mistMat, 5));
+  mist.name = "scenery-waterfall-mist";
+  mist.count = 5;
+  mist.raycast = () => {};
+  waterfall.add(mist);
+  let waterfallTime = 0;
 
   // --- Props -----------------------------------------------------------------------------------
   const forest = columns.filter((c) => {
@@ -134,7 +222,9 @@ export function createScenery(
     return hash(c.cx, c.cz, 1) < density;
   });
   const trunks = instanced(forest.length, white(), "scenery-trunks");
-  const leaves = instanced(forest.length * 2, white(), "scenery-leaves");
+  const leafMat = white();
+  const leaves = instanced(forest.length * 2, leafMat, "scenery-leaves");
+  if (fx?.foliage) patchFoliageSway(leafMat, fx.foliage, 0.75);
   trunks.castShadow = leaves.castShadow = true;
   const treePlacement = (c: Column) => {
     const k = 0.8 + hash(c.cx, c.cz, 2) * 0.5;
@@ -286,6 +376,18 @@ export function createScenery(
     update(dt) {
       for (const c of cloudSeeds) c.x = ((c.x + dt * 0.6 + SPAN / 2) % SPAN + SPAN) % SPAN - SPAN / 2;
       placeClouds();
+      waterfallTime += Math.max(0, dt);
+      sheetMat.opacity = 0.68 + 0.12 * Math.sin(waterfallTime * 3.1);
+      foamSeeds.forEach((seed, i) => {
+        const y = 7.05 - ((seed.offset + waterfallTime * seed.speed) % 7.2);
+        put(foam, i, source.x + seed.x, y, source.z - 1.15 + seed.z, seed.size, seed.size * 1.6, seed.size);
+      });
+      foam.instanceMatrix.needsUpdate = true;
+      for (let i = 0; i < 5; i++) {
+        const pulse = 0.55 + 0.4 * Math.sin(waterfallTime * 2 + i);
+        put(mist, i, source.x + Math.sin(waterfallTime + i) * 0.7, 0.25 + i * 0.18, source.z + 0.3, pulse, 0.18, pulse);
+      }
+      mist.instanceMatrix.needsUpdate = true;
     },
   };
 }

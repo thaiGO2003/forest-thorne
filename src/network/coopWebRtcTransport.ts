@@ -2,6 +2,8 @@ import {
   DEFAULT_COOP_ICE_SERVERS,
   createCoopSignal,
   decodeCoopSignal,
+  coopSlotsForCapacity,
+  coopSlotIndex,
   isCoopMessageType,
   normalizeConnectionLabel,
   normalizeCoopSignalTimeout,
@@ -11,12 +13,15 @@ import {
   type CoopSlot,
   type RtcSessionDescriptionData,
 } from "./coopConfig";
+import type { EnemyPreviewResult } from "../core/preview";
+import type { RunPayload } from "../core/save";
 import {
   CoopSessionStore,
   coopSessionStore,
   type CoopPlayerState,
   type CoopSessionState,
 } from "./coopSession";
+import { createBrowserCoopPlanningRuntime, type CoopPlanningRuntime } from "./coopPlanningRuntime";
 
 const WIRE_VERSION = 1 as const;
 const CHANNEL_PREFIX = "forest-throne-coop";
@@ -40,6 +45,8 @@ export interface CoopRtcPeerLike {
   readonly connectionState: string;
   onicegatheringstatechange: (() => void) | null;
   onconnectionstatechange: (() => void) | null;
+  readonly iceConnectionState?: string;
+  oniceconnectionstatechange?: (() => void) | null;
   ondatachannel: ((event: { channel: CoopRtcDataChannelLike }) => void) | null;
   createDataChannel(label: string): CoopRtcDataChannelLike;
   createOffer(): Promise<RtcSessionDescriptionData>;
@@ -56,6 +63,12 @@ export type CoopFallbackReason = "host-disconnected" | "peer-disconnected" | "ch
 export interface CoopFallbackEvent {
   reason: CoopFallbackReason;
   slot: CoopSlot;
+}
+
+export interface CoopPlanningLaunchEvent {
+  session: CoopSessionState;
+  forceNewRun: boolean;
+  restoredState: unknown | null;
 }
 
 export interface CoopWireMessage {
@@ -77,14 +90,20 @@ export interface CoopWebRtcTransportOptions {
   signalTimeoutMs?: number;
   store?: CoopSessionStore;
   peerFactory?: CoopRtcPeerFactory;
+  planningRuntime?: CoopPlanningRuntime | null;
   onMessage?: (message: CoopWireMessage) => void;
+  onError?: (error: Error) => void;
   onFallback?: (event: CoopFallbackEvent) => void;
+  onPlanningLaunch?: (event: CoopPlanningLaunchEvent) => void;
 }
 
 interface PeerBinding {
   peer: CoopRtcPeerLike;
   channel: CoopRtcDataChannelLike | null;
   closed: boolean;
+  awaitingAnswer: boolean;
+  expectedSessionId: string | null;
+  remotePlayerId: string;
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -159,10 +178,10 @@ function localDescription(peer: CoopRtcPeerLike): RtcSessionDescriptionData {
 
 async function waitForIceGathering(peer: CoopRtcPeerLike, timeoutMs: number): Promise<void> {
   if (peer.iceGatheringState === "complete") return;
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
       peer.onicegatheringstatechange = null;
-      reject(new Error("Timed out waiting for ICE gathering"));
+      resolve();
     }, timeoutMs);
     peer.onicegatheringstatechange = () => {
       if (peer.iceGatheringState !== "complete") return;
@@ -181,8 +200,11 @@ export class CoopWebRtcTransport {
   private readonly store: CoopSessionStore;
   private readonly peerFactory: CoopRtcPeerFactory;
   private readonly signalTimeoutMs: number;
+  private readonly planningRuntime: CoopPlanningRuntime | null;
   private readonly onMessage?: (message: CoopWireMessage) => void;
+  private readonly onError?: (error: Error) => void;
   private readonly onFallback?: (event: CoopFallbackEvent) => void;
+  private readonly onPlanningLaunch?: (event: CoopPlanningLaunchEvent) => void;
   private readonly bindings = new Map<CoopSlot, PeerBinding>();
   private sequence = 0;
   private closing = false;
@@ -200,7 +222,12 @@ export class CoopWebRtcTransport {
     this.peerFactory = options.peerFactory ?? createBrowserCoopPeerFactory();
     this.signalTimeoutMs = normalizeCoopSignalTimeout(options.signalTimeoutMs);
     this.onMessage = options.onMessage;
+    this.onError = options.onError;
     this.onFallback = options.onFallback;
+    this.onPlanningLaunch = options.onPlanningLaunch;
+    this.planningRuntime = options.planningRuntime === undefined
+      ? createBrowserCoopPlanningRuntime(this.store)
+      : options.planningRuntime;
 
     const roomCode = normalizeConnectionLabel(options.roomCode)
       || (this.role === "host" ? createCoopRoomCode() : "");
@@ -237,9 +264,16 @@ export class CoopWebRtcTransport {
   async createOffer(targetSlot: CoopSlot): Promise<CoopSignalEnvelope> {
     this.requireRole("host");
     const slot = normalizeCoopSlot(targetSlot, "P2");
+    const session = this.store.get();
     if (slot === this.hostSlot) throw new Error("Host cannot create an offer for itself");
-    this.disposeBinding(slot, false);
-    const binding = this.createBinding(slot);
+    if (session && !coopSlotsForCapacity(session.playerCapacity).includes(slot)) {
+      throw new Error(`Slot ${slot} is outside room capacity ${session.playerCapacity}`);
+    }
+    if (session?.players[slot]?.connected === true) {
+      throw new Error(`Slot ${slot} is already connected`);
+    }
+    this.disposeBinding(slot);
+    const binding = this.createBinding(slot, session?.roomCode ?? "");
     const channel = binding.peer.createDataChannel(`${CHANNEL_PREFIX}:${slot}`);
     this.bindChannel(slot, binding, channel);
     const offer = await binding.peer.createOffer();
@@ -261,9 +295,13 @@ export class CoopWebRtcTransport {
       hostSlot: normalizeCoopSlot(offer.metadata.hostSlotIndex === 0 ? "P1" : this.hostSlot, this.hostSlot),
       selectedMode: offer.metadata.selectedMode,
       aiMode: offer.metadata.aiMode,
+      activeSaveSlotId: offer.metadata.saveSlotId,
+      saveMode: offer.metadata.saveMode,
+      resumeSummary: offer.metadata.resumeSummary ?? null,
     });
-    this.disposeBinding(this.hostSlot, false);
+    this.disposeBinding(this.hostSlot);
     const binding = this.createBinding(this.hostSlot);
+    binding.remotePlayerId = offer.metadata.playerId;
     binding.peer.ondatachannel = (event) => this.bindChannel(this.hostSlot, binding, event.channel);
     await binding.peer.setRemoteDescription(offer.description);
     const answer = await binding.peer.createAnswer();
@@ -272,16 +310,30 @@ export class CoopWebRtcTransport {
     return createCoopSignal("coop_answer", localDescription(binding.peer), this.signalMetadata(targetSlot, "client"));
   }
 
-  async acceptAnswer(signal: string | CoopSignalEnvelope): Promise<void> {
+  async acceptAnswer(targetSlot: CoopSlot, signal: string | CoopSignalEnvelope): Promise<void> {
     this.requireRole("host");
     const answer = toSignal(signal);
     if (answer.kind !== "coop_answer") throw new Error("Expected a co-op answer");
-    const binding = this.bindings.get(answer.metadata.targetSlot);
-    if (!binding) throw new Error(`No pending peer for ${answer.metadata.targetSlot}`);
+    if (answer.metadata.targetSlot !== targetSlot) {
+      throw new Error("Co-op answer target does not match the pending offer");
+    }
+    const binding = this.bindings.get(targetSlot);
+    if (!binding || !binding.awaitingAnswer) {
+      throw new Error(`No pending peer for ${targetSlot}`);
+    }
+    if (answer.metadata.sessionId !== binding.expectedSessionId) {
+      throw new Error("Co-op answer session does not match the pending offer");
+    }
+    binding.remotePlayerId = answer.metadata.playerId;
     await binding.peer.setRemoteDescription(answer.description);
+    binding.awaitingAnswer = false;
+    if (binding.channel?.readyState === "open") {
+      this.markConnected(targetSlot, true, binding.remotePlayerId);
+    }
   }
 
   sendReady(ready: boolean): void {
+    if (this.role === "client") this.requireGuestChannelOpen();
     const session = this.store.get();
     if (!session) return;
     this.store.update({
@@ -295,9 +347,19 @@ export class CoopWebRtcTransport {
     this.send("combat_result", result);
   }
 
+  resolvePlanningEnemyPreview(): EnemyPreviewResult | null {
+    if (!this.planningRuntime) return null;
+    const result = this.role === "host"
+      ? this.planningRuntime.resolveHostEnemyPreview()
+      : this.planningRuntime.resolveGuestEnemyPreview();
+    if (result && this.role === "host") this.broadcastRoomState();
+    return result;
+  }
+
   send(type: CoopMessageType, payload: unknown): void {
+    if (this.role === "client") this.requireGuestChannelOpen();
     const message = this.createMessage(type, payload);
-    this.applyMessage(message);
+    if (!this.applyMessage(message)) return;
     if (this.role === "host") {
       this.broadcast(message);
     } else {
@@ -307,41 +369,58 @@ export class CoopWebRtcTransport {
 
   close(): void {
     this.closing = true;
-    for (const slot of [...this.bindings.keys()]) this.disposeBinding(slot, true);
+    for (const slot of [...this.bindings.keys()]) this.disposeBinding(slot);
     this.bindings.clear();
+    this.store.set(null);
   }
 
-  private createBinding(slot: CoopSlot): PeerBinding {
+  private createBinding(slot: CoopSlot, expectedSessionId: string | null = null): PeerBinding {
     const peer = this.peerFactory();
-    const binding: PeerBinding = { peer, channel: null, closed: false };
+    const binding: PeerBinding = {
+      peer,
+      channel: null,
+      closed: false,
+      awaitingAnswer: expectedSessionId !== null,
+      expectedSessionId,
+      remotePlayerId: "",
+    };
     this.bindings.set(slot, binding);
-    peer.onconnectionstatechange = () => {
-      if (["failed", "disconnected", "closed"].includes(peer.connectionState)) {
+    const handlePeerFailure = () => {
+      const failed = ["failed", "disconnected", "closed"];
+      if (failed.includes(peer.connectionState) || failed.includes(peer.iceConnectionState ?? "")) {
         this.handleDisconnect(slot, binding, "peer-disconnected");
       }
     };
+    peer.onconnectionstatechange = handlePeerFailure;
+    peer.oniceconnectionstatechange = handlePeerFailure;
     return binding;
   }
 
   private bindChannel(slot: CoopSlot, binding: PeerBinding, channel: CoopRtcDataChannelLike): void {
     binding.channel = channel;
-    channel.onopen = () => this.handleOpen(slot);
+    channel.onopen = () => this.handleOpen(slot, binding);
     channel.onmessage = (event) => this.handleIncoming(slot, event.data);
     channel.onclose = () => this.handleDisconnect(slot, binding, "peer-disconnected");
-    channel.onerror = () => this.handleDisconnect(slot, binding, "channel-error");
-    if (channel.readyState === "open") this.handleOpen(slot);
+    channel.onerror = () => {
+      this.onError?.(new Error(`Co-op data channel error for ${slot}`));
+      this.handleDisconnect(slot, binding, "channel-error");
+    };
+    if (channel.readyState === "open") this.handleOpen(slot, binding);
   }
 
-  private handleOpen(slot: CoopSlot): void {
-    this.markConnected(slot, true);
+  private handleOpen(slot: CoopSlot, binding: PeerBinding): void {
+    this.markConnected(slot, true, binding.remotePlayerId);
     if (this.role === "host") this.broadcastRoomState();
   }
 
   private handleIncoming(sourceSlot: CoopSlot, raw: unknown): void {
     const message = parseWireMessage(raw);
-    if (!message) return;
+    if (!message) {
+      this.onError?.(new Error(`Malformed co-op message from ${sourceSlot}`));
+      return;
+    }
     if (this.role === "host" && message.senderSlot !== sourceSlot) return;
-    this.applyMessage(message);
+    if (!this.applyMessage(message)) return;
     this.onMessage?.(copy(message));
     if (this.role === "host") this.broadcast(message, sourceSlot);
   }
@@ -353,10 +432,18 @@ export class CoopWebRtcTransport {
   ): void {
     if (this.closing || binding.closed) return;
     binding.closed = true;
+    const session = this.store.get();
+    const playerId = session?.players[slot]?.playerId || binding.remotePlayerId;
     this.markConnected(slot, false);
     if (this.role === "host") {
-      const message = this.createMessage("player_disconnected", { slot });
+      const message = this.createMessage("player_disconnected", {
+        slot,
+        slotIndex: coopSlotIndex(slot),
+        playerId,
+        reason,
+      });
       this.applyMessage(message);
+      this.onMessage?.(copy(message));
       this.broadcast(message, slot);
       this.activateFallback(reason, slot);
       return;
@@ -370,6 +457,32 @@ export class CoopWebRtcTransport {
     this.onFallback?.({ reason, slot });
   }
 
+  private maybeLaunchPlanning(): void {
+    if (this.role !== "host") return;
+    const session = this.store.get();
+    if (!session || session.planningLaunchRequested) return;
+    const activeSlots = coopSlotsForCapacity(session.playerCapacity);
+    if (!activeSlots.every((slot) => session.players[slot]?.connected === true && session.readyBySlot[slot] === true)) {
+      return;
+    }
+    if (session.saveMode === "resume" && session.resumeState === null) return;
+
+    const roomPlayers = Object.fromEntries(
+      activeSlots.map((slot) => [slot, copy(session.players[slot])]),
+    );
+    const message = this.createMessage("planning_ready_ping", {
+      readyBySlot: session.readyBySlot,
+      roomPlayers,
+      activeSaveSlotId: session.activeSaveSlotId,
+      saveMode: session.saveMode,
+      resumeSummary: session.resumeSummary,
+      resumeState: session.resumeState,
+    });
+    if (!this.applyMessage(message)) return;
+    this.onMessage?.(copy(message));
+    this.broadcast(message);
+  }
+
   private broadcastRoomState(): void {
     const session = this.store.get();
     if (!session) return;
@@ -378,8 +491,15 @@ export class CoopWebRtcTransport {
       seed: session.sharedSeed,
       playerCapacity: session.playerCapacity,
       hostSlot: session.hostSlot,
+      selectedMode: session.selectedMode,
+      aiMode: session.aiMode,
       readyBySlot: session.readyBySlot,
       players: session.players,
+      activeSaveSlotId: session.activeSaveSlotId,
+      saveMode: session.saveMode,
+      resumeSummary: session.resumeSummary,
+      planningLaunchRequested: session.planningLaunchRequested,
+      resumeState: session.resumeState,
     });
     this.broadcast(message);
   }
@@ -396,7 +516,12 @@ export class CoopWebRtcTransport {
 
   private broadcast(message: CoopWireMessage, excludeSlot?: CoopSlot): void {
     for (const [slot] of this.bindings) {
-      if (slot !== excludeSlot) this.sendTo(slot, message);
+      if (slot === excludeSlot) continue;
+      try {
+        this.sendTo(slot, message);
+      } catch (error) {
+        this.onError?.(error instanceof Error ? error : new Error(String(error)));
+      }
     }
   }
 
@@ -406,21 +531,36 @@ export class CoopWebRtcTransport {
     channel.send(JSON.stringify(message));
   }
 
-  private applyMessage(message: CoopWireMessage): void {
+  private applyMessage(message: CoopWireMessage): boolean {
     const payload = record(message.payload);
     switch (message.type) {
       case "room_state": {
-        if (!payload) return;
+        if (message.senderSlot !== this.hostSlot || !payload) return false;
         const seed = finiteInt(payload.seed);
         this.store.update({
           roomCode: typeof payload.roomCode === "string" ? normalizeConnectionLabel(payload.roomCode) : undefined,
           sharedSeed: seed,
           playerCapacity: payload.playerCapacity === undefined ? undefined : Number(payload.playerCapacity),
           hostSlot: typeof payload.hostSlot === "string" ? normalizeCoopSlot(payload.hostSlot, this.hostSlot) : undefined,
+          selectedMode: typeof payload.selectedMode === "string" ? payload.selectedMode : undefined,
+          aiMode: typeof payload.aiMode === "string" ? payload.aiMode : undefined,
           readyBySlot: record(payload.readyBySlot) as Record<string, boolean> | undefined,
           players: record(payload.players) as Record<string, Partial<CoopPlayerState>> | undefined,
+          activeSaveSlotId: typeof payload.activeSaveSlotId === "string" ? payload.activeSaveSlotId : undefined,
+          saveMode: typeof payload.saveMode === "string" ? payload.saveMode : undefined,
+          resumeSummary: payload.resumeSummary,
+          planningLaunchRequested: payload.planningLaunchRequested === true,
         });
-        break;
+        if (payload.resumeState === null) {
+          this.store.update({ resumeState: null });
+        } else if (payload.resumeState !== undefined) {
+          if (this.planningRuntime) {
+            if (!this.planningRuntime.attachPayload(payload.resumeState as RunPayload)) return false;
+          } else {
+            this.store.update({ resumeState: copy(payload.resumeState) });
+          }
+        }
+        return true;
       }
       case "player_ready": {
         const ready = payload?.ready === true;
@@ -428,29 +568,61 @@ export class CoopWebRtcTransport {
           readyBySlot: { [message.senderSlot]: ready },
           players: { [message.senderSlot]: { ready, connected: true } },
         });
-        break;
+        this.maybeLaunchPlanning();
+        return true;
+      }
+      case "planning_ready_ping": {
+        if (message.senderSlot !== this.hostSlot || !payload) return false;
+        const current = this.store.get();
+        if (!current || current.planningLaunchRequested) return false;
+        this.store.update({
+          readyBySlot: record(payload.readyBySlot) as Record<string, boolean> | undefined,
+          roomPlayers: record(payload.roomPlayers) ?? undefined,
+          activeSaveSlotId: typeof payload.activeSaveSlotId === "string" ? payload.activeSaveSlotId : undefined,
+          saveMode: typeof payload.saveMode === "string" ? payload.saveMode : undefined,
+          resumeSummary: payload.resumeSummary,
+          resumeState: payload.resumeState,
+          planningLaunchRequested: true,
+        });
+        const launched = this.store.get();
+        if (!launched) return false;
+        this.onPlanningLaunch?.({
+          session: copy(launched),
+          forceNewRun: launched.saveMode !== "resume",
+          restoredState: launched.saveMode === "resume" ? copy(launched.resumeState) : null,
+        });
+        return true;
+      }
+      case "planning_intent": {
+        if (!this.planningRuntime) return false;
+        const result = message.senderSlot === this.localSlot
+          ? this.planningRuntime.applyLocalIntent(message.payload)
+          : this.role === "host"
+            ? this.planningRuntime.applyRemoteIntent(message.senderSlot, message.payload)
+            : this.planningRuntime.applyReplicatedIntent(message.senderSlot, message.payload);
+        return result.applied;
       }
       case "player_disconnected": {
         const slot = normalizeCoopSlot(payload?.slot, message.senderSlot);
         this.markConnected(slot, false);
-        break;
+        return true;
       }
       case "authoritative_snapshot":
         this.store.update({ coopCombatSnapshot: message.payload });
-        break;
+        return true;
       case "combat_delta":
         this.store.update({ coopCombatDelta: message.payload });
-        break;
+        return true;
       case "combat_heartbeat":
         this.store.update({ coopCombatHeartbeat: message.payload });
-        break;
+        return true;
       case "combat_start":
       case "combat_result":
       case "combat_retreat":
         this.store.update({ currentCombatPayload: message.payload });
-        break;
+        return true;
       default:
-        break;
+        return true;
     }
   }
 
@@ -463,7 +635,7 @@ export class CoopWebRtcTransport {
         [slot]: {
           connected,
           ready: connected ? session.readyBySlot[slot] === true : false,
-          playerId: playerId || session.players[slot]?.playerId || "",
+          playerId: connected ? (playerId || session.players[slot]?.playerId || "") : "",
         },
       },
     });
@@ -479,6 +651,7 @@ export class CoopWebRtcTransport {
       aiMode: session?.aiMode,
       saveSlotId: session?.activeSaveSlotId,
       saveMode: session?.saveMode,
+      resumeSummary: session?.resumeSummary ?? undefined,
       hostSlotIndex: 0,
       roomCode: session?.roomCode,
       playerId: this.playerId,
@@ -487,13 +660,20 @@ export class CoopWebRtcTransport {
     };
   }
 
-  private disposeBinding(slot: CoopSlot, close: boolean): void {
+  private disposeBinding(slot: CoopSlot): void {
     const binding = this.bindings.get(slot);
     if (!binding) return;
     binding.closed = true;
-    if (close) binding.channel?.close();
+    binding.channel?.close();
     binding.peer.close();
     this.bindings.delete(slot);
+  }
+
+  private requireGuestChannelOpen(): void {
+    const channel = this.bindings.get(this.hostSlot)?.channel;
+    if (!channel || channel.readyState !== "open") {
+      throw new Error("Guest data channel is not open");
+    }
   }
 
   private requireRole(expected: "host" | "client"): void {

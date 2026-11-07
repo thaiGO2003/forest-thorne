@@ -1,17 +1,19 @@
 // Canonical serializable run state + atomic Planning mutations (spec A1, A2, A3, A4).
 // Every mutation returns ok/false; a failed mutation leaves state untouched.
 import { getUnit, NORMAL_UNITS } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import {
   addXp, benchCapacity, deployCap, refreshCost, roundIncome, sellValue, shopTierOdds, xpBuyCost,
 } from "./economy";
 import { canResearch, researchCost, TECH_BY_ID, techModifiers } from "./tech";
 import {
-  equipmentSaleValue, getEquipment, itemUnequipCost, normalizeEquipment, slotCapForUnit,
+  equipmentSaleValue, itemUnequipCost, normalizeEquipment, slotCapForUnit,
 } from "./equipment";
+import { BASE_MATERIALS, getEquipment, isKnownItem } from "./itemRegistry";
 import { normalizeVariantTraits, rollVariantTrait, type VariantTraitRef } from "./variants";
 import { applyAugment, AUGMENTS, AUGMENT_ROUNDS, restoreRunHearts } from "./augments";
-import { BASE_MATERIALS, craft as commitCraft, stage as stageCraft } from "./craft";
-import { lossDamage, type Drop } from "./loot";
+import { craft as commitCraft, isCraftIngredient, stage as stageCraft } from "./craft";
+import { isRegisteredDrop, lossDamage, type Drop } from "./loot";
 import { modeConfig, type GameMode, type LossCondition } from "./modes";
 import {
   beastDenOffers, blacksmithForgeTier, completeFortressNode as completeFortressStateNode,
@@ -24,6 +26,7 @@ import {
 } from "./creative";
 import type { Placement, SideBonus } from "./combat";
 import { isWeatherBlessingId, type WeatherBlessingId } from "./blessings";
+import { syncBlessingChoice, type BlessingChoiceId } from "./blessingChoice";
 import type { AiMode } from "./encounter";
 import {
   createTutorialState, finishTutorialIfPastEnd, incrementTutorialShopVariant, isTutorialActive,
@@ -57,6 +60,12 @@ export interface RunState {
   heartEscrow: 0 | 1;
   /** Player-authored weather blessing order; combat consumes only this prefix order. */
   blessingQueue: WeatherBlessingId[];
+  /** Round-3 blessing choices already taken (canonical, persisted). */
+  blessingPicks: BlessingChoiceId[];
+  /** True while the modal must block planning until one blessing is chosen. */
+  pendingBlessingChoice: boolean;
+  /** One-shot starting rage granted by the round-3 combat blessing; consumed at battle start. */
+  pendingCombatRage: number;
   /** 5×5 allied board, row-major index r*5+c. */
   board: (OwnedUnit | null)[];
   /** Compact ordered bench, never sparse. */
@@ -151,6 +160,7 @@ function createModeRunInternal(seed: number, mode: GameMode): RunState {
   const s: RunState = {
     phase: "PLANNING", mode, aiMode: cfg.ai.def, lossCondition: cfg.lossCondition,
     round: 1, level: 1, xp: 0, gold: cfg.startGold, hp: cfg.startHp, heartEscrow: 0, blessingQueue: [],
+    blessingPicks: [], pendingBlessingChoice: false, pendingCombatRage: 0,
     board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), bench: [], itemBag: [],
     shop: [], shopSlotCount: SHOP_SLOTS, shopLocked: false, benchUpgradeLevel: 0, benchBonus: 0, deployCapBonus: 0,
     xpCostDelta: 0, rollCostDelta: 0, interestCapBonus: 0, interestRateBonus: 0, startingRage: 0, startingShield: 0,
@@ -198,7 +208,10 @@ function rollShop(s: RunState): void {
       r -= odds[i]!;
       if (r < 0) { tier = i + 1; break; }
     }
-    const pool = NORMAL_UNITS.filter((u) => u.tier === tier);
+    const tierPool = NORMAL_UNITS.filter((u) => u.tier === tier && hasUnitVisual(u.id));
+    // High tiers may have no finished visuals yet; keep the shop populated with the authored set
+    // instead of returning an empty slot.
+    const pool = tierPool.length ? tierPool : NORMAL_UNITS.filter((u) => hasUnitVisual(u.id));
     return pool[Math.floor(nextRandom(s) * pool.length)]?.id ?? null;
   });
 }
@@ -399,7 +412,10 @@ export function unequipAll(s: RunState, where: "bench" | "board", index: number)
 export function sellItem(s: RunState, bagIndex: number): boolean {
   if (!planning(s) || !tutorialActionAllowed(s, "sell_item") || bagIndex < 0 || bagIndex >= s.itemBag.length) return false;
   const id = s.itemBag[bagIndex]!;
+  if (!isKnownItem(id)) return false;
   const equipment = getEquipment(id);
+  // Unresolved legacy IDs are held for recovery, not converted into sale currency.
+  if (!equipment && !(BASE_MATERIALS as readonly string[]).includes(id)) return false;
   const value = equipment ? equipmentSaleValue(equipment.tier) : 1;
   s.itemBag.splice(bagIndex, 1);
   gainGold(s, value);
@@ -434,8 +450,9 @@ export function autoMerge(s: RunState): number {
       .reduce((a, b) => (getUnit(b).tier > getUnit(a).tier ? b : a));
     const cap = slotCap(baseId, star);
     const equipment = normalizeEquipment(picked.flatMap((r) => r.unit.equips), star, cap);
-    // A81 explicitly returns duplicate/cap overflow equipment. Invalid/non-equipment ids are ignored.
-    s.itemBag.push(...equipment.rejected.filter((id) => getEquipment(id) !== null));
+    // Duplicate, over-tier, and unknown IDs return to the bag without granting equipment effects.
+    // Preserving unknown IDs prevents loss of future-version items during a merge.
+    s.itemBag.push(...equipment.rejected);
     const traits = picked.flatMap((r) => normalizeVariantTraits(getUnit(r.unit.baseId).role, r.unit.traits ?? []))
       .slice(0, 9);
     const result: OwnedUnit = { uid: allocateUid(s), baseId, star, equips: equipment.kept, traits };
@@ -592,7 +609,6 @@ export interface RoundResultSummary {
   rejectedDrops: Drop[];
 }
 
-const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
 
 function offerAugmentsIfDue(s: RunState): void {
   const cfg = modeConfig(s.mode);
@@ -632,6 +648,7 @@ export function chooseAugment(s: RunState, id: string): boolean {
   s.activeAugmentChoices = [];
   s.phase = "PLANNING";
   recordTutorialEvent(s, "choose_augment", ["lastAugmentName", id]);
+  syncBlessingChoice(s);
   return true;
 }
 
@@ -641,6 +658,7 @@ export function stageRunCraftItem(s: RunState, staged: (string | null)[], index:
     source: itemId ? { where: "inventory", index: s.itemBag.indexOf(itemId), itemId } : undefined,
     destination: { where: "craft", index }, itemId: itemId ?? undefined,
   })) return null;
+  if (itemId !== null && (!isCraftIngredient(itemId) || !s.itemBag.includes(itemId))) return null;
   const next = stageCraft(staged, index, itemId, s.craftTableLevel);
   if (next) recordTutorialEvent(s, "add_craft_item");
   return next;
@@ -786,10 +804,16 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
   }
 
   const room = Math.max(0, inventoryCapacity(s) - s.itemBag.length);
-  const legalDrops = input.drops.filter((drop) => typeof drop.item === "string" && validBagItem(drop.item));
-  const acceptedDrops = legalDrops.slice(0, room);
-  const rejectedDrops = [...legalDrops.slice(room), ...input.drops.filter((drop) => !legalDrops.includes(drop))];
-  s.itemBag.push(...acceptedDrops.map((drop) => drop.item));
+  const acceptedDrops: Drop[] = [];
+  const rejectedDrops: Drop[] = [];
+  for (const drop of input.drops) {
+    if (!isRegisteredDrop(drop) || acceptedDrops.length >= room) {
+      rejectedDrops.push(drop);
+    } else {
+      acceptedDrops.push(drop);
+      s.itemBag.push(drop.item);
+    }
+  }
 
   let incomeEarned = 0;
   if (gameOver) {
@@ -803,6 +827,7 @@ export function applyRoundResult(s: RunState, input: RoundResultInput): RoundRes
     incomeEarned = payPlanningIncome(s);
     if (cfg.shop && !s.shopLocked) rollShop(s);
     offerAugmentsIfDue(s);
+    syncBlessingChoice(s);
   }
   return {
     winner: input.winner, goldEarned, xpEarned, damageTaken, hpAfter: s.hp, nextRound: s.round,
@@ -855,7 +880,7 @@ export function recruitFortressBeast(s: RunState, baseId: string): boolean {
   const pending = s.fortress.pendingNode;
   if (s.phase !== "PLANNING" || pending?.type !== "beast_den" || pending.serviceResult) return false;
   if (!pending.serviceOffers?.includes(baseId) || s.bench.length >= benchCap(s)) return false;
-  const def = NORMAL_UNITS.find((unit) => unit.id === baseId);
+  const def = NORMAL_UNITS.find((unit) => unit.id === baseId && hasUnitVisual(unit.id));
   if (!def) return false;
   const uid = allocateUid(s);
   const seed = nextUint32(s);

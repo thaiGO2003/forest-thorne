@@ -8,9 +8,10 @@ describe("tactical camera (A91.1)", () => {
       expect(maxDistance(p, a)).toBeGreaterThanOrEqual(framingDistance(p, a) + DOLLY_HEADROOM);
       expect(maxDistance(p, a)).toBeGreaterThanOrEqual(BASE_MAX_DISTANCE);
     }
-    // co-op needs more room than solo; narrow aspects clamp at 0.55
+    // True portrait aspect must increase camera distance to keep the bench inside the frustum.
     expect(framingDistance("coop4", 1)).toBeGreaterThan(framingDistance("solo", 1));
-    expect(framingDistance("solo", 0.2)).toBe(framingDistance("solo", 0.55));
+    expect(framingDistance("solo", 390 / 844)).toBeGreaterThan(framingDistance("solo", 0.55));
+    expect(framingDistance("solo", 0)).toBe(framingDistance("solo", 0.01));
   });
 
   it("smoothstep clamps and hits endpoints", () => {

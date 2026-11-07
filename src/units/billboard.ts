@@ -2,6 +2,7 @@
 // segmented rage, ≤3 positive statuses (left) and ≤3 negative (right). Static chrome is kit art
 // (9/3-slice); only fills and text are dynamic. One canvas + texture per unit, redrawn on change.
 import * as THREE from "three";
+import type { Role } from "../content/catalog";
 import { ICONS } from "../core/emojiIcon";
 import { drawFit, kitImage, LABEL, label, nineSlice, onKitReady, SLICE, threeSlice } from "../ui/kit";
 
@@ -9,6 +10,7 @@ export interface BillboardStatus { key: string; positive: boolean }
 
 export interface BillboardState {
   name: string;
+  role?: Role;
   star: number;
   hp: number;
   maxHp: number;
@@ -16,6 +18,8 @@ export interface BillboardState {
   rageMax: number;
   side: "L" | "R";
   statuses: BillboardStatus[];
+  /** Optional skill counter badge (e.g. Cóc Độc poison points); hidden when absent or 0. */
+  counter?: { icon: string; value: number; max: number };
 }
 
 /** A92 logical surface. */
@@ -24,6 +28,14 @@ const MAX_PER_SIDE = 3, MAX_SEGMENTS = 10;
 const WORLD_W = 1.85;
 const BASE_RENDER_ORDER = 10;
 const HOVER_RENDER_ORDER = 20;
+const ROLE_NAME_COLORS: Record<Role, string> = {
+  TANKER: "#83d8f2",
+  ASSASSIN: "#ff9ebd",
+  ARCHER: "#a9e374",
+  MAGE: "#c2a3ff",
+  SUPPORT: "#82e0bc",
+  FIGHTER: "#ffc56f",
+};
 
 export interface Normalized extends BillboardState { segments: number; filled: number; pos: string[]; neg: string[] }
 
@@ -46,7 +58,11 @@ export function normalizeBillboard(s: BillboardState): Normalized {
     const list = st.positive ? pos : neg;
     if (list.length < MAX_PER_SIDE) list.push(key);
   }
-  return { ...s, star: Math.min(3, Math.max(1, Math.round(fin(s.star, 1)))), hp, maxHp, rage, rageMax, segments, filled, pos, neg };
+  const counterValue = Math.max(0, Math.round(fin(s.counter?.value ?? 0)));
+  const counter = s.counter && counterValue > 0
+    ? { icon: s.counter.icon, value: counterValue, max: Math.max(1, Math.round(fin(s.counter.max, 1))) }
+    : undefined;
+  return { ...s, star: Math.min(3, Math.max(1, Math.round(fin(s.star, 1)))), hp, maxHp, rage, rageMax, segments, filled, pos, neg, counter };
 }
 
 export interface Billboard {
@@ -88,13 +104,20 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     s.pos.forEach((k, i) => {
       const x = 8 + i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
-      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
+      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 30, stroke: null });
     });
     s.neg.forEach((k, i) => {
       const x = BILLBOARD_W - 8 - s.neg.length * tile - (s.neg.length - 1) * 4 + i * (tile + 4);
       nineSlice(g, "tile_status", SLICE.tile_status, x, ty, tile, tile, 2);
-      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 22, stroke: null });
+      label(g, ICONS[k as keyof typeof ICONS] ?? ICONS.question, x + tile / 2, ty + tile / 2 + 1, { size: 30, stroke: null });
     });
+
+    // Skill counter badge (centre of the status row): icon + value/max on the same status tile art.
+    if (s.counter) {
+      const cw = 112, cx = (BILLBOARD_W - cw) / 2;
+      nineSlice(g, "tile_status", SLICE.tile_status, cx, ty, cw, tile, 2);
+      label(g, `${s.counter.icon} ${s.counter.value}/${s.counter.max}`, cx + cw / 2, ty + tile / 2 + 1, { size: 26, weight: 800, fill: LABEL });
+    }
 
     // Shell.
     const sy = 48, sh = BILLBOARD_H - sy - 2;
@@ -103,7 +126,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     // Name + stars.
     const ally = s.side === "L";
     for (let i = 0; i < s.star; i++) drawFit(g, "star", 18 + i * 26, sy + 12, 24, 24);
-    label(g, s.name, BILLBOARD_W / 2 + 20, sy + 24, { size: 28, weight: 800, maxW: BILLBOARD_W - 140, fill: LABEL });
+    label(g, s.name, 308, sy + 24, { size: 38, weight: 800, maxW: 390, fill: s.role ? ROLE_NAME_COLORS[s.role] : LABEL });
 
     // HP bar with the heart and lightning readouts adjacent (no gutter between bar and readouts).
     const bx = 14, readoutW = 72, readoutGap = 6;
@@ -117,8 +140,8 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
     g.fillStyle = "rgba(255,255,255,0.35)";
     g.fillRect(bx + 6, by + 6, fw, 5);
     threeSlice(g, "frame_bar", 3, bx, by, bw, bh);
-    label(g, `${s.hp}/${s.maxHp}`, bx + bw / 2, by + bh / 2, { size: 20 });
-    label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, readoutX + readoutW / 2, by + bh / 2, { size: 18, align: "center", fill: LABEL });
+    label(g, `${s.hp}/${s.maxHp}`, bx + bw / 2, by + bh / 2, { size: 27 });
+    label(g, `${ICONS.heart} ${Math.round(pct * 100)}%`, readoutX + readoutW / 2, by + bh / 2, { size: 23, align: "center", fill: LABEL });
 
     // Rage: segmented cells aligned under HP, with the lightning readout beside them.
     const ry = by + bh + 2, rh = 24, gap = 4;
@@ -129,7 +152,7 @@ export function createBillboard(anchor: THREE.Object3D): Billboard {
       if (i < s.filled) { g.fillStyle = "#ffcf3a"; g.fillRect(x + 3, ry + 3, cw - 6, rh - 6); }
       threeSlice(g, "frame_rage_cell", 2, x, ry, cw, rh);
     }
-    label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, readoutX + readoutW / 2, ry + rh / 2, { size: 17, align: "center", fill: LABEL });
+    label(g, `${ICONS.rage} ${s.rage}/${s.rageMax}`, readoutX + readoutW / 2, ry + rh / 2, { size: 23, align: "center", fill: LABEL });
     tex.needsUpdate = true;
   };
 

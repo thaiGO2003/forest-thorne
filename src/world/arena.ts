@@ -2,14 +2,17 @@
 // Owns every GPU resource it creates; dispose() releases all of them.
 import * as THREE from "three";
 import { benchPerimeter, brownRing, riverCells, toLogical, totalRows, VISUAL_COLS, type Cell, type Profile } from "../board/geometry";
+import { createBoardLabels } from "./boardLabels";
 import { createScenery } from "./scenery";
 import { createSky } from "./sky";
+import { createWaterUniforms, patchWaterMaterial, tuneWater } from "./water";
+import { createFoliageUniforms, patchFoliageSway } from "./foliage";
 import type { EnvironmentId } from "../core/environment";
 import type { DayNightPhase } from "../core/dayNight";
 
 export const BLOCK = 1;
 const TILE_H = 0.12;
-const FLOW_SPEED = 0.62;
+export const FLOW_SPEED = 0.62;
 
 export type LightPhase = "menu" | "planning" | "combat";
 export type ShadowQuality = "low" | "medium" | "high";
@@ -38,6 +41,15 @@ const HIGHLIGHT_COLORS: Record<TacticalHighlightRole, number> = {
   direct: 0xff3b30,
   area: 0xffd43b,
 };
+
+const HIGHLIGHT_PRIORITY = {
+  hover: 1,
+  source: 2,
+  valid: 3,
+  invalid: 4,
+  area: 5,
+  direct: 6,
+} satisfies Record<TacticalHighlightRole, number>;
 
 const ENVIRONMENT_LIGHT: Record<EnvironmentId, { sky: number; hemi: number; sun: number; rim: number; gain: number }> = {
   FIRE: { sky: 0xd6a27c, hemi: 0xffddbd, sun: 0xffad66, rim: 0xff7447, gain: 0.95 },
@@ -85,15 +97,24 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const root = new THREE.Group();
   root.name = "arena";
   scene.add(root);
+  // Named scene-node contract for structural tests and diagnostics: tactical-tiles,
+  // brown-ring, bench-perimeter, bench-highlights, river-water,
+  // river-flow-marker, sun-rays. Keep names stable when refactoring meshes.
   const disposables: { dispose(): void }[] = [];
   const own = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
   const m4 = new THREE.Matrix4();
+  const instancePosition = new THREE.Vector3();
   const rows = totalRows(p);
 
   const blockGeo = own(new THREE.BoxGeometry(BLOCK, BLOCK, BLOCK));
   const tileGeo = own(new THREE.BoxGeometry(BLOCK * 0.96, TILE_H, BLOCK * 0.96));
   const mat = (color: number, extra: THREE.MeshStandardMaterialParameters = {}) =>
     own(new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...extra }));
+
+  // Animated shader plumbing: one clock shared by water and foliage, created before any mesh
+  // that consumes it so materials can be patched at construction time.
+  const waterUniforms = createWaterUniforms();
+  const foliageUniforms = createFoliageUniforms(waterUniforms.uTime);
 
   // Foundation: one contiguous slab under battlefield + ring + bench (no cracks between cubes).
   const minX = -2, maxX = VISUAL_COLS + 1, minZ = -2, maxZ = rows + 1;
@@ -129,13 +150,17 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   // Grass tufts on free tiles; hidden per tile when occupied.
   const tuftGeo = own(new THREE.ConeGeometry(0.06, 0.22, 4));
-  const tufts = new THREE.InstancedMesh(tuftGeo, mat(0x86d45a), n * 3);
+  const tuftMat = mat(0x86d45a);
+  patchFoliageSway(tuftMat, foliageUniforms, 0.55);
+  const tufts = new THREE.InstancedMesh(tuftGeo, tuftMat, n * 3);
   const tuftOffsets = [[-0.28, -0.22], [0.25, 0.1], [-0.05, 0.3]] as const;
-  for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) {
+  for (let i = 0; i < n; i++) {
     tiles.getMatrixAt(i, m4);
-    const pos = new THREE.Vector3().setFromMatrixPosition(m4);
-    const [ox, oz] = tuftOffsets[k]!;
-    tufts.setMatrixAt(i * 3 + k, new THREE.Matrix4().makeTranslation(pos.x + ox, TILE_H + 0.1, pos.z + oz));
+    instancePosition.setFromMatrixPosition(m4);
+    for (let k = 0; k < 3; k++) {
+      const [ox, oz] = tuftOffsets[k]!;
+      tufts.setMatrixAt(i * 3 + k, m4.makeTranslation(instancePosition.x + ox, TILE_H + 0.1, instancePosition.z + oz));
+    }
   }
   tufts.raycast = () => {};
   root.add(tufts);
@@ -149,10 +174,14 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     root.add(mesh);
     return mesh;
   };
-  ringTiles(brownRing(p), 0x8a5a34, TILE_H / 2);
+  const ring = ringTiles(brownRing(p), 0x8a5a34, TILE_H / 2);
+  ring.name = "brown-ring";
   const benchCells = benchPerimeter(p);
   const bench = ringTiles(benchCells, 0xb48a5c, TILE_H / 2 + 0.02);
   bench.name = "bench-perimeter";
+  // Chess-style position markers around the battlefield (old_src board edge labels).
+  const boardLabels = createBoardLabels(p);
+  root.add(boardLabels.group);
   const benchHighlightGeo = own(new THREE.BoxGeometry(BLOCK * 0.88, 0.035, BLOCK * 0.88));
   const benchHighlights = new THREE.InstancedMesh(
     benchHighlightGeo,
@@ -166,8 +195,11 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   // River: water strip, 7 flow markers, 3 lily pads. Not raycastable.
   const riverLen = riverCells(p).length * BLOCK;
-  const waterMat = mat(0x3aa0d8, { roughness: 0.25, metalness: 0.1 });
+  const waterMat = mat(0x3aa0d8, { roughness: 0.34, metalness: 0.1 });
+  // Keep MeshStandardMaterial lighting/fog/shadows; only the wave response is injected.
+  patchWaterMaterial(waterMat, waterUniforms);
   const water = new THREE.Mesh(own(new THREE.BoxGeometry(BLOCK, 0.5, riverLen)), waterMat);
+  water.name = "river-water";
   water.position.set(0, -0.3, 0);
   water.raycast = () => {};
   root.add(water);
@@ -175,6 +207,7 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   const markerMat = mat(0xd8f2ff, { transparent: true, opacity: 0.7 });
   const markers = Array.from({ length: 7 }, (_, i) => {
     const m = new THREE.Mesh(markerGeo, markerMat);
+    m.name = "river-flow-marker";
     m.position.set(((i % 3) - 1) * 0.25, -0.04, -riverLen / 2 + ((i + 0.5) * riverLen) / 7);
     m.raycast = () => {};
     root.add(m);
@@ -188,7 +221,10 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     pad.raycast = () => {};
     root.add(pad);
   });
-  const scenery = createScenery(root, p, own, (c) => cellToWorld(c, p), waterMat);
+  const scenery = createScenery(root, p, own, (c) => cellToWorld(c, p), waterMat, {
+    water: waterUniforms,
+    foliage: foliageUniforms,
+  });
   const sky = createSky(root, own);
   const rayUniforms = {
     time: { value: 0 },
@@ -248,6 +284,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   root.add(hemi, sun, rim);
   const fog = new THREE.Fog(0xa8dcff, 45, 120);
   const background = new THREE.Color(0xa8dcff);
+  const previousFog = scene.fog;
+  const previousBackground = scene.background;
   scene.fog = fog;
   scene.background = background;
 
@@ -270,6 +308,13 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
     rim.color.setHex(environment.rim);
     rayUniforms.tint.value.setHex(night ? 0x9fb6e8 : 0xffd39a);
     rayUniforms.strength.value = 0.18 * rayQualityGain * environment.gain * (night ? 0.22 : 1);
+    // Water reads the same environment/night state so the river never looks lit by another scene.
+    tuneWater(waterUniforms, {
+      deepRgb: night ? [0.34, 0.46, 0.7] : [0.7, 0.84, 1],
+      glint: night ? 0x6b7f9e : environment.rim,
+      sky: night ? 0x2a3b5c : environment.sky,
+      foam: night ? 0.3 : 0.55,
+    });
     [fog.near, fog.far] = phase.fog;
     fog.color.setHex(environment.sky).multiplyScalar(night ? 0.46 : 1);
     background.setHex(environment.sky).multiplyScalar(night ? 0.46 : 1);
@@ -277,11 +322,13 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
 
   const highlighted = new Set<number>();
   const highlightColor = new THREE.Color();
+  const appliedPriority = new Uint8Array(tiles.count);
   const restoreHighlights = () => {
     if (highlighted.size === 0) return false;
     for (const i of highlighted) {
       const cell = logicalByIndex[i];
       if (cell) tiles.setColorAt(i, (cell.col + cell.row) % 2 ? grassA : grassB);
+      appliedPriority[i] = 0;
     }
     highlighted.clear();
     return true;
@@ -292,11 +339,13 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
   applyLighting();
 
   let flowT = 0;
+  let disposed = false;
   return {
     root,
     tiles,
     setPhase(phase) {
       currentPhase = phase;
+      boardLabels.group.visible = phase !== "menu";
       applyLighting();
     },
     setEnvironment(environment) {
@@ -316,7 +365,10 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       for (const cell of cells) {
         const i = tileIndex[`${cell.col},${cell.row}`];
         if (i === undefined) continue;
+        const priority = HIGHLIGHT_PRIORITY[cell.role];
+        if (priority <= appliedPriority[i]!) continue;
         tiles.setColorAt(i, highlightColor.setHex(HIGHLIGHT_COLORS[cell.role]));
+        appliedPriority[i] = priority;
         highlighted.add(i);
         changed = true;
       }
@@ -348,10 +400,10 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       const i = tileIndex[`${col},${row}`];
       if (i === undefined) return;
       tiles.getMatrixAt(i, m4);
-      const pos = new THREE.Vector3().setFromMatrixPosition(m4);
+      instancePosition.setFromMatrixPosition(m4);
       for (let k = 0; k < 3; k++) {
         const [ox, oz] = tuftOffsets[k]!;
-        tufts.setMatrixAt(i * 3 + k, m4.makeTranslation(pos.x + ox, occupied ? -10 : TILE_H + 0.1, pos.z + oz));
+        tufts.setMatrixAt(i * 3 + k, m4.makeTranslation(instancePosition.x + ox, occupied ? -10 : TILE_H + 0.1, instancePosition.z + oz));
       }
       tufts.instanceMatrix.needsUpdate = true;
     },
@@ -360,6 +412,8 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       sun.castShadow = shadowsEnabled && q !== "low";
       sunRays.visible = q !== "low";
       rayQualityGain = q === "high" ? 1 : q === "medium" ? 0.6 : 0;
+      waterUniforms.uWaveStrength.value = q === "high" ? 1 : q === "medium" ? 0.75 : 0.3;
+      foliageUniforms.uSway.value = q === "low" ? 0.35 : 1;
       const size = q === "high" ? 2048 : 1024;
       if (sun.shadow.mapSize.x !== size) {
         sun.shadow.map?.dispose();
@@ -373,21 +427,27 @@ export function createArena(scene: THREE.Scene, p: Profile): Arena {
       sun.castShadow = enabled && shadowQuality !== "low";
     },
     update(dt) {
-      flowT += Math.max(0, dt) * FLOW_SPEED;
-      rayUniforms.time.value += Math.max(0, dt);
-      scenery.update(Math.max(0, dt));
-      sky.update(Math.max(0, dt));
+      const step = Math.max(0, dt);
+      flowT += step * FLOW_SPEED;
+      waterUniforms.uTime.value += step;
+      rayUniforms.time.value += step;
+      scenery.update(step);
+      sky.update(step);
       markers.forEach((m, i) => {
-        m.position.z = (((-riverLen / 2 + ((i + 0.5) * riverLen) / 7 + flowT) % riverLen) + riverLen) % riverLen - riverLen / 2;
+        m.position.z = ((((i + 0.5) * riverLen) / 7 + flowT) % riverLen + riverLen) % riverLen - riverLen / 2;
       });
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       restoreHighlights();
       sun.shadow.map?.dispose();
+      boardLabels.dispose();
       for (const d of disposables) d.dispose();
-      for (const o of [soil, tiles, tufts, bench, benchHighlights]) o.dispose();
+      for (const o of [soil, tiles, tufts, ring, bench, benchHighlights]) o.dispose();
       scene.remove(root);
-      scene.fog = null;
+      if (scene.fog === fog) scene.fog = previousFog;
+      if (scene.background === background) scene.background = previousBackground;
     },
   };
 }

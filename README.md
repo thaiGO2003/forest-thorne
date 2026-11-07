@@ -22,6 +22,14 @@ pnpm test       # unit tests
 pnpm build      # production build -> dist/
 ```
 
+## Audio / Âm thanh
+
+- `src/audio/MusicDirector.ts` transitions BGM between menu, planning and combat contexts, using the existing settings store for volume and mute control.
+- `src/audio/ForestAmbience.ts` creates sparse procedural birds and breeze while planning. A pointer/keyboard gesture unlocks Web Audio; a hidden tab, mute, or route change suspends ambience and releases its active voices.
+- `src/audio/SoundEffects.ts` plays semantic `buy`, `reroll`, `hit`, `skill`, `heal`, `ko`, `victory`, `defeat` and `draw` cues. It uses available authored samples when supplied, otherwise a bounded, short procedural oscillator tone. Failed audio initialization/resume does not abort gameplay; later interactions retry when possible.
+- Planning cues fire only after successful shop actions. Combat cues are dispatched by presentation impact callbacks rather than simulation timestamps so playback follows the displayed impact even at a changed game speed.
+- On teardown the app disposes its audio managers, closes owned AudioContexts, and cleans up modal keyboard listeners. The audio-specific Vitest regressions cover transient failures, externally closed contexts and late asynchronous resume/suspend settlements.
+
 ## Layout / Cấu trúc
 
 ```
@@ -41,6 +49,19 @@ src/
 Gameplay rules live only in `src/game`; rendering and UI read and stage that state.
 
 *Luật chơi chỉ nằm ở `src/game`; render/UI chỉ đọc và dàn dựng state đó.*
+
+## Item Registry / Danh mục vật phẩm
+
+`src/core/itemRegistry.ts` is the single source of authored materials, equipment, and recipes. Crafting, equipment, loot, UI, and persistence consumers resolve canonical identities through `getItem(id)`, `getEquipment(id)`, and `getRecipe(id)` instead of maintaining parallel catalogs.
+
+- `loadItemRegistry(source)` rejects invalid catalogs before publishing definitions: duplicate identifiers, unknown ingredients or outputs, invalid tiers and grid footprints, translation-equivalent recipe patterns, and dependency cycles.
+- The authored catalog currently has six materials, two equipment definitions, and one recipe (`tear` → `eq_blue_buff`). New content requires authored definitions and matching valid/invalid registry and transaction fixtures.
+- Save envelopes use schema **v5** and preserve unknown string item IDs, duplicates, ordering, and co-op ownership. Unknown items count toward inventory capacity but cannot be equipped, crafted, or sold until defined.
+- Migration returns rejected equipment to its original player's bag and recovers equipped IDs from unknown/malformed units or board entries beyond the canonical 25 tiles. Existing bag items come first, followed by recovered board and bench equipment in traversal order. Valid equipped items remain on their units, and repeated migration does not duplicate recovered items.
+- Legacy recovered items remain owned and visible even when the item bag exceeds current inventory capacity; this does not grant capacity for new loot.
+- Crafting offers only ingredients referenced by authored recipe patterns (including equipment when a recipe explicitly uses it). Unknown/non-ingredient owned IDs remain in the bag but cannot be staged through the ingredient picker.
+- Crafting only commits the item bag and craft history after validating a canonical recipe and owned ingredients; invalid recipes leave both unchanged.
+
 
 ## Spec
 

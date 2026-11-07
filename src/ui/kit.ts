@@ -10,17 +10,19 @@ export type ButtonState = "normal" | "hover" | "pressed" | "disabled" | "selecte
 export const SLICE = {
   panel_parchment: 8, panel_wood: 8, panel_tooltip: 5, slot_well: 5,
   shell_billboard: 7, tile_status: 7, frame_bar: 3, frame_rage_cell: 2,
-  card: 8, btn: 6, btn_icon: 10, ribbon: 16,
+  card: 8, card_t2: 8, card_t3: 8, card_t4: 8, btn: 6, btn_icon: 10, ribbon: 16,
 } as const;
 
 /** Art-pixel → CSS-pixel factor. Integer keeps pixel art crisp. */
 export const ART_SCALE = 2;
 /** The supplied OTF faces are shared by DOM and canvas text. */
 export const HEADING_FONT = `"Forest Heading", "Noto Sans", sans-serif`;
-export const NORMAL_FONT = `"Forest Normal", "Noto Sans", sans-serif`;
+export const NORMAL_FONT = `"Times New Roman", Times, serif`;
 export const STORY_FONT = `"Forest Story", "Noto Sans", sans-serif`;
+export const BUTTON_FONT = `"Times New Roman", Times, serif`;
 export const INK = "#111";
 export const LABEL = "#fff8ec";
+const BUTTON_LABEL = "#fff8ec";
 const BUTTON_INK = "#1e120a";
 
 const KIT_DIR = `${import.meta.env.BASE_URL}assets/ui/generated`;
@@ -53,7 +55,6 @@ export function loadKit(onProgress?: (p: number) => void): Promise<void> {
     if (typeof document !== "undefined" && document.fonts) {
       await Promise.allSettled([
         document.fonts.load(`16px ${HEADING_FONT}`),
-        document.fonts.load(`16px ${NORMAL_FONT}`),
         document.fonts.load(`16px ${STORY_FONT}`),
       ]);
     }
@@ -105,9 +106,9 @@ export function drawFit(g: CanvasRenderingContext2D, name: string, x: number, y:
 /** Outlined label text; pictographic runs use cached image assets instead of system emoji fonts. */
 export function label(
   g: CanvasRenderingContext2D, text: string, x: number, y: number,
-  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "normal" | "story" },
+  o: { size: number; align?: CanvasTextAlign; fill?: string; stroke?: string | null; weight?: number; maxW?: number; font?: "heading" | "normal" | "story" | "button" },
 ) {
-  const font = o.font === "heading" ? HEADING_FONT : o.font === "story" ? STORY_FONT : NORMAL_FONT;
+  const font = o.font === "heading" ? HEADING_FONT : o.font === "story" ? STORY_FONT : o.font === "button" ? BUTTON_FONT : NORMAL_FONT;
   g.font = `${o.weight ?? 700} ${o.size}px ${font}`;
   const parts = splitEmojiText(text);
   if (!parts.some((part) => part.kind === "emoji")) {
@@ -214,13 +215,16 @@ export function disposeSurfaceTree(root: HTMLElement): void {
   }
 }
 
-export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard";
+export type PanelSkin = "panel_parchment" | "panel_wood" | "panel_tooltip" | "slot_well" | "shell_billboard"
+  /** Tier card art reused as tinted frames (green/blue/purple) for choice cards. */
+  | "card_t2" | "card_t3" | "card_t4";
 
 /** Panel host: element whose background chrome is a 9-sliced kit image. */
 export function panelEl(skin: PanelSkin, cls = ""): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `kit-panel ${cls}`.trim();
   el.dataset.skin = skin;
+  // Text on oak/billboard chrome is light; parchment and slot wells keep the dark ink.
   el.style.color = skin === "panel_wood" || skin === "shell_billboard" ? LABEL : INK;
   surface(el, (g, w, hh) => nineSlice(g, skin, SLICE[skin], 0, 0, w, hh));
   return el;
@@ -258,23 +262,15 @@ export function kitButton(o: {
     const st: ButtonState = disabled ? "disabled" : pressed ? "pressed" : selected ? "selected" : hover ? "hover" : "normal";
     if (skin === "icon") nineSlice(g, `btn_icon_${st}`, SLICE.btn_icon, 0, 0, w, hh);
     else nineSlice(g, `btn_${skin}_${st}`, SLICE.btn, 0, 0, w, hh);
-    if (st === "selected") {
-      const mark = Math.max(3, Math.min(6, Math.round(Math.min(w, hh) * 0.12)));
-      g.fillStyle = "#58b957";
-      g.fillRect(2, 2, mark, 2); g.fillRect(2, 2, 2, mark);
-      g.fillRect(w - mark - 2, 2, mark, 2); g.fillRect(w - 4, 2, 2, mark);
-      g.fillRect(2, hh - 4, mark, 2); g.fillRect(2, hh - mark - 2, 2, mark);
-      g.fillRect(w - mark - 2, hh - 4, mark, 2); g.fillRect(w - 4, hh - mark - 2, 2, mark);
-    }
     const dy = st === "pressed" ? 1 : -1;
-    const fill = st === "disabled" ? "#d8d0c4" : LABEL;
+    const fill = st === "disabled" ? "#d8d0c4" : BUTTON_LABEL;
     const iconFill = skin === "wood" || skin === "icon" ? fill : BUTTON_INK;
     const size = o.size ?? Math.max(12, Math.min(22, hh * 0.42));
     if (icon && text) {
       label(g, icon, hh * 0.5, hh / 2 + dy, { size: size * 1.1, fill: iconFill, stroke: null });
-      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: w - hh - 8, font: "heading" });
-    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "heading" });
-    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: w - 12, font: "heading" });
+      label(g, text, (w + hh * 0.6) / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - hh - 8), font: "button", weight: 400 });
+    } else if (icon) label(g, icon, w / 2, hh / 2 + dy, { size: Math.min(w, hh) * 0.5, fill: iconFill, stroke: null, font: "button" });
+    else label(g, text, w / 2, hh / 2 + dy, { size, fill, stroke: BUTTON_INK, maxW: Math.max(1, w - 12), font: "button", weight: 400 });
   });
   const sync = () => {
     el.setAttribute("aria-label", aria || text || icon || "");

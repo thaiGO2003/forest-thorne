@@ -7,7 +7,7 @@ import { itemDisplayName, itemSemanticIcon } from "../core/itemPresentation";
 import { groupDrops } from "../core/loot";
 import type { TeamStrength } from "../core/inspection";
 import type { RoundResultSummary } from "../core/run";
-import { h, INK, LABEL, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
+import { disposeSurfaceTree, h, INK, LABEL, kitButton, label, nineSlice, panelEl, SLICE, surface, threeSlice } from "./kit";
 import type { ModalHost } from "./modal";
 
 export interface QueueEntry { name: string; side: "L" | "R"; icon: string }
@@ -28,8 +28,9 @@ export interface CombatHudModel {
 export interface CombatHudIntents { speed(): void; finishFast(): void; history(): void; information(): void; settings(): void }
 export interface CombatHudView { update(m: CombatHudModel): void; dispose(): void }
 
-/** A95 density: normal 8 queue / 4 log, compact 3 / 3 below this panel width. */
+/** A95 density: normal 8 queue / 4 log, compact 3 / 3 in narrow or short panels. */
 const COMPACT_W = 320;
+const COMPACT_H = 280;
 
 function teamBar(g: CanvasRenderingContext2D, x: number, y: number, w: number, hh: number, ratio: number, fill: string, flip: boolean) {
   nineSlice(g, "bar_trough", 1, x + 3, y + 3, w - 6, hh - 6);
@@ -72,17 +73,32 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
   const hist = kitButton({ skin: "icon", icon: ICONS.history, cls: "cb-hist", onClick: () => it.history() });
   const information = kitButton({ skin: "icon", icon: ICONS.info, cls: "cb-info-btn", onClick: () => it.information() });
   const settings = kitButton({ skin: "icon", icon: ICONS.settings, cls: "cb-settings", onClick: () => it.settings() });
-  sideHead.append(speed.el, finishFast.el, hist.el, information.el, settings.el);
+  const details = kitButton({ skin: "icon", icon: ICONS.library, cls: "cb-details", onClick: () => {
+    const expanded = info.hidden;
+    info.hidden = !expanded;
+    side.dataset.expanded = String(expanded);
+    details.setSelected(expanded);
+    details.el.setAttribute("aria-expanded", String(expanded));
+    if (expanded) infoS.paint();
+  } });
+  details.setAria(`${t("combat.queue")} / ${t("combat.log")}`);
+  details.el.setAttribute("aria-controls", "combat-turn-details");
+  details.el.setAttribute("aria-expanded", "false");
+  sideHead.append(speed.el, finishFast.el, details.el, hist.el, information.el, settings.el);
   const info = h("div", "cb-info");
+  info.id = "combat-turn-details";
+  info.hidden = true;
+  side.dataset.expanded = "false";
   const infoS = surface(info, (g, w, hh) => {
     if (!m) return;
-    const compact = w < COMPACT_W;
+    const compact = w < COMPACT_W || hh < COMPACT_H;
     const q = m.queue.slice(0, compact ? 3 : 8), log = m.log.slice(-(compact ? 3 : 4));
     label(g, t("combat.queue"), 6, 12, { size: 12, align: "left", fill: LABEL });
     const rowH = 24;
     q.forEach((e, i) => {
       const y = 24 + i * (rowH + 2);
-      nineSlice(g, e.side === "L" ? "tile_status" : "slot_well", SLICE.tile_status, 0, y, w, rowH, 1.5);
+      const skin = e.side === "L" ? "tile_status" : "slot_well";
+      nineSlice(g, skin, SLICE[skin], 0, y, w, rowH, 1.5);
       label(g, e.icon, 14, y + rowH / 2, { size: 13, stroke: null });
       label(g, e.name, 30, y + rowH / 2, { size: 12, align: "left", maxW: w - 36, fill: e.side === "L" ? "#fff8ec" : "#3b2414", stroke: e.side === "L" ? undefined : null });
     });
@@ -111,7 +127,7 @@ export function createCombatHud(host: HTMLElement, it: CombatHudIntents): Combat
       settings.setAria(t("menu.settings"));
       topS.paint(); infoS.paint();
     },
-    dispose() { root.remove(); },
+    dispose() { disposeSurfaceTree(root); root.remove(); },
   };
 }
 
@@ -125,7 +141,7 @@ export function openResult(modals: ModalHost, round: number, r: RoundResultSumma
   const body = h("div", "stack cb-result");
   const banner = h("div", "cb-banner");
   surface(banner, (g, w, hh) => {
-    nineSlice(g, "ribbon", SLICE.ribbon, 0, 4, w, hh - 8, 2);
+    threeSlice(g, "ribbon", SLICE.ribbon, 0, 4, w, hh - 8);
     label(g, t("combat.result", { round }), w / 2, hh / 2 - 2, { size: 16 });
   });
   const row = (icon: string, k: string, v: string) => {

@@ -1,8 +1,11 @@
 // Shared unit readout + combat-strength formulas (spec A59, A68). No UI formatting/layout ownership here.
 import { NORMAL_UNITS, getUnit, type Role, type UnitDef } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import { combatStat, makeFighter, type Fighter, type Placement, type Side, type SideBonus } from "./combat";
 import type { EnvironmentId } from "./environment";
 import { STAR_STAT } from "./economy";
+import type { DamageType } from "./skills";
+import type { VariantTraitRef } from "./variants";
 
 export const ROLE_EVASION_BASE: Readonly<Record<Role, number>> = {
   TANKER: 0.05, FIGHTER: 0.08, ASSASSIN: 0.15, ARCHER: 0.10, MAGE: 0.05, SUPPORT: 0.07,
@@ -107,8 +110,12 @@ export interface UnitDiagnosticEffect {
   key: string;
   turns: number;
   value: number;
+  /** Combat stat modifiers store percentage points (e.g. -20 means -20%). */
   pct?: boolean;
-  detail?: string;
+  reflectByDamageType?: Partial<Record<DamageType, number>>;
+  sourceUnitBaseId?: string;
+  firstBasicMultiplier?: number;
+  rageOnKill?: number;
 }
 
 export interface UnitDiagnostics {
@@ -119,6 +126,7 @@ export interface UnitDiagnostics {
   readonly: boolean;
   environment?: EnvironmentId;
   equips: string[];
+  traits: VariantTraitRef[];
   base: UnitStatSnapshot;
   derived: UnitStatSnapshot;
   live: UnitStatSnapshot;
@@ -178,22 +186,23 @@ function fighterSnapshot(fighter: Fighter, live: boolean): UnitStatSnapshot {
 function diagnosticEffects(fighter: Fighter): UnitDiagnosticEffect[] {
   const effects: UnitDiagnosticEffect[] = [];
   for (const [key, status] of Object.entries(fighter.status)) {
-    effects.push({ kind: "status", key, turns: status.turns, value: status.value, detail: status.source?.skillId });
+    if (status.turns <= 0) continue;
+    effects.push({ kind: "status", key, turns: status.turns, value: status.value, sourceUnitBaseId: status.source?.unitBaseId });
   }
   for (const mod of fighter.mods) {
-    effects.push({ kind: "modifier", key: mod.stat, turns: mod.turns, value: mod.value, pct: mod.pct, detail: mod.stackKey });
+    effects.push({ kind: "modifier", key: mod.stat, turns: mod.turns, value: mod.value, pct: mod.pct });
   }
   if (fighter.reflect) {
     const reflected = Object.entries(fighter.reflect.pctByDamageType);
     effects.push({
       kind: "reaction", key: "reflect", turns: fighter.reflect.turns,
       value: Math.max(0, ...reflected.map(([, pct]) => pct ?? 0)),
-      detail: reflected.map(([type, pct]) => `${type}: ${Math.round((pct ?? 0) * 100)}%`).join(", "),
+      reflectByDamageType: { ...fighter.reflect.pctByDamageType },
     });
   }
   if (fighter.counterTurns > 0) effects.push({ kind: "reaction", key: "counter", turns: fighter.counterTurns, value: 0 });
   if (fighter.phoenix.armed || fighter.phoenix.used) effects.push({ kind: "reaction", key: fighter.phoenix.used ? "phoenix-used" : "phoenix", turns: 0, value: fighter.phoenix.revivePct });
-  if (fighter.berserk) effects.push({ kind: "reaction", key: "berserk", turns: fighter.berserk.turns, value: fighter.berserk.lifestealPct });
+  if (fighter.berserk) effects.push({ kind: "reaction", key: "berserk", turns: fighter.berserk.turns, value: fighter.berserk.lifestealPct, firstBasicMultiplier: fighter.berserk.firstBasicMultiplier, rageOnKill: fighter.berserk.rageOnKill });
   return effects;
 }
 
@@ -215,6 +224,7 @@ export function unitDiagnostics(
     readonly,
     environment,
     equips: [...(placement.equips ?? [])],
+    traits: [...(placement.traits ?? [])],
     base: catalogSnapshot(getUnit(placement.baseId)),
     derived: fighterSnapshot(derivedFighter, false),
     live: fighterSnapshot(live, true),
@@ -286,7 +296,7 @@ const ROLE_ORDER: Readonly<Record<Role, number>> = { ARCHER: 0, ASSASSIN: 1, FIG
 
 /** A69 deterministic normal shop roster, independent from randomized offer rolls. */
 export function canonicalShopRoster(tier?: number): UnitDef[] {
-  return NORMAL_UNITS.filter((unit) => tier == null || unit.tier === tier)
+  return NORMAL_UNITS.filter((unit) => (tier == null || unit.tier === tier) && hasUnitVisual(unit.id))
     .slice()
     .sort((a, b) => a.tier - b.tier || ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.id.localeCompare(b.id));
 }

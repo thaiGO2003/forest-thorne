@@ -1,5 +1,6 @@
 // AI encounter generation (A33) + endless boss schedule (A34). RNG injected; pure.
 import { NORMAL_UNITS, type Role } from "../content/catalog";
+import { hasUnitVisual } from "../content/unitVisuals";
 import type { Placement } from "./combat";
 import { deployCap } from "./economy";
 
@@ -141,7 +142,7 @@ export function generateEncounter(i: EncounterInput): Encounter {
   const mode = normalizeAiMode(i.mode);
   const budget = encounterBudget(round, mode, i.sandbox, i.budgetMult);
   const boss = i.bossRounds ? bossForRound(round) : null;
-  if (boss) return { boss: true, budget, units: [{ uid: "e0", baseId: boss, star: 3, row: 2, col: 7 }] };
+  if (boss && hasUnitVisual(boss)) return { boss: true, budget, units: [{ uid: "e0", baseId: boss, star: 3, row: 2, col: 7 }] };
 
   const ai = AI_PROFILE[mode];
   const hard = mode.endsWith("HARD");
@@ -152,7 +153,7 @@ export function generateEncounter(i: EncounterInput): Encounter {
   if (hard && round < 4) size = Math.min(size, 3);
   size = clamp(size * (i.players ?? 1), 1, (i.players ?? 1) === 1 ? 15 : 25);
 
-  const pool = NORMAL_UNITS.filter((u) => u.tier <= maxTier);
+  const pool = NORMAL_UNITS.filter((u) => u.tier <= maxTier && hasUnitVisual(u.id));
   const pickFrom = (wantFront: boolean) => {
     const sub = pool.filter((u) => FRONT.includes(u.role) === wantFront);
     const list = sub.length ? sub : pool;

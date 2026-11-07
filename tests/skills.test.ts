@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { materializeCombat } from "../src/core/combat";
 import { parseSkill, skillSpec } from "../src/core/skills";
+import { UNITS } from "../src/content/catalog";
 
 describe("skill parser", () => {
   it("multi-target damage with bleed duration", () => {
@@ -90,5 +91,54 @@ describe("skill parser", () => {
   it("boss rage thresholds come from the authored per-star profiles", () => {
     expect(materializeCombat([], [{ uid: "phoenix", baseId: "boss_storm_phoenix", star: 1, row: 2, col: 7 }])[0]!.rageMax).toBe(2);
     expect(materializeCombat([], [{ uid: "dragon", baseId: "boss_ember_dragon", star: 1, row: 2, col: 7 }])[0]!.rageMax).toBe(3);
+  });
+
+  it("frog_alchemy escalates poison cloud targets, self-sustain and the 3★ ally elixir", () => {
+    expect(skillSpec("frog_alchemy", 1)).toMatchObject({
+      side: "enemy", area: "single", count: 3, selector: "random_unique",
+      damage: { base: 18, scale: 1, stat: "matk", type: "magic" },
+      dots: [{ kind: "poison", value: 12, turns: 2 }],
+      debuffs: [], heal: null, selfHealPctMaxHp: 0.08,
+    });
+    expect(skillSpec("frog_alchemy", 2)).toMatchObject({
+      count: 3, dots: [{ kind: "poison", value: 14, turns: 3 }],
+      debuffs: [{ stat: "mdef", value: 12, pct: false, turns: 2 }],
+      selfHealPctMaxHp: 0.1,
+    });
+    expect(skillSpec("frog_alchemy", 3)).toMatchObject({
+      count: 4, dots: [{ kind: "poison", value: 16, turns: 3 }],
+      debuffs: [{ stat: "mdef", value: 15, pct: false, turns: 2 }],
+      heal: { formula: null, pctMaxHp: 0.06 }, selfHealPctMaxHp: 0,
+    });
+  });
+
+  it("ant_guard parses the self-sustain kit: heal, shield, damage reduction and cleanse", () => {
+    expect(skillSpec("ant_guard", 1)).toMatchObject({
+      side: "self", selector: "self",
+      selfHealPctMaxHp: 0.08,
+      shield: { base: 10, scale: 0, stat: "def" },
+      damageReductionPct: 0.10, damageReductionTurns: 1,
+      cleanseCount: 0,
+    });
+    expect(skillSpec("ant_guard", 2)).toMatchObject({
+      selfHealPctMaxHp: 0.10,
+      shield: { base: 16, scale: 0, stat: "def" },
+      damageReductionPct: 0.12, damageReductionTurns: 1,
+      cleanseCount: 1,
+    });
+    expect(skillSpec("ant_guard", 3)).toMatchObject({
+      selfHealPctMaxHp: 0.12,
+      shield: { base: 22, scale: 0, stat: "def" },
+      damageReductionPct: 0.15, damageReductionTurns: 2,
+      cleanseCount: 2,
+    });
+  });
+
+  it("authored rage costs grow with every star", () => {
+    for (const unit of UNITS) {
+      const [star1, star2, star3] = unit.skill.rageCost;
+      expect(star1, unit.id).toBeLessThan(star2);
+      expect(star2, unit.id).toBeLessThan(star3);
+    }
   });
 });

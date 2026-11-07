@@ -92,6 +92,9 @@ export function mountSettings(modal: ModalHandle, store: SettingsStore, o: { cle
       case "audio": {
         field("settings.sound", toggle(s.audioEnabled && !s.audioMuted, (v) => store.save({ audioEnabled: true, audioMuted: !v })));
         field("settings.music", toggle(s.musicEnabled, (v) => store.save({ musicEnabled: v })));
+        field("settings.ambient", toggle(s.ambientEnabled, (v) => store.save({ ambientEnabled: v })));
+        field("settings.uiSfx", toggle(s.uiSfxEnabled, (v) => store.save({ uiSfxEnabled: v })));
+        field("settings.combatSfx", toggle(s.combatSfxEnabled, (v) => store.save({ combatSfxEnabled: v })));
         field("settings.volume", stepper([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.volumeLevel, (v) => `${v}/10`, (v) => store.save({ volumeLevel: v })));
         field("settings.narration", toggle(s.narrationEnabled, (v) => store.save({ narrationEnabled: v })));
         field("settings.musicVolume", stepper([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], s.musicVolume, (v) => `${v}/10`, (v) => store.save({ musicVolume: v })));

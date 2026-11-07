@@ -1,7 +1,8 @@
 // Persistence (A37, A57): versioned envelope, ordered migration, Continue inspection,
 // import/export, three distinct clear scopes, Co-op slot store.
 import { getUnit, UNIT_BY_ID } from "../content/catalog";
-import { getEquipment, normalizeEquipment, slotCapForUnit } from "./equipment";
+import { hasUnitVisual } from "../content/unitVisuals";
+import { normalizeEquipment, slotCapForUnit } from "./equipment";
 import { normalizeVariantTraits, type VariantTraitRef } from "./variants";
 import { isGameMode, modeConfig } from "./modes";
 import { normalizeFortressState } from "./fortress";
@@ -9,10 +10,10 @@ import { normalizeCreativeSandboxUnits } from "./creative";
 import { normalizeAiMode } from "./encounter";
 import { normalizeTutorialState, TUTORIAL_END_ROUND } from "./tutorial";
 import { normalizeEnemyPreview } from "./preview";
-import { BASE_MATERIALS } from "./craft";
 import { AUGMENT_BY_ID } from "./augments";
 import { TECH_BY_ID, maxLevel } from "./tech";
 import { normalizeWeatherBlessingQueue } from "./blessings";
+import { normalizeBlessingPicks, normalizePendingBlessingChoice } from "./blessingChoice";
 import {
   normalizeAchievementProfile, normalizeCollectionProfile,
   type AchievementProfile, type CollectionProfile,
@@ -24,8 +25,18 @@ export const PROGRESS_KEY = "forest_throne_progress_v1";
 export const COOP_KEY = "forest_throne_coop_save_slots_v1";
 export const ACHIEVEMENTS_KEY = "forest_throne_endless_achievements_v1";
 export const COLLECTION_KEY = "forest_throne_collection_profile_v1";
-export const ENVELOPE_VERSION = 4;
+export const ENVELOPE_VERSION = 5;
 export const EXPORT_FILENAME = "forest-throne-progress.json";
+
+/** Host-owned co-op round state mirrored into every player payload on save/migrate. */
+export interface CoopSharedState {
+  round: number;
+  phase: RunState["phase"];
+  enemyPreview: RunState["enemyPreview"];
+  enemyPreviewRound: number;
+  enemyBudget: number;
+  [key: string]: unknown;
+}
 
 /** Solo runs store `player`; multiplayer stores `players` keyed by slot. */
 export interface RunPayload {
@@ -33,6 +44,7 @@ export interface RunPayload {
   players?: Record<string, RunState>;
   localSlot?: string; hostSlot?: string; roomCode?: string; playerCapacity?: number;
   aiMode?: string; selectedMode?: string;
+  shared?: CoopSharedState;
 }
 export interface Envelope {
   version: number; savedAt: number; payload: RunPayload;
@@ -62,16 +74,34 @@ export function createEnvelope(payload: RunPayload, extra: Partial<Envelope> = {
 /** Explicit removed-id replacements; never guess by name/species (A57.2). */
 export const UNIT_REPLACEMENTS: Record<string, string> = {};
 
-function sanitizeUnit(u: unknown, log: string[]): OwnedUnit | null {
-  if (!isObj(u) || typeof u.baseId !== "string" || typeof u.uid !== "string") return null;
+function recoverRemovedUnitEquipment(u: unknown, log: string[], itemBag: string[]): void {
+  if (!isObj(u) || !Array.isArray(u.equips)) return;
+  const ids = u.equips.filter((id): id is string => typeof id === "string");
+  if (!ids.length) return;
+  itemBag.push(...ids);
+  log.push(`recover removed unit equipment: returned ${ids.length} to itemBag`);
+}
+
+function sanitizeUnit(u: unknown, log: string[], recoveredEquipment: string[]): OwnedUnit | null {
+  if (!isObj(u) || typeof u.baseId !== "string" || typeof u.uid !== "string") {
+    recoverRemovedUnitEquipment(u, log, recoveredEquipment);
+    return null;
+  }
   const id = UNIT_BY_ID.has(u.baseId) ? u.baseId : UNIT_REPLACEMENTS[u.baseId];
-  if (!id || !UNIT_BY_ID.has(id)) { log.push(`drop unknown unit ${u.baseId}`); return null; }
+  if (!id || !UNIT_BY_ID.has(id) || !hasUnitVisual(id)) {
+    recoverRemovedUnitEquipment(u, log, recoveredEquipment);
+    log.push(`drop unknown or unrendered unit ${u.baseId}`);
+    return null;
+  }
   if (id !== u.baseId) log.push(`replace ${u.baseId} → ${id}`);
   const def = getUnit(id);
   const star = clampInt(u.star, 1, 3, 1) as 1 | 2 | 3;
   const rawEquips = Array.isArray(u.equips) ? u.equips.filter((e): e is string => typeof e === "string") : [];
   const equipment = normalizeEquipment(rawEquips, star, slotCapForUnit(def, star));
-  if (equipment.rejected.length) log.push(`normalize equipment ${u.uid}: dropped ${equipment.rejected.length}`);
+  if (equipment.rejected.length) {
+    recoveredEquipment.push(...equipment.rejected);
+    log.push(`normalize equipment ${u.uid}: returned ${equipment.rejected.length} to itemBag`);
+  }
   const rawTraits: VariantTraitRef[] = Array.isArray(u.traits)
     ? u.traits.flatMap((v) => isObj(v) && typeof v.id === "string" ? [{ id: v.id, seed: Number(v.seed) }] : [])
     : [];
@@ -105,6 +135,14 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.hp = clampInt(p.hp, 0, Number.MAX_SAFE_INTEGER, cfg.startHp);
   p.heartEscrow = (p.phase === "COMBAT" || p.phase === "PLANNING") && !cfg.creative && p.heartEscrow === 1 ? 1 : 0;
   p.blessingQueue = normalizeWeatherBlessingQueue(p.blessingQueue);
+  p.blessingPicks = normalizeBlessingPicks((p as Partial<RunState>).blessingPicks);
+  p.pendingBlessingChoice = normalizePendingBlessingChoice(
+    (p as Partial<RunState>).pendingBlessingChoice,
+    p.round,
+    p.phase,
+    p.blessingPicks,
+  );
+  p.pendingCombatRage = clampInt((p as Partial<RunState>).pendingCombatRage, 0, 10, 0);
   p.shopLocked = p.shopLocked === true;
   p.benchUpgradeLevel = clampInt(p.benchUpgradeLevel, 0, 4, 0);
   p.craftTableLevel = clampInt(p.craftTableLevel, 0, 3, 0);
@@ -163,14 +201,15 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
   p.winStreak = clampInt(p.winStreak, 0, Number.MAX_SAFE_INTEGER, 0);
   p.loseStreak = clampInt(p.loseStreak, 0, Number.MAX_SAFE_INTEGER, 0);
   p.rngSeed = Number.isFinite(Number(p.rngSeed)) ? Number(p.rngSeed) | 0 : 1;
-  const validBagItem = (id: string) => (BASE_MATERIALS as readonly string[]).includes(id) || getEquipment(id) !== null;
+  // Unknown legacy IDs retain identity and capacity; only gameplay transactions reject them.
   p.itemBag = Array.isArray(p.itemBag)
-    ? p.itemBag.filter((id): id is string => typeof id === "string" && validBagItem(id)) : [];
-  p.board = Array.isArray(p.board) ? p.board.map((u) => (u ? sanitizeUnit(u, log) : null)) : [];
-  p.board = p.board.slice(0, 25);
+    ? p.itemBag.filter((id): id is string => typeof id === "string") : [];
+  const savedBoard = Array.isArray(p.board) ? p.board : [];
+  p.board = savedBoard.slice(0, 25).map((u) => (u ? sanitizeUnit(u, log, p.itemBag) : null));
+  for (let i = 25; i < savedBoard.length; i++) recoverRemovedUnitEquipment(savedBoard[i], log, p.itemBag);
   while (p.board.length < 25) p.board.push(null);
-  p.bench = Array.isArray(p.bench) ? p.bench.map((u) => sanitizeUnit(u, log)).filter((u): u is OwnedUnit => !!u) : [];
-  p.shop = Array.isArray(p.shop) ? p.shop.map((id) => (typeof id === "string" && UNIT_BY_ID.has(id) ? id : null)) : [];
+  p.bench = Array.isArray(p.bench) ? p.bench.map((u) => sanitizeUnit(u, log, p.itemBag)).filter((u): u is OwnedUnit => !!u) : [];
+  p.shop = Array.isArray(p.shop) ? p.shop.map((id) => (typeof id === "string" && UNIT_BY_ID.has(id) && hasUnitVisual(id) ? id : null)) : [];
   const savedShopLength = Math.min(20, Math.max(5, p.shop.length));
   p.shopSlotCount = clampInt(p.shopSlotCount, savedShopLength, 20, savedShopLength);
   p.shop = p.shop.slice(0, p.shopSlotCount);
@@ -206,6 +245,34 @@ function sanitizePlayer(p: RunState, log: string[]): RunState {
 const playersOf = (pl: RunPayload): RunState[] =>
   [pl.player, ...Object.values(pl.players ?? {})].filter((p): p is RunState => isObj(p));
 
+function normalizeCoopSharedState(payload: RunPayload): void {
+  if (!payload.players || Object.keys(payload.players).length === 0) return;
+  const source = (payload.hostSlot && payload.players[payload.hostSlot])
+    || (payload.localSlot && payload.players[payload.localSlot])
+    || Object.values(payload.players)[0];
+  if (!source) return;
+  const raw: Record<string, unknown> = isObj(payload.shared) ? payload.shared : {};
+  const phase = raw.phase === "AUGMENT" || raw.phase === "COMBAT" || raw.phase === "GAME_OVER"
+    ? raw.phase
+    : "PLANNING";
+  const shared: CoopSharedState = {
+    ...raw,
+    round: clampInt(raw.round, 1, Number.MAX_SAFE_INTEGER, source.round),
+    phase: raw.phase === undefined ? source.phase : phase,
+    enemyPreview: normalizeEnemyPreview(raw.enemyPreview === undefined ? source.enemyPreview : raw.enemyPreview),
+    enemyPreviewRound: clampInt(raw.enemyPreviewRound, 0, Number.MAX_SAFE_INTEGER, source.enemyPreviewRound),
+    enemyBudget: clampInt(raw.enemyBudget, 0, Number.MAX_SAFE_INTEGER, source.enemyBudget),
+  };
+  payload.shared = shared;
+  for (const player of Object.values(payload.players)) {
+    player.round = shared.round;
+    player.phase = shared.phase;
+    player.enemyPreview = structuredClone(shared.enemyPreview);
+    player.enemyPreviewRound = shared.enemyPreviewRound;
+    player.enemyBudget = shared.enemyBudget;
+  }
+}
+
 export interface MigrateResult { envelope: Envelope; changed: boolean; log: string[] }
 
 /** Fail-closed: returns null for any invalid shape or migration exception. */
@@ -220,9 +287,11 @@ export function migrate(raw: unknown): MigrateResult | null {
     const log: string[] = [];
     // v1→v2: level into 1..25 (old >9 allowed, clamped to 25). v2→v3: legacy archived-roster cleanup is NOT applied.
     // v3→v4: archived ids kept when present in the live catalog — handled by sanitizeUnit below.
+    // v4→v5: preserve unrecognized item IDs and duplicates while rejecting malformed non-string values.
     if (from < 2) for (const p of playersOf(payload)) p.level = clampInt(p.level, 1, 25, 1);
     const before = JSON.stringify(payload);
     for (const p of playersOf(payload)) sanitizePlayer(p, log);
+    normalizeCoopSharedState(payload);
     const changed = from < ENVELOPE_VERSION || JSON.stringify(payload) !== before;
     const envelope = createEnvelope(payload, {
       version: Math.max(from, ENVELOPE_VERSION),
@@ -383,7 +452,9 @@ export function coopSummary(e: CoopEntry): CoopSummary {
 export function saveCoopSlot(store: KV, slotId: CoopSlot, payload: RunPayload): CoopEntry {
   if (!isObj(payload.players) || !Object.keys(payload.players).length) throw new Error("co-op save requires players state");
   const slots = readCoopStore(store);
-  const entry: CoopEntry = { slotId, savedAt: Date.now(), envelope: createEnvelope(structuredClone(payload)) };
+  const canonical = structuredClone(payload);
+  normalizeCoopSharedState(canonical);
+  const entry: CoopEntry = { slotId, savedAt: Date.now(), envelope: createEnvelope(canonical) };
   slots[slotId] = entry;
   const doc: CoopStore = { version: COOP_STORE_VERSION, slots };
   store.setItem(COOP_KEY, JSON.stringify(doc));

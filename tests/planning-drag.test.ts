@@ -192,6 +192,13 @@ describe("Planning drag controller", () => {
         return undefined;
       },
       setHovered: vi.fn(),
+      slot(id: string) {
+        if (id === "enemy-preview") return { kind: "enemy", col: 6, row: 2 };
+        const index = run.board.findIndex((unit) => unit?.uid === id);
+        if (index >= 0) return { kind: "board", col: index % 5, row: Math.floor(index / 5) };
+        const benchIndex = run.bench.findIndex((unit) => unit?.uid === id);
+        return benchIndex >= 0 ? { kind: "bench", col: benchIndex, row: 0 } : undefined;
+      },
     };
 
     const setHighlights = vi.fn();
@@ -209,6 +216,7 @@ describe("Planning drag controller", () => {
 
     const moves: Array<{ from: { kind: "bench" | "board"; index: number }; to: { kind: "bench" | "board"; index: number } }> = [];
     const selections: Array<{ kind: "bench" | "board"; index: number }> = [];
+    const inspected: string[] = [];
     const targetStates: Array<PlanningDragTargetState | null> = [];
     let inspectOnly = false;
     const controller = createPlanningDragController({
@@ -220,6 +228,7 @@ describe("Planning drag controller", () => {
         return bridge.move(from, to);
       },
       select: (source) => { selections.push(source); },
+      inspectEnemy: (uid) => { inspected.push(uid); },
       onTargetState: (state) => { targetStates.push(state); },
       enabled: () => true,
       inspectOnly: () => inspectOnly,
@@ -286,6 +295,12 @@ describe("Planning drag controller", () => {
     scene.updateMatrixWorld(true);
     click(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 6);
     expect(selections).toEqual([{ kind: "board", index: boardAIndex }]);
+    // The tile under a unit is a click target too, even when the ray misses the model silhouette.
+    playerRoot.visible = false;
+    click(new THREE.Vector3(boardAWorld.x + 0.42, TILE_HEIGHT, boardAWorld.z), 14);
+    playerRoot.visible = true;
+    expect(selections).toHaveLength(2);
+    expect(selections.at(-1)).toEqual({ kind: "board", index: boardAIndex });
     hiddenOverlay.removeFromParent(); hiddenMesh.geometry.dispose(); hiddenMesh.material.dispose();
 
     const sameCell = clientPointForWorld(new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), camera, rect);
@@ -316,7 +331,7 @@ describe("Planning drag controller", () => {
     const boardBIndex = boardB.row * 5 + boardB.col;
     expect(run.board[boardAIndex]).toBeNull();
     expect(run.board[boardBIndex]?.uid).toBe(playerUid);
-    expect(selections).toHaveLength(1);
+    expect(selections).toHaveLength(2);
 
     placeRoot(playerRoot, boardBWorld.x, boardBWorld.z, scene);
     drag(
@@ -332,6 +347,7 @@ describe("Planning drag controller", () => {
     click(new THREE.Vector3(bench[1]!.x, TILE_HEIGHT, bench[1]!.z), 7);
     expect(selections).toEqual([
       { kind: "board", index: boardAIndex },
+      { kind: "board", index: boardAIndex },
       { kind: "bench", index: 1 },
     ]);
     drag(
@@ -346,8 +362,11 @@ describe("Planning drag controller", () => {
     const enemyPoint = new THREE.Vector3(enemyWorld.x, TILE_HEIGHT, enemyWorld.z);
     drag(enemyPoint, new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 5);
     expect(moves).toHaveLength(moveCount);
+    expect(inspected).toEqual([]);
     click(enemyPoint, 8);
-    expect(selections).toHaveLength(2);
+    expect(selections).toHaveLength(3);
+    // A tap on an enemy opens its read-only detail, exactly like an ally tap.
+    expect(inspected).toEqual(["enemy-preview"]);
 
     // Combat clicks still inspect owned units, while drags never mutate the formation.
     inspectOnly = true;
@@ -356,9 +375,13 @@ describe("Planning drag controller", () => {
     const combatBefore = JSON.stringify(run);
     click(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), 10);
     expect(selections.at(-1)).toEqual({ kind: "bench", index: 0 });
+    // Combat hover reports the live rig instead of clearing the tooltip.
+    const combatHover = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
+    canvas.dispatchPointer("pointermove", combatHover.clientX, combatHover.clientY, 14);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(playerUid);
     drag(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), new THREE.Vector3(boardAWorld.x, TILE_HEIGHT, boardAWorld.z), 11);
     expect(moves).toHaveLength(moveCount);
-    expect(selections).toHaveLength(3);
+    expect(selections).toHaveLength(4);
     expect(JSON.stringify(run)).toBe(combatBefore);
     expect(moves.map(({ from, to }) => `${from.kind}->${to.kind}`)).toEqual([
       "bench->board",
@@ -366,6 +389,14 @@ describe("Planning drag controller", () => {
       "board->bench",
       "bench->bench",
     ]);
+    // Enemy inspection also works during combat, but a pan gesture is not a tap.
+    click(enemyPoint, 12);
+    expect(inspected).toEqual(["enemy-preview", "enemy-preview"]);
+    const enemyClient = clientPointForWorld(enemyPoint, camera, rect);
+    canvas.dispatchPointer("pointerdown", enemyClient.clientX, enemyClient.clientY, 13);
+    canvas.dispatchPointer("pointermove", enemyClient.clientX + 8, enemyClient.clientY, 13);
+    canvas.dispatchPointer("pointerup", enemyClient.clientX + 8, enemyClient.clientY, 13);
+    expect(inspected).toHaveLength(2);
 
     controller.dispose();
     expect(clearHighlights).toHaveBeenCalled();
@@ -427,6 +458,9 @@ describe("Planning drag controller", () => {
         return id === uid ? { root } : undefined;
       },
       setHovered: vi.fn(),
+      slot(id: string) {
+        return id === uid ? { kind: "bench", col: 0, row: 0 } : undefined;
+      },
     };
     const setHighlights = vi.fn();
     const clearHighlights = vi.fn();
@@ -453,29 +487,21 @@ describe("Planning drag controller", () => {
       previewEnd,
       enabled: () => enabled,
     });
-    const hover = scene.children.find((object) => object instanceof THREE.Mesh
-      && object.geometry instanceof THREE.PlaneGeometry) as THREE.Mesh | undefined;
-    expect(hover).toBeDefined();
-
+    // Highlights belong to arena tiles, not a second plane that can tint the river.
     const grassWorld = cellToWorld(toVisual(2, 2), "solo");
     const grassPoint = clientPointForWorld(new THREE.Vector3(grassWorld.x, TILE_HEIGHT, grassWorld.z), camera, rect);
     canvas.dispatchPointer("pointermove", grassPoint.clientX, grassPoint.clientY);
-    expect(hover?.visible).toBe(true);
-    expect(hover?.position.x).toBeCloseTo(grassWorld.x, 6);
-    expect(hover?.position.z).toBeCloseTo(grassWorld.z, 6);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([{ col: 2, row: 2, role: "hover" }]);
 
     const riverWorld = cellToWorld({ x: 5, z: 2 }, "solo");
     const riverPoint = clientPointForWorld(new THREE.Vector3(riverWorld.x, TILE_HEIGHT, riverWorld.z), camera, rect);
     canvas.dispatchPointer("pointermove", riverPoint.clientX, riverPoint.clientY);
-    expect(hover?.visible).toBe(true);
-    expect(hover?.position.x).toBeCloseTo(riverWorld.x, 6);
-    expect(hover?.position.z).toBeCloseTo(riverWorld.z, 6);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([]);
+    expect(setBenchHighlights.mock.calls.at(-1)?.[0]).toEqual([]);
 
     const benchPoint = clientPointForWorld(new THREE.Vector3(bench[0]!.x, TILE_HEIGHT, bench[0]!.z), camera, rect);
     canvas.dispatchPointer("pointermove", benchPoint.clientX, benchPoint.clientY);
-    expect(hover?.visible).toBe(true);
-    expect(hover?.position.x).toBeCloseTo(bench[0]!.x, 6);
-    expect(hover?.position.z).toBeCloseTo(bench[0]!.z, 6);
+    expect(setHighlights.mock.calls.at(-1)?.[0]).toEqual([]);
     expect(preview).toHaveBeenCalledWith({ kind: "bench", index: 0 }, expect.anything());
     expect(boardView.setHovered).toHaveBeenLastCalledWith(uid);
     expect(setBenchHighlights.mock.calls.at(-1)?.[0]).toEqual([{ index: 0, role: "hover" }]);
@@ -554,5 +580,131 @@ describe("Planning drag controller", () => {
     (tiles.material as THREE.Material).dispose();
     root.geometry.dispose();
     (root.material as THREE.Material).dispose();
+  });
+  it("resolves model and occupied-tile hover to the same UID and canonical highlights without changing game state", () => {
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, setTimeout: globalThis.setTimeout.bind(globalThis) });
+    vi.stubGlobal("DOMRect", class {
+      left: number; top: number; right: number; bottom: number; width: number; height: number; x: number; y: number;
+      constructor(x = 0, y = 0, width = 0, height = 0) {
+        this.x = this.left = x;
+        this.y = this.top = y;
+        this.width = width;
+        this.height = height;
+        this.right = x + width;
+        this.bottom = y + height;
+      }
+    });
+    const bridge = createBridge(storage());
+    const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
+    expect(bridge.buy(0)).toBe(true);
+    expect(bridge.buy(1)).toBe(true);
+    const allyUid = run.bench[0]!.uid;
+    const nextUid = run.bench[1]!.uid;
+    expect(bridge.move({ kind: "bench", index: 0 }, { kind: "board", index: 6 })).toBe(true);
+    expect(bridge.move({ kind: "bench", index: 0 }, { kind: "board", index: 7 })).toBe(true);
+    const rect = makeRect(80, 45, 980, 720);
+    const canvas = new FakeCanvas(rect);
+    const camera = makeCamera(rect);
+    const tiles = makeLogicalTiles();
+    const scene = new THREE.Scene();
+    const roots = [allyUid, nextUid, "rendered-enemy"].map((uid) => {
+      const root = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.8, 0.24), new THREE.MeshBasicMaterial());
+      root.userData.uid = uid;
+      scene.add(root);
+      return root;
+    });
+    const [allyRoot, nextRoot, enemyRoot] = roots;
+    const allyWorld = cellToWorld(toVisual(1, 1), "solo");
+    const nextWorld = cellToWorld(toVisual(2, 1), "solo");
+    const enemyWorld = cellToWorld(toVisual(6, 2), "solo");
+    placeRoot(allyRoot!, allyWorld.x, allyWorld.z, scene);
+    placeRoot(nextRoot!, nextWorld.x, nextWorld.z, scene);
+    placeRoot(enemyRoot!, enemyWorld.x, enemyWorld.z, scene);
+    const slots = new Map([
+      [allyUid, { kind: "board" as const, col: 1, row: 1 }],
+      [nextUid, { kind: "board" as const, col: 2, row: 1 }],
+      ["rendered-enemy", { kind: "enemy" as const, col: 6, row: 2 }],
+    ]);
+    const boardView = {
+      forEach(fn: (uid: string, visual: { root: THREE.Object3D }, kind: "board" | "bench" | "enemy") => void) {
+        roots.forEach((root, i) => fn(root!.userData.uid as string, { root: root! }, i === 2 ? "enemy" : "board"));
+      },
+      slot: (uid: string) => slots.get(uid),
+      visual: (uid: string) => roots.find((root) => root!.userData.uid === uid),
+      setHovered: vi.fn(),
+    };
+    const setHighlights = vi.fn();
+    const setBenchHighlights = vi.fn();
+    const preview = vi.fn();
+    const previewEnd = vi.fn();
+    const move = vi.fn();
+    const select = vi.fn();
+    const stage = {
+      renderer: { domElement: canvas },
+      camera,
+      arena: { tiles, setHighlights, setBenchHighlights, clearHighlights: vi.fn(), clearBenchHighlights: vi.fn() },
+      scene,
+    };
+    const controller = createPlanningDragController({
+      stage: stage as never, board: boardView as never, getRun: () => run,
+      enabled: () => true, move, select, preview, previewEnd,
+    });
+    const hover = (col: number, row: number, worldY = TILE_HEIGHT, dx = 0, dz = 0) => {
+      const world = cellToWorld(toVisual(col, row), "solo");
+      const point = clientPointForWorld(new THREE.Vector3(world.x + dx, worldY, world.z + dz), camera, rect);
+      canvas.dispatchPointer("pointermove", point.clientX, point.clientY);
+      return point;
+    };
+    const initial = JSON.stringify(run);
+    hover(1, 1, 0.35);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(allyUid);
+    expect(preview.mock.lastCall?.[0]).toEqual({ kind: "board", index: 6 });
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 1, row: 1, role: "hover" }]);
+    // Move to a tile edge outside the narrow body: occupied-cell fallback matches model hover.
+    hover(1, 1, TILE_HEIGHT, 0.32);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(allyUid);
+    expect(preview.mock.lastCall?.[0]).toEqual({ kind: "board", index: 6 });
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 1, row: 1, role: "hover" }]);
+    hover(2, 1, TILE_HEIGHT, 0.32);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(nextUid);
+    expect(preview.mock.lastCall?.[0]).toEqual({ kind: "board", index: 7 });
+    hover(6, 2, 0.35);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith("rendered-enemy");
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 6, row: 2, role: "hover" }]);
+    hover(6, 2, TILE_HEIGHT, 0.32);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith("rendered-enemy");
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 6, row: 2, role: "hover" }]);
+    // The model ray wins even when the model projects over a different occupied tile.
+    placeRoot(allyRoot!, nextWorld.x, nextWorld.z, scene);
+    placeRoot(nextRoot!, allyWorld.x - 1, allyWorld.z, scene);
+    hover(2, 1, 0.35);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(allyUid);
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 1, row: 1, role: "hover" }]);
+    hover(3, 1);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([{ col: 3, row: 1, role: "hover" }]);
+    const river = cellToWorld({ x: 5, z: 2 }, "solo");
+    const riverPoint = clientPointForWorld(new THREE.Vector3(river.x, TILE_HEIGHT, river.z), camera, rect);
+    canvas.dispatchPointer("pointermove", riverPoint.clientX, riverPoint.clientY);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    expect(setHighlights.mock.lastCall?.[0]).toEqual([]);
+    const exit = hover(1, 1, TILE_HEIGHT, 0.32);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(allyUid);
+    canvas.dispatchPointer("pointerleave", exit.clientX, exit.clientY);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    expect(previewEnd).toHaveBeenCalled();
+    canvas.dispatchPointer("pointermove", exit.clientX, exit.clientY);
+    canvas.dispatchPointer("pointercancel", exit.clientX, exit.clientY);
+    expect(boardView.setHovered).toHaveBeenLastCalledWith(null);
+    expect(JSON.stringify(run)).toBe(initial);
+    expect(move).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+    controller.dispose();
+    tiles.geometry.dispose();
+    (tiles.material as THREE.Material).dispose();
+    roots.forEach((root) => {
+      root!.geometry.dispose();
+      (root!.material as THREE.Material).dispose();
+    });
   });
 });

@@ -3,9 +3,11 @@ import { NORMAL_UNITS } from "../src/content/catalog";
 import type { CombatEvent, Placement } from "../src/core/combat";
 import {
   type BasicCombatEvent,
+  assassinBackContactUsesRing,
   basicContactCell,
   basicActionPattern,
   combatActionTiming,
+  meleeContactUsesRiverSeam,
   stageBasicCombatEvent,
   stageBasicCombatEvents,
 } from "../src/core/combatStaging";
@@ -94,6 +96,23 @@ describe("combat action staging (A56/A119)", () => {
     expect(basicContactCell("MELEE_FRONT", { side: "L" }, { col: 0, row: 1 })).toEqual({ col: 0, row: 1 });
     expect(basicContactCell("MELEE_FRONT", { side: "R" }, { col: 9, row: 3 })).toEqual({ col: 9, row: 3 });
     expect(basicContactCell("RANGED_STATIC", { side: "L" }, { col: 5, row: 4 })).toEqual({ col: 5, row: 4 });
+  });
+
+  it("sends melee front-line attackers onto the river seam like the old scene", () => {
+    expect(meleeContactUsesRiverSeam("MELEE_FRONT", "L", { col: 5 })).toBe(true);
+    expect(meleeContactUsesRiverSeam("MELEE_FRONT", "R", { col: 4 })).toBe(true);
+    expect(meleeContactUsesRiverSeam("MELEE_FRONT", "L", { col: 6 })).toBe(false);
+    expect(meleeContactUsesRiverSeam("ASSASSIN_BACK", "L", { col: 5 })).toBe(false);
+    expect(meleeContactUsesRiverSeam("RANGED_STATIC", "L", { col: 5 })).toBe(false);
+  });
+
+  it("sends a backline assassin onto the dark ring behind the victim", () => {
+    expect(assassinBackContactUsesRing("ASSASSIN_BACK", "L", { col: 9 })).toBe(true);
+    expect(assassinBackContactUsesRing("ASSASSIN_BACK", "R", { col: 0 })).toBe(true);
+    expect(assassinBackContactUsesRing("ASSASSIN_BACK", "L", { col: 8 })).toBe(false);
+    expect(assassinBackContactUsesRing("ASSASSIN_BACK", "R", { col: 1 })).toBe(false);
+    expect(assassinBackContactUsesRing("MELEE_FRONT", "L", { col: 9 })).toBe(false);
+    expect(assassinBackContactUsesRing("RANGED_STATIC", "R", { col: 0 })).toBe(false);
   });
 
   it("places damage exactly at melee impact and never stages miss damage", () => {

@@ -1,6 +1,6 @@
 # Phaser 4 Game Objects API Quick Reference
 
-> Shared component APIs (position, origin, scale, rotation, flip, depth, alpha, visible, active, scroll factor, tint, blend modes, size, texture/frame, name, data, destroy) are documented in the companion skills — see `P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/game-object-components/SKILL.md` and `P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/sprites-and-images/SKILL.md`. This file covers only the API surface unique to this skill.
+> Shared component APIs (position, origin, scale, rotation, flip, depth, alpha, visible, active, scroll factor, tint, blend modes, size, texture/frame, name, data, destroy) are documented in the companion skills — see `.agents/skills/game-object-components/SKILL.md` and `.agents/skills/sprites-and-images/SKILL.md`. This file covers only the API surface unique to this skill.
 
 ## Sprite Animation API
 

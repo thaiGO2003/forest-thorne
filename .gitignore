@@ -15,6 +15,7 @@ playwright-report/
 test-results/
 _tmp/
 *.log
+artifacts/
 
 # env / secrets (never commit VITE_EMOJI_API_KEY)
 .env
@@ -29,5 +30,5 @@ Thumbs.db
 !.vscode/extensions.json
 
 
-# graft's local graph cache — regenerable, not committed (run `graft build`).
+# graft's local graph cache â€” regenerable, not committed (run `graft build`).
 /graft/

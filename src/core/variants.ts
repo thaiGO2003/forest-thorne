@@ -17,6 +17,8 @@ export interface VariantBonuses {
 
 export interface VariantTraitDef {
   id: string;
+  /** Player-facing Vietnamese name, ported from old-src classSkillVariants. */
+  nameVi: string;
   role: Role;
   weight: number;
   bonuses: VariantBonuses;
@@ -29,39 +31,39 @@ export interface VariantTraitRef {
 
 export const MAX_VARIANT_TRAITS = 9;
 
-const defs = (role: Role, rows: readonly [string, VariantBonuses][]): VariantTraitDef[] =>
-  rows.map(([id, bonuses]) => ({ id, role, weight: 1, bonuses }));
+const defs = (role: Role, rows: readonly [string, string, VariantBonuses][]): VariantTraitDef[] =>
+  rows.map(([id, nameVi, bonuses]) => ({ id, nameVi, role, weight: 1, bonuses }));
 
 export const VARIANT_TRAITS: readonly VariantTraitDef[] = [
   ...defs("TANKER", [
-    ["tanker_thick_armor", { def: 6, hpPct: 4 }], ["tanker_rebound", { startingShield: 18 }],
-    ["tanker_bulwark", { mdef: 6, hpPct: 3 }], ["tanker_iron_will", { def: 4, mdef: 4 }],
-    ["tanker_guard_core", { startingShield: 12, hpPct: 2 }],
+    ["tanker_thick_armor", "Giáp Dày", { def: 6, hpPct: 4 }], ["tanker_rebound", "Phản Chấn", { startingShield: 18 }],
+    ["tanker_bulwark", "Thành Lũy", { mdef: 6, hpPct: 3 }], ["tanker_iron_will", "Ý Chí Sắt", { def: 4, mdef: 4 }],
+    ["tanker_guard_core", "Hộ Tâm", { startingShield: 12, hpPct: 2 }],
   ]),
   ...defs("ASSASSIN", [
-    ["assassin_killing_intent", { atkPct: 9 }], ["assassin_death_mark", { critPct: 10 }],
-    ["assassin_shadow_dash", { startingRage: 1 }], ["assassin_venom_edge", { atkPct: 5, critPct: 4 }],
-    ["assassin_phantom_step", { evadePct: 5 }],
+    ["assassin_killing_intent", "Sát Ý", { atkPct: 9 }], ["assassin_death_mark", "Đoạt Mệnh", { critPct: 10 }],
+    ["assassin_shadow_dash", "Lướt Ảnh", { startingRage: 1 }], ["assassin_venom_edge", "Lưỡi Độc", { atkPct: 5, critPct: 4 }],
+    ["assassin_phantom_step", "Ảo Bộ", { evadePct: 5 }],
   ]),
   ...defs("ARCHER", [
-    ["archer_heart_pierce", { atkPct: 7 }], ["archer_rapid_volley", { startingRage: 1 }],
-    ["archer_hawk_eye", { critPct: 8 }], ["archer_sharp_feather", { atkPct: 4, critPct: 4 }],
-    ["archer_far_sight", { atkPct: 5 }],
+    ["archer_heart_pierce", "Xuyên Tâm", { atkPct: 7 }], ["archer_rapid_volley", "Liên Xạ", { startingRage: 1 }],
+    ["archer_hawk_eye", "Ưng Nhãn", { critPct: 8 }], ["archer_sharp_feather", "Lông Sắc", { atkPct: 4, critPct: 4 }],
+    ["archer_far_sight", "Viễn Nhãn", { atkPct: 5 }],
   ]),
   ...defs("MAGE", [
-    ["mage_focus_spell", { matkPct: 10 }], ["mage_charge_up", { startingRage: 1 }],
-    ["mage_diffusion", { matkPct: 6, mdef: 5 }], ["mage_frost_core", { mdef: 8 }],
-    ["mage_mana_tide", { matkPct: 5, startingRage: 1 }],
+    ["mage_focus_spell", "Cường Chú", { matkPct: 10 }], ["mage_charge_up", "Tụ Lực", { startingRage: 1 }],
+    ["mage_diffusion", "Khuếch Tán", { matkPct: 6, mdef: 5 }], ["mage_frost_core", "Băng Tâm", { mdef: 8 }],
+    ["mage_mana_tide", "Triều Mana", { matkPct: 5, startingRage: 1 }],
   ]),
   ...defs("SUPPORT", [
-    ["support_divine_guard", { startingShield: 16 }], ["support_healing_touch", { healPct: 8 }],
-    ["support_inspire", { startingRage: 1 }], ["support_sanctuary", { startingShield: 10, mdef: 5 }],
-    ["support_harmony", { healPct: 5, hpPct: 3 }],
+    ["support_divine_guard", "Thần Hộ", { startingShield: 16 }], ["support_healing_touch", "Trị Liệu", { healPct: 8 }],
+    ["support_inspire", "Cổ Vũ", { startingRage: 1 }], ["support_sanctuary", "Thánh Vực", { startingShield: 10, mdef: 5 }],
+    ["support_harmony", "Hòa Âm", { healPct: 5, hpPct: 3 }],
   ]),
   ...defs("FIGHTER", [
-    ["fighter_berserk", { atkPct: 8 }], ["fighter_endurance", { hpPct: 5 }],
-    ["fighter_battle_spirit", { critPct: 6, atkPct: 4 }], ["fighter_crushing_guard", { atkPct: 5, def: 4 }],
-    ["fighter_relentless", { startingRage: 1 }],
+    ["fighter_berserk", "Cuồng Nộ", { atkPct: 8 }], ["fighter_endurance", "Bền Bỉ", { hpPct: 5 }],
+    ["fighter_battle_spirit", "Chiến Ý", { critPct: 6, atkPct: 4 }], ["fighter_crushing_guard", "Phá Thế", { atkPct: 5, def: 4 }],
+    ["fighter_relentless", "Dồn Ép", { startingRage: 1 }],
   ]),
 ];
 

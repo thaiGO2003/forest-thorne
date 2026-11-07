@@ -49,6 +49,59 @@ describe("combat", () => {
     expect(turnOrder(fs).map((f) => f.uid)).toEqual(["b", "d", "a", "c"]);
   });
 
+  it("schedules every fighter sharing a scan cell with stable UID ties", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "zeta", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "alpha", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+      ],
+      [{ uid: "right", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    const expected = ["alpha", "right", "zeta"];
+    expect(turnOrder(fighters).map((fighter) => fighter.uid)).toEqual(expected);
+
+    const result = runCombat(fighters, { seed: 29, rageGain: { L: 0, R: 0 } });
+    const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    expect(cycleTwo).toBeGreaterThan(0);
+    const acted = result.events.slice(1, cycleTwo)
+      .filter((event) => event.t === "basic" || event.t === "miss" || event.t === "skip")
+      .map((event) => "src" in event ? event.src : "");
+    expect(acted).toEqual(expected);
+    expect(result.actions).toBe(60);
+  });
+
+  it("rejects malformed coordinates instead of aliasing a valid scan cell", () => {
+    const base = materializeOne({ uid: "left", baseId: ids[0]!, star: 1, row: 0, col: 4 }, "L");
+    const right = materializeOne({ uid: "right", baseId: ids[0]!, star: 1, row: 0, col: 5 }, "R");
+    for (const [col, row] of [[3, 5], [4, -1], [5, 0], [4.5, 0], [4, NaN]]) {
+      const left = { ...base, col, row };
+      expect(() => turnOrder([left, right])).toThrow(/Invalid combat position/);
+      expect(() => runCombat([left, right], { seed: 19 })).toThrow(/Invalid combat position/);
+    }
+  });
+
+  it("rejects duplicate fighter identities before queuing any attacks", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "duplicate", baseId: ids[0]!, star: 1, row: 0, col: 4 },
+        { uid: "duplicate", baseId: ids[0]!, star: 1, row: 0, col: 4 },
+      ],
+      [{ uid: "right", baseId: ids[0]!, star: 1, row: 0, col: 5 }],
+    );
+    expect(() => turnOrder(fighters)).toThrow(/Duplicate combat UID: duplicate/);
+    expect(() => runCombat(fighters, { seed: 19 })).toThrow(/Duplicate combat UID: duplicate/);
+    fighters[1]!.uid = "unique";
+    fighters[2]!.uid = "duplicate";
+    expect(() => turnOrder(fighters)).toThrow(/Duplicate combat UID: duplicate/);
+    expect(() => runCombat(fighters, { seed: 19 })).toThrow(/Duplicate combat UID: duplicate/);
+  });
+
   it("keeps empty-cell timing entries presentation-only for sparse scan positions", () => {
     const frontLeft: Placement[] = [{ uid: "left", baseId: "salamander_flame", star: 1, row: 0, col: 4 }];
     const frontRight: Placement[] = [{ uid: "right", baseId: "salamander_flame", star: 1, row: 0, col: 5 }];
@@ -90,6 +143,71 @@ describe("combat", () => {
     expect(sparseSemantic).toEqual(frontSemantic);
   });
 
+  it("interleaves multi-unit sparse chunks without letting empty slots reorder attacks", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "L-back", baseId: "titan_earth", star: 1, row: 2, col: 2 },
+        { uid: "L-front-low", baseId: "titan_earth", star: 1, row: 3, col: 4 },
+        { uid: "L-front-high", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+      ],
+      [
+        { uid: "R-back", baseId: "titan_earth", star: 1, row: 1, col: 8 },
+        { uid: "R-middle", baseId: "titan_earth", star: 1, row: 4, col: 6 },
+        { uid: "R-front", baseId: "titan_earth", star: 1, row: 2, col: 5 },
+      ],
+    );
+    expect(turnOrder(fighters).map((fighter) => fighter.uid)).toEqual([
+      "L-front-high", "R-front", "L-front-low", "R-middle", "L-back", "R-back",
+    ]);
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    const result = runCombat(fighters, { seed: 29, rageGain: { L: 0, R: 0 } });
+    const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    expect(cycleTwo).toBeGreaterThan(0);
+    const firstCycle = result.events.slice(1, cycleTwo);
+    const actionSources = firstCycle.flatMap((event) =>
+      event.t === "basic" || event.t === "miss" || event.t === "skip" ? [event.src] : []);
+    expect(actionSources).toEqual([
+      "L-front-high", "R-front", "L-front-low", "R-middle", "L-back", "R-back",
+    ]);
+    const empties = firstCycle.filter((event) => event.t === "empty");
+    const emptyCells = empties.map((event) => `${event.side}${event.col}:${event.row}`);
+    expect(emptyCells).toHaveLength(44);
+    expect(new Set(emptyCells).size).toBe(44);
+    expect(emptyCells).not.toContain("L4:0");
+    expect(emptyCells).not.toContain("R5:2");
+    const firstRightAction = firstCycle.findIndex((event) =>
+      (event.t === "basic" || event.t === "miss") && event.src === "R-front");
+    expect(firstRightAction).toBeGreaterThan(0);
+    expect(firstCycle.slice(0, firstRightAction)
+      .filter((event) => event.t === "empty")
+      .map((event) => `${event.side}${event.col}:${event.row}`))
+      .toEqual(["R5:0", "R5:1"]);
+  });
+
+  it("stops after exactly 20 full cycles when both sides survive", () => {
+    const fighters = materializeCombat(
+      [{ uid: "L", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+      [{ uid: "R", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    const result = runCombat(fighters, { seed: 53, rageGain: { L: 0, R: 0 } });
+    expect(result.events.filter((event) => event.t === "cycle").map((event) => event.cycle))
+      .toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+    expect(result.actions).toBe(40);
+    expect(result.alive).toEqual({ L: 1, R: 1 });
+    expect(result.winner).toBeNull();
+  });
+
   it("ticks an existing burn exactly once at each cycle boundary and never again during turns", () => {
     const fighters = materializeCombat(
       [{ uid: "burned", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
@@ -120,6 +238,66 @@ describe("combat", () => {
     expect(burnEvents.map(({ index }) => cycleForEvent(index))).toEqual([1, 2]);
     expect(result.events.filter((event) => event.t === "cycle").length).toBeGreaterThan(2);
     expect(result.fighters.find((fighter) => fighter.uid === "burned")?.status.burn).toBeUndefined();
+  });
+
+  it("resolves lethal burn before scheduling and excludes the dead unit across cycles", () => {
+    const fighters = materializeCombat(
+      [
+        { uid: "burned", baseId: "titan_earth", star: 1, row: 0, col: 4 },
+        { uid: "backup", baseId: "titan_earth", star: 1, row: 0, col: 3 },
+      ],
+      [{ uid: "enemy", baseId: "titan_earth", star: 1, row: 0, col: 5 }],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    fighters[0]!.hp = 3;
+    fighters[0]!.status.burn = { turns: 2, value: 7 };
+    const result = runCombat(fighters, { seed: 47, rageGain: { L: 0, R: 0 } });
+    const firstCycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    const firstCycle = result.events.slice(0, firstCycleTwo);
+    const burn = firstCycle.findIndex((event) => event.t === "dot" && event.dst === "burned");
+    const death = firstCycle.findIndex((event) => event.t === "death" && event.dst === "burned");
+    const firstAction = firstCycle.findIndex((event) => event.t === "basic" || event.t === "miss");
+    expect(burn).toBeGreaterThan(0);
+    expect(death).toBeGreaterThan(burn);
+    expect(firstAction).toBeGreaterThan(death);
+    expect(result.events.filter((event) => (event.t === "basic" || event.t === "miss" || event.t === "skip")
+      && event.src === "burned")).toHaveLength(0);
+    expect(result.events.filter((event) => event.t === "cycle")).toHaveLength(20);
+    expect(result.actions).toBe(40);
+  });
+
+  it("keeps a queued empty presentation slot when a fighter dies earlier in its cycle", () => {
+    const fighters = materializeCombat(
+      [{ uid: "left", baseId: "titan_earth", star: 1, row: 0, col: 4 }],
+      [
+        { uid: "fragile", baseId: "titan_earth", star: 1, row: 0, col: 5 },
+        { uid: "backup", baseId: "titan_earth", star: 1, row: 1, col: 6 },
+      ],
+    );
+    for (const fighter of fighters) {
+      fighter.maxHp = fighter.hp = 1_000_000;
+      fighter.atk = fighter.matk = 1;
+      fighter.rageMax = 1_000;
+      fighter.crit = fighter.evade = 0;
+    }
+    fighters[0]!.atk = 100;
+    fighters[1]!.hp = 1;
+    const result = runCombat(fighters, { seed: 31, rageGain: { L: 0, R: 0 } });
+    const cycleTwo = result.events.findIndex((event) => event.t === "cycle" && event.cycle === 2);
+    expect(cycleTwo).toBeGreaterThan(0);
+    const firstCycle = result.events.slice(1, cycleTwo);
+    const death = firstCycle.findIndex((event) => event.t === "death" && event.dst === "fragile");
+    const empty = firstCycle.findIndex((event) => event.t === "empty" && event.side === "R" && event.col === 5 && event.row === 0);
+    expect(death).toBeGreaterThanOrEqual(0);
+    expect(empty).toBeGreaterThan(death);
+    expect(firstCycle.filter((event) => (event.t === "basic" || event.t === "miss" || event.t === "skip")
+      && event.src === "fragile")).toHaveLength(0);
+    expect(firstCycle.some((event) => (event.t === "basic" || event.t === "miss") && event.src === "backup")).toBe(true);
   });
 
   it("is deterministic for identical input + seed", () => {
@@ -392,7 +570,7 @@ describe("combat", () => {
       { uid: "near-mage", baseId: "salamander_flame", star: 1, row: 2, col: 4 },
       { uid: "far-tank", baseId: "titan_earth", star: 1, row: 4, col: 0 },
     ],
-    [{ uid: "right", baseId: "weasel_quick", star: 1, row: 2, col: 5 }],
+    [{ uid: "right", baseId: "mink_silent", star: 1, row: 2, col: 5 }],
     { seed: 5 },);
     expect(firstTargetBy(result.events, "right")).toMatchObject({ dst: "far-tank" });
   });
@@ -437,7 +615,7 @@ describe("combat", () => {
   });
 
   it("RIGHT Assassin breaks equal back-column ties by same row, then top-first row sweep", () => {
-    const assassin = { uid: "right", baseId: "weasel_quick", star: 1, row: 2, col: 5 };
+    const assassin = { uid: "right", baseId: "mink_silent", star: 1, row: 2, col: 5 };
     const sameRow = battle([
       { uid: "top", baseId: "salamander_flame", star: 1, row: 0, col: 0 },
       { uid: "same", baseId: "titan_earth", star: 1, row: 2, col: 0 },
@@ -522,7 +700,7 @@ describe("combat", () => {
 
   it("reflects finalized HP damage, applies the authored ATK debuff, and never recursively reflects", () => {
     const reflected = battle([{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
-    [{ uid: "weasel", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "weasel", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 4, startShield: 20, hpPct: 1_000 }, R: { hpPct: 10_000 } } },);
     const incoming = reflected.events.find((e) => e.t === "basic" && e.src === "weasel" && e.dst === "badger");
     const bounce = reflected.events.find((e) => e.t === "reflect" && e.src === "badger" && e.dst === "weasel");
@@ -560,7 +738,7 @@ describe("combat", () => {
 
   it("does not let lifesteal rescue an attacker made lethal by reflect", () => {
     const result = battle([{ uid: "badger", baseId: "badger_stone", star: 3, row: 0, col: 4 }],
-    [{ uid: "attacker", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "attacker", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     {
       seed: 2,
       bonus: {
@@ -576,7 +754,7 @@ describe("combat", () => {
 
   it("counters only a surviving melee attacker and owns lethal counter death immediately", () => {
     const lethalCounter = battle([{ uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 }],
-    [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "enemy", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 4, atkPct: 100 } } },);
     const triggerAt = lethalCounter.events.findIndex((e) => e.t === "basic" && e.src === "enemy" && e.dst === "rhino");
     const counterAt = lethalCounter.events.findIndex((e, i) => i > triggerAt && e.t === "basic" && e.src === "rhino" && e.dst === "enemy");
@@ -587,7 +765,7 @@ describe("combat", () => {
     expect(lethalCounter.survivors.some((f) => f.uid === "enemy")).toBe(false);
 
     const deadDefender = battle([{ uid: "rhino", baseId: "rhino_quake", star: 1, row: 0, col: 4 }],
-    [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "enemy", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 2 }, R: { atkPct: 2_000 } } },);
     expect(deadDefender.events.some((e) => e.t === "death" && e.dst === "rhino")).toBe(true);
     expect(deadDefender.events.some((e) => e.t === "basic" && e.src === "rhino" && e.dst === "enemy")).toBe(false);
@@ -617,7 +795,7 @@ describe("combat", () => {
     expect(survivor).toMatchObject({ shield: 0, phoenix: { armed: false, used: true, revivePct: 0.3 } });
 
     const killedLater = battle([placement],
-    [{ uid: "weasel", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "weasel", baseId: "mink_silent", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 3, startShield: 100 }, R: { atkPct: 1_000_000, hpPct: 1_000 } } },);
     const laterRevives = killedLater.events.filter((e) => e.t === "revive" && e.dst === "phoenix");
     expect(laterRevives).toHaveLength(1);
@@ -654,7 +832,7 @@ describe("combat", () => {
       { uid: "front", baseId: "titan_earth", star: 1, row: 0, col: 4 },
       { uid: "deer", baseId: "deer_song", star: 1, row: 0, col: 3 },
     ],
-    [{ uid: "enemy", baseId: "weasel_quick", star: 1, row: 0, col: 5 }],
+    [{ uid: "enemy", baseId: "viper_strike", star: 1, row: 0, col: 5 }],
     { seed: 2, bonus: { L: { startRage: 1 }, R: { hpPct: 1_000 } } },);
     const castAt = result.events.findIndex((e) => e.t === "cast" && e.src === "deer");
     const hotAt = result.events.findIndex((e, i) => i > castAt && e.t === "status" && e.kind === "hot" && e.dst === "deer");
@@ -727,6 +905,25 @@ describe("A77 combat materialization", () => {
     })[0]!;
 
     expect(fighter.shield).toBe(28);
+  });
+
+  it("ant_guard casts self-sustain: applies damage reduction and cleanses a debuff", () => {
+    const fighters = materializeCombat(
+      [{ uid: "ant", baseId: "ant_guard", star: 2, row: 2, col: 4 }],
+      [{ uid: "brute", baseId: "gorilla_smash", star: 1, row: 2, col: 5 }],
+    );
+    const ant = fighters.find((fighter) => fighter.uid === "ant")!;
+    ant.rage = ant.rageMax;
+    ant.status.bleed = { turns: 3, value: 4 };
+
+    const result = runCombat(fighters, { seed: 7, rageGain: { L: 0, R: 0 } });
+    const statusEvents = result.events.filter(
+      (event): event is Extract<CombatEvent, { t: "status" }> => event.t === "status" && event.dst === "ant",
+    );
+
+    expect(result.events.some((event) => event.t === "cast" && event.src === "ant")).toBe(true);
+    expect(statusEvents.some((event) => event.kind === "damageReduction" && event.turns > 0)).toBe(true);
+    expect(statusEvents.some((event) => event.kind === "bleed" && event.turns === 0)).toBe(true);
   });
 
   it("simulates the exact authoritative Fighter records without rematerializing", () => {

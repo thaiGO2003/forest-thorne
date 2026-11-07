@@ -5,8 +5,9 @@ import { normalizeBillboard, type BillboardState } from "../src/units/billboard"
 import { Kit } from "../src/units/kit";
 import toad from "../src/units/roster/toadPoison";
 import jaguar from "../src/units/roster/jaguarHunt";
+import frog from "../src/units/roster/frogAlchemy";
 import { createUnit, hasRig } from "../src/units/registry";
-const RIGS = { toad_poison: toad, jaguar_hunt: jaguar };
+const RIGS = { toad_poison: toad, jaguar_hunt: jaguar, frog_alchemy: frog };
 
 const base: BillboardState = { name: "x", star: 2, hp: 50, maxHp: 100, rage: 0, rageMax: 4, side: "L", statuses: [] };
 
@@ -46,7 +47,7 @@ describe("A90.3 star multiplicity", () => {
   });
 });
 
-function idlePose(id: "toad_poison" | "jaguar_hunt", combat: boolean) {
+function idlePose(id: "toad_poison" | "jaguar_hunt" | "frog_alchemy", combat: boolean) {
   const def = RIGS[id]!;
   const root = new THREE.Group();
   const kit = new Kit(root);
@@ -89,7 +90,7 @@ describe("Library combat-idle authored poses", () => {
       unit = createUnit("jaguar_hunt", 1);
       const root = unit.root;
       unit.die();
-      for (let frame = 0; frame < 7; frame++) unit.update(.1);
+      for (let frame = 0; frame < 14; frame++) unit.update(.1); // authored jaguar death lasts 1.3 s
       expect(root.visible).toBe(false);
       unit.setHpRatio(.5); unit.update(.016);
       expect(root.visible).toBe(true);
@@ -128,15 +129,41 @@ describe("Library combat-idle authored poses", () => {
     const relaxed = idlePose("toad_poison", false);
     const combat = idlePose("toad_poison", true);
     expect(relaxed.part("body").position.y).toBeCloseTo(0);
-    expect(combat.part("body").position.y).toBeCloseTo(-0.35);
-    expect(combat.part("head").rotation.x).toBeCloseTo(0.08);
+    // Combat crouch is a ground-anchored squash (a translation sank the belly into the tile).
+    expect(combat.part("body").scale.y).toBeLessThan(0.95);
+    expect(combat.part("body").scale.y).toBeLessThan(relaxed.part("body").scale.y - 0.05);
+    expect(combat.part("body").rotation.x).toBeGreaterThan(0); // leaning in, nose down
   });
 
   it("Báo Đốm Săn keeps inspection idle normally and uses its alert combat stance", () => {
     const relaxed = idlePose("jaguar_hunt", false);
     const combat = idlePose("jaguar_hunt", true);
-    expect(relaxed.part("torso").position.y).toBeCloseTo(5.6);
-    expect(combat.part("torso").position.y).toBeCloseTo(4.9);
-    expect(combat.part("ears").rotation.x).toBeCloseTo(-0.35);
+    expect(relaxed.part("torso").position.y).toBeCloseTo(5.95);
+    // Combat stance crouches ~0.7 voxel (breathing bob ±0.1, snarl beat −0.2) with both ears pinned.
+    const drop = relaxed.part("torso").position.y - combat.part("torso").position.y;
+    expect(drop).toBeGreaterThan(0.55);
+    expect(drop).toBeLessThan(1.05);
+    expect(combat.part("earL").rotation.x).toBeLessThan(-0.15);
+    expect(combat.part("earR").rotation.x).toBeLessThan(-0.15);
+  });
+
+  it("Ếch Giả Kim breathes upright out of combat and lowers with the flask raised in combat", () => {
+    const relaxed = idlePose("frog_alchemy", false);
+    const combat = idlePose("frog_alchemy", true);
+    expect(relaxed.part("body").position.y).toBeCloseTo(0);
+    expect(relaxed.part("head").rotation.y).toBeCloseTo(Math.sin(0.72) * 0.14);
+    expect(combat.part("body").position.y).toBeCloseTo(-0.4);
+    expect(combat.part("head").rotation.y).toBeCloseTo(0.12);
+    expect(combat.part("armR").rotation.x).toBeCloseTo(-0.4);
+  });
+
+  it("Ếch Giả Kim gates the vial bandolier at 2★ and the toxin circlet at 3★", () => {
+    type FrogParts = { vials: unknown[]; wisps: unknown[]; crown: unknown | null };
+    const build = (star: 1 | 2 | 3) => frog.build(new Kit(new THREE.Group()), { star, skin: null }) as FrogParts;
+    const one = build(1), two = build(2), three = build(3);
+    expect([one.vials.length, two.vials.length, three.vials.length]).toEqual([0, 3, 3]);
+    expect([one.wisps.length, two.wisps.length, three.wisps.length]).toEqual([0, 0, 3]);
+    expect([one.crown, two.crown, three.crown !== null]).toEqual([null, null, true]);
+    expect(hasRig("frog_alchemy")).toBe(true);
   });
 });

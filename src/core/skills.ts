@@ -60,6 +60,11 @@ export interface SkillSpec {
   /** Gradual max-HP healing spread across the authored duration. */
   hot: TimedHotSpec | null;
   selfHealPctMaxHp: number;
+  /** Fraction of incoming damage prevented while the authored self-only guard is active. */
+  damageReductionPct: number;
+  damageReductionTurns: number;
+  /** Random negative statuses/stat modifiers removed from the caster. */
+  cleanseCount: number;
   lifestealPct: number;
   shield: Formula | null;
   buffs: StatMod[];
@@ -183,9 +188,13 @@ export function parseSkill(text: string): SkillSpec {
   if (allyHeal) heal = { formula: null, pctMaxHp: Number(allyHeal[1]) / 100 };
   else if (flatHeal) heal = { formula: flatHeal[4] ? formulaAt(flatHeal) : { base: Number(flatHeal[1]), scale: 0, stat: "matk" }, pctMaxHp: 0 };
   const selfHeal = /(?:Tự hồi|hồi) (\d+)% HP tối đa(?: cho bản thân)?(?!\s*(?:trong \d+ lượt )?cho (?!bản))/.exec(t);
+  const damageReduction = /giảm\s+(\d+(?:\.\d+)?)%\s+sát thương nhận vào trong\s+(\d+)\s+lượt/i.exec(t);
+  const cleanse = /(?:thanh tẩy|xóa)\s+(?:tối đa\s+)?(\d+)\s+(?:hiệu ứng bất lợi|debuff)(?:\s+ngẫu nhiên)?\s+(?:trên|cho) bản thân/i.exec(t);
   const steal = /hút (\d+)% sát thương|hồi máu bằng (\d+)% sát thương/.exec(t);
 
-  const shieldM = t.match(new RegExp(String.raw`khiên(?: bằng)? ${FORMULA.source}`)) ?? t.match(/khiên (\d+)/);
+  const shieldM = t.match(new RegExp(String.raw`khiên(?: bằng)? ${FORMULA.source}`))
+    ?? t.match(/(?:nhận|được) (\d+) khiên/i)
+    ?? t.match(/khiên (\d+)/);
   const shield = shieldM ? (shieldM[4] ? formulaAt(shieldM) : { base: Number(shieldM[1]), scale: 0, stat: "def" as Stat }) : null;
 
   const rage = /(?:Bơm|tăng|hồi) (\d+) nộ/.exec(t);
@@ -210,6 +219,9 @@ export function parseSkill(text: string): SkillSpec {
     pickLowestHp: /% máu thấp nhất|thấp máu nhất/.test(t),
     damage, dots, controls, heal, hot,
     selfHealPctMaxHp: selfHeal && !allyHeal ? Number(selfHeal[1]) / 100 : 0,
+    damageReductionPct: damageReduction ? Number(damageReduction[1]) / 100 : 0,
+    damageReductionTurns: damageReduction ? Number(damageReduction[2]) : 0,
+    cleanseCount: cleanse ? Number(cleanse[1]) : 0,
     lifestealPct: steal ? Number(steal[1] ?? steal[2]) / 100 : 0,
     shield, buffs: statMods(t, "tăng"), debuffs: statMods(t, "giảm"),
     rageGrant: rage ? Number(rage[1]) : 0,
@@ -271,6 +283,15 @@ function reactionSpec(text: string, family: string): SkillReactionSpec {
   return out;
 }
 
+/** Huyết Thỏ "Huyết Nộ Bộc Phá": burst hit + self frenzy + delayed curse, resolved by the combat engine. */
+export const FRENZY_FAMILY = "blood_moon_frenzy";
+
+/**
+ * Cóc Độc "Sương Độc": pooled area denial resolved by the combat engine (combat.ts, spore pools).
+ * Its authored text describes the mechanic for players only; numbers live in the engine constants.
+ */
+export const SPORE_FAMILY = "toad_spore_mist";
+
 const CACHE: Record<string, SkillSpec> = {};
 /** Star-specific skill spec (falls back to 1★ text when a star row is missing). */
 export function skillSpec(baseId: string, star: number): SkillSpec {
@@ -282,6 +303,20 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   const detail = u.skill.starDetailVi[resolvedStar - 1] ?? u.skill.starDetailVi[0] ?? "";
   const s = parseSkill(detail);
   s.reaction = reactionSpec(detail, u.skill.family);
+  if (u.skill.family === FRENZY_FAMILY) {
+    // The burst and the frenzy numbers live in the engine; the prose must not hit the generic cast path.
+    Object.assign(s, {
+      side: "enemy", area: "single", count: 1, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
+  if (u.skill.family === SPORE_FAMILY) {
+    // The prose mentions a damage formula and a heal; none of it may run through the generic cast path.
+    Object.assign(s, {
+      side: "enemy", area: "all", count: 1, damage: null, dots: [], controls: [], heal: null, hot: null,
+      selfHealPctMaxHp: 0, lifestealPct: 0, shield: null, buffs: [], debuffs: [], rageGrant: 0, revivePct: 0,
+    } satisfies Partial<SkillSpec>);
+  }
   if (u.skill.family === "team_def_buff") {
     s.buffs = statMods(detail, "tăng", 3);
     if (!s.buffs.some((m) => m.stat === "def" && !m.pct)) {
@@ -290,7 +325,8 @@ export function skillSpec(baseId: string, star: number): SkillSpec {
   }
   const authoredTargeting = [u.skill.selectionVi, u.skill.targetVi, u.skill.shapeVi, u.skill.detailVi, detail].filter(Boolean).join(" ");
   if (!u.boss) {
-    s.selector = selectorFromText(authoredTargeting, s.side, u.skill.family);
+    // The frenzy burst always lands on the current basic target (the engine passes it as `preferred`).
+    s.selector = u.skill.family === FRENZY_FAMILY ? "frontline_default" : selectorFromText(authoredTargeting, s.side, u.skill.family);
     return (CACHE[key] = s);
   }
 

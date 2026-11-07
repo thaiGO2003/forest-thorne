@@ -1,6 +1,7 @@
 // Coordinated modal stack (§40, §52, A22, A60). Exactly one major modal owns input: opening a new
 // one closes the previous; the shade blocks click-through; Escape and the minus control close.
-import { closeButton, disposeSurfaceTree, drawFit, h, INK, kitButton, nineSlice, label, SLICE, surface, type KitButton } from "./kit";
+import { closeButton, disposeSurfaceTree, drawFit, h, kitButton, nineSlice, label, LABEL, SLICE, surface, threeSlice, type KitButton } from "./kit";
+import { uiFont } from "./fontScale";
 
 export interface ModalHandle {
   id: string;
@@ -26,6 +27,7 @@ export interface ModalOptions {
 export interface ModalHost {
   open(o: ModalOptions): ModalHandle;
   closeActive(): void;
+  dispose(): void;
   active(): string | null;
   /** True when any modal owns input; board/HUD input must check this (A88). */
   blocking(): boolean;
@@ -52,9 +54,10 @@ export function createModalHost(layer: HTMLElement): ModalHost {
     emit();
   };
 
-  addEventListener("keydown", (e) => {
+  const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape" && current && current.o.dismissible !== false) { e.preventDefault(); close(); }
-  });
+  };
+  addEventListener("keydown", onKeyDown);
 
   return {
     open(o) {
@@ -82,9 +85,9 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       let title = o.title;
       const head = h("div", "modal-head");
       const ribbon = surface(head, (g, w, hh) => {
-        const rw = Math.min(w - 40, Math.max(220, title.length * 15 + 80));
-        nineSlice(g, "ribbon", SLICE.ribbon, (w - rw) / 2, 0, rw, hh, 1.5);
-        label(g, title, w / 2, hh * 0.44, { size: Math.round(hh * 0.36), fill: INK, maxW: Math.max(20, rw - 108), font: "heading" });
+        const rw = Math.min(w - 40, Math.max(240, title.length * 24 + 100));
+        threeSlice(g, "ribbon", SLICE.ribbon, (w - rw) / 2, 0, rw, hh);
+        label(g, title, w / 2, hh * 0.44, { size: uiFont(Math.round(hh * 0.36)), fill: LABEL, maxW: Math.max(20, rw - 108), font: "heading" });
       });
       frame.setAttribute("aria-label", title);
       const body = h("div", "modal-body");
@@ -116,6 +119,11 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       return handle;
     },
     closeActive: close,
+    dispose() {
+      close();
+      removeEventListener("keydown", onKeyDown);
+      listeners.clear();
+    },
     active: () => current?.o.id ?? null,
     blocking: () => current !== null,
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },

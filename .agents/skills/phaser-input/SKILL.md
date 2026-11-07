@@ -4,7 +4,7 @@ description: This skill should be used when the user asks to "handle input", "ke
 version: 0.7.0
 ---
 
-> See P:/DevGOVietnam/homeserver-forest-throne/.omp/skills/input-keyboard-mouse-touch/SKILL.md for the API reference already installed alongside this skill.
+> See `.agents/skills/input-keyboard-mouse-touch/SKILL.md` for the API reference already installed alongside this skill.
 
 # Phaser 4 Input
 

@@ -25,6 +25,13 @@ Chi tiết đầy đủ: `.agents/rules/plans-workflow.md`.
 - Nếu tool trả `This tool call was blocked by OpenAI's safety checks.`, áp dụng `.agents/skills/safety-check-triage/SKILL.md`.
 - Không chuyển chính thao tác bị từ chối sang agent/provider khác. Có thể giao công việc hợp lệ, độc lập khi 1DevTool orchestration được bật.
 
+## Browser verification (BrowserPanel)
+
+- Browser QA trong repo này ưu tiên **1DevTool BrowserPanel** qua MCP `onedevtool` (`browser_list_tabs` → `browser_navigate` → `browser_snapshot`/`browser_take_screenshot`), không tự bung Playwright/Puppeteer headless.
+- Chỉ fallback sang headless Chromium khi BrowserPanel thật sự không dùng được, và phải ghi rõ lý do trong báo cáo.
+- MCP server `onedevtool` lấy project từ `ONEDEVTOOL_TERMINAL_ID`. Nếu tool trả `{"code":"project_required"}` nghĩa là agent đang chạy ngoài terminal của 1DevTool (SSH trần, tmux thường, systemd) — báo đúng lỗi đó, không âm thầm đổi sang headless.
+- Skill tham chiếu: `~/.config/opencode/skills/1devtool-browser-mcp/SKILL.md` và `~/.omp/agent/skills/1devtool-browser-mcp/SKILL.md`.
+
 ## UI Asset-First Rules
 
 - Với UI production của game, CSS chỉ dùng cho layout/toạ độ/responsive; không dùng CSS để tô màu hoặc dựng chrome/texture.
@@ -47,3 +54,4 @@ Chi tiết đầy đủ: `.agents/rules/plans-workflow.md`.
 
 - Tuân thủ quy chuẩn commit chi tiết tại `.agents/rules/commits.md`.
 - Mỗi commit bắt buộc có body giải thích rõ nguyên nhân và lý do thay đổi, liệt kê file chỉnh sửa và bằng chứng kiểm thử; không commit message một dòng cụt ngủn cho các thay đổi logic/UI.
+- Commit và push thường xuyên theo `.agents/rules/commits.md`: nhóm nhỏ đã kiểm chứng, stage đúng phạm vi, giữ nguyên thay đổi không liên quan và tuân thủ human merge review.
