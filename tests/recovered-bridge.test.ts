@@ -456,9 +456,10 @@ describe("recovered application bridge", () => {
     const bridge = createBridge(store);
     const run = bridge.newRun("EndlessPvEClassic", "MEDIUM");
     run.craftTableLevel = 1;
-    run.itemBag = ["bark", "claw"];
+    // Base materials craft at level 1; use a valid equipment ingredient with no 1×1 recipe.
+    run.itemBag = ["bark", "claw", "eq_bramble_vest"];
     bridge.checkpoint("EVENT", "Seed crafting inventory");
-    expect(bridge.stageCraft(4, "tear")).toBe(true);
+    expect(bridge.stageCraft(4, "eq_bramble_vest")).toBe(true);
 
     const staged = bridge.craftStaging();
     const bag = [...run.itemBag];
