@@ -34,13 +34,13 @@ describe("unit visual gate", () => {
         if (id) expect(hasUnitVisual(id), `tutorial ${round}: ${id}`).toBe(true);
       }
     }
-    expect(normalizeEnemyPreview([{ uid: "x", baseId: "bear_ancient", star: 1, row: 2, col: 7 }])).toEqual([]);
+    expect(normalizeEnemyPreview([{ uid: "x", baseId: "badger_stone", star: 1, row: 2, col: 7 }])).toEqual([]);
   });
 
   it("drops unrendered units from migrated saves and returns their equipment", () => {
     const player = createRun(1);
     player.itemBag = ["tear"];
-    player.board[0] = { uid: "ghost", baseId: "bear_ancient", star: 1, equips: ["eq_blue_buff"] };
+    player.board[0] = { uid: "ghost", baseId: "badger_stone", star: 1, equips: ["eq_blue_buff"] };
     const migrated = migrate(createEnvelope({ player }, { version: 5 }))!;
     const saved = migrated.envelope.payload.player!;
     expect(saved.board[0]).toBeNull();

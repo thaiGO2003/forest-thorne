@@ -1,4 +1,4 @@
-// Rig checks for the six November 2026 concept-sheet reworks. Only name, role and visual changed;
+// Rig checks for the November 2026 concept-sheet reworks. Only name, role and visual changed;
 // tier and stats are owned by the designer and intentionally not asserted here.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
@@ -10,6 +10,12 @@ import monkeySage from "../src/units/roster/monkeySage";
 import pumpkinKing from "../src/units/roster/pumpkinKing";
 import deerNurse from "../src/units/roster/deerNurse";
 import squirrelMonk from "../src/units/roster/squirrelMonk";
+import ferretBlades from "../src/units/roster/ferretBlades";
+import sharkOctopus from "../src/units/roster/sharkOctopus";
+import oxMountain from "../src/units/roster/oxMountain";
+import foxSlingshot from "../src/units/roster/foxSlingshot";
+import saolaFrost from "../src/units/roster/saolaFrost";
+import boarGlutton from "../src/units/roster/boarGlutton";
 import { createUnit, hasRig } from "../src/units/registry";
 import { hasUnitVisual } from "../src/content/unitVisuals";
 import { getUnit, type Role } from "../src/content/catalog";
@@ -22,6 +28,12 @@ const CASES: [UnitRigDef<unknown>, string, Role][] = [
   [pumpkinKing, "Bí Ngô Ma Vương", "FIGHTER"],
   [deerNurse, "Nai Y Tá", "SUPPORT"],
   [squirrelMonk, "Sóc Tu", "MAGE"],
+  [ferretBlades, "Song Đao Chồn Sóc", "ASSASSIN"],
+  [sharkOctopus, "Bạch Tuộc Đầu Cá Mập", "TANKER"],
+  [oxMountain, "Ngọn Núi Đầu Bò", "TANKER"],
+  [foxSlingshot, "Cáo Ná Thun", "ARCHER"],
+  [saolaFrost, "Sao La Làng", "MAGE"],
+  [boarGlutton, "Lợn Háu Ăn", "TANKER"],
 ];
 const STATES: [ActionState, boolean][] = [["idle", false], ["idle", true], ["move", false], ["move", true], ["attack", false], ["skill", false], ["hit", false]];
 const SAMPLES = Array.from({ length: 41 }, (_, i) => i / 40);
