@@ -15,6 +15,7 @@ playwright-report/
 test-results/
 _tmp/
 *.log
+artifacts/
 
 # env / secrets (never commit VITE_EMOJI_API_KEY)
 .env

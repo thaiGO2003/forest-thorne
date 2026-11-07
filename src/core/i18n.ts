@@ -570,6 +570,8 @@ const vi = {
   "library.empty": "Không có thú phù hợp bộ lọc",
   "library.tier": "Bậc {tier}",
   "library.basic": "Đòn đánh thường",
+  "sex.male": "Đực",
+  "sex.female": "Cái",
   "unit.basic.meleePhysical": "Cận chiến · sát thương vật lý · 1× ATK · ưu tiên mục tiêu hợp lệ gần nhất.",
   "unit.basic.rangedPhysical": "Tầm xa · sát thương vật lý · 1× ATK · ưu tiên mục tiêu hợp lệ gần nhất.",
   "unit.basic.meleeMagic": "Cận chiến · sát thương phép · 1× MATK · ưu tiên mục tiêu hợp lệ gần nhất.",

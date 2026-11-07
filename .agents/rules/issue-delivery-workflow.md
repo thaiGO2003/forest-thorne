@@ -38,12 +38,12 @@ Closure automation `.github/workflows/close-verified-pr-issues.yml` hiện chỉ
 
 ### Uỷ quyền Pull Verifier
 
-Owner đã uỷ quyền thường trực cho agent **Pull Verifier** ngày **2026-11-05**. Mỗi
+Owner đã uỷ quyền thường trực cho agent **Pull Verifier** ngày **2026-11-07**. Mỗi
 dossier do Pull Verifier duyệt phải ghi đúng:
 
 ```text
 Reviewer: agent:pull-verifier
-Authorized-by: thaiGO2003 — 2026-11-05 — "tui mới tạo agent pull verifier mà, 1B"
+Authorized-by: thaiGO2003 — 2026-11-07 — "tui ko muon human in the loop dau"
 ```
 
 Nếu owner thu hồi uỷ quyền bằng văn bản, dừng quy trình và quay lại luật người duyệt
