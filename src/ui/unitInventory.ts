@@ -118,6 +118,7 @@ function createInventoryView(modal: ModalHandle, portraits: Portraits, getDispla
   root.dataset.uid = initial.uid;
   if (readonly) root.dataset.readonly = "true";
   const content = h("div", "ui-inventory-content");
+  content.tabIndex = 0;
   const profile = h("div", "ui-inventory-profile");
   const portraitPanel = panel("ui-inventory-portrait");
   const portraitHost = h("div", "ui-inventory-view");
@@ -592,7 +593,7 @@ export function mountReadonlyUnitInventory(
     star: diagnostics.star,
     stats: [diagnostics.base, diagnostics.derived, diagnostics.live],
     traits: diagnostics.traits,
-    location: t("inventory.board"),
+    location: t(diagnostics.side === "R" ? "inventory.enemyBoard" : "inventory.board"),
     hint: t("inventory.liveHint"),
   }), true);
   modal.body.append(view.root);

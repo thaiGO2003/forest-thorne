@@ -28,7 +28,7 @@ interface PlanningDragOptions {
   move(from: PlanningSlot, to: PlanningSlot): boolean;
   select?(source: PlanningSlot): void;
   preview?(source: PlanningSlot, anchor: DOMRect): void;
-  /** Enemy units are not draggable; they only get a hover summary tooltip. */
+  /** Enemy units are inspectable, but never draggable. */
   previewEnemy?(uid: string, anchor: DOMRect): void;
   /** Enemy units cannot be selected or dragged; a tap opens their read-only detail. */
   inspectEnemy?(uid: string): void;
@@ -330,6 +330,7 @@ export function createPlanningDragController({
       event.stopImmediatePropagation();
       return;
     }
+
     const entry = source.kind === "board" ? run.board[source.index] : run.bench[source.index];
     const visual = entry ? board.visual(entry.uid) : undefined;
     pressed = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, source, visual,

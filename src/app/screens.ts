@@ -32,7 +32,8 @@ import { getUnit } from "../content/catalog";
 import { ICONS, setEmojiRichText } from "../core/emojiIcon";
 import { openExternalHttpUrl } from "../platform/discordActivity";
 import { STAR_STAT } from "../core/economy";
-import { teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
+import { projectLiveDiagnostics, teamStrength, unitDiagnostics, type UnitDiagnostics } from "../core/inspection";
+import { basicAttackCopy } from "../core/unitText";
 import { environmentFor, type EnvironmentId } from "../core/environment";
 import { dayNightForRound } from "../core/dayNight";
 import { WEATHER_BLESSING_ENVIRONMENT } from "../core/blessings";
@@ -1235,7 +1236,7 @@ function enemyDiagnostics(app: App, uid: string) {
   if (!placement) return null;
   const combat = app.bridge.combatSnapshot();
   const source = preview?.source ?? combat?.enemySource ?? "saved";
-  return unitDiagnostics(
+  const diagnostics = unitDiagnostics(
     {
       ...placement,
       equips: placement.equips ? [...placement.equips] : undefined,
@@ -1247,6 +1248,10 @@ function enemyDiagnostics(app: App, uid: string) {
     combat?.fighters.find((fighter) => fighter.uid === uid),
     true,
   );
+  const live = app.presentation.combatCycle === null ? null : app.presentation.liveRoster.get(uid);
+  return live?.inspection
+    ? projectLiveDiagnostics(diagnostics, snapshotWithResources(live.inspection, live, getUnit(placement.baseId).role))
+    : diagnostics;
 }
 
 
@@ -1270,7 +1275,12 @@ function openEnemyUnitDetail(app: App, uid: string) {
   openPanelModal(app, { id: "enemy-unit-detail", title: getUnit(initial.baseId).nameVi, size: "lg" }, (m) => {
     const view = mountReadonlyUnitInventory(m, portraits, () => enemyDiagnostics(app, uid));
     const off = app.bridge.onChange(view.update);
-    return { dispose() { off(); view.dispose(); } };
+    app.presentation.refreshEnemyDetail = view.update;
+    return { dispose() {
+      off();
+      if (app.presentation.refreshEnemyDetail === view.update) app.presentation.refreshEnemyDetail = null;
+      view.dispose();
+    } };
   });
 }
 
@@ -1503,7 +1513,7 @@ registerScreen("planning", (app) => {
     if (!combat) return;
     combat.player.dispose(); combat.hud.dispose(); combat.fx.dispose(); combat.lowHpMusic.dispose();
     combat = null;
-    if (app.modals.active() === "unit-inventory") app.modals.closeActive();
+    if (app.modals.active() === "unit-inventory" || app.modals.active() === "enemy-unit-detail") app.modals.closeActive();
     board.setCombat(false);
     hud.el.hidden = false;
     stage.setPhase("planning");
@@ -1581,6 +1591,7 @@ registerScreen("planning", (app) => {
         app.presentation.combatCycle = tk.cycle;
         for (const entry of tk.all) liveRoster.set(entry.uid, entry);
         inventoryView?.update();
+        app.presentation.refreshEnemyDetail?.();
         chud.update({
           round: combatRound, cycle: tk.cycle, speed: speedMultiplier,
           finishFastCost: finishFastCost({ techLevels: run?.techLevels ?? {} }),

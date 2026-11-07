@@ -1,16 +1,16 @@
-﻿/* Layout-only stylesheet (AGENTS UI asset-first): geometry, flex/grid, z-order, visibility, hit areas.
-   No colours, gradients, shadows or decorative pseudo-elements â€” chrome comes from kit PNGs on canvas. */
+/* Layout-only stylesheet (AGENTS UI asset-first): geometry, flex/grid, z-order, visibility, hit areas.
+   No colours, gradients, shadows or decorative pseudo-elements — chrome comes from kit PNGs on canvas. */
 
 @font-face {
-  font-family: "Forest Heading";
-  src: url("/fonts/Heading%20-%20MTD%20Amstrong.otf") format("opentype");
+  font-family: "Forest Normal";
+  src: url("/fonts/Normal%20-%20MTD%20Ampihan.otf") format("opentype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
-  font-family: "Forest Normal";
-  src: url("/fonts/Normal%20-%20Bonestay.otf") format("opentype");
+  font-family: "Forest Heading";
+  src: url("/fonts/Heading%20-%20MTD%20Amstrong.otf") format("opentype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -40,6 +40,8 @@
 .kit-panel, .kit-btn { position: relative; }
 .kit-panel > :not(.kit-canvas), .kit-btn > :not(.kit-canvas) { position: relative; z-index: 1; }
 .kit-btn { border: 0; padding: 0; margin: 0; background: none; font-family: "Times New Roman", Times, serif; cursor: pointer; width: fit-content; min-width: 44px; min-height: 44px; touch-action: manipulation; }
+.ui-root button:not(.kit-btn),
+.ui-root button:not(.kit-btn) * { font-family: "Times New Roman", Times, serif; }
 .kit-btn:disabled { cursor: not-allowed; }
 .kit-measure { display: block; width: max-content; max-width: 100%; padding: 0 12px; font-family: "Times New Roman", Times, serif; font-size: 16px; line-height: 1.25; white-space: nowrap; visibility: hidden; pointer-events: none; }
 .kit-measure.with-icon { padding-left: 40px; }
@@ -171,7 +173,7 @@
 .tooltip[data-mode="expanded"] .tt-star { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tooltip[data-mode="expanded"] .tt-star-label { margin: 0; }
 .tooltip[data-mode="expanded"] .tt-sec-meta { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
-.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #111; font-size: 13px; line-height: 1.35; font-family: "Times New Roman", Times, serif; }
+.tooltip-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; color: #111; font-size: 13px; line-height: 1.35; font-family: "Forest Normal", "Times New Roman", Times, serif; }
 .tt-head { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
 .tt-avatar { flex: none; width: 96px; height: 96px; display: grid; place-items: center; }
 .tt-avatar-icon { display: grid; place-items: center; width: 100%; height: 100%; font-size: 48px; line-height: 1; }
@@ -750,16 +752,14 @@
   .pl-offer-card { aspect-ratio: 5 / 4; }
 }
 @media (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
-  .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@media (min-width: 761px) and (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
-  /* Reserve a right rail instead of overlaying the top actions and shop. */
-  /* Keep the center bench hit targets clear while retaining the synergy hover target. */
-  .pl-synergy { width: 112px; }
+  /* Keep the board accessible with a compact action rail and collapsible shop. */
   .pl-battle { left: 8px; transform: none; width: calc(100% - 96px); }
-  .pl-actions { top: 84px; transform: none; gap: 2px; padding: 6px; }
-  .pl-actions .kit-btn { width: 40px; height: 40px; }
+  .pl-actions { top: 44px; transform: none; gap: 2px; padding: 6px; max-height: calc(100% - 52px); overflow-y: auto; }
+  .pl-action-label { display: none; }
+  .pl-actions .kit-btn { width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+  .pl-shop-toggle { display: block; }
   .pl-shop { left: 8px; transform: none; width: calc(100% - 90px); }
+  .pl-shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 /* ---------- library ---------- */

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { activeIndices, craft, matchRecipe, stage, type CraftState } from "../src/core/craft";
-import { getEquipment } from "../src/core/itemRegistry";
+import { craftRunItem, createRun, inventoryCapacity, research, stageRunCraftItem } from "../src/core/run";
+import { skipTutorial } from "../src/core/tutorial";
+import { getEquipment, getRecipe } from "../src/core/itemRegistry";
 
 const blank = (): (string | null)[] => Array(9).fill(null);
 const makeState = (over: Partial<CraftState> = {}): CraftState => ({
@@ -13,7 +15,7 @@ const counts = (bag: readonly string[]) => bag.reduce<Record<string, number>>((a
   return acc;
 }, {});
 
-/** The only authored recipe consumes one tear and produces one blue buff. */
+/** One representative authored 1x1 recipe consumes tear and produces blue buff. */
 const expectConserved = (after: Record<string, number>, before: Record<string, number>) => {
   const expected = { ...before };
   expected.tear = (expected.tear ?? 0) - 1;
@@ -103,5 +105,97 @@ describe("craft commit contracts (A7)", () => {
     expect(craft(s, staged)).toBeNull();
     expect(s.itemBag).toEqual(["tear", "tear"]);
     expect(s.craftHistory).toEqual([]);
+  });
+  it("requires every copy of a repeated authored ingredient before consuming resources", () => {
+    const repeated = getRecipe("mindforge_spear")!;
+    const positions = [0, 1, 3, 4];
+    let staged = blank();
+    for (let i = 0; i < positions.length; i++) {
+      staged = stage(staged, positions[i], repeated.pattern[i], 2)!;
+    }
+    const s = makeState({
+      itemBag: ["bark", "eq_blue_buff", "tear", "crystal", "claw"],
+      craftTableLevel: 2,
+      craftHistory: ["previous"],
+    });
+    const bagBefore = s.itemBag;
+    const historyBefore = s.craftHistory;
+
+    expect(matchRecipe(staged, 2)).toBe(repeated);
+    expect(craft(s, staged)).toBeNull();
+    expect(s.itemBag).toBe(bagBefore);
+    expect(s.craftHistory).toBe(historyBefore);
+    expect(s.itemBag).toEqual(["bark", "eq_blue_buff", "tear", "crystal", "claw"]);
+    expect(s.craftHistory).toEqual(["previous"]);
+
+    s.itemBag.push("crystal");
+    expect(craft(s, staged)).toBe("eq_mindforge_spear");
+    expect(s.itemBag).toEqual(["bark", "claw", "eq_mindforge_spear"]);
+    expect(s.craftHistory).toEqual(["previous", "mindforge_spear"]);
+    expect(staged.filter((id) => id === "crystal")).toHaveLength(2);
+  });
+});
+
+describe("run crafting resource conservation", () => {
+  it("rejects a full-bag craft missing its ingredient without changing run state", () => {
+    const s = createRun(41);
+    skipTutorial(s);
+    s.craftTableLevel = 1;
+    s.inventoryBonus = 3;
+    s.itemBag = ["bark", "feather", "claw"];
+    expect(stageRunCraftItem(s, blank(), 4, "tear")).toBeNull();
+    const staged = stage(blank(), 4, "tear", 1)!;
+    const before = { bag: [...s.itemBag], history: [...s.craftHistory], seed: s.rngSeed };
+
+    expect(s.itemBag).toHaveLength(inventoryCapacity(s));
+    expect(craftRunItem(s, staged)).toBeNull();
+    expect(s.itemBag).toEqual(before.bag);
+    expect(s.craftHistory).toEqual(before.history);
+    expect(s.rngSeed).toBe(before.seed);
+    expect(staged[4]).toBe("tear");
+  });
+
+  it.each([7, 2026, 0x5eed])("conserves a seeded full bag through staging, grid upgrades and repeated crafts (%i)", (seed) => {
+    const s = createRun(seed);
+    skipTutorial(s);
+    s.gold = 100;
+    s.inventoryBonus = 4;
+    s.itemBag = ["tear", "bark", "tear", "claw"];
+    const bagBefore = [...s.itemBag];
+    const seedBefore = s.rngSeed;
+    expect(s.itemBag).toHaveLength(inventoryCapacity(s));
+
+    expect(research(s, "craft_t")).toBe(true);
+    const initiallyStaged = stageRunCraftItem(s, blank(), 4, "tear")!;
+    expect(stageRunCraftItem(s, initiallyStaged, 0, "tear")).toBeNull();
+    const cleared = stageRunCraftItem(s, initiallyStaged, 4, null)!;
+    expect(cleared).toEqual(blank());
+    expect(initiallyStaged[4]).toBe("tear");
+    expect(s.itemBag).toEqual(bagBefore);
+    expect(s.craftHistory).toEqual([]);
+
+    expect(research(s, "craft_t")).toBe(true);
+    expect(s.craftTableLevel).toBe(2);
+    const repositioned = stageRunCraftItem(s, cleared, 0, "tear")!;
+    const contaminated = stageRunCraftItem(s, repositioned, 1, "bark")!;
+    expect(craftRunItem(s, contaminated)).toBeNull();
+    expect(s.itemBag).toEqual(bagBefore);
+    expect(s.craftHistory).toEqual([]);
+    const valid = stageRunCraftItem(s, contaminated, 1, null)!;
+    expect(valid[0]).toBe("tear");
+    expect(craftRunItem(s, valid)).toBe("eq_blue_buff");
+    expect(s.itemBag).toEqual(["bark", "tear", "claw", "eq_blue_buff"]);
+    expect(s.craftHistory).toEqual(["blue_buff"]);
+    expect(valid[0]).toBe("tear"); // External staging is cleared by its caller, not by the core transaction.
+
+    expect(craftRunItem(s, blank())).toBeNull();
+    expect(research(s, "craft_t")).toBe(true);
+    expect(s.craftTableLevel).toBe(3);
+    const finalStaging = stageRunCraftItem(s, blank(), 8, "tear")!;
+    expect(craftRunItem(s, finalStaging)).toBe("eq_blue_buff");
+    expect(counts(s.itemBag)).toEqual({ bark: 1, claw: 1, eq_blue_buff: 2 });
+    expect(s.itemBag).toHaveLength(inventoryCapacity(s));
+    expect(s.craftHistory).toEqual(["blue_buff", "blue_buff"]);
+    expect(s.rngSeed).toBe(seedBefore);
   });
 });
