@@ -77,6 +77,26 @@ Tạo file `.agents/merge-review/<branch-slug>.md` (dấu `/` trong tên nhánh 
 - Mặc định `Reviewer` là người. Agent chỉ được tự review/duyệt khi chủ repo uỷ quyền rõ ràng (tin nhắn, issue hoặc PR comment), và phải ghi ngay dưới `Reviewer: agent:<tên>` dòng `Authorized-by: <owner> — <ngày> — "<trích nguyên văn>"`. Không có uỷ quyền thì không được tự duyệt.
 - Agent tự review vẫn phải làm đủ bước 1–3 và checklist; nếu bất kỳ check nào fail hoặc còn review comment chưa xử lý thì không được merge.
 
+### 4b. Pull Verifier — owner standing authorization (no human loop)
+
+Owner đã uỷ quyền thường trực cho **Pull Verifier** được tự duyệt và merge các PR thường khi
+mọi gate pass, không cần human approval từng PR. Dossier phải ghi đúng:
+
+```text
+Reviewer: agent:pull-verifier
+Authorized-by: thaiGO2003 — 2026-11-07 — "tui ko muon human in the loop dau"
+```
+
+- Nếu PR **không đạt**, Pull Verifier phải báo Leader: file:line, command/evidence, điều kiện
+  fail, hướng sửa tối thiểu, và vì sao chưa APPROVED. Không chỉ trả REQUEST_CHANGES rồi đứng.
+- Leader giao remediation; Pull Verifier re-review sau khi fix; không đẩy owner vào routine
+  approval.
+- Owner chỉ xử lý policy/owner-taste conflict hoặc thay đổi luật; không phải gate merge thường.
+- Vẫn không `--admin`, không bỏ qua evidence/test/hook, không merge khi head/body/target lệch.
+- §4b là nguồn chuẩn cho approval/merge PR thường. Quote uỷ quyền issue-specific cũ
+  (ví dụ 2026-11-05) không thay thế cặp `Reviewer`/`Authorized-by` này cho routine merge;
+  issue-delivery workflow khi merge phải dùng cùng cặp này.
+
 Reviewer phải kiểm tra tối thiểu: tiêu đề/PR khớp phạm vi, không xoá file ngoài phạm vi, không có secret, không có asset/binary phình bất thường, test evidence tái lập được.
 
 ### 5. Merge vào `dev`
