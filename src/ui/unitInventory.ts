@@ -22,6 +22,7 @@ import { uiFont } from "./fontScale";
 import { mountPortraitControls } from "./portraitControls";
 import { decorateDescription, richSpan, type RichTone } from "./richText";
 import type { ModalHandle } from "./modal";
+import type { UnitInventoryNavigationState } from "./modalOrigins";
 
 export interface UnitInventoryModel {
   run: RunState;
@@ -36,7 +37,8 @@ export interface UnitInventoryIntents {
   unequip(index: number): boolean;
   unequipAll(): boolean;
   /** Owned units can jump to their Library entry; enemy inspection omits it. */
-  openLibrary?(): void;
+  openLibrary?(state: UnitInventoryNavigationState): void;
+  restoreState?: UnitInventoryNavigationState;
 }
 
 type StatKey = "hp" | "atk" | "matk" | "def" | "mdef" | "rage" | "shield" | "evade" | "crit" | "accuracy" | "range";
@@ -435,7 +437,14 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
   const library = intents.openLibrary
     ? kitButton({
       skin: "blue", icon: ICONS.library, label: t("menu.library"), cls: "ui-inventory-action",
-      onClick: () => { modal.close(); intents.openLibrary?.(); },
+      onClick: () => {
+        const focusControls = Array.from(root.querySelectorAll<HTMLElement>("button,input,[tabindex]"));
+        intents.openLibrary?.({
+          modalScrollTop: modal.body.scrollTop,
+          focusIndex: focusControls.indexOf(document.activeElement as HTMLElement),
+          focusLibrary: document.activeElement === library?.el,
+        });
+      },
     })
     : null;
   footer.append(gold, sell.el, ...(library ? [library.el] : []));
@@ -567,9 +576,22 @@ export function mountUnitInventory(modal: ModalHandle, portraits: Portraits, int
     if (effectsKey !== nextEffectsKey) { effectsKey = nextEffectsKey; renderEffects(); }
   }
   update();
+  let restoreFrame = 0;
+  if (intents.restoreState) {
+    const state = intents.restoreState;
+    restoreFrame = requestAnimationFrame(() => {
+      restoreFrame = 0;
+      if (disposed || !root.isConnected) return;
+      modal.body.scrollTop = state.modalScrollTop;
+      const controls = Array.from(root.querySelectorAll<HTMLElement>("button,input,[tabindex]"));
+      const target = (state.focusLibrary ? library?.el : controls[state.focusIndex]) ?? library?.el ?? sell.el;
+      if (target.isConnected) target.focus({ preventScroll: true });
+    });
+  }
   return { update, dispose() {
     if (disposed) return;
     disposed = true;
+    if (restoreFrame) cancelAnimationFrame(restoreFrame);
     view.dispose();
     library?.dispose();
     for (const b of [removeAll, sell, confirm, cancel]) b.dispose();

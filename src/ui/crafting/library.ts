@@ -9,7 +9,7 @@ import { itemDisplayName } from "../../core/itemPresentation";
 import {
   baseIngredients, outputIdForRecipe, recipeForOutput, recipeIngredients, recipeTree, recipesUsing,
 } from "../../core/recipeGraph";
-import { disposeSurfaceTree, h, kitButton, nineSlice, panelEl, SLICE, surface } from "../kit";
+import { disposeSurfaceTree, h, kitButton, nineSlice, panelEl, SLICE, surface, type KitButton } from "../kit";
 import {
   clampZoom, commandFromKey, commandFromWheel, nextZoom, zoomPercent, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN,
 } from "./zoom";
@@ -17,7 +17,7 @@ import type { Tooltip } from "../tooltip";
 import { itemArt } from "./art";
 import { itemBonusLines, itemTooltipContent } from "./copy";
 import { buildItemSheet, buildMiniRecipe } from "./itemSheet";
-import { openCraftOverlay } from "./overlay";
+import { openCraftOverlay, type CraftOverlay } from "./overlay";
 
 export interface CraftLibraryContext {
   tip: Tooltip;
@@ -49,6 +49,8 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   let activeCategory: EquipmentCategory = "offense";
   let query = "";
   let selected: string | null = null;
+  let columnTipCleanups: Array<() => void> = [];
+  let detailTipCleanups: Array<() => void> = [];
   const root = h("div", "craft-library");
   const head = h("div", "craft-library-head");
   const searchWrap = panelEl("slot_well", "craft-library-search");
@@ -156,6 +158,8 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   };
 
   const renderColumns = () => {
+    for (const off of columnTipCleanups) off();
+    columnTipCleanups = [];
     disposeSurfaceTree(columns);
     columns.replaceChildren();
     const recipes = visibleRecipes();
@@ -190,7 +194,7 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
         card.append(copy);
         card.setAttribute("aria-label", `${itemDisplayName(output)}, Cấp ${tier}`);
         card.addEventListener("click", () => select(output));
-        ctx.tip.bind(card, () => itemTooltipContent(output));
+        columnTipCleanups.push(ctx.tip.bind(card, () => itemTooltipContent(output)));
         scroll.append(card);
       }
       column.append(header, scroll);
@@ -199,6 +203,8 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   };
 
   const renderDetail = () => {
+    for (const off of detailTipCleanups) off();
+    detailTipCleanups = [];
     disposeSurfaceTree(detail);
     detail.replaceChildren();
     if (!selected) {
@@ -244,7 +250,7 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
         row.append(itemArt(ingredient.id, "craft-relation-icon"));
         row.append(h("span", "craft-relation-name", `${ingredient.count} × ${itemDisplayName(ingredient.id)}`));
         row.addEventListener("click", () => select(ingredient.id));
-        ctx.tip.bind(row, () => itemTooltipContent(ingredient.id));
+        detailTipCleanups.push(ctx.tip.bind(row, () => itemTooltipContent(ingredient.id)));
         ingredients.append(row);
       }
       recipeSec.append(ingredients);
@@ -320,6 +326,10 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   return {
     el: root,
     dispose() {
+      for (const off of columnTipCleanups) off();
+      for (const off of detailTipCleanups) off();
+      columnTipCleanups = [];
+      detailTipCleanups = [];
       for (const button of zoomButtons) button.dispose();
       disposeSurfaceTree(root);
       root.remove();
@@ -327,29 +337,104 @@ export function createCraftLibrary(ctx: CraftLibraryContext, options: CraftLibra
   };
 }
 
+type StandaloneCraftRoute = { kind: "library" } | { kind: "item"; itemId: string };
+type StandaloneCraftPage = {
+  route: StandaloneCraftRoute;
+  el: HTMLElement;
+  back: KitButton | null;
+  view: CraftLibraryView | null;
+  focus: HTMLElement | null;
+  scrollTop: number;
+  scrollLeft: number;
+};
+
+function openStandaloneCraftModal(app: App, initial: StandaloneCraftRoute): void {
+  const parents: StandaloneCraftPage[] = [];
+  let current: StandaloneCraftPage | null = null;
+  let disposed = false;
+  let off: (() => void) | null = null;
+  const disposePage = (page: StandaloneCraftPage) => {
+    page.view?.dispose();
+    page.back?.dispose();
+    disposeSurfaceTree(page.el);
+    page.el.remove();
+  };
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    off?.();
+    if (current) disposePage(current);
+    current = null;
+    for (const page of parents) disposePage(page);
+    parents.length = 0;
+  };
+  const modal = app.modals.open({
+    id: initial.kind === "library" ? "craft-library" : "craft-item-info",
+    title: initial.kind === "library" ? "Thư viện chế tạo" : itemDisplayName(initial.itemId),
+    size: initial.kind === "library" ? "full" : "sm",
+    closeLabel: "Đóng",
+    onClose: dispose,
+  });
+  const frame = modal.body.closest<HTMLElement>(".modal-frame");
+  const show = (page: StandaloneCraftPage) => {
+    page.el.style.removeProperty("display");
+    page.el.inert = false;
+    modal.setTitle(page.route.kind === "library" ? "Thư viện chế tạo" : itemDisplayName(page.route.itemId));
+    frame?.classList.toggle("modal-sm", page.route.kind === "item");
+    frame?.classList.toggle("modal-full", page.route.kind === "library");
+    modal.body.scrollTop = page.scrollTop;
+    modal.body.scrollLeft = page.scrollLeft;
+  };
+  function back(): void {
+    if (!current || !parents.length) return;
+    app.tooltip.hide();
+    disposePage(current);
+    current = parents.pop()!;
+    show(current);
+    const focus = current.focus?.isConnected ? current.focus : current.el.querySelector<HTMLElement>("button, input");
+    focus?.focus({ preventScroll: true });
+  }
+  function openPage(route: StandaloneCraftRoute): void {
+    if (disposed) return;
+    app.tooltip.hide();
+    if (current) {
+      current.scrollTop = modal.body.scrollTop;
+      current.scrollLeft = modal.body.scrollLeft;
+      current.focus = current.el.contains(document.activeElement) && document.activeElement instanceof HTMLElement
+        ? document.activeElement : null;
+      current.el.inert = true;
+      current.el.style.display = "none";
+      parents.push(current);
+    }
+    const el = h("div", route.kind === "library" ? "craft-library-modal" : "craft-item-standalone");
+    const backButton = parents.length ? kitButton({ skin: "wood", label: "Quay lại", cls: "craft-overlay-back", onClick: back }) : null;
+    if (backButton) el.append(backButton.el);
+    let view: CraftLibraryView | null = null;
+    if (route.kind === "library") {
+      view = createCraftLibrary({ tip: app.tooltip }, { onOpenItem: (itemId) => openPage({ kind: "item", itemId }) });
+      el.append(view.el);
+    } else {
+      buildItemSheet(el, route.itemId, {
+        onOpenLibrary: () => openPage({ kind: "library" }),
+        onSelect: (itemId) => openPage({ kind: "item", itemId }),
+      });
+    }
+    current = { route, el, back: backButton, view, focus: null, scrollTop: 0, scrollLeft: 0 };
+    modal.body.append(el);
+    show(current);
+    const focus = backButton?.el ?? (route.kind === "library" ? el.querySelector<HTMLInputElement>("input[type=search]") : null);
+    focus?.focus({ preventScroll: true });
+  }
+  off = app.modals.onChange((active) => { if (active !== modal.id) dispose(); });
+  openPage(initial);
+}
+
 export function openCraftLibraryModal(app: App): void {
-  const modal = app.modals.open({ id: "craft-library", title: "Thư viện chế tạo", size: "full", closeLabel: "Đóng" });
-  const view = createCraftLibrary({
-    tip: app.tooltip,
-  }, {
-    onOpenItem: (itemId) => openItemInfoModal(app, itemId),
-  });
-  const wrap = h("div", "craft-library-modal");
-  wrap.append(view.el);
-  modal.body.append(wrap);
-  const off = app.modals.onChange((active) => {
-    if (active === "craft-library") return;
-    off();
-    view.dispose();
-  });
+  openStandaloneCraftModal(app, { kind: "library" });
 }
 
 export function openItemInfoModal(app: App, itemId: string): void {
-  const modal = app.modals.open({ id: "craft-item-info", title: itemDisplayName(itemId), size: "sm", closeLabel: "Đóng" });
-  buildItemSheet(modal.body, itemId, {
-    onOpenLibrary: () => { modal.close(); openCraftLibraryModal(app); },
-    onSelect: (next) => { modal.close(); openItemInfoModal(app, next); },
-  });
+  openStandaloneCraftModal(app, { kind: "item", itemId });
 }
 
 export function openItemSheetOverlay(
@@ -357,12 +442,14 @@ export function openItemSheetOverlay(
   host: HTMLElement,
   itemId: string,
   actions: { onPlace?: () => void; onRemove?: () => void } = {},
-  navigate: { onOpenLibrary?: () => void; onSelect?: (itemId: string) => void } = {},
-): { close(): void } {
+  navigate: { onOpenLibrary?: () => void; onSelect?: (itemId: string) => void; onBack?: () => void; onDismiss?: () => void } = {},
+): CraftOverlay {
   return openCraftOverlay(host, {
     title: "Thông tin vật phẩm",
     closeLabel: "Đóng",
     className: "is-item",
+    onBack: navigate.onBack,
+    onDismiss: navigate.onDismiss,
     build: (body, close) => buildItemSheet(body, itemId, {
       onOpenLibrary: navigate.onOpenLibrary ?? (() => { close(); openCraftLibraryOverlay(app, host); }),
       onSelect: navigate.onSelect ?? ((next) => { close(); openItemSheetOverlay(app, host, next, actions); }),
@@ -375,14 +462,16 @@ export function openItemSheetOverlay(
 export function openCraftLibraryOverlay(
   app: App,
   host: HTMLElement,
-  navigate: { onOpenItem?: (itemId: string) => void } = {},
-): { close(): void } {
+  navigate: { onOpenItem?: (itemId: string) => void; onBack?: () => void; onDismiss?: () => void } = {},
+): CraftOverlay {
   let view: CraftLibraryView | null = null;
-  let overlay: { close(): void } | null = null;
+  let overlay: CraftOverlay | null = null;
   overlay = openCraftOverlay(host, {
     title: "Thư viện chế tạo",
     closeLabel: "Đóng",
     className: "is-library",
+    onBack: navigate.onBack,
+    onDismiss: navigate.onDismiss,
     onClose: () => view?.dispose(),
     build: (body) => {
       view = createCraftLibrary({

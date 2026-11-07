@@ -16,6 +16,7 @@ import { createCraftLibrary, type CraftLibraryView } from "./crafting/library";
 import { disposeSurfaceTree, h, kitButton, panelEl, type KitButton } from "./kit";
 import { equipmentBonusCopy, hasItemArt, itemDisplayName, itemIconChar } from "../core/itemPresentation";
 import type { ModalHandle } from "./modal";
+import type { ModalOrigin } from "./modalOrigins";
 import type { Tooltip } from "./tooltip";
 import type { PortraitViewer, Portraits } from "../units/portraits";
 import { mountPortraitControls } from "./portraitControls";
@@ -93,6 +94,8 @@ export function mountLibrary(
   let tab: LibraryTab = "units";
   let catalogTier = 0;
   let catalogPage = 0;
+  let browseOrigin: Extract<ModalOrigin, { kind: "library-browse" }> | null = null;
+  let restoreFrame = 0;
   let craftLibraryView: CraftLibraryView | null = null;
   const cardTips: (() => void)[] = [];
   const clearCardTips = () => {
@@ -279,6 +282,8 @@ export function mountLibrary(
   }
 
   function renderBrowse() {
+    if (restoreFrame) cancelAnimationFrame(restoreFrame);
+    restoreFrame = 0;
     clearCardTips();
     clearViewTips();
     clearIdleTimer();
@@ -354,6 +359,7 @@ export function mountLibrary(
     if (!list.length) gridEl.append(h("div", "lib-empty", t("library.empty")));
     for (const u of list.slice(page * per, page * per + per)) {
       const c = createCard(portraits, "lib-card");
+      c.el.dataset.libraryUnit = u.id;
       c.set({ unit: u, star: 1, cost: u.boss ? undefined : u.tier });
       c.el.tabIndex = 0;
       c.el.setAttribute("role", "button");
@@ -372,6 +378,18 @@ export function mountLibrary(
   }
 
   function showDetail(id: string) {
+    if (gridEl) {
+      browseOrigin = {
+        kind: "library-browse",
+        state: {
+          tab, query: f.q, role: f.role, faction: f.faction, tier: f.tier,
+          page, catalogTier, catalogPage, modalScrollTop: modal.body.scrollTop,
+          gridScrollTop: gridEl.scrollTop, focusedCardId: id,
+        },
+      };
+    } else {
+      browseOrigin = null; // Direct detail does not invent a parent.
+    }
     clearCardTips();
     clearViewTips();
     const found = UNITS.find((x) => x.id === id && hasUnitVisual(x.id));
@@ -385,6 +403,9 @@ export function mountLibrary(
     modal.setTitle(unitEvolutionName(u, 1));
     const equippedSkinId = collection.equippedSkinByUnitId[u.id];
     let star: Star = 1;
+    relaxedIdle = true;
+    let action: ActionState = "idle";
+    let beastForm = false;
     let skinId: string | null = u.skin?.id === equippedSkinId && collection.unlockedSkinIds.includes(equippedSkinId) ? equippedSkinId : null;
     const wrap = h("div", "lib-detail");
     const stagePanel = panelEl("slot_well", "lib-stage");
@@ -396,6 +417,12 @@ export function mountLibrary(
     controlsOff = null;
     viewer = portraits.createViewer(view);
     viewer.setUnit(u.id, star, skinId);
+    const updateUnit = () => {
+      viewer?.setUnit(u.id, star, skinId);
+      viewer?.setCombat(beastForm);
+      viewer?.play(action);
+      scheduleIdle();
+    };
     controlsOff = mountPortraitControls(stagePanel, viewer);
     scheduleIdle();
     if (!hasRig(u.id)) stagePanel.append(h("div", "lib-pending", t("library.artPending")));
@@ -404,6 +431,8 @@ export function mountLibrary(
     const stateBtns: KitButton[] = [];
     for (const s of ACTION_STATES) {
       const b = kitButton({ skin: "green", label: t(STATE_KEY[s]), onClick: () => {
+        action = s;
+        beastForm = false;
         relaxedIdle = s === "idle";
         viewer?.setCombat(false);
         viewer?.play(s);
@@ -412,16 +441,19 @@ export function mountLibrary(
       } });
       actions.append(b.el);
       stateBtns.push(b);
+      if (s === "idle") b.setSelected(true);
       if (s === "idle") {
-        const beastForm = kitButton({ skin: "green", label: t("unit.beastForm"), onClick: () => {
+        const beastButton = kitButton({ skin: "green", label: t("unit.beastForm"), onClick: () => {
+          action = "idle";
+          beastForm = true;
           relaxedIdle = false;
           viewer?.setCombat(true);
           viewer?.play("idle");
           for (const x of stateBtns) x.setSelected(false);
           clearIdleTimer();
         } });
-        viewTips.push(tip.bind(beastForm.el, () => ({ title: t("unit.beastForm") })));
-        actions.append(beastForm.el);
+        viewTips.push(tip.bind(beastButton.el, () => ({ title: t("unit.beastForm") })));
+        actions.append(beastButton.el);
       }
     }
     const stars = h("div", "lib-stars");
@@ -432,18 +464,36 @@ export function mountLibrary(
       nameHeading.textContent = name;
     };
     const starBtns = ([1, 2, 3] as const).map((n) => {
-      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; viewer?.setUnit(u.id, n, skinId); scheduleIdle(); syncEvolutionName(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
+      const b = kitButton({ skin: "plum", label: "★".repeat(n), onClick: () => { star = n; updateUnit(); syncEvolutionName(); for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === n); renderInfo(); } });
       stars.append(b.el);
       return b;
     });
     starBtns[0]!.setSelected(true);
 
     const info = h("div", "lib-info");
-    const back = kitButton({ skin: "wood", label: t("library.back"), cls: "lib-back", onClick: () => renderBrowse() });
+    const back = browseOrigin ? kitButton({
+      skin: "wood", label: t("library.back"), cls: "lib-back",
+      onClick: () => {
+        const state = browseOrigin?.state;
+        if (!state) return;
+        tab = state.tab; Object.assign(f, { q: state.query, role: state.role, faction: state.faction, tier: state.tier });
+        page = state.page; catalogTier = state.catalogTier; catalogPage = state.catalogPage;
+        renderBrowse();
+        restoreFrame = requestAnimationFrame(() => {
+          restoreFrame = 0;
+          if (!gridEl?.isConnected) return;
+          gridEl.scrollTop = state.gridScrollTop;
+          modal.body.scrollTop = state.modalScrollTop;
+          const focused = Array.from(gridEl.querySelectorAll<HTMLElement>("[data-library-unit]"))
+            .find((entry) => entry.dataset.libraryUnit === state.focusedCardId);
+          (focused ?? root.querySelector<HTMLElement>(".lib-input") ?? root.querySelector<HTMLElement>("[role=tab]"))?.focus({ preventScroll: true });
+        });
+      },
+    }) : null;
     const left = h("div", "lib-left");
     left.append(nameHeading, stagePanel, actions, stars);
     wrap.append(left, info);
-    root.append(back.el, wrap);
+    root.append(...(back ? [back.el] : []), wrap);
 
     function renderInfo() {
       info.replaceChildren();
@@ -498,8 +548,7 @@ export function mountLibrary(
         const base = kitButton({ skin: "wood", label: t("library.baseLook"), onClick: () => {
           if (account.equipCollectionSkin(u.id, null)) refreshCollection();
           skinId = null;
-          viewer?.setUnit(u.id, star, skinId);
-          scheduleIdle();
+          updateUnit();
           syncEvolutionName();
           renderInfo();
         } });
@@ -513,8 +562,7 @@ export function mountLibrary(
             if (account.equipCollectionSkin(u.id, skin.id)) refreshCollection();
             star = stage;
             skinId = skin.id;
-            viewer?.setUnit(u.id, star, skinId);
-            scheduleIdle();
+            updateUnit();
             syncEvolutionName();
             for (const [k, x] of starBtns.entries()) x.setSelected(k + 1 === star);
             renderInfo();
@@ -531,5 +579,5 @@ export function mountLibrary(
   }
 
   if (startId) showDetail(startId); else renderBrowse();
-  return { showDetail, dispose() { craftLibraryView?.dispose(); craftLibraryView = null; controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
+  return { showDetail, dispose() { if (restoreFrame) cancelAnimationFrame(restoreFrame); craftLibraryView?.dispose(); craftLibraryView = null; controlsOff?.(); clearIdleTimer(); clearCardTips(); clearViewTips(); gridRo?.disconnect(); viewer?.dispose(); for (const c of cards) c.dispose(); disposeSurfaceTree(root); root.remove(); } };
 }
