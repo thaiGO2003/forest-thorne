@@ -34,6 +34,10 @@ export const VISUAL_UNIT_IDS: readonly string[] = [
   "cat_goldbow",
   "swan_grace",
   "dryad_tree",
+  "moth_dust",
+  "buffalo_mist",
+  "mosquito_toxic",
+  "pelican_bomb",
 ];
 
 const VISUAL_UNITS = new Set<string>(VISUAL_UNIT_IDS);

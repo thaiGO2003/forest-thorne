@@ -572,7 +572,7 @@
  {
   "id": "buffalo_mist",
   "species": "trau",
-  "nameVi": "Trâu Sương Mù",
+  "nameVi": "Bò Viking",
   "tier": 4,
   "role": "TANKER",
   "faction": "BEAST",
@@ -3527,7 +3527,7 @@
  {
   "id": "mosquito_toxic",
   "species": "muoi",
-  "nameVi": "Muỗi Độc",
+  "nameVi": "Bướm Sát Thủ",
   "tier": 3,
   "role": "ASSASSIN",
   "faction": "INSECT",
@@ -3584,7 +3584,7 @@
  {
   "id": "moth_dust",
   "species": "buom-dem",
-  "nameVi": "Ruồi Đêm Bụi",
+  "nameVi": "Sương Điệp",
   "tier": 3,
   "role": "MAGE",
   "faction": "INSECT",
@@ -4211,7 +4211,7 @@
  {
   "id": "pelican_bomb",
   "species": "bo-nong",
-  "nameVi": "Bồ Nông Bom",
+  "nameVi": "Pháo Dừa",
   "tier": 4,
   "role": "ARCHER",
   "faction": "AVIAN",

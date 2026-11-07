@@ -22,6 +22,10 @@ import bullRage from "../src/units/roster/bullRage";
 import hedgehogSun from "../src/units/roster/hedgehogSun";
 import duckKing from "../src/units/roster/duckKing";
 import elfSheep from "../src/units/roster/elfSheep";
+import frostButterfly from "../src/units/roster/frostButterfly";
+import vikingBison from "../src/units/roster/vikingBison";
+import butterflyAssassin from "../src/units/roster/butterflyAssassin";
+import coconutCannon from "../src/units/roster/coconutCannon";
 import { createUnit, hasRig } from "../src/units/registry";
 import { hasUnitVisual } from "../src/content/unitVisuals";
 import { getUnit, type Role } from "../src/content/catalog";
@@ -46,6 +50,10 @@ const CASES: [UnitRigDef<unknown>, string, Role][] = [
   [hedgehogSun, "Nhím Mặt Trời", "ARCHER"],
   [duckKing, "Vua Vịt Vàng", "MAGE"],
   [elfSheep, "Elf Lùn Cừu", "SUPPORT"],
+  [frostButterfly, "Sương Điệp", "MAGE"],
+  [vikingBison, "Bò Viking", "TANKER"],
+  [butterflyAssassin, "Bướm Sát Thủ", "ASSASSIN"],
+  [coconutCannon, "Pháo Dừa", "ARCHER"],
 ];
 const STATES: [ActionState, boolean][] = [["idle", false], ["idle", true], ["move", false], ["move", true], ["attack", false], ["skill", false], ["hit", false]];
 const SAMPLES = Array.from({ length: 41 }, (_, i) => i / 40);
