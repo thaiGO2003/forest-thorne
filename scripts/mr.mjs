@@ -22,11 +22,12 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
+export const DEFAULT_BASE = "dev";
 
 // `shell: true` is required to spawn pnpm's .cmd shim on Windows. gh and git are real
 // executables, so they run without a shell and keep argument quoting intact.
@@ -45,10 +46,43 @@ const options = {
   full: flag("full") || process.env.MR_FULL === "1",
   noEvidence: flag("no-evidence") || process.env.MR_NO_EVIDENCE === "1",
   draft: flag("draft"),
-  base: value("base", process.env.MR_BASE ?? "main"),
+  base: value("base", process.env.MR_BASE ?? DEFAULT_BASE),
   url: value("url", process.env.MR_URL),
   title: value("title"),
 };
+
+export const MR_BLOCK_START = "<!-- forest-thorne-mr:start -->";
+export const MR_BLOCK_END = "<!-- forest-thorne-mr:end -->";
+
+export function wrapPrBody(body) {
+  return `${MR_BLOCK_START}\n${String(body)}\n${MR_BLOCK_END}`;
+}
+
+/** Replace only our generated block; never delete an existing attestation/body/evidence. */
+export function mergePrBody(existing, generated) {
+  const current = String(existing ?? "");
+  if (!current.trim()) return generated;
+  const start = current.indexOf(MR_BLOCK_START);
+  const end = current.indexOf(MR_BLOCK_END, start + MR_BLOCK_START.length);
+  if (start >= 0 && end > start) {
+    return `${current.slice(0, start)}${generated}${current.slice(end + MR_BLOCK_END.length)}`;
+  }
+  return `${current.trimEnd()}\n\n${generated}`;
+}
+
+export function titleForUpdate(existingTitle, requestedTitle) {
+  return requestedTitle || existingTitle || "MR";
+}
+
+/** Evidence is mandatory for real PR create/update; dry-run may skip it. */
+export function assertEvidenceReady({ dryRun, noEvidence, files, urls }) {
+  if (dryRun) return;
+  if (noEvidence) {
+    throw new Error("evidence is mandatory for PR creation/update; --no-evidence is only allowed with --dry-run");
+  }
+  if (!files.length) throw new Error("no evidence screenshots captured; refusing to create/update PR");
+  if (!urls.length) throw new Error("evidence upload failed; refusing to create/update PR without images");
+}
 
 /** @param {string} command @param {string[]} args */
 function run(command, args, { cwd = root, allowFailure = false } = {}) {
@@ -65,14 +99,20 @@ function run(command, args, { cwd = root, allowFailure = false } = {}) {
 }
 
 /** @param {string} command @param {string[]} args */
-function capture(command, args, { cwd = root } = {}) {
+function capture(command, args, { cwd = root, trim = true } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     shell: process.platform === "win32" && NEEDS_SHELL.has(command),
     env: process.env,
   });
-  return { status: result.status ?? 1, stdout: (result.stdout ?? "").trim(), stderr: (result.stderr ?? "").trim() };
+  const stdout = result.stdout ?? "";
+  const stderr = result.stderr ?? "";
+  return {
+    status: result.status ?? 1,
+    stdout: trim ? stdout.trim() : stdout,
+    stderr: trim ? stderr.trim() : stderr,
+  };
 }
 
 function git(...args) {
@@ -215,27 +255,18 @@ const EVIDENCE_BRANCH = process.env.MR_EVIDENCE_BRANCH ?? "mr-evidence";
 // repository through the contents API. The repository is public, so raw links render inline
 // in the merge-request description without touching the MR diff.
 async function uploadEvidence(files) {
-  if (files.length === 0) return [];
+  if (files.length === 0) throw new Error("no evidence files to upload");
   const repo = repoSlug();
-  if (!repo) {
-    console.warn("    no GitHub origin; evidence stays local");
-    return [];
-  }
+  if (!repo) throw new Error("no GitHub origin; cannot upload evidence");
   const existing = capture("gh", ["api", `repos/${repo}/git/ref/heads/${EVIDENCE_BRANCH}`]);
   if (existing.status !== 0) {
     const baseSha = capture("gh", ["api", `repos/${repo}/git/ref/heads/${options.base}`, "--jq", ".object.sha"]).stdout;
-    if (!baseSha) {
-      console.warn(`    could not resolve ${options.base}; evidence stays local`);
-      return [];
-    }
+    if (!baseSha) throw new Error(`could not resolve ${options.base} for evidence upload`);
     const created = capture(
       "gh",
       ["api", "-X", "POST", `repos/${repo}/git/refs`, "-f", `ref=refs/heads/${EVIDENCE_BRANCH}`, "-f", `sha=${baseSha}`],
     );
-    if (created.status !== 0) {
-      console.warn(`    could not create branch ${EVIDENCE_BRANCH}; evidence stays local`);
-      return [];
-    }
+    if (created.status !== 0) throw new Error(`could not create evidence branch ${EVIDENCE_BRANCH}`);
   }
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const urls = [];
@@ -252,25 +283,25 @@ async function uploadEvidence(files) {
       "gh",
       ["api", "-X", "PUT", `repos/${repo}/contents/${path}`, "--input", payloadFile],
     );
-    if (uploaded.status === 0) {
-      urls.push(`https://raw.githubusercontent.com/${repo}/${EVIDENCE_BRANCH}/${path}`);
-      console.log(`    uploaded ${path}`);
-    } else {
-      console.warn(`    upload failed for ${name}`);
-    }
+    if (uploaded.status !== 0) throw new Error(`evidence upload failed for ${name}`);
+    urls.push(`https://raw.githubusercontent.com/${repo}/${EVIDENCE_BRANCH}/${path}`);
+    console.log(`    uploaded ${path}`);
   }
   return urls;
 }
 
-function changedFiles() {
-  const status = git("status", "--porcelain");
-  const lines = status.stdout.split(/\r?\n/).filter(Boolean);
+export function changedFilesFromStatus(raw) {
+  const lines = String(raw ?? "").split(/\r?\n/).filter(Boolean);
   const tracked = lines.filter((line) => !line.startsWith("?? "));
   const untracked = lines.filter((line) => line.startsWith("?? "));
   const rows = tracked.slice(0, 20).map((line) => `- \`${line.slice(3)}\``);
   if (tracked.length > 20) rows.push(`- … ${tracked.length - 20} more changed path(s)`);
   if (untracked.length > 0) rows.push(`- ${untracked.length} untracked path(s) (not listed)`);
   return rows.length ? rows.join("\n") : "- (no working-tree changes)";
+}
+
+function changedFiles() {
+  return changedFilesFromStatus(capture("git", ["status", "--porcelain"], { trim: false }).stdout);
 }
 
 function branchInfo() {
@@ -330,22 +361,34 @@ function ensurePushed({ branch, hasUpstream }) {
 
 function createOrUpdatePr(body) {
   const { branch } = branchInfo();
-  const title = options.title ?? `MR: ${branch}`;
+  const generated = wrapPrBody(body);
   const bodyFile = join(tmpdir(), `forest-thorne-mr-${Date.now()}.md`);
-  writeFileSync(bodyFile, body);
+  writeFileSync(bodyFile, generated);
   console.log(`\n==> PR body written to ${bodyFile}\n`);
   if (options.dryRun) {
-    console.log(body);
+    console.log(generated);
     return;
   }
   const existing = capture("gh", ["pr", "list", "--head", branch, "--json", "number", "--jq", ".[0].number"]);
   const number = existing.status === 0 ? existing.stdout.trim() : "";
   if (number) {
-    console.log(`==> updating PR #${number}`);
+    const current = capture("gh", ["pr", "view", number, "--json", "title,body"]);
+    if (current.status !== 0) throw new Error(`could not read PR #${number} before update`);
+    let data;
+    try {
+      data = JSON.parse(current.stdout);
+    } catch {
+      throw new Error(`could not parse PR #${number} metadata`);
+    }
+    const bodyText = mergePrBody(data.body ?? "", generated);
+    const title = titleForUpdate(data.title ?? `MR: ${branch}`, options.title);
+    writeFileSync(bodyFile, bodyText);
+    console.log(`==> updating PR #${number} (preserving existing body/attestation/evidence)`);
     run("gh", ["pr", "edit", number, "--body-file", bodyFile, "--title", title]);
     return;
   }
   console.log("==> creating pull request");
+  const title = options.title ?? `MR: ${branch}`;
   const args = ["pr", "create", "--base", options.base, "--head", branch, "--title", title, "--body-file", bodyFile];
   if (options.draft) args.push("--draft");
   run("gh", args);
@@ -373,14 +416,12 @@ async function main() {
   }
 
   let files = [];
-  if (!options.noEvidence) {
-    try {
-      files = await evidence();
-    } catch (error) {
-      console.warn(`    evidence capture failed (continuing without images): ${error instanceof Error ? error.message : error}`);
-    }
+  if (!options.noEvidence) files = await evidence();
+  else if (!options.dryRun) {
+    throw new Error("evidence is mandatory for PR creation/update; --no-evidence is only allowed with --dry-run");
   }
   const urls = options.dryRun ? [] : await uploadEvidence(files);
+  assertEvidenceReady({ dryRun: options.dryRun, noEvidence: options.noEvidence, files, urls });
 
   const body = prBody({ branch, lintLabel, buildLabel, evidenceUrls: urls, evidenceFiles: files });
   if (!options.full) {
@@ -390,7 +431,11 @@ async function main() {
   createOrUpdatePr(body);
 }
 
-main().catch((error) => {
-  console.error(`\nMR FAILED: ${error instanceof Error ? error.message : error}`);
-  process.exit(1);
-});
+const invokedDirectly = process.argv[1]
+  && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (invokedDirectly) {
+  main().catch((error) => {
+    console.error(`\nMR FAILED: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  });
+}
