@@ -37,7 +37,7 @@ review. Các việc đó vẫn theo luật repo hiện có.
 2. Developer **không** tạo PR, không merge, không đóng issue.
 3. Verifier tạo PR + ảnh evidence; **không** ghi `APPROVED`, không merge.
 4. Pull Verifier duyệt/merge theo uỷ quyền owner:
-   `Reviewer: agent:pull-verifier` + `Authorized-by: thaiGO2003 — 2026-11-05 — "tui mới tạo agent pull verifier mà, 1B"`.
+   `Reviewer: agent:pull-verifier` + `Authorized-by: thaiGO2003 — 2026-11-07 — "tui ko muon human in the loop dau"`.
 5. Mọi PR phải có **ít nhất một ảnh evidence** trong body hoặc comment, pin theo
    `Verified-Head`.
 6. Head đổi → evidence/approval cũ vô hiệu.

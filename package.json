@@ -15,7 +15,11 @@
     "qa:crafting": "node scripts/qa/crafting-workbench.mjs",
     "qa:library": "node scripts/qa/library-filters.mjs",
     "port:items": "node scripts/port-old-items.mjs",
-    "shot": "node scripts/shot.mjs"
+    "shot": "node scripts/shot.mjs",
+    "mr": "node scripts/mr.mjs",
+    "mr:full": "node scripts/mr.mjs --full",
+    "mr:lint": "node scripts/mr.mjs --lint-only",
+    "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans": "^5.3.0",
