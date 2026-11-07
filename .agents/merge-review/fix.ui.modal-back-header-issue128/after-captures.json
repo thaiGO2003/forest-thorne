@@ -1,0 +1,396 @@
+[
+  {
+    "state": "library-root",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-library-root-mobile.png",
+    "metrics": {
+      "head": {
+        "x": 22,
+        "y": 20,
+        "right": 368,
+        "bottom": 72,
+        "width": 346,
+        "height": 52
+      },
+      "body": {
+        "x": 22,
+        "y": 82,
+        "right": 368,
+        "bottom": 818,
+        "width": 346,
+        "height": 736
+      },
+      "ribbon": {
+        "left": 22,
+        "right": 308
+      },
+      "buttons": [
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 326,
+          "y": 22,
+          "right": 370,
+          "bottom": 66,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": null
+    }
+  },
+  {
+    "state": "settings-root",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-settings-root-mobile.png",
+    "metrics": {
+      "head": {
+        "x": 22,
+        "y": 110,
+        "right": 368,
+        "bottom": 162,
+        "width": 346,
+        "height": 52
+      },
+      "body": {
+        "x": 22,
+        "y": 172,
+        "right": 368,
+        "bottom": 728,
+        "width": 346,
+        "height": 556
+      },
+      "ribbon": {
+        "left": 22,
+        "right": 260
+      },
+      "buttons": [
+        {
+          "className": "kit-btn modal-header-action",
+          "aria": "Về menu chính",
+          "text": "",
+          "x": 278,
+          "y": 112,
+          "right": 322,
+          "bottom": 156,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 326,
+          "y": 112,
+          "right": 370,
+          "bottom": 156,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/2b05.png"
+    }
+  },
+  {
+    "state": "settings-confirm",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-settings-confirm-mobile.png",
+    "metrics": {
+      "head": {
+        "x": 22,
+        "y": 257.21875,
+        "right": 368,
+        "bottom": 309.21875,
+        "width": 346,
+        "height": 52
+      },
+      "body": {
+        "x": 22,
+        "y": 319.21875,
+        "right": 368,
+        "bottom": 580.78125,
+        "width": 346,
+        "height": 261.5625
+      },
+      "ribbon": {
+        "left": 22,
+        "right": 260
+      },
+      "buttons": [
+        {
+          "className": "kit-btn modal-back",
+          "aria": "Quay lại",
+          "text": "",
+          "x": 278,
+          "y": 259.21875,
+          "right": 322,
+          "bottom": 303.21875,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 326,
+          "y": 259.21875,
+          "right": 370,
+          "bottom": 303.21875,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/2b05.png"
+    }
+  },
+  {
+    "state": "inventory-library",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-inventory-library-mobile.png",
+    "metrics": {
+      "head": {
+        "x": 22,
+        "y": 20,
+        "right": 368,
+        "bottom": 72,
+        "width": 346,
+        "height": 52
+      },
+      "body": {
+        "x": 22,
+        "y": 82,
+        "right": 368,
+        "bottom": 818,
+        "width": 346,
+        "height": 736
+      },
+      "ribbon": {
+        "left": 22,
+        "right": 260
+      },
+      "buttons": [
+        {
+          "className": "kit-btn modal-back",
+          "aria": "Quay lại",
+          "text": "",
+          "x": 278,
+          "y": 22,
+          "right": 322,
+          "bottom": 66,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 326,
+          "y": 22,
+          "right": 370,
+          "bottom": 66,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/2b05.png"
+    }
+  },
+  {
+    "state": "library-root",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-library-root-desktop.png",
+    "metrics": {
+      "head": {
+        "x": 32,
+        "y": 24,
+        "right": 1248,
+        "bottom": 76,
+        "width": 1216,
+        "height": 52
+      },
+      "body": {
+        "x": 32,
+        "y": 86,
+        "right": 1248,
+        "bottom": 686,
+        "width": 1216,
+        "height": 600
+      },
+      "ribbon": {
+        "left": 32,
+        "right": 324
+      },
+      "buttons": [
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 1210,
+          "y": 28,
+          "right": 1254,
+          "bottom": 72,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": null
+    }
+  },
+  {
+    "state": "settings-root",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-settings-root-desktop.png",
+    "metrics": {
+      "head": {
+        "x": 210,
+        "y": 52,
+        "right": 1070,
+        "bottom": 104,
+        "width": 860,
+        "height": 52
+      },
+      "body": {
+        "x": 210,
+        "y": 114,
+        "right": 1070,
+        "bottom": 658,
+        "width": 860,
+        "height": 544
+      },
+      "ribbon": {
+        "left": 506,
+        "right": 774
+      },
+      "buttons": [
+        {
+          "className": "kit-btn modal-header-action",
+          "aria": "Về menu chính",
+          "text": "",
+          "x": 984,
+          "y": 56,
+          "right": 1028,
+          "bottom": 100,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 1032,
+          "y": 56,
+          "right": 1076,
+          "bottom": 100,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/2b05.png"
+    }
+  },
+  {
+    "state": "settings-confirm",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-settings-confirm-desktop.png",
+    "metrics": {
+      "head": {
+        "x": 460,
+        "y": 191.21875,
+        "right": 820,
+        "bottom": 243.21875,
+        "width": 360,
+        "height": 52
+      },
+      "body": {
+        "x": 460,
+        "y": 253.21875,
+        "right": 820,
+        "bottom": 518.78125,
+        "width": 360,
+        "height": 265.5625
+      },
+      "ribbon": {
+        "left": 460,
+        "right": 706
+      },
+      "buttons": [
+        {
+          "className": "kit-btn modal-back",
+          "aria": "Quay lại",
+          "text": "",
+          "x": 734,
+          "y": 195.21875,
+          "right": 778,
+          "bottom": 239.21875,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 782,
+          "y": 195.21875,
+          "right": 826,
+          "bottom": 239.21875,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/2b05.png"
+    }
+  },
+  {
+    "state": "inventory-library",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/after-inventory-library-desktop.png",
+    "metrics": {
+      "head": {
+        "x": 32,
+        "y": 24,
+        "right": 1248,
+        "bottom": 76,
+        "width": 1216,
+        "height": 52
+      },
+      "body": {
+        "x": 32,
+        "y": 86,
+        "right": 1248,
+        "bottom": 686,
+        "width": 1216,
+        "height": 600
+      },
+      "ribbon": {
+        "left": 458,
+        "right": 822
+      },
+      "buttons": [
+        {
+          "className": "kit-btn modal-back",
+          "aria": "Quay lại",
+          "text": "",
+          "x": 1162,
+          "y": 28,
+          "right": 1206,
+          "bottom": 72,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "className": "kit-btn kit-close modal-close",
+          "aria": "Thu gọn",
+          "text": "",
+          "x": 1210,
+          "y": 28,
+          "right": 1254,
+          "bottom": 72,
+          "width": 44,
+          "height": 44
+        }
+      ],
+      "arrowImage": "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/2b05.png"
+    }
+  }
+]

@@ -2,6 +2,7 @@
 // Replacement disposes the old view without user-dismissal callbacks or focus stealing.
 import { closeButton, disposeSurfaceTree, drawFit, h, kitButton, nineSlice, label, LABEL, SLICE, surface, threeSlice, type KitButton } from "./kit";
 import { uiFont } from "./fontScale";
+import { ICONS } from "../core/emojiIcon";
 
 export interface ModalHandle {
   id: string;
@@ -105,29 +106,36 @@ export function createModalHost(layer: HTMLElement): ModalHost {
       surface(frame, (g, w, hh) => nineSlice(g, "panel_parchment", SLICE.panel_parchment, 0, 18, w, hh - 18));
 
       let title = o.title;
+      const hasClose = o.dismissible !== false;
+      const hasBack = Boolean(o.onBack && hasClose);
+      const buttonCount = Number(hasClose) + Number(hasBack) + Number(Boolean(o.headerAction));
       const head = h("div", "modal-head");
       const ribbon = surface(head, (g, w, hh) => {
-        const rw = Math.min(w - 40, Math.max(240, title.length * 24 + 100));
-        threeSlice(g, "ribbon", SLICE.ribbon, (w - rw) / 2, 0, rw, hh);
-        label(g, title, w / 2, hh * 0.44, { size: uiFont(Math.round(hh * 0.36)), fill: LABEL, maxW: Math.max(20, rw - 108), font: "heading" });
+        const edge = matchMedia("(max-width: 760px)").matches ? 8 : 14;
+        const cluster = buttonCount ? edge + buttonCount * 44 + (buttonCount - 1) * 4 : 0;
+        const desired = Math.max(240, title.length * 24 + 100);
+        const rw = Math.max(0, Math.min(w - cluster - 8, desired));
+        const x = buttonCount >= 2 && desired <= w - 2 * cluster ? (w - rw) / 2 : 0;
+        threeSlice(g, "ribbon", SLICE.ribbon, x, 0, rw, hh);
+        label(g, title, x + rw / 2, hh * 0.44, { size: uiFont(Math.round(hh * 0.36)), fill: LABEL, maxW: Math.max(20, rw - 108), font: "heading" });
       });
       frame.setAttribute("aria-label", title);
       const body = h("div", "modal-body");
       frame.append(head, body);
       let closeControl: HTMLButtonElement | null = null;
-      if (o.dismissible !== false) {
-        closeControl = closeButton(() => closeCurrent("dismiss"), o.closeLabel ?? "Đóng");
-        closeControl.classList.add("modal-close");
-        frame.append(closeControl);
+      if (hasBack && o.onBack) {
+        const back = kitButton({ skin: "icon", icon: ICONS.back, aria: o.onBack.label, cls: "modal-back", onClick: () => closeCurrent("back") });
+        frame.append(back.el);
       }
       let headerAction: KitButton | null = null;
       if (o.headerAction) {
         headerAction = kitButton({ skin: "icon", icon: o.headerAction.icon, aria: o.headerAction.label, cls: "modal-header-action", onClick: o.headerAction.onClick });
         frame.append(headerAction.el);
       }
-      if (o.onBack && o.dismissible !== false) {
-        const back = kitButton({ skin: "wood", label: o.onBack.label, aria: o.onBack.label, cls: "modal-back", onClick: () => closeCurrent("back") });
-        frame.append(back.el);
+      if (hasClose) {
+        closeControl = closeButton(() => closeCurrent("dismiss"), o.closeLabel ?? "Đóng");
+        closeControl.classList.add("modal-close");
+        frame.append(closeControl);
       }
       root.append(shade, frame);
       layer.append(root);

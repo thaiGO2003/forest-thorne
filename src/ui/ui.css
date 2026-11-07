@@ -158,8 +158,9 @@
 .modal-body { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 10px 18px 16px 10px; line-height: 1.45; overflow-wrap: anywhere; scrollbar-gutter: stable; }
 .modal-close { position: absolute; z-index: 2; top: 16px; right: 14px; }
 .modal-header-action { position: absolute; z-index: 2; top: 16px; right: 62px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-.modal-back { position: absolute; z-index: 2; top: 16px; left: 14px; min-height: 40px; }
-.modal-frame:has(> .modal-back) .modal-head { margin-top: 44px; }
+.modal-back { position: absolute; z-index: 2; top: 16px; right: 62px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+.modal-frame:has(> .modal-back) .modal-header-action { right: 110px; }
+.modal-frame:not(:has(> .modal-close)) .modal-header-action { right: 14px; }
 
 .emoji-inline { display: inline-block; width: 1em; height: 1em; max-width: 1em; vertical-align: -0.12em; object-fit: contain; flex: none; }
 /* ---------- tooltip ---------- */
@@ -925,6 +926,9 @@
   .modal-frame { padding: 8px 10px 14px; }
   .modal-body { padding: 8px 22px 14px 10px; }
   .modal-close { top: 10px; right: 8px; }
+  .modal-back, .modal-header-action { top: 10px; right: 56px; }
+  .modal-frame:has(> .modal-back) .modal-header-action { right: 104px; }
+  .modal-frame:not(:has(> .modal-close)) .modal-header-action { right: 8px; }
   .settings-body { padding-right: 10px; }
   .tabs { flex-wrap: nowrap; overflow-x: auto; min-width: 0; padding: 2px 2px 8px; overscroll-behavior-x: contain; }
   .tabs .kit-btn { flex: none; }

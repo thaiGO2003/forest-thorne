@@ -1,0 +1,42 @@
+[
+  {
+    "state": "library-root",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-library-root-mobile.png"
+  },
+  {
+    "state": "settings-root",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-settings-root-mobile.png"
+  },
+  {
+    "state": "settings-confirm",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-settings-confirm-mobile.png"
+  },
+  {
+    "state": "inventory-library",
+    "viewport": "mobile",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-inventory-library-mobile.png"
+  },
+  {
+    "state": "library-root",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-library-root-desktop.png"
+  },
+  {
+    "state": "settings-root",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-settings-root-desktop.png"
+  },
+  {
+    "state": "settings-confirm",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-settings-confirm-desktop.png"
+  },
+  {
+    "state": "inventory-library",
+    "viewport": "desktop",
+    "path": "/home/thaigo/forest-thorne-issue-128-header/.agents/merge-review/fix.ui.modal-back-header-issue128/before-inventory-library-desktop.png"
+  }
+]

@@ -4,6 +4,7 @@ import { createServer, type ViteDevServer } from "vite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ModalHost } from "../src/ui/modal";
 
 // The host must be imported inside the browser realm: a Node static import has no DOM.
 // Exercise the actual host and asset-backed controls in a browser, without booting the game.
@@ -42,6 +43,89 @@ beforeEach(async () => {
 afterEach(async () => { await page?.close(); });
 
 describe("modal navigation", () => {
+  it("places accessible header actions without overlapping the ribbon or body at both viewport sizes", async () => {
+    await page.addStyleTag({ url: `${origin}/src/ui/ui.css` });
+    await page.evaluate(async () => {
+      const load = new Function("specifier", "return import(specifier)");
+      const [{ createModalHost }, { loadKit }] = await Promise.all([load("/src/ui/modal.ts"), load("/src/ui/kit.ts")]);
+      await loadKit();
+      const state = { host: createModalHost(document.querySelector("#layer")!), backs: 0, closes: 0 };
+      Object.assign(window, { __modalHeaderTest: state });
+    });
+    for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 }]) {
+      await page.setViewportSize(viewport);
+      for (const kind of ["close", "back", "action", "both"] as const) {
+        await page.evaluate((kind) => {
+          const state = (window as Window & { __modalHeaderTest?: { host: ModalHost; backs: number; closes: number } }).__modalHeaderTest!;
+          state.host.open({
+            id: kind, title: "Thư viện", size: "lg",
+            onClose: () => state.closes++,
+            onBack: kind === "back" || kind === "both" ? { label: "Quay lại", restore: () => state.backs++ } : undefined,
+            headerAction: kind === "action" || kind === "both" ? { icon: "🏠", label: "Menu", onClick() {} } : undefined,
+          });
+        }, kind);
+        await page.waitForFunction(() => {
+          const canvas = document.querySelector<HTMLCanvasElement>(".modal-head canvas");
+          if (!canvas?.width) return false;
+          const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+          return data.some((value, index) => index % 4 === 3 && value !== 0);
+        });
+        const layout = await page.evaluate(() => {
+          const rect = (el: Element) => {
+            const r = el.getBoundingClientRect();
+            return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+          };
+          const frame = document.querySelector<HTMLElement>(".modal-frame")!;
+          const head = frame.querySelector<HTMLElement>(".modal-head")!;
+          const canvas = head.querySelector<HTMLCanvasElement>("canvas")!;
+          const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+          let left = canvas.width, right = -1;
+          for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+            if (data[(y * canvas.width + x) * 4 + 3]) { left = Math.min(left, x); right = Math.max(right, x); }
+          }
+          const headBox = rect(head), canvasScale = headBox.width / canvas.width;
+          return {
+            head: headBox, body: rect(frame.querySelector(".modal-body")!),
+            ribbonLeft: headBox.x + left * canvasScale, ribbonRight: headBox.x + (right + 1) * canvasScale,
+            controls: Array.from(frame.querySelectorAll<HTMLButtonElement>(":scope > button")).map((el) => ({
+              cls: el.className, label: el.getAttribute("aria-label"), text: el.innerText.trim(), ...rect(el),
+            })),
+          };
+        });
+        const controls = layout.controls;
+        expect(controls.every((button) => button.width >= 44 && button.height >= 44 && button.bottom <= layout.body.y)).toBe(true);
+        const close = controls.find((button) => button.cls.includes("modal-close"))!;
+        const back = controls.find((button) => button.cls.includes("modal-back"));
+        if (back) {
+          expect(back.label).toBe("Quay lại");
+          expect(back.text).toBe("");
+          expect(back.right).toBeLessThanOrEqual(close.x);
+        }
+        const ordered = [...controls].sort((a, b) => a.x - b.x);
+        for (let i = 1; i < ordered.length; i++) expect(ordered[i - 1]!.right).toBeLessThanOrEqual(ordered[i]!.x);
+        const leftmost = Math.min(...controls.map((button) => button.x));
+        expect(layout.ribbonRight).toBeLessThanOrEqual(leftmost + 1);
+        const centered = controls.length >= 2 && viewport.width > 760;
+        if (centered) expect(Math.abs((layout.ribbonLeft + layout.ribbonRight) / 2 - (layout.head.x + layout.head.width / 2))).toBeLessThan(2);
+        else expect(Math.abs(layout.ribbonLeft - layout.head.x)).toBeLessThan(3);
+        if (back) {
+          await page.keyboard.press("Tab");
+          expect(await page.locator(".modal-back").evaluate((el) => el === document.activeElement)).toBe(true);
+          await page.keyboard.press("Enter");
+          expect(await page.evaluate(() => (window as Window & { __modalHeaderTest?: { backs: number } }).__modalHeaderTest!.backs)).toBeGreaterThan(0);
+        } else if (kind === "close") {
+          await page.keyboard.press("Tab");
+          expect(await page.locator(".modal-close").evaluate((el) => el === document.activeElement)).toBe(true);
+          await page.keyboard.press("Enter");
+          expect(await page.locator(".modal-root").count()).toBe(0);
+        } else {
+          await page.keyboard.press("Escape");
+          expect(await page.locator(".modal-root").count()).toBe(0);
+        }
+      }
+    }
+    await page.evaluate(() => (window as Window & { __modalHeaderTest?: { host: ModalHost } }).__modalHeaderTest!.host.dispose());
+  }, 60_000);
   it("replaces a modal without dismissing or focusing its opener; stale handles cannot close the replacement", async () => {
     const result = await page.evaluate(async () => {
       const path = "/src/ui/modal.ts";

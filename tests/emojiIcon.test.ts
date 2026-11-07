@@ -54,6 +54,8 @@ describe("A61 emoji/icon authority and fallback behavior", () => {
     expect(getEmojiImageUrl("heart")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/2764.png`);
     expect(getEmojiImageUrl("❤️‍🔥")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/2764-fe0f-200d-1f525.png`);
     expect(getEmojiImageUrl("🪙")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/1fa99.png`);
+    expect(getEmojiImageUrl("back")).toBe(`${EMOJI_IMAGE_SOURCE.baseUrl}/2b05.png`);
+    expect(normalizeIconInput("⬅️")).toBe("back");
     expect(splitEmojiText("Mua (1 🪙)")).toEqual([
       { kind: "text", value: "Mua (1 " },
       { kind: "emoji", value: "🪙" },
