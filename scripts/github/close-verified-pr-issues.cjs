@@ -3,64 +3,21 @@
 // This module executes only from the repository's trusted default branch.
 // The PR body is untrusted data; never evaluate it or check out its head.
 const { createHash } = require('node:crypto');
+const { parseAttestationHeader } = require('./attestation-contract.cjs');
 const VERIFIED_LABEL = 'issue-verified-complete';
 
-// Only an exact, plain-text header at the very beginning of the PR body is
-// attested. An optional `---` separates it from free-form Markdown prose.
-// Fail closed on ANY other header syntax: nested HTML, quoted Markdown,
-// code fences, lists, indents, and hidden content cannot add declarations.
-function declarationLines(body) {
-  const lines = [];
-  for (const line of String(body ?? '').split(/\r?\n/)) {
-    if (line === '---') break;
-    if (!line) continue;
-    if (!/^(?:Closes|Fixes|Resolves) #[1-9]\d*$/i.test(line) &&
-        !/^Verified-Head: [a-f0-9]{40}$/i.test(line) &&
-        !/^Verification: \S.{0,1499}$/i.test(line) &&
-        !/^Issue-Snapshot: #[1-9]\d* sha256:[a-f0-9]{64}$/i.test(line)) {
-      return [];
-    }
-    const closure = /^(?:Closes|Fixes|Resolves) #([1-9]\d*)$/i.exec(line);
-    if (closure && !Number.isSafeInteger(Number(closure[1]))) return [];
-    lines.push(line);
-  }
-  return lines;
-}
-
-// A contributor-provided digest is data, not authorization. The separate
-// maintainer label event certifies the exact PR body containing these digests.
-function issueSnapshots(body, issueNumbers) {
-  const snapshots = new Map();
-  for (const line of declarationLines(body)) {
-    if (!/^Issue-Snapshot:/i.test(line)) continue;
-    const match = /^Issue-Snapshot: #([1-9]\d*) sha256:([a-f0-9]{64})$/i.exec(line);
-    const number = Number(match?.[1]);
-    if (!Number.isSafeInteger(number) || snapshots.has(number)) return null;
-    snapshots.set(number, match[2].toLowerCase());
-  }
-  return snapshots.size === issueNumbers.length &&
-    issueNumbers.every((number) => snapshots.has(number)) ? snapshots : null;
-}
-
+// Strict declaration extractor: returns [] unless the whole attestation header
+// is valid under the shared contract. Kept as a named export for diagnostics and
+// legacy tests; the closure gate uses parseAttestationHeader() directly.
 function linkedIssueNumbers(body) {
-  const numbers = new Set();
-  for (const line of declarationLines(body)) {
-    const match = line.match(/^(?:Closes|Fixes|Resolves)\s+#([1-9]\d*)$/i);
-    if (!match) continue;
-    const number = Number(match[1]);
-    if (Number.isSafeInteger(number)) numbers.add(number);
-  }
-  return [...numbers];
+  const parsed = parseAttestationHeader(body);
+  return parsed.ok ? parsed.issues : [];
 }
 
 function verificationReceipt(body) {
-  const lines = declarationLines(body);
-  const heads = lines.filter((line) => /^Verified-Head:/i.test(line));
-  const evidenceLines = lines.filter((line) => /^Verification:/i.test(line));
-  if (heads.length !== 1 || evidenceLines.length !== 1) return null;
-  const head = heads[0].match(/^Verified-Head:\s*([a-f0-9]{40})\s*$/i)?.[1];
-  const evidence = evidenceLines[0].match(/^Verification:\s*(\S.*)$/i)?.[1]?.trim();
-  return head && evidence ? { head: head.toLowerCase(), evidence: evidence.slice(0, 1500) } : null;
+  const parsed = parseAttestationHeader(body);
+  if (!parsed.ok || !parsed.head || !parsed.verification) return null;
+  return { head: parsed.head, evidence: parsed.verification };
 }
 
 async function closeVerifiedIssues({ github, context, core }) {
@@ -120,22 +77,23 @@ async function closeVerifiedIssues({ github, context, core }) {
     return { closed: [], skipped: 'post-signoff PR changes' };
   }
 
-  const receipt = verificationReceipt(pr.body);
-  if (!receipt || receipt.head !== pr.head.sha.toLowerCase()) {
+  const attestation = parseAttestationHeader(pr.body);
+  if (!attestation.ok) {
+    core.info('Skipped: PR body does not contain a valid strict attestation header.');
+    return { closed: [], skipped: 'invalid attestation header' };
+  }
+  const receipt = { head: attestation.head, evidence: attestation.verification };
+  if (receipt.head !== pr.head.sha.toLowerCase()) {
     core.info('Skipped: Verification and Verified-Head must certify the current PR HEAD.');
     return { closed: [], skipped: 'missing or stale verification receipt' };
   }
 
-  const issueNumbers = linkedIssueNumbers(pr.body);
+  const issueNumbers = attestation.issues;
   if (!issueNumbers.length) {
     core.info('Skipped: no standalone Closes #N / Fixes #N / Resolves #N declarations.');
     return { closed: [], skipped: 'no explicit issue linkage' };
   }
-  const snapshots = issueSnapshots(pr.body, issueNumbers);
-  if (!snapshots) {
-    core.info('Skipped: every linked Issue must have exactly one reviewed Issue-Snapshot.');
-    return { closed: [], skipped: 'missing or ambiguous issue snapshots' };
-  }
+  const snapshots = attestation.snapshots;
   // Audit receipts must not be reused across distinct verified declarations.
   // Changing PR body after labeling invalidates the original attestation.
   const bodyFingerprint = createHash('sha256').update(pr.body).digest('hex');
@@ -245,4 +203,10 @@ async function closeVerifiedIssues({ github, context, core }) {
   return { closed };
 }
 
-module.exports = { VERIFIED_LABEL, linkedIssueNumbers, verificationReceipt, closeVerifiedIssues };
+module.exports = {
+  VERIFIED_LABEL,
+  linkedIssueNumbers,
+  verificationReceipt,
+  parseAttestation: parseAttestationHeader,
+  closeVerifiedIssues,
+};

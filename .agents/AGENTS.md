@@ -48,11 +48,24 @@ Chi tiết đầy đủ: `.agents/rules/plans-workflow.md`.
 - Tuân thủ quy chuẩn commit chi tiết tại `.agents/rules/commits.md`.
 - Mỗi commit bắt buộc có body giải thích rõ nguyên nhân và lý do thay đổi, liệt kê file chỉnh sửa và bằng chứng kiểm thử; không commit message một dòng cụt ngủn cho các thay đổi logic/UI.
 
+## Issue delivery (open issue → dev)
+
+- Quy trình đầy đủ: `.agents/rules/issue-delivery-workflow.md`.
+- Leader dùng skill `.agents/skills/github-issue-orchestrator/SKILL.md`.
+- 1 issue = 1 plan = 1 branch = 1 PR vào `dev`; Developer báo Leader, Verifier tạo
+  PR + ảnh evidence, Pull Verifier preview/duyệt, Verifier đóng issue khi PR còn mở,
+  rồi Pull Verifier merge theo uỷ quyền owner.
+- Issue có visual/effect cho thú hoặc UI/UX: Leader tạo visual plan theo
+  `.agents/skills/github-issue-orchestrator/references/visual-plan.md` và giao
+  Visual Developer trước khi khóa evidence.
+- Mọi PR phải có ít nhất một ảnh evidence trong body hoặc comment, pin theo
+  `Verified-Head`; thiếu ảnh = chưa đủ điều kiện review.
+
 ## Merge review (bắt buộc)
 
 - Quy trình đầy đủ: `.agents/rules/merge-workflow.md`.
 - Trước khi merge nhánh nào: merge `origin/dev` (và `origin/main` nếu main có commit chưa vào dev) vào nhánh đó, giải conflict trên nhánh nguồn, chạy `pnpm typecheck`, test targeted và `pnpm build`.
-- Bắt buộc có merge review `APPROVED` tại `.agents/merge-review/<branch>.md` với `Head:` đúng SHA, `Target:` đúng đích. Mặc định Reviewer là người; agent chỉ được tự review khi chủ repo uỷ quyền rõ ràng và phải ghi `Authorized-by` (xem `.agents/rules/merge-workflow.md` mục 4).
+- Bắt buộc có merge review `APPROVED` tại `.agents/merge-review/<branch>.md` với `Head:` đúng SHA, `Target:` đúng đích. Mặc định Reviewer là người; agent chỉ được tự review khi chủ repo uỷ quyền rõ ràng và phải ghi `Authorized-by` (Pull Verifier đã được uỷ quyền theo `.agents/rules/issue-delivery-workflow.md`; xem thêm `.agents/rules/merge-workflow.md` mục 4).
 - Chỉ merge nhánh đã review vào `dev`; `main` chỉ nhận từ `dev` qua release PR.
 - Thiếu evidence thì agent tự chạy test + chụp ảnh màn hình thay đổi (`.agents/merge-review/<branch>/`) rồi mới merge; docs-only ghi `No visual surface`.
 - Hook `.agents/hooks/pre/merge-guard.ts` chặn `git merge`/`git push` vào `dev|main` và `gh pr merge` khi thiếu approval. Không dùng `-s ours`, `-X ours`, force push hay `--no-verify`.
