@@ -2,6 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { createServer, type ViteDevServer } from "vite";
 import type { App } from "../src/app/app";
+import type { Stage } from "../src/world/stage";
+import type * as Three from "three";
 
 describe("Planning owned-inventory modal origins", () => {
   let server: ViteDevServer;
@@ -134,6 +136,18 @@ describe("Planning owned-inventory modal origins", () => {
     await page.waitForFunction(() => document.activeElement?.textContent?.includes("Thư viện") === true, null, { polling: 100, timeout: 5_000 });
   }, 90_000);
 
+  it("retains the selected animation while changing star in the real Library viewer", async () => {
+    await openLibraryFromOwnedUnit();
+    const viewer = page.locator('[data-modal="library"] .portrait-canvas');
+    expect(await viewer.count()).toBe(1);
+    const action = page.locator(".lib-actions button").nth(2);
+    await action.evaluate((button: HTMLElement) => button.click());
+    await page.locator(".lib-stars button").nth(2).evaluate((button: HTMLElement) => button.click());
+    expect(await action.getAttribute("aria-pressed")).toBe("true");
+    expect(await page.locator(".lib-stars button").nth(2).getAttribute("aria-pressed")).toBe("true");
+    expect(await viewer.isVisible()).toBe(true);
+  }, 90_000);
+
   it("does not resurrect a removed UID or another unit of the same species on Back", async () => {
     await openLibraryFromOwnedUnit();
     await page.evaluate(() => {
@@ -160,5 +174,86 @@ describe("Planning owned-inventory modal origins", () => {
       inventory: null,
       focusedInHud: true,
     });
+  }, 90_000);
+
+  async function openEnemyDetail() {
+    const uid = await page.evaluate(() => (window as Window & { __app?: App }).__app!.bridge.run()!.enemyPreview[0]!.uid);
+    await page.waitForFunction((enemyUid) => {
+      const stage = (window as Window & { __stage?: { scene: { children: Array<{ userData: { uid?: string } }> } } }).__stage;
+      return Boolean(stage?.scene.children.some((child) => child.userData.uid === enemyUid));
+    }, uid, { timeout: 30_000 });
+    const point = await page.evaluate(async (enemyUid) => {
+      const THREE: typeof Three = await (new Function("specifier", "return import(specifier)"))("/node_modules/.vite/deps/three.js");
+      const stage = (window as Window & { __stage?: Stage }).__stage;
+      if (!stage) throw new Error("Planning stage is unavailable");
+      stage.scene.updateMatrixWorld(true);
+      stage.camera.updateMatrixWorld();
+      const roots = stage.scene.children.filter((child) => child.userData.uid);
+      const root = roots.find((child) => child.userData.uid === enemyUid);
+      if (!root) throw new Error(`No enemy scene root for ${enemyUid}`);
+      const meshes: Three.Object3D[] = [];
+      root.traverseVisible((object) => { if ("isMesh" in object && object.isMesh) meshes.push(object); });
+      const boxes = meshes.map((mesh) => new THREE.Box3().setFromObject(mesh));
+      boxes.sort((a, b) => {
+        const as = a.getSize(new THREE.Vector3()), bs = b.getSize(new THREE.Vector3());
+        return bs.x * bs.y * bs.z - as.x * as.y * as.z;
+      });
+      const canvas = stage.renderer.domElement.getBoundingClientRect();
+      for (const box of boxes) {
+        const center = box.getCenter(new THREE.Vector3()).project(stage.camera);
+        const x = canvas.left + ((center.x + 1) * canvas.width) / 2;
+        const y = canvas.top + ((1 - center.y) * canvas.height) / 2;
+        if (document.elementFromPoint(x, y) !== stage.renderer.domElement) continue;
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(new THREE.Vector2(center.x, center.y), stage.camera);
+        const hit = ray.intersectObjects(roots, true).find((entry) => {
+          for (let object: Three.Object3D | null = entry.object; object; object = object.parent) {
+            if (object.userData.uid) return object.userData.uid === enemyUid;
+          }
+          return false;
+        });
+        if (hit) return { x, y };
+      }
+      throw new Error(`No pickable screen point for ${enemyUid}`);
+    }, uid);
+    await page.mouse.move(point.x, point.y);
+    await page.waitForFunction(() => {
+      const stage = (window as Window & { __stage?: { scene: { children: Array<{ name: string; visible: boolean }> } } }).__stage;
+      return Boolean(stage?.scene.children.some((child) => child.name === "preview-effect-arrow" && child.visible));
+    }, null, { timeout: 30_000 });
+    await page.mouse.click(point.x, point.y);
+    await page.waitForSelector('[data-modal="enemy-unit-detail"]', { timeout: 30_000 });
+    return uid;
+  }
+
+  async function visiblePreviewArrows() {
+    return page.evaluate(() => {
+      const stage = (window as Window & { __stage?: Stage }).__stage;
+      if (!stage) throw new Error("Planning stage is unavailable");
+      return stage.scene.children.filter((child) => child.name === "preview-effect-arrow" && child.visible)
+        .map((child) => [child.position.x, child.position.z]);
+    });
+  }
+
+  it("restores the Planning enemy target preview when returning from detail", async () => {
+    await openEnemyDetail();
+    await page.locator(".modal-back").press("Enter", { timeout: 8_000 });
+    expect(await page.locator(".modal-root").count()).toBe(0);
+    expect((await visiblePreviewArrows()).length).toBeGreaterThan(0);
+  }, 90_000);
+
+  it("clears stale target preview if the inspected enemy was removed", async () => {
+    const uid = await openEnemyDetail();
+    await page.evaluate((removedUid) => {
+      const run = (window as Window & { __app?: App }).__app!.bridge.run()!;
+      run.enemyPreview = [{ ...run.enemyPreview[0]!, uid: `${removedUid}-replacement` }];
+    }, uid);
+    await page.locator(".modal-back").press("Enter", { timeout: 8_000 });
+    expect(await page.locator(".modal-root").count()).toBe(0);
+    expect(await visiblePreviewArrows()).toEqual([]);
+    expect(await page.evaluate(() => {
+      const app = (window as Window & { __app?: App }).__app!;
+      return app.route() === "planning" && app.layers.hud.contains(document.activeElement);
+    })).toBe(true);
   }, 90_000);
 });

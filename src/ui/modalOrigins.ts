@@ -27,4 +27,4 @@ export type ModalOrigin =
   | { kind: "settings-confirm"; state: SettingsNavigationState }
   | { kind: "library-browse"; state: LibraryBrowseNavigationState }
   | { kind: "owned-inventory"; uid: string; state: UnitInventoryNavigationState; route: "planning" }
-  | { kind: "enemy-detail"; uid: string; route: "planning"; focus: HTMLElement | null; restorePreview(): void };
+  | { kind: "enemy-detail"; uid: string; route: "planning"; focus: HTMLElement | null; restorePreview(valid: boolean): void };

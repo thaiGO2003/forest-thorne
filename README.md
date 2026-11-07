@@ -36,7 +36,7 @@ In **Expanded** tooltip mode, each unit shows its authored 1★, 2★ and 3★ s
 
 ## Modal navigation
 
-Nested Settings, Library, unit inventory and enemy detail views offer Back where a valid parent exists. Back restores the parent context and focus; closing a root modal still dismisses it. Crafting overlays return through their local parent views, while Escape or Close dismisses the crafting child flow. Mandatory choices remain non-dismissible.
+Nested Settings, Library, unit inventory and enemy detail views offer Back where a valid parent exists. Back restores the parent context and focus; closing a root modal still dismisses it. An invalid enemy preview is cleared rather than restored. Library detail retains its animation selection while changing star or skin; reopening resets transient selections but keeps an explicitly equipped account skin. Crafting overlays return through their local parent views, while Escape or Close dismisses the crafting child flow. Mandatory choices remain non-dismissible.
 
 ## Verified Issue Closure / Tự động đóng Issue
 

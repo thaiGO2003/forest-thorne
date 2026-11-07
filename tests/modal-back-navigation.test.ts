@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { createServer, type ViteDevServer } from "vite";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // The host must be imported inside the browser realm: a Node static import has no DOM.
 // Exercise the actual host and asset-backed controls in a browser, without booting the game.
@@ -8,19 +11,26 @@ let server: ViteDevServer;
 let browser: Browser;
 let page: Page;
 let origin: string;
+let cacheDir: string;
 
 beforeAll(async () => {
-  server = await createServer({ configFile: false, server: { host: "127.0.0.1", port: 0 } });
+  cacheDir = mkdtempSync(join(tmpdir(), "modal-navigation-vite-"));
+  server = await createServer({
+    configFile: false, appType: "custom", cacheDir,
+    optimizeDeps: { noDiscovery: true },
+    server: { host: "127.0.0.1", port: 0, hmr: false },
+  });
   await server.listen();
   const address = server.httpServer!.address();
   if (!address || typeof address === "string") throw new Error("Vite did not bind a TCP port");
   origin = `http://127.0.0.1:${address.port}`;
   browser = await chromium.launch({ headless: true });
-});
+}, 60_000);
 
 afterAll(async () => {
   await browser?.close();
   await server?.close();
+  if (cacheDir) rmSync(cacheDir, { recursive: true, force: true });
 });
 
 beforeEach(async () => {

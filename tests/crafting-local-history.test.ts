@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { createServer, type ViteDevServer } from "vite";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Exercise the real DOM and crafting views in Chromium without booting the 3D game.
 describe("crafting local navigation", () => {
@@ -8,9 +11,15 @@ describe("crafting local navigation", () => {
   let browser: Browser;
   let page: Page;
   let origin: string;
+  let cacheDir: string;
 
   beforeAll(async () => {
-    server = await createServer({ configFile: false, appType: "custom", root: process.cwd(), server: { port: 0, host: "127.0.0.1", hmr: false } });
+    cacheDir = mkdtempSync(join(tmpdir(), "craft-history-vite-"));
+    server = await createServer({
+      configFile: false, appType: "custom", root: process.cwd(), cacheDir,
+      optimizeDeps: { noDiscovery: true },
+      server: { port: 0, host: "127.0.0.1", hmr: false },
+    });
     server.middlewares.use("/__craft_history", (_req, res) => {
       res.setHeader("Content-Type", "text/html");
       res.end('<!doctype html><html><head><style>.craft-graph-zoom { width: 100px; height: 50px; overflow: auto } .craft-graph { min-width: 1000px; min-height: 1000px }</style></head><body><div class="modal-root"><div id="host"></div></div></body></html>');
@@ -20,10 +29,14 @@ describe("crafting local navigation", () => {
     if (!address || typeof address === "string") throw new Error("Vite did not bind a TCP port");
     origin = `http://127.0.0.1:${address.port}`;
     browser = await chromium.launch({ headless: true });
-  }, 30_000);
+  }, 60_000);
 
   afterEach(async () => { await page?.close(); });
-  afterAll(async () => { await browser?.close(); await server?.close(); });
+  afterAll(async () => {
+    await browser?.close();
+    await server?.close();
+    if (cacheDir) rmSync(cacheDir, { recursive: true, force: true });
+  });
 
   async function mount() {
     page = await browser.newPage();

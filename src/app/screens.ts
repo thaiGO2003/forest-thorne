@@ -1283,9 +1283,12 @@ function openEnemyUnitDetail(app: App, uid: string, origin?: Extract<ModalOrigin
     onBack: origin ? {
       label: t("ui.back"),
       restore() {
-        if (app.route() !== origin.route || !enemyDiagnostics(app, origin.uid)) return;
-        origin.restorePreview();
-        const focus = origin.focus?.isConnected ? origin.focus : app.layers.hud.querySelector<HTMLElement>("button,[tabindex]");
+        if (app.route() !== origin.route) return;
+        const valid = Boolean(enemyDiagnostics(app, origin.uid));
+        origin.restorePreview(valid);
+        const focus = valid && origin.focus?.isConnected && origin.focus !== document.body
+          ? origin.focus
+          : app.layers.hud.querySelector<HTMLElement>("button,[tabindex]");
         focus?.focus({ preventScroll: true });
       },
     } : undefined,
@@ -1508,10 +1511,10 @@ registerScreen("planning", (app) => {
       const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       openEnemyUnitDetail(app, uid, {
         kind: "enemy-detail", uid, route: "planning", focus,
-        restorePreview() {
+        restorePreview(valid) {
           const current = bridge.prepareEnemyPreview();
           planningEnemyPreview = current;
-          const fighters = current ? bridge.planningCombatProjection(current) : null;
+          const fighters = valid && current ? bridge.planningCombatProjection(current) : null;
           board.setTargetPreview?.(fighters ? combatTargetPreview(fighters, uid, { kitPreview: true }) : null);
         },
       });
