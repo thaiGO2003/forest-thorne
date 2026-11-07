@@ -592,7 +592,7 @@ describe("combat", () => {
       { uid: "top", baseId: "titan_earth", star: 1, row: 0, col: 4 },
       { uid: "bottom", baseId: "titan_earth", star: 1, row: 4, col: 4 },
     ];
-    const right: Placement[] = [{ uid: "right", baseId: "monkey_spear", star: 1, row: 2, col: 5 }];
+    const right: Placement[] = [{ uid: "right", baseId: "owl_nightshot", star: 1, row: 2, col: 5 }];
     let observed: { seed: number; random: string; deterministic: string } | null = null;
     for (let seed = 1; seed <= 32 && !observed; seed++) {
       const pressured = firstTargetBy(battle(left, right, { seed, rightRandomTargetChance: 1 }).events, "right");

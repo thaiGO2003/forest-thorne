@@ -5,13 +5,8 @@ import type { UnitDef } from "./catalog";
 
 type EvolutionNameMap = Record<string, Record<number, string>>;
 
-export const VI_STAR_NAME_OVERRIDES: EvolutionNameMap = {
-  deer_song: {
-    1: "Nai Thần Ca",
-    2: "Nai Hòa Điệu",
-    3: "Lộc Linh Thánh Ca",
-  },
-};
+// deer_song's "Nai Thần Ca" names were dropped when it became Nai Y Tá; it now uses generated names.
+export const VI_STAR_NAME_OVERRIDES: EvolutionNameMap = {};
 
 export const TRIBE_PREFIXES: EvolutionNameMap = {
   STONE: { 2: "Thạch", 3: "Sơn" },
