@@ -23,9 +23,11 @@ merge gate khi đưa vào `dev`/`main`.
 3. **Build chỉ khi đã xong.** Build (`tsc --noEmit && vite build`) chạy bằng
    `pnpm mr --full`, hoặc trên CI khi PR đã ra khỏi draft (ready for review).
 4. **MR phải có evidence.** `pnpm mr` tự bật dev server, chụp ảnh desktop + mobile bằng
-   Chromium headless, upload gist public và nhúng ảnh vào description của MR.
-5. **Không commit ảnh evidence vào repo.** Ảnh nằm ở `artifacts/mr/<timestamp>/` (đã gitignore),
-   phần upload dùng gist.
+   Chromium headless; ảnh được upload lên **branch evidence riêng** (`MR_EVIDENCE_BRANCH`,
+   mặc định `mr-evidence`) qua GitHub contents API và nhúng raw URL vào description của MR.
+   Gist không nhận binary nên không dùng gist cho evidence.
+5. **Không commit ảnh evidence vào repo.** Ảnh local nằm ở `artifacts/mr/<timestamp>/`
+   (đã gitignore); ảnh upload nằm trên branch evidence, không nằm trong diff MR.
 6. **Fast path không phải merge approval.** Pre-push/draft CI pass chỉ cho phép push/PR draft;
    merge vào `dev` vẫn phải qua Part B.
 
@@ -43,15 +45,18 @@ pnpm mr --lint-only    # chỉ lint (hook pre-push gọi lệnh này)
 Hook `pre-push` chỉ chạy lint và chặn push nếu lint lỗi; không chạy test tích hợp,
 không build.
 
-### CI (`pr-checks.yml`)
+### CI (`pr-checks.yml`) — chưa triển khai trong repo hiện tại
 
-- Job `lint`: luôn chạy khi PR mở/cập nhật.
-- Job `build`: chỉ chạy khi `draft == false` (đã xong), phụ thuộc job lint.
-- Không có job test tích hợp — giữ CI nhanh; test chạy theo yêu cầu.
+- Hiện repo chỉ có `.github/workflows/agents-migration-guard.yml` và
+  `.github/workflows/close-verified-pr-issues.yml`; chưa có `pr-checks.yml`.
+- Khi workflow này được bổ sung, policy dự kiến: job `lint` luôn chạy khi PR mở/cập nhật;
+  job `build` chỉ chạy khi `draft == false` (đã xong), phụ thuộc job lint; không có job test
+  tích hợp — giữ CI nhanh, test chạy theo yêu cầu.
+- Không claim CI lint/build hiện tại đang chạy khi workflow chưa tồn tại.
 
 ### Ranh giới draft → ready
 
-- **Draft/pre-push:** lint + evidence `pnpm mr` (external/gist), chưa cần targeted test/build
+- **Draft/pre-push:** lint + evidence `pnpm mr` (branch evidence `mr-evidence`), chưa cần targeted test/build
   merge gate.
 - **Ready/merge:** phải chạy Part B; `pnpm mr --full` build chỉ là một phần, không thay
   targeted tests, head-pinned evidence, dossier APPROVED.

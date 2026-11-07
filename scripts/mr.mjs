@@ -6,8 +6,9 @@
 //   `tsc --noEmit`). Integration tests are deliberately NOT run here.
 // - Build runs only for a finished branch: `pnpm mr --full` or CI when the PR is out of draft.
 // - Browser evidence: the dev server is started on a free port, headless Chromium captures
-//   desktop + mobile screenshots, and the PNGs are uploaded to a public gist so the MR
-//   description can embed them.
+//   desktop + mobile screenshots, and the PNGs are uploaded to the dedicated evidence branch
+//   (`MR_EVIDENCE_BRANCH`, default `mr-evidence`) via the GitHub contents API; gist cannot
+//   accept binary files. Raw URLs are embedded in the MR description.
 //
 // Usage:
 //   pnpm mr                     # lint + evidence + push + create/update PR (draft stays draft)
