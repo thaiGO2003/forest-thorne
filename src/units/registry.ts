@@ -19,6 +19,10 @@ import spiderSpirit from "./roster/spiderSpirit";
 
 import elephantTide from "./roster/elephantTide";
 import hawkLance from "./roster/hawkLance";
+import tigerFang from "./roster/tigerFang";
+import wolfAlpha from "./roster/wolfAlpha";
+import crocodileBite from "./roster/crocodileBite";
+import owlNight from "./roster/owlNight";
 export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   jaguar_hunt: jaguarHunt,
   toad_poison: toadPoison,
@@ -37,6 +41,10 @@ export const RIGS: Readonly<Record<string, UnitRigDef<unknown>>> = {
   spider_venom: spiderSpirit,
   elephant_guard: elephantTide,
   hawk_hunter: hawkLance,
+  tiger_fang: tigerFang,
+  wolf_alpha: wolfAlpha,
+  crocodile_bite: crocodileBite,
+  owl_nightshot: owlNight,
 };
 
 const TIER_PLANK = [0x9aa0a6, 0x9aa0a6, 0x4caf50, 0x3d8fe0, 0xa05ad8, 0xf0b030, 0xd8433a];
